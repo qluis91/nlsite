@@ -1,0 +1,54 @@
+<div class="page-header">
+  <h1><%= user ? 'Editar Usuario' : 'Crear Usuario' %></h1>
+  <a href="/admin/users" class="btn btn-outline">&larr; Volver a Usuarios</a>
+</div>
+
+<div class="card card-form">
+  <form action="<%= action %>" method="POST" class="admin-form">
+    <div class="form-group">
+      <label for="name">Nombre completo</label>
+      <input type="text" id="name" name="name" class="form-control"
+             value="<%= user ? user.name : '' %>" placeholder="Nombre del usuario" required autofocus>
+    </div>
+
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" class="form-control"
+             value="<%= user ? user.email : '' %>" placeholder="email@ejemplo.com" required>
+    </div>
+
+    <div class="form-group">
+      <label for="password">
+        Contraseña
+        <% if (user) { %><span class="text-muted"> (dejar vacío para mantener la actual)</span><% } %>
+      </label>
+      <input type="password" id="password" name="password" class="form-control"
+             placeholder="<%= user ? 'Nueva contraseña (opcional)' : 'Contraseña' %>"
+             <%= user ? '' : 'required' %> minlength="6">
+    </div>
+
+    <div class="form-group">
+      <label for="role">Rol</label>
+      <select id="role" name="role" class="form-control">
+        <option value="user" <%= (user && user.role === 'user') ? 'selected' : '' %>>Usuario</option>
+        <option value="admin" <%= (user && user.role === 'admin') ? 'selected' : '' %>>Administrador</option>
+      </select>
+    </div>
+
+    <% if (user) { %>
+      <div class="form-group form-check">
+        <label>
+          <input type="checkbox" name="is_active" value="1" <%= user.is_active ? 'checked' : '' %>>
+          Usuario activo
+        </label>
+      </div>
+    <% } %>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">
+        <%= user ? 'Actualizar Usuario' : 'Crear Usuario' %>
+      </button>
+      <a href="/admin/users" class="btn btn-outline">Cancelar</a>
+    </div>
+  </form>
+</div>

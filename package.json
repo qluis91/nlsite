@@ -1,0 +1,31 @@
+{
+  "name": "nl-site-boilerplate",
+  "version": "1.0.0",
+  "description": "Plantilla Web Modular - Node.js + Express + EJS + MySQL (Marca Blanca)",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "keywords": [
+    "boilerplate",
+    "express",
+    "ejs",
+    "mysql",
+    "authentication"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.6.1",
+    "ejs": "^3.1.10",
+    "express": "^4.22.2",
+    "express-session": "^1.19.0",
+    "mysql2": "^3.23.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  },
+  "type": "commonjs"
+}

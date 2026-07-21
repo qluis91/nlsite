@@ -1,0 +1,66 @@
+<div class="page-header">
+  <h1>Gestión de Usuarios</h1>
+  <a href="/admin/users/create" class="btn btn-success">+ Nuevo Usuario</a>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nombre</th>
+          <th>Email</th>
+          <th>Rol</th>
+          <th>Estado</th>
+          <th>Creado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (users.length === 0) { %>
+          <tr>
+            <td colspan="7" class="text-center">No hay usuarios registrados.</td>
+          </tr>
+        <% } else { %>
+          <% users.forEach(function(u) { %>
+            <tr>
+              <td><%= u.id %></td>
+              <td><strong><%= u.name %></strong></td>
+              <td><%= u.email %></td>
+              <td>
+                <span class="badge <%= u.role === 'admin' ? 'badge-primary' : 'badge-secondary' %>">
+                  <%= u.role === 'admin' ? 'Admin' : 'Usuario' %>
+                </span>
+              </td>
+              <td>
+                <span class="badge <%= u.is_active ? 'badge-success' : 'badge-danger' %>">
+                  <%= u.is_active ? 'Activo' : 'Inactivo' %>
+                </span>
+              </td>
+              <td><%= new Date(u.created_at).toLocaleDateString('es-MX') %></td>
+              <td class="actions-cell">
+                <a href="/admin/users/<%= u.id %>/edit" class="btn btn-sm btn-primary">Editar</a>
+
+                <% if (u.id !== user.id) { %>
+                  <form action="/admin/users/<%= u.id %>/toggle" method="POST" style="display:inline">
+                    <button type="submit" class="btn btn-sm <%= u.is_active ? 'btn-warning' : 'btn-success' %>">
+                      <%= u.is_active ? 'Desactivar' : 'Activar' %>
+                    </button>
+                  </form>
+
+                  <form action="/admin/users/<%= u.id %>/delete" method="POST" style="display:inline"
+                        onsubmit="return confirm('¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.')">
+                    <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                  </form>
+                <% } else { %>
+                  <span class="text-muted" style="font-size:0.8rem;">(Tú)</span>
+                <% } %>
+              </td>
+            </tr>
+          <% }); %>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</div>

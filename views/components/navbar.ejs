@@ -1,0 +1,20 @@
+<nav class="navbar">
+  <div class="container navbar-inner">
+    <a href="/" class="navbar-brand"><%= site.name %></a>
+    <ul class="navbar-nav">
+      <li><a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">Inicio</a></li>
+      <% if (user) { %>
+        <% if (user.role === 'admin') { %>
+          <li><a href="/admin" class="<%= currentPath.startsWith('/admin') ? 'active' : '' %>">Panel Admin</a></li>
+        <% } %>
+        <li class="nav-user">
+          <span class="nav-user-name"><%= user.name %></span>
+          <a href="/auth/logout" class="btn btn-sm btn-outline">Cerrar Sesión</a>
+        </li>
+      <% } else { %>
+        <li><a href="/auth/login" class="<%= currentPath === '/auth/login' ? 'active' : '' %>">Iniciar Sesión</a></li>
+        <li><a href="/auth/register" class="btn btn-sm btn-primary <%= currentPath === '/auth/register' ? 'active' : '' %>">Registrarse</a></li>
+      <% } %>
+    </ul>
+  </div>
+</nav>

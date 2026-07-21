@@ -1,0 +1,28 @@
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <p>Bienvenido al panel de control, <strong><%= user.name %></strong>.</p>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card stat-primary">
+    <h3><%= stats.totalUsers %></h3>
+    <p>Usuarios Totales</p>
+  </div>
+  <div class="stat-card stat-success">
+    <h3><%= stats.activeUsers %></h3>
+    <p>Usuarios Activos</p>
+  </div>
+  <div class="stat-card stat-warning">
+    <h3><%= stats.totalAdmins %></h3>
+    <p>Administradores</p>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Acciones Rápidas</h2>
+  <div class="quick-actions">
+    <a href="/admin/users" class="btn btn-primary">Gestionar Usuarios</a>
+    <a href="/admin/users/create" class="btn btn-success">Crear Usuario</a>
+    <a href="/" class="btn btn-outline">Ver Sitio Web</a>
+  </div>
+</div>

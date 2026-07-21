@@ -1,0 +1,40 @@
+# ── Secrets ──
+.env
+
+# ── Dependencies ──
+node_modules/
+
+# ── Logs ──
+*.log
+logs/
+npm-debug.log*
+
+# ── OS files ──
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── Editor ──
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Graphify caches (outputs committed, caches not) ──
+graphify-out/cache/
+graphify-out/.graphify_python
+graphify-out/.needs_update
+
+# ── Session / temp ──
+sessions/
+*.session
+
+# ── Uploads ──
+uploads/
+
+# ── Database ──
+*.sql.gz
+*.sql.bak
+
+# ── CodeBurn (no repo files, but just in case) ──
+.codeburn/

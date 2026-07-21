@@ -1,0 +1,49 @@
+<section class="hero">
+  <div class="hero-content">
+    <h1><%= site.name %></h1>
+    <p class="hero-subtitle"><%= site.description %></p>
+
+    <% if (user) { %>
+      <div class="hero-welcome">
+        <h2>¡Hola, <%= user.name %>!</h2>
+        <p>Has iniciado sesión como <strong><%= user.role === 'admin' ? 'Administrador' : 'Usuario' %></strong>.</p>
+        <% if (user.role === 'admin') { %>
+          <a href="/admin" class="btn btn-primary btn-lg">Ir al Panel de Control</a>
+        <% } %>
+      </div>
+    <% } else { %>
+      <div class="hero-actions">
+        <a href="/auth/login" class="btn btn-primary btn-lg">Iniciar Sesión</a>
+        <a href="/auth/register" class="btn btn-outline btn-lg">Registrarse</a>
+      </div>
+    <% } %>
+  </div>
+</section>
+
+<section class="features">
+  <div class="container">
+    <h2>Características de la Plantilla</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <span class="feature-icon">🎨</span>
+        <h3>Marca Blanca</h3>
+        <p>Cambia colores, nombre y configuración desde <code>.env</code> sin tocar el código.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🔐</span>
+        <h3>Autenticación</h3>
+        <p>Sistema de login/registro con sesiones, bcrypt y middleware de roles.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🧩</span>
+        <h3>Modular</h3>
+        <p>Arquitectura MVC con componentes EJS reutilizables y layouts.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📊</span>
+        <h3>Panel Admin</h3>
+        <p>CRUD completo de usuarios con dashboard y control de estados.</p>
+      </div>
+    </div>
+  </div>
+</section>

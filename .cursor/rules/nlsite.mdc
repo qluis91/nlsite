@@ -1,0 +1,41 @@
+---
+description: Project rules for nlSite - Express/EJS/MySQL boilerplate
+alwaysApply: true
+---
+
+# nlSite Project Rules
+
+## Identity
+- Project name: **nlSite**
+- Stack: Node.js, Express, EJS, MySQL (mysql2/promise), express-session, bcryptjs
+- Purpose: Brand-white-label web boilerplate, cloneable for different clients via `.env`
+
+## Architecture Principles
+- Keep Express/EJS/MySQL architecture simple
+- Avoid new folders unless 2+ real files need the separation
+- Avoid unnecessary dependencies
+- Reuse existing components, styles, and patterns
+- Preserve responsive behavior (768px breakpoint exists in style.css)
+
+## Code Changes
+1. **Inspect before editing** — read existing files first
+2. **Use Graphify** (`graphify query "<question>"`) before scanning many files
+3. **Smallest safe change** — minimal diff that solves the problem
+4. **Validate server-side input** — never trust client data
+5. **Use parameterized SQL queries** — always `?` placeholders, never string concatenation
+6. **Preserve auth/authorization** — respect isAuthenticated, isAdmin, isGuest middlewares
+
+## Security
+- Never expose `.env` values in any output
+- Never modify `schema.sql` destructively without explicit authorization
+- Never delete or reset production or development data automatically
+
+## Workflow
+- Read `docs/PROJECT_STATUS.md` before starting work
+- Run relevant validation after each implementation
+- Update `docs/PROJECT_STATUS.md` and `docs/CHANGELOG.md` after completed phases
+- Keep responses concise (Caveman skill available) while preserving technical details
+
+## Config
+- Site identity (name, colors) lives in `.env` → injected via `config/site.js`
+- Database pool in `config/db.js` (mysql2/promise)
