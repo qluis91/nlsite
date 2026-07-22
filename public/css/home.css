@@ -157,6 +157,7 @@ body.page-home .navbar {
   min-height: 5rem;
   max-width: min(100%, var(--home-content-width) + 2 * var(--home-panel-padding));
   margin-inline: auto;
+  margin-bottom: 10rem;
 }
 
 .hero-logo {
@@ -180,6 +181,7 @@ body.page-home .navbar {
 .hero-nav {
   z-index: 2;
   justify-self: end;
+  margin-top: -8rem;
 }
 
 .hero-nav-list {
@@ -298,7 +300,8 @@ body.page-home .navbar {
   text-transform: uppercase;
   color: var(--home-text-dark);
   opacity: 0.85;
-  margin-bottom: 1.25rem;
+  margin-bottom: 5rem;
+  margin-top: 10rem;
   position: relative;
   padding-bottom: 0.65rem;
 }
@@ -323,7 +326,7 @@ body.page-home .navbar {
     0 0 40px rgba(124, 240, 61, 0.3),
     0 0 80px rgba(124, 240, 61, 0.15),
     0 0 120px rgba(124, 240, 61, 0.08);
-  margin: 0 0 2.5rem;
+  margin: 0 0 5rem;
   letter-spacing: -0.02em;
 }
 
@@ -623,6 +626,7 @@ body.page-home .navbar {
 
   .hero-heading {
     text-align: center;
+    margin-bottom: 4rem;
   }
 
   .hero-ctas {
