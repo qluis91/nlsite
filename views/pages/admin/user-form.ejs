@@ -35,14 +35,13 @@
       </select>
     </div>
 
-    <% if (user) { %>
-      <div class="form-group form-check">
-        <label>
-          <input type="checkbox" name="is_active" value="1" <%= user.is_active ? 'checked' : '' %>>
-          Usuario activo
-        </label>
-      </div>
-    <% } %>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="is_active" value="1"
+               <%= (!user || user.is_active) ? 'checked' : '' %>>
+        Usuario activo
+      </label>
+    </div>
 
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">

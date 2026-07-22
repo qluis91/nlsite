@@ -34,9 +34,11 @@
                 </span>
               </td>
               <td>
-                <span class="badge <%= u.is_active ? 'badge-success' : 'badge-danger' %>">
-                  <%= u.is_active ? 'Activo' : 'Inactivo' %>
-                </span>
+                <% if (u.is_active) { %>
+                  <span class="badge badge-success">Activo</span>
+                <% } else { %>
+                  <span class="badge badge-danger">Inactivo</span>
+                <% } %>
               </td>
               <td><%= new Date(u.created_at).toLocaleDateString('es-MX') %></td>
               <td class="actions-cell">

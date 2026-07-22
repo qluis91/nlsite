@@ -116,6 +116,24 @@ code {
   color: var(--color-secondary);
 }
 
+/* ── Logout Form (inline in navbar) ── */
+.logout-form {
+  margin: 0;
+  display: inline-flex;
+}
+
+.logout-form .btn {
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.35rem 0.75rem;
+}
+
+.logout-form .btn:hover {
+  color: var(--color-primary);
+  background: #eff6ff;
+  border-color: var(--color-primary);
+}
+
 .navbar-admin {
   background: #fff;
   border-bottom: 1px solid #e2e8f0;
@@ -404,6 +422,29 @@ select.form-control {
   margin-top: 1.5rem;
   font-size: 0.9rem;
   color: var(--color-secondary);
+}
+
+.auth-footer.admin-link-footer {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* ── Admin Login Badge ── */
+.auth-card-admin {
+  border-top: 4px solid var(--color-primary);
+}
+
+.admin-login-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  background: var(--color-primary);
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
 }
 
 /* ── Hero (Home) ── */

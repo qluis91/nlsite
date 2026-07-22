@@ -4,7 +4,11 @@
     <ul class="navbar-nav">
       <li><span class="nav-user-name"><i class="icon-user"></i> <%= user.name %></span></li>
       <li><a href="/" class="btn btn-sm btn-outline">Ver Sitio</a></li>
-      <li><a href="/auth/logout" class="btn btn-sm btn-outline">Cerrar Sesión</a></li>
+      <li>
+        <form action="/auth/logout" method="POST" class="logout-form">
+          <button type="submit" class="btn btn-sm btn-outline logout-button">Cerrar Sesión</button>
+        </form>
+      </li>
     </ul>
   </div>
 </nav>

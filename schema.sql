@@ -1,5 +1,5 @@
 -- ============================================
--- ESQUEMA SQL - PLANTILLA WEB MODULAR
+-- ESQUEMA SQL — PLANTILLA WEB MODULAR
 -- Importar en phpMyAdmin (XAMPP)
 -- ============================================
 
@@ -13,10 +13,9 @@ USE nlsite_db;
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
-  email VARCHAR(150) NOT NULL UNIQUE,
+  email VARCHAR(100) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
-  role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
-  avatar VARCHAR(255) DEFAULT NULL,
+  role_id INT DEFAULT 2,             -- 1 = admin, 2 = user
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -38,6 +37,5 @@ CREATE TABLE IF NOT EXISTS site_settings (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ── Admin por defecto (contraseña: admin123) ──
-INSERT INTO users (name, email, password, role) VALUES
-('Administrador', 'admin@misitio.com', '$2a$10$rOzR0aQJMDGqQk5Vx5JmU.TqR7kZqLDGq3XLMv3fVqvhGqLkMvH5K', 'admin');
+-- ── Crear administrador ──
+-- Usa: node create-admin.js

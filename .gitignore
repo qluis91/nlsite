@@ -20,10 +20,20 @@ Desktop.ini
 *.swp
 *.swo
 
-# ── Graphify caches (outputs committed, caches not) ──
+# ── Graphify: generated/rebuildable artifacts ──
 graphify-out/cache/
+graphify-out/backup/
+graphify-out/20*/
 graphify-out/.graphify_python
+graphify-out/.graphify_root
 graphify-out/.needs_update
+graphify-out/cost.json
+graphify-out/manifest.json
+
+# ── Graphify: large outputs regenerated on every build ──
+# (keep GRAPH_REPORT.md + .graphify_labels.json committed for agents)
+graphify-out/graph.html
+graphify-out/graph.json
 
 # ── Session / temp ──
 sessions/

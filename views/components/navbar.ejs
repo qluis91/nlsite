@@ -4,12 +4,14 @@
     <ul class="navbar-nav">
       <li><a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">Inicio</a></li>
       <% if (user) { %>
-        <% if (user.role === 'admin') { %>
-          <li><a href="/admin" class="<%= currentPath.startsWith('/admin') ? 'active' : '' %>">Panel Admin</a></li>
+        <% if (Number(user.role_id) === 1) { %>
+          <li><a href="/admin" class="<%= currentPath.startsWith('/admin') && currentPath !== '/admin/login' ? 'active' : '' %>">Panel Admin</a></li>
         <% } %>
         <li class="nav-user">
           <span class="nav-user-name"><%= user.name %></span>
-          <a href="/auth/logout" class="btn btn-sm btn-outline">Cerrar Sesión</a>
+          <form action="/auth/logout" method="POST" class="logout-form">
+            <button type="submit" class="btn btn-sm btn-outline logout-button">Cerrar Sesión</button>
+          </form>
         </li>
       <% } else { %>
         <li><a href="/auth/login" class="<%= currentPath === '/auth/login' ? 'active' : '' %>">Iniciar Sesión</a></li>

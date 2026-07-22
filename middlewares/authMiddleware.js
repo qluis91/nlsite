@@ -1,11 +1,5 @@
 /**
  * Middleware de Autenticación y Roles.
- *
- * Funciones exportadas:
- * - isAuthenticated : redirige a /auth/login si no hay sesión.
- * - isGuest         : redirige a / si ya hay sesión (para login/register).
- * - isAdmin         : verifica que el rol sea 'admin'.
- * - setLocals       : inyecta user y siteConfig en res.locals para EJS.
  */
 
 const siteConfig = require('../config/site');
@@ -22,9 +16,9 @@ function setLocals(req, res, next) {
   next();
 }
 
-// ── Proteger rutas: requiere sesión ──
+// ── Proteger rutas: requiere sesión con id válido ──
 function isAuthenticated(req, res, next) {
-  if (req.session.user) return next();
+  if (req.session.user && req.session.user.id) return next();
   req.session.error_msg = 'Debes iniciar sesión para acceder.';
   return res.redirect('/auth/login');
 }
@@ -35,11 +29,19 @@ function isGuest(req, res, next) {
   return res.redirect('/');
 }
 
-// ── Proteger rutas: requiere rol admin ──
+// ── Proteger rutas: requiere role_id = 1 (admin) ──
 function isAdmin(req, res, next) {
-  if (req.session.user && req.session.user.role === 'admin') return next();
+  if (req.session.user && Number(req.session.user.role_id) === 1) return next();
   req.session.error_msg = 'Acceso denegado. Se requieren permisos de administrador.';
   return res.redirect('/');
 }
 
-module.exports = { setLocals, isAuthenticated, isGuest, isAdmin };
+// ── Manejar visitantes del login de administrador ──
+function isAdminGuest(req, res, next) {
+  if (!req.session.user) return next();
+  if (Number(req.session.user.role_id) === 1) return res.redirect('/admin');
+  req.session.error_msg = 'No tienes permisos de administrador.';
+  return res.redirect('/auth/login');
+}
+
+module.exports = { setLocals, isAuthenticated, isGuest, isAdmin, isAdminGuest };

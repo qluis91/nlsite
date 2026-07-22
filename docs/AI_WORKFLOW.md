@@ -8,11 +8,12 @@ Tools configured for efficient AI-assisted development with DeepSeek in Cursor.
 
 **What:** Builds a queryable knowledge graph from project source code.  
 **Install:** `uv tool install graphifyy`  
+**First use after clone:** `graphify update .` (generates graph.json needed for queries)  
 **Location:** `graphify-out/`
 
 ### Daily Use
 
-```bash
+```powershell
 # Query the graph (no LLM tokens, BFS traversal)
 graphify query "how does authentication work in this project"
 
@@ -25,46 +26,59 @@ graphify explain "authMiddleware"
 
 ### When to Refresh
 
-Run full rebuild after major structural changes (new files, refactors):
-```bash
-graphify .          # full rebuild
-graphify . --update # incremental (only changed files)
+After structural changes (new files, refactors):
+```powershell
+graphify update .    # incremental rebuild (AST only, no LLM needed)
 ```
+
+For full rebuild including docs/papers/images, use the Graphify skill in Cursor:
+`/graphify .`
+
+`graphify update .` is the verified PowerShell command covering code-only changes.
 
 ### Graph Outputs
 
-| File | Purpose |
-|------|---------|
-| `graph.html` | Interactive browser visualization |
-| `graph.json` | Raw graph data (queryable) |
-| `GRAPH_REPORT.md` | Audit report with god nodes, surprises, questions |
-| `manifest.json` | File manifest for incremental updates |
-| `cost.json` | Cumulative token tracking |
+| File | Purpose | Git |
+|------|---------|-----|
+| `graph.json` | Raw graph data (queryable) | Ignored — regenerated |
+| `graph.html` | Interactive browser visualization | Ignored — regenerated |
+| `GRAPH_REPORT.md` | Audit report with god nodes, surprises, questions | Committed |
+| `.graphify_labels.json` | Community labels | Committed |
+| `manifest.json` | File manifest for incremental updates | Ignored |
+| `cost.json` | Cumulative token tracking | Ignored |
 
 ---
 
 ## Caveman — Token-Efficient Communication
 
 **What:** Compresses agent output ~65% while preserving technical accuracy.  
-**Status:** Already loaded as Cursor skill.
+**Status:** Skill available in Cursor via `~/.claude/plugins/cache/caveman/`.  
+**Persistence:** Active for the session once triggered. Does not persist between sessions automatically.
 
 ### Usage
 
-Caveman activates automatically when token efficiency is requested, or explicitly via `/caveman`. Levels: `lite`, `full` (default), `ultra`.
+Activate explicitly: `/caveman`  
+Levels: `/caveman lite`, `/caveman full` (default), `/caveman ultra`  
+Auto-triggers when token efficiency is requested.
 
-Disable: "stop caveman" or "normal mode".
+Disable: `stop caveman` or `normal mode`.
+
+### What Caveman Never Compresses
+
+Code, commands, file paths, SQL, errors, test results, and security warnings are always preserved verbatim. Only conversational text is compressed.
 
 ---
 
 ## CodeBurn — Token Usage Tracker
 
-**What:** Tracks AI token usage by task, tool, model, and project.  
+**What:** Estimates AI token usage and cost from locally available session data.  
+**Values shown are estimates, not actual Cursor or DeepSeek billing.**  
 **Install:** `npm install -g codeburn` (already installed v0.9.16)  
-**Location:** No files inside repository.
+**Location:** No files stored inside repository.
 
 ### Daily Use
 
-```bash
+```powershell
 codeburn status       # today + month summary
 codeburn today        # today's dashboard
 codeburn month        # this month's dashboard
@@ -76,9 +90,9 @@ codeburn models       # per-model token + cost table
 codeburn export       # CSV/JSON export
 ```
 
-### Review Token Spend
+### Review Token Estimates
 
-```bash
+```powershell
 codeburn overview     # quick summary
 codeburn models       # by model
 codeburn sessions     # by session
@@ -86,7 +100,7 @@ codeburn sessions     # by session
 
 ### Disable / Remove
 
-```bash
+```powershell
 npm uninstall -g codeburn
 ```
 
@@ -96,16 +110,19 @@ No repository files created by CodeBurn.
 
 ## Ignored Files (`.gitignore`)
 
-Generated/cache files excluded from Git:
-- `graphify-out/cache/` (AST cache)
-- CodeBurn stores no project files
+Files excluded from Git:
 - `.env` (secrets)
 - `node_modules/`
+- `graphify-out/cache/`, `graphify-out/backup/` (build caches)
+- `graphify-out/graph.json`, `graphify-out/graph.html` (rebuilt on update)
+- `graphify-out/manifest.json`, `graphify-out/cost.json` (machine-specific)
+- `graphify-out/.graphify_python`, `graphify-out/.graphify_root` (local paths)
 
-Committed outputs:
-- `graphify-out/graph.json`, `graph.html`, `GRAPH_REPORT.md`
-- `graphify-out/manifest.json`, `cost.json`
-- `graphify-out/.graphify_labels.json`
+Committed Graphify outputs:
+- `graphify-out/GRAPH_REPORT.md` (3 KB, useful for agents)
+- `graphify-out/.graphify_labels.json` (0.2 KB, community labels)
+
+First use after clone: `graphify update .` to regenerate `graph.json`.
 
 ---
 
