@@ -160,11 +160,177 @@
 
   </section>
 
-  <!-- ═══ Panel 2: Transition placeholder (scroll space only) ═══ -->
+  <!-- ═══ Panel 2: Project showcase ═══ -->
   <section
-    class="home-panel home-panel--transition"
+    id="proyectos"
+    class="home-panel home-panel--showcase"
     data-panel="2"
-    aria-label="Próxima sección"
+    aria-labelledby="showcase-title"
   >
+    <div class="showcase-trust">
+      <p class="showcase-trust__label">
+        Capacidades que dan forma a cada proyecto.
+      </p>
+
+      <div
+        class="logo-loop"
+        data-logo-loop
+        role="region"
+        aria-label="Capacidades de diseño y producción de NinjaLab"
+      >
+        <div class="logo-loop__viewport">
+          <div class="logo-loop__track" data-logo-loop-track>
+            <ul class="logo-loop__sequence" data-logo-loop-sequence>
+              <li class="logo-loop__item"><span class="logo-loop__wordmark">IMPRESIÓN 3D</span></li>
+              <li class="logo-loop__item"><span class="logo-loop__wordmark">DISEÑO</span></li>
+              <li class="logo-loop__item"><span class="logo-loop__wordmark">MODELADO</span></li>
+              <li class="logo-loop__item"><span class="logo-loop__wordmark">PROTOTIPADO</span></li>
+              <li class="logo-loop__item"><span class="logo-loop__wordmark">PERSONALIZACIÓN</span></li>
+              <li class="logo-loop__item"><span class="logo-loop__wordmark">ACABADOS</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="showcase-container">
+      <div class="showcase-heading-wrap">
+        <p class="showcase-kicker">PROYECTOS NINJALAB</p>
+        <h2 id="showcase-title" class="showcase-heading">
+          Convertimos ideas en piezas que destacan.
+        </h2>
+      </div>
+
+      <div
+        class="project-carousel"
+        data-project-carousel
+        tabindex="0"
+        role="region"
+        aria-roledescription="carrusel"
+        aria-label="Muestra temporal de proyectos NinjaLab"
+      >
+        <ul class="project-carousel__slides" data-carousel-slides>
+          <li
+            class="project-carousel__slide"
+            data-project-slide
+            data-project-title="Diseño desde cero"
+            data-project-theme="graphite"
+            aria-label="1 de 4"
+          >
+            <img
+              class="project-carousel__image"
+              src="/images/logo.png"
+              alt="Recurso gráfico temporal de NinjaLab para Diseño desde cero"
+              width="5333"
+              height="3000"
+              loading="lazy"
+              decoding="async"
+              draggable="false"
+            >
+            <div class="project-carousel__content">
+              <p class="project-carousel__category">MUESTRA TEMPORAL · MODELADO</p>
+              <h3 class="project-carousel__title">Diseño desde cero</h3>
+              <p class="project-carousel__description">
+                Una vista temporal para representar el proceso que lleva una idea digital hasta una pieza lista para producir.
+              </p>
+              <a class="project-carousel__cta" href="#showcase-title">Conocer el enfoque</a>
+            </div>
+          </li>
+
+          <li
+            class="project-carousel__slide"
+            data-project-slide
+            data-project-title="Piezas personalizadas"
+            data-project-theme="lime"
+            aria-label="2 de 4"
+          >
+            <img
+              class="project-carousel__image"
+              src="/images/LogoCompleto.png"
+              alt="Recurso gráfico temporal de NinjaLab para Piezas personalizadas"
+              width="5333"
+              height="3000"
+              loading="eager"
+              fetchpriority="high"
+              decoding="async"
+              draggable="false"
+            >
+            <div class="project-carousel__content">
+              <p class="project-carousel__category">MUESTRA TEMPORAL · IMPRESIÓN 3D</p>
+              <h3 class="project-carousel__title">Piezas personalizadas</h3>
+              <p class="project-carousel__description">
+                Un espacio preparado para mostrar proyectos reales de impresión, personalización y producción de NinjaLab.
+              </p>
+              <a class="project-carousel__cta" href="#showcase-title">Ver la propuesta</a>
+            </div>
+          </li>
+
+          <li
+            class="project-carousel__slide"
+            data-project-slide
+            data-project-title="Acabados profesionales"
+            data-project-theme="silver"
+            aria-label="3 de 4"
+          >
+            <img
+              class="project-carousel__image"
+              src="/images/logoletras.png"
+              alt="Recurso gráfico temporal de NinjaLab para Acabados profesionales"
+              width="5333"
+              height="3000"
+              loading="lazy"
+              decoding="async"
+              draggable="false"
+            >
+            <div class="project-carousel__content">
+              <p class="project-carousel__category">MUESTRA TEMPORAL · ACABADOS</p>
+              <h3 class="project-carousel__title">Acabados profesionales</h3>
+              <p class="project-carousel__description">
+                Tarjeta temporal para futuras fotografías de pintura, detalle y acabado final realizadas por NinjaLab.
+              </p>
+              <a class="project-carousel__cta" href="#showcase-title">Explorar posibilidades</a>
+            </div>
+          </li>
+
+          <li
+            class="project-carousel__slide"
+            data-project-slide
+            data-project-title="Prototipos funcionales"
+            data-project-theme="ink"
+            aria-label="4 de 4"
+          >
+            <img
+              class="project-carousel__image"
+              src="/images/logo.png"
+              alt="Recurso gráfico temporal de NinjaLab para Prototipos funcionales"
+              width="5333"
+              height="3000"
+              loading="lazy"
+              decoding="async"
+              draggable="false"
+            >
+            <div class="project-carousel__content">
+              <p class="project-carousel__category">MUESTRA TEMPORAL · PROTOTIPADO</p>
+              <h3 class="project-carousel__title">Prototipos funcionales</h3>
+              <p class="project-carousel__description">
+                Espacio temporal para documentar pruebas, iteraciones y soluciones funcionales antes de la producción final.
+              </p>
+              <a class="project-carousel__cta" href="#showcase-title">Conocer el proceso</a>
+            </div>
+          </li>
+        </ul>
+
+        <div class="project-carousel__controls" aria-label="Controles del carrusel">
+          <button type="button" class="project-carousel__control" data-carousel-prev aria-label="Proyecto anterior">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"/></svg>
+          </button>
+          <button type="button" class="project-carousel__control" data-carousel-next aria-label="Proyecto siguiente">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+          </button>
+        </div>
+
+        <p class="project-carousel__status" data-carousel-status aria-live="polite" aria-atomic="true"></p>
+      </div>
+    </div>
   </section>
 </main>

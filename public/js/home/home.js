@@ -6,10 +6,14 @@
 import { initHomeAnimations } from './animations.js';
 import { initGrainientBackground } from './grainientBackground.js';
 import { initHelmet3D } from './helmet3d.js';
+import { initLogoLoop } from './logoLoop.js';
 import { initNavbar } from './navbar.js';
+import { initProjectCarousel } from './projectCarousel.js';
 import { initSplashCursor } from './splashCursor.js';
 
 const homePage = document.querySelector('[data-home-page]');
+let destroyLogoLoop = () => {};
+let destroyProjectCarousel = () => {};
 if (!homePage) {
   // Not on the homepage — skip all initialization
   console.warn('[home] data-home-page not found; skipping homepage init.');
@@ -31,6 +35,35 @@ function reducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+function initShowcase() {
+  const logoLoopRoot = document.querySelector('[data-logo-loop]');
+  const carouselRoot = document.querySelector('[data-project-carousel]');
+
+  if (logoLoopRoot) {
+    try {
+      destroyLogoLoop = initLogoLoop(logoLoopRoot, {
+        speed: 85,
+        direction: 'left',
+        gap: 72,
+        logoHeight: 56,
+        hoverSpeed: 0,
+        scaleOnHover: true,
+        fadeOut: true,
+      });
+    } catch (error) {
+      console.warn('[LogoLoop] Initialization failed.', error);
+    }
+  }
+
+  if (carouselRoot) {
+    try {
+      destroyProjectCarousel = initProjectCarousel(carouselRoot);
+    } catch (error) {
+      console.warn('[ProjectCarousel] Initialization failed.', error);
+    }
+  }
+}
+
 /**
  * Main initialization
  */
@@ -45,6 +78,9 @@ async function init() {
   } catch (err) {
     console.warn('[home] Navbar initialization failed:', err);
   }
+
+  // Panel 2 modules are isolated from the hero renderers.
+  initShowcase();
 
   // Grainient background. Its failure must not affect the other visual systems.
   if (!prefersReduced) {
@@ -130,6 +166,11 @@ async function init() {
     if (stage) stage.classList.add('has-fallback');
   }
 }
+
+window.addEventListener('pagehide', () => {
+  destroyLogoLoop();
+  destroyProjectCarousel();
+}, { once: true });
 
 // Auto-initialize
 init();
