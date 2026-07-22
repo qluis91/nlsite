@@ -1,10 +1,22 @@
 require('dotenv').config();
 
 const express = require('express');
-const session = require('express-session');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const crypto = require('crypto');
+const { csrfSync } = require('csrf-sync');
+
+// ── Session store ──
+const { createSessionMiddleware, sessionStore } = require('./config/session');
+
+// ── CSRF Protection ──
+const {
+  csrfSynchronisedProtection,
+  generateToken,
+} = csrfSync({
+  getTokenFromRequest: (req) => req.body?._csrf,
+});
 
 // ── Rutas ──
 const authRoutes = require('./routes/authRoutes');
@@ -20,14 +32,29 @@ const { setLocals, isAuthenticated, isAdmin, isAdminGuest } = require('./middlew
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ── Per-request CSP nonce (MUST run before Helmet) ──
+app.use((req, res, next) => {
+  res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
+  next();
+});
+
 // ── Seguridad: Helmet ──
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        (req, res) => "'nonce-" + res.locals.cspNonce + "'",
+      ],
       imgSrc: ["'self'", 'data:'],
+      connectSrc: [
+        "'self'",
+        'blob:',
+        'https://storage.googleapis.com',
+      ],
+      workerSrc: ["'self'", 'blob:'],
     },
   },
 }));
@@ -45,24 +72,43 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// ── Configuración de Sesiones ──
-const maxAgeHours = parseInt(process.env.SESSION_MAX_AGE_HOURS, 10);
-const sessionMaxAge = (maxAgeHours > 0 ? maxAgeHours : 8) * 60 * 60 * 1000;
+// ── Vendor aliases for homepage modules (scoped, no bundler) ──
+app.use(
+  '/vendor/three/build',
+  express.static(path.join(__dirname, 'node_modules/three/build'))
+);
+app.use(
+  '/vendor/three/examples/jsm',
+  express.static(path.join(__dirname, 'node_modules/three/examples/jsm'))
+);
+// alias '/vendor/three/' → node_modules/three/ so 'three' import resolves
+app.use(
+  '/vendor/three',
+  express.static(path.join(__dirname, 'node_modules/three'))
+);
+app.use(
+  '/vendor/gsap',
+  express.static(path.join(__dirname, 'node_modules/gsap'))
+);
+app.use(
+  '/vendor/lenis',
+  express.static(path.join(__dirname, 'node_modules/lenis/dist'))
+);
 
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'clave-secreta-temporal',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    maxAge: sessionMaxAge,
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-  },
-}));
+// ── Configuración de Sesiones (MySQL store) ──
+app.use(createSessionMiddleware());
 
 // ── Inyectar variables globales en vistas ──
 app.use(setLocals);
+
+// ── CSRF: expose token to all views ──
+app.use((req, res, next) => {
+  res.locals.csrfToken = generateToken(req);
+  next();
+});
+
+// ── CSRF: validate state-changing requests ──
+app.use(csrfSynchronisedProtection);
 
 // ── Rate Limiter para Login de Administrador ──
 const adminLoginLimiter = rateLimit({
@@ -91,6 +137,8 @@ app.get('/', (req, res) => {
   res.render('pages/home', {
     title: 'Inicio',
     layout: 'layouts/main',
+    pageClass: 'page-home',
+    pageStyles: ['/css/home.css'],
   });
 });
 
@@ -102,6 +150,18 @@ app.use((req, res) => {
   });
 });
 
+// ── 403 - CSRF token inválido ──
+app.use((err, req, res, next) => {
+  if (err && err.code === 'EBADCSRFTOKEN') {
+    req.session.error_msg = 'La solicitud no es válida o ha expirado. Recarga la página e inténtalo nuevamente.';
+    return res.status(403).render('pages/403', {
+      title: 'Solicitud no válida',
+      layout: 'layouts/main',
+    });
+  }
+  return next(err);
+});
+
 // ── 500 - Error del servidor ──
 app.use((err, req, res, _next) => {
   console.error('Error del servidor:', err);
@@ -111,11 +171,19 @@ app.use((err, req, res, _next) => {
   });
 });
 
-// ── Iniciar Servidor ──
-app.listen(PORT, () => {
-  console.log('═══════════════════════════════════════');
-  console.log(`  🚀 Servidor corriendo en:`);
-  console.log(`  ➜ http://localhost:${PORT}`);
-  console.log(`  🌐 Entorno: ${process.env.NODE_ENV || 'development'}`);
-  console.log('═══════════════════════════════════════');
-});
+// ── Iniciar servidor (esperar store readiness) ──
+sessionStore.onReady()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log('═══════════════════════════════════════');
+      console.log('  🚀 Servidor corriendo en:');
+      console.log('  ➜ http://localhost:' + PORT);
+      console.log('  🌐 Entorno: ' + (process.env.NODE_ENV || 'development'));
+      console.log('  💾 Sesiones: MySQL (persistentes)');
+      console.log('═══════════════════════════════════════');
+    });
+  })
+  .catch((err) => {
+    console.error('❌ Error al iniciar el almacenamiento de sesiones en MySQL:', err.message);
+    process.exit(1);
+  });

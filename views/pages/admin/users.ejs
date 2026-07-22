@@ -46,6 +46,7 @@
 
                 <% if (u.id !== user.id) { %>
                   <form action="/admin/users/<%= u.id %>/toggle" method="POST" style="display:inline">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button type="submit" class="btn btn-sm <%= u.is_active ? 'btn-warning' : 'btn-success' %>">
                       <%= u.is_active ? 'Desactivar' : 'Activar' %>
                     </button>
@@ -53,6 +54,7 @@
 
                   <form action="/admin/users/<%= u.id %>/delete" method="POST" style="display:inline"
                         onsubmit="return confirm('¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
                   </form>
                 <% } else { %>

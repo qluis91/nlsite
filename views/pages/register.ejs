@@ -4,6 +4,7 @@
     <p class="auth-subtitle">Regístrate para comenzar</p>
 
     <form action="/auth/register" method="POST" class="auth-form" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="form-group">
         <label for="name">Nombre completo</label>
         <input type="text" id="name" name="name" class="form-control"

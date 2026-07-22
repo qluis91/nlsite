@@ -5,6 +5,7 @@
 
 <div class="card card-form">
   <form action="<%= action %>" method="POST" class="admin-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <div class="form-group">
       <label for="name">Nombre completo</label>
       <input type="text" id="name" name="name" class="form-control"

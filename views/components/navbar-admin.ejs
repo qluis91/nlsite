@@ -6,6 +6,7 @@
       <li><a href="/" class="btn btn-sm btn-outline">Ver Sitio</a></li>
       <li>
         <form action="/auth/logout" method="POST" class="logout-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button type="submit" class="btn btn-sm btn-outline logout-button">Cerrar Sesión</button>
         </form>
       </li>

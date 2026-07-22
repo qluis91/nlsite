@@ -166,3 +166,104 @@ Use this checklist to manually verify every authentication flow from the browser
 | 89 | Reset URL: no user ID in token param | Only hex string, no numeric ID, no email in URL |
 | 90 | Forgot-password: submit inactive user email | Generic message, no token created in DB |
 | 91 | SMTP credentials not in page source | Search for SMTP password in HTML → zero results |
+
+---
+
+## CSRF Protection
+
+| # | Action | Expected |
+|---|--------|----------|
+| 92 | View page source on login | Hidden `<input name="_csrf">` present in form |
+| 93 | View page source on register | Hidden `<input name="_csrf">` present in form |
+| 94 | View page source on admin login | Hidden `<input name="_csrf">` present in form |
+| 95 | View page source on forgot-password | Hidden `<input name="_csrf">` present in form |
+| 96 | View page source on resend-verification | Hidden `<input name="_csrf">` present in form |
+| 97 | View page source on reset-password | Hidden `<input name="_csrf">` present in form |
+| 98 | Navbar logout form (public) | Hidden `<input name="_csrf">` present |
+| 99 | Navbar logout form (admin) | Hidden `<input name="_csrf">` present |
+| 100 | Admin user-form (create/edit) | Hidden `<input name="_csrf">` present |
+| 101 | Admin user list toggle form | Hidden `<input name="_csrf">` present |
+| 102 | Admin user list delete form | Hidden `<input name="_csrf">` present |
+| 103 | Browser dev tools: remove _csrf from login form, submit | HTTP 403, Spanish error message, no login |
+| 104 | Browser dev tools: remove _csrf from register form, submit | HTTP 403, Spanish error message, no account created |
+| 105 | Browser dev tools: remove _csrf from logout form, submit | HTTP 403, session still active |
+| 106 | Browser dev tools: remove _csrf from admin toggle, submit | HTTP 403, user status unchanged |
+| 107 | Login normally (valid CSRF) | Works as before |
+| 108 | Register normally (valid CSRF) | Works, pending registration created |
+| 109 | Logout normally (valid CSRF) | Works, session destroyed |
+| 110 | Admin toggle normally (valid CSRF) | Works, status toggled |
+| 111 | CSRF token in URL | Should NOT appear in any URL query string |
+| 112 | Open two tabs, submit form in each | Both submissions work (tokens synchronized per session) |
+| 113 | Open login, then open another login in new tab | Both tabs get same CSRF token (session-bound) |
+| 114 | 403 page loads with layout | Navbar, footer, CSS all present, message in Spanish |
+| 115 | 403 page on mobile | Responsive, no horizontal overflow |
+
+---
+
+## Session Persistence (MySQL)
+
+### Completed (HTTP integration validation)
+
+| # | Action | Expected |
+|---|--------|----------|
+| 116 | Login via HTTP with valid credentials and CSRF token | `sessions` table row created in MySQL |
+| 117 | Stop Node.js process | Server stops |
+| 118 | Start Node.js process | "Sesiones: MySQL (persistentes)" in console |
+| 119 | HTTP GET `/` with same session cookie | 200, authenticated navbar visible |
+| 120 | HTTP POST logout with valid CSRF | 302 to `/auth/login`, session destroyed |
+| 121 | HTTP GET `/admin` with old cookie after logout | 302 redirect to `/auth/login` |
+| 122 | CSRF token works after restart | Valid form submission succeeds |
+
+### Pending (manual browser validation)
+
+| # | Action | Expected |
+|---|--------|----------|
+| 123 | Login through browser | Authenticated navigation visible |
+| 124 | Stop Node.js, restart, refresh browser tab | User still authenticated, navbar shows name + logout |
+| 125 | Login as admin via `/admin/login` in browser | Admin dashboard loads |
+| 126 | Stop + restart, refresh `/admin` in browser | Admin still logged in |
+| 127 | Logout after restart in browser | Session row removed, cookie cleared, `/admin` blocked |
+| 128 | Submit form with CSRF after restart in browser | Works |
+
+### Pending (failure-mode validation)
+
+| # | Action | Expected |
+|---|--------|----------|
+| 129 | Stop MySQL or use invalid DB port, start nlSite | Startup fails safely with clear error |
+| 130 | Restore valid config, restart | Normal startup resumes |
+
+---
+
+## Homepage + Auth Integration (Panel 1)
+
+| # | Action | Expected |
+|---|--------|----------|
+| 131 | Open `/` as anonymous | Homepage loads, "Cuenta" nav link visible, no default navbar/footer |
+| 132 | Open `/` as authenticated user | Homepage loads, user name visible, "Salir" button with CSRF, no admin link |
+| 133 | Open `/` as admin | Homepage loads, "Admin" link visible, logout form with CSRF |
+| 134 | Click "Cuenta" (anonymous) | Redirects to `/auth/login` |
+| 135 | Click "Salir" (authenticated) | POST logout with CSRF, session destroyed, redirect to login |
+| 136 | Open `/auth/login` while homepage exists | Login page has default navbar + footer, no homepage CSS/JS leakage |
+| 137 | Open `/admin/login` while homepage exists | Admin login has navbar, no three.js/gsap/lenis loaded |
+| 138 | Open 404 page | Navbar + footer present, styled error page |
+
+---
+
+## Panel 1 Visual Correction Checks
+
+| # | Action | Expected |
+|---|--------|----------|
+| 139 | Verify helmet3d.js imports | Uses `import * as THREE from 'three'` (bare specifier via import map) |
+| 140 | Verify GLTFLoader loads | `/vendor/three/examples/jsm/loaders/GLTFLoader.js` returns 200 |
+| 141 | Verify three.module.js | `/vendor/three/build/three.module.js` returns 200 |
+| 142 | Check logo CSS size | `.hero-logo { width: clamp(360px, 28vw, 480px) }` with `transform: scale(1.15)` |
+| 143 | Check 3D stage CSS | `z-index: 2`, `min-height: clamp(500px, 56vw, 780px)`, `touch-action: pan-y` |
+| 144 | Check navigation alignment | `.hero-nav { justify-self: end }` pushes nav to far right |
+| 145 | Check CSP header | `script-src 'self' 'nonce-<random>'` — no global unsafe-inline in script-src |
+| 146 | Check import map nonce | `<script type="importmap" nonce="...">` present in rendered HTML |
+| 147 | Check external GLB URL | `https://storage.googleapis.com/ninjalab3d/casco.glb` in helmet3d.js |
+| 148 | Check connect-src | `connect-src 'self' blob: https://storage.googleapis.com` in CSP |
+| 149 | Browser: 3D helmet renders | Helmet visible, idle rotation active, drag rotation works |
+| 150 | Browser: logo matches reference | Logo size visually matches `PaginaWeb.png` |
+| 151 | Browser: no console errors | No CSP violation, no "Failed to resolve module specifier", no CORS errors |
+| 152 | Browser: nav right-aligned | Navigation items aligned to far right, large gap from logo |

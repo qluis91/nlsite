@@ -6,8 +6,13 @@
   <meta name="description" content="<%= site.description %>">
   <title><%= typeof title !== 'undefined' ? title + ' | ' + site.name : site.name %></title>
   <link rel="stylesheet" href="/css/style.css">
+  <% if (typeof pageStyles !== 'undefined' && Array.isArray(pageStyles)) { %>
+    <% pageStyles.forEach(function(s) { %>
+      <link rel="stylesheet" href="<%= s %>">
+    <% }); %>
+  <% } %>
   <!-- Variables CSS inyectadas desde config/site.js -->
-  <style>
+  <style nonce="<%= cspNonce %>">
     :root {
       --color-primary: <%= site.colors.primary %>;
       --color-primary-hover: <%= site.colors.primaryHover %>;
@@ -19,9 +24,22 @@
       --color-warning: <%= site.colors.warning %>;
     }
   </style>
+
+  <% if (typeof pageClass !== 'undefined' && pageClass === 'page-home') { %>
+  <script type="importmap" nonce="<%= cspNonce %>">
+  {
+    "imports": {
+      "three": "/vendor/three/build/three.module.js",
+      "three/addons/": "/vendor/three/examples/jsm/"
+    }
+  }
+  </script>
+  <% } %>
 </head>
-<body>
-  <%- include('../components/navbar') %>
+<body class="<%= typeof pageClass !== 'undefined' ? pageClass : '' %>">
+  <% if (typeof pageClass === 'undefined' || pageClass !== 'page-home') { %>
+    <%- include('../components/navbar') %>
+  <% } %>
 
   <% if (success_msg) { %>
     <div class="alert alert-success"><%= success_msg %></div>
@@ -30,12 +48,16 @@
     <div class="alert alert-danger"><%= error_msg %></div>
   <% } %>
 
-  <main class="container">
-    <%- body || '' %>
-  </main>
+  <%- body || '' %>
 
-  <%- include('../components/footer') %>
+  <% if (typeof pageClass === 'undefined' || pageClass !== 'page-home') { %>
+    <%- include('../components/footer') %>
+  <% } %>
 
-  <script src="/js/main.js"></script>
+  <% if (typeof pageClass !== 'undefined' && pageClass === 'page-home') { %>
+    <script type="module" src="/js/home/home.js"></script>
+  <% } else { %>
+    <script src="/js/main.js"></script>
+  <% } %>
 </body>
 </html>
