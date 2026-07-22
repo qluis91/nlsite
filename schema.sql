@@ -21,6 +21,36 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ── Registros pendientes de verificación ──
+CREATE TABLE IF NOT EXISTS pending_registrations (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(191) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_pending_reg_email (email),
+  UNIQUE KEY uq_pending_reg_token (token_hash),
+  INDEX idx_pending_reg_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Tokens de recuperación de contraseña ──
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_pw_reset_token (token_hash),
+  INDEX idx_pw_reset_user (user_id),
+  INDEX idx_pw_reset_expires (expires_at),
+  CONSTRAINT fk_pw_reset_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── Tabla de Sesiones (opcional, para express-session en MySQL) ──
 CREATE TABLE IF NOT EXISTS sessions (
   session_id VARCHAR(128) NOT NULL,

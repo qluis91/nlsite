@@ -6,7 +6,7 @@ const { isGuest } = require('../middlewares/authMiddleware');
 
 // ── Rate Limiter para Login ──
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
+  windowMs: 15 * 60 * 1000,
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
@@ -17,19 +17,51 @@ const loginLimiter = rateLimit({
   },
 });
 
-// GET  - Mostrar formulario de login
-router.get('/login', isGuest, authController.showLogin);
+// ── Rate Limiter para Reenvío de Verificación ──
+const resendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    req.session.error_msg =
+      'Demasiadas solicitudes. Inténtalo nuevamente en unos minutos.';
+    return res.redirect('/auth/verify-pending');
+  },
+});
 
-// POST - Procesar login (con rate limiting)
+// ── Rate Limiter para Olvidó Contraseña ──
+const forgotLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    req.session.success_msg =
+      'Si existe una cuenta activa con ese correo, recibirás un enlace para restablecer la contraseña.';
+    return res.redirect('/auth/forgot-password');
+  },
+});
+
+// ── Login ──
+router.get('/login', isGuest, authController.showLogin);
 router.post('/login', isGuest, loginLimiter, authController.login);
 
-// GET  - Mostrar formulario de registro
+// ── Registro + verificación ──
 router.get('/register', isGuest, authController.showRegister);
-
-// POST - Procesar registro
 router.post('/register', isGuest, authController.register);
+router.get('/verify-pending', authController.showVerifyPending);
+router.get('/verify-email', authController.verifyEmail);
+router.get('/resend-verification', authController.showResendForm);
+router.post('/resend-verification', resendLimiter, authController.resendVerification);
 
-// POST - Cerrar sesión
+// ── Olvidó / Reset contraseña ──
+router.get('/forgot-password', isGuest, authController.showForgotPassword);
+router.post('/forgot-password', isGuest, forgotLimiter, authController.forgotPassword);
+router.get('/reset-password', isGuest, authController.showResetPassword);
+router.post('/reset-password', isGuest, authController.resetPassword);
+
+// ── Logout ──
 router.post('/logout', authController.logout);
 
 module.exports = router;

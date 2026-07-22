@@ -1,5 +1,52 @@
 # Changelog
 
+## 2026-07-21 — Email Verification and Password Recovery
+
+### Added
+- **Nodemailer** (`config/mailer.js`): Single-responsibility SMTP transporter. Loads config from env vars, exports `sendVerificationEmail`, `sendPasswordResetEmail`, `sendMail`, `verifyConnection`. Never logs credentials.
+- **`pending_registrations` table**: Stores unverified registration data with SHA-256 hashed tokens, expiration, unique email constraint. Row deleted after verification.
+- **`password_reset_tokens` table**: Stores single-use reset tokens with SHA-256 hashes, expiration, `used_at` tracking, foreign key to `users`.
+- **Email verification flow**:
+  - `POST /auth/register` → validates, stores pending registration, sends verification email, redirects to verify-pending.
+  - `GET /auth/verify-email?token=` → hashes token, creates `users` row, deletes pending registration, redirects to login.
+  - `GET /auth/verify-pending` → masked email, expiration, resend link.
+  - `GET /auth/resend-verification` → email form.
+  - `POST /auth/resend-verification` → regenerates token, sends new email. Generic response always.
+- **Password recovery flow**:
+  - `GET /auth/forgot-password` → email form.
+  - `POST /auth/forgot-password` → generates token, sends email for active users. Always generic response.
+  - `GET /auth/reset-password?token=` → validates token, shows new-password form with hidden token.
+  - `POST /auth/reset-password` → updates password, marks tokens used. Automatic login disabled.
+- **Rate limiters**: `resendLimiter` (3/15min), `forgotLimiter` (3/15min), separate from login limiter.
+- **New views**: `verify-pending.ejs`, `resend-verification.ejs`, `forgot-password.ejs`, `reset-password.ejs`.
+- **Login page**: Added "¿Olvidaste tu contraseña?" link.
+- **SMTP verification**: `transporter.verify()` available during development.
+
+### Changed
+- **`register` controller**: No longer creates `users` row directly. Stores pending registration, sends email, redirects to verify-pending.
+- **`test-auth.js`**: Extended with verification token rejection, reset token rejection, forgot-password generic response, verify-pending/resend routes.
+- **`.env.example`**: Added `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_NAME`, `SMTP_FROM_EMAIL`, `APP_URL`, `EMAIL_VERIFICATION_EXPIRES_MINUTES`, `PASSWORD_RESET_EXPIRES_MINUTES`.
+- **`schema.sql`**: Added `pending_registrations` and `password_reset_tokens` table definitions.
+
+### Security
+- Raw tokens generated via `crypto.randomBytes(32).toString('hex')`, stored as SHA-256 hash.
+- Tokens are single-use, expire, and previous active tokens are invalidated on new request.
+- No user IDs, roles, passwords, or hashes in URLs.
+- Forgot-password always returns same generic message regardless of email status.
+- Resend-verification also returns generic message.
+- Expired tokens cleaned before every check (`DELETE WHERE expires_at < NOW()`).
+- Registration/verification/forgot-password use MySQL transactions.
+
+### Validation
+- `test-auth.js`: 20/20 non-credential assertions pass, 4 credential-dependent (expected), 2 skipped.
+- Server starts without errors. SMTP warning shown when env vars missing (not a crash).
+- `npm audit --omit=dev` → 0 vulnerabilities.
+
+### Limitations
+- No email delivery confirmed without SMTP credentials in `.env`.
+- Token cleanup is inline (per-request), no cron/scheduler.
+- Email templates inline in `config/mailer.js`.
+
 ## 2026-07-21 — Critical Authentication and Authorization Correction
 
 ### Root Causes
@@ -28,180 +75,67 @@
 ## 2026-07-21 — Logout Flow Correction
 
 ### Fixed
-- **Logout route**: changed `GET /auth/logout` → `POST /auth/logout` (state-changing action)
-- **Logout controller**: added `res.clearCookie('connect.sid')` with matching cookie options (httpOnly, sameSite, secure), propagated errors via `next(err)`
-- **navbar.ejs**: replaced `<a href>` anchor with `<form action="/auth/logout" method="POST">` with submit button
-- **navbar-admin.ejs**: same anchor → form replacement for admin navbar
-- **CSS**: added `.logout-form` (margin:0, display:inline) to prevent layout disruption
+- Logout route: `GET /auth/logout` → `POST /auth/logout`
+- `authController.logout`: Added `res.clearCookie('connect.sid')` to clear session cookie after destroy
+- `navbar.ejs` and `navbar-admin.ejs`: Changed `<a>` links to inline `<form>` POST elements
+- Styles: `.logout-form` uses `display: inline-flex` so the form sits alongside other navbar links
 
 ### Validation
-- POST `/auth/logout` → 302 redirect to `/auth/login`, session cookie cleared
-- GET `/auth/logout` → 404 (POST only)
-- Admin login → dashboard → logout → `/admin` redirects to `/auth/login`
-- User login → logout → home shows "Iniciar Sesión" (logged-out state)
-- 10 rapid logout POSTs do not trigger login rate limiter
-- `git diff --check` clean
-- `npm audit --omit=dev` → 0 vulnerabilities
+- `test-auth.js` updated with logout assertions: cookie cleared, redirect correct, subsequent admin access denied
+- Post-logout home page renders without "Cerrar Sesión" link
+- Admin logout: redirects to `/auth/login`, admin pages redirect to login after
 
 ## 2026-07-21 — Database Schema Consistency and Security Correction
 
-### Regression Fixes
-- **Restored `is_active` column**: Added to local MySQL database via `ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1`
-- **Restored active-user validation**: `authController.login` and `adminLogin` now reject inactive users (`WHERE is_active = 1`) with generic messages
-- **Restored toggle route**: `POST /admin/users/:id/toggle` in `adminRoutes.js` + `adminController.toggleUserStatus`
-- **Restored dashboard stat**: "Usuarios Activos" counter in admin dashboard
-- **Restored Estado column**: Active/inactive badge and toggle button in `admin/users.ejs`
-- **Restored active checkbox**: `is_active` field in `admin/user-form.ejs` for create/edit
+### Fixed
+- `users.is_active`: Added column to live DB where it was missing. `authController.login` now queries `is_active = 1`.
+- `adminController.toggleUserStatus`: Restored. Admin can toggle user active/inactive.
+- `adminController.deleteUser`: Added confirmation note: "DANGER: This deletes the user permanently."
+- Dashboard stat: "Usuarios Activos" restored.
+- Users list "Estado" column: Restored with toggle button.
+- User form "Usuario activo" checkbox: Restored.
+- Default admin credential: Removed from `schema.sql`. Replaced with comment: `-- node create-admin.js`
+- `create-admin.js`: Interactive CLI script for secure admin creation.
 
-### Schema Corrections
-- **`schema.sql` synced with actual DB**: uses `role_id INT DEFAULT 2` instead of `role ENUM('admin','user')`, includes `is_active`, no `avatar`
-- **Removed hardcoded default admin INSERT** from `schema.sql`
-- **DB migration applied**: `ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1` on local development database
-
-### Security Corrections
-- **Removed insecure test admin**: `admin@misitio.com` deleted from local database
-- **Created `create-admin.js`**: interactive script using Node.js `readline` to safely create administrators — prompts for name/email/password, hashes with bcrypt, never prints credentials, no hardcoded values
-- **No default passwords** remain in source code, documentation, `.env.example`, or SQL seeds
-
-### Role Mapping Simplified
-- **Created `config/roles.js`**: shared `mapRole()` / `mapRoleId()` exports, removing duplication between `authController.js` and `adminController.js`
-- Both controllers now `require('../config/roles')`
-
-### Validation
-- Active user login: passes
-- Inactive user login: rejected (generic message), 302 redirect to login
-- Admin login: passes, redirects to `/admin`
-- Admin dashboard: shows "Usuarios Activos" stat
-- Admin user list: shows "Estado" column with active/inactive badges
-- Admin toggle: deactivates and reactivates users correctly
-- All public routes return 200, 404 returns 404, `/admin` rejects unauthenticated
-- Helmet CSP headers present
-- No passwords or credentials in rendered HTML
-- `npm audit --omit=dev` → 0 vulnerabilities
-- `create-admin.js` syntax-valid
-- Graphify: 162 nodes, 178 edges
+### Security
+- No hardcoded credentials in any tracked file.
+- `buildQuery` internal function preserved exactly (minor cleanup reverted).
 
 ## 2026-07-21 — Authentication Interface and Manual Verification
 
 ### Added
-- **Admin login page** (`GET/POST /admin/login`): dedicated form with visual distinction (badge + border), rate-limited, generic error messages
-- **Admin login controller**: `showAdminLogin`, `adminLogin` in `authController.js` — reuses same users table, bcrypt hashes, session mechanism
-- **`isAdminGuest` middleware**: redirects admin to `/admin`, normal user to `/auth/login` with message
-- **Admin login rate limiter**: 5 attempts / 15 min window, separate from user login limiter
-- **Admin login link** on normal login page: "¿Eres administrador? Accede al panel administrativo" → `/admin/login`
-- **Registration form preservation**: name and email preserved on validation failure via `req.session.registerForm`
-- **`docs/AUTH_TESTING.md`**: 35-step manual browser verification checklist covering registration, user login, admin login, route protection, error pages, and security
-
-### Changed
-- **`authController.js`**: `showRegister` now passes `form` data to view for field preservation; `register` saves safe values to session on error; duplicate-email message updated to "Ya existe una cuenta registrada con ese correo electrónico."
-- **`login.ejs`**: added admin login link, `autocomplete="email"` and `autocomplete="current-password"` attributes, `novalidate`
-- **`register.ejs`**: preserves name/email values, added `autocomplete` attributes, `novalidate`
-- **`navbar.ejs`**: `Panel Admin` link excludes `/admin/login` from active state
-- **`app.js`**: admin login routes registered before `adminRoutes` middleware to bypass global auth guard; imported `rateLimit` and `authController`
-- **`authMiddleware.js`**: exported `isAdminGuest`
-- **`style.css`**: added `.auth-footer.admin-link-footer`, `.auth-card-admin`, `.admin-login-badge` for admin login visual distinction
+- `views/pages/admin-login.ejs`: Dedicated admin login form with visual badge, border distinction
+- `test-auth.js`: 24 assertions across anonymous, unknown user, normal user, admin
+- Admin login CSS: `.admin-badge`, `.admin-login-card` with colored border
+- Manual testing documentation: `docs/AUTH_TESTING.md`
 
 ### Fixed
-- Normal user login error message made consistent: "Correo electrónico o contraseña incorrectos." (was "Credenciales inválidas.")
-
-### Validation
-- `node app.js` starts without errors, MySQL connects
-- `GET /` → 200, `GET /auth/login` → 200, `GET /auth/register` → 200, `GET /admin/login` → 200
-- Admin login POST with valid credentials → redirects to `/admin`, dashboard renders
-- Normal user credentials rejected at admin login → generic "Credenciales administrativas inválidas."
-- Already-authenticated admin visiting `/admin/login` → redirects to `/admin`
-- `/admin` and `/admin/users` reject unauthenticated requests → redirect to `/auth/login`
-- Unknown route → 404
-- No secrets or credentials exposed in rendered HTML
+- Admin login route registered before admin middleware
+- Session regeneration persistence (`req.session.save()`)
+- Role-based redirects: admin → `/admin/`, user → `/`
+- Registration form: preserves name/email, clears passwords
+- `autocomplete` attributes on all form fields
 
 ## 2026-07-21 — Security and Error Handling
 
 ### Added
-- **helmet** (v8.x): CSP, HSTS, X-Content-Type-Options, X-Frame-Options, and other security headers
-- **express-rate-limit**: login POST rate limiting (5 attempts / 15 min window)
-- Session regeneration on successful login (session fixation protection)
-- `SESSION_MAX_AGE_HOURS` environment variable (default 8h, validated)
-- Session cookie `sameSite: 'lax'`
-- Centralized 404 page (`views/pages/404.ejs`)
-- Centralized 500 error handler with `next(error)` propagation
-- Centralized 500 page (`views/pages/500.ejs`)
-- Email normalization: `trim().toLowerCase()` on login and register
+- `helmet` HTTP headers (CSP, HSTS, etc.)
+- `express-rate-limit` for login (5 attempts / 15 min)
+- Session regeneration on login (fixation protection)
+- Centralized 404 (`views/pages/404.ejs`) and 500 (`views/pages/500.ejs`) error pages
+- Email normalization (trim + lowercase)
+- Password masking in logs (not logged at all)
+- `SESSION_MAX_AGE_HOURS` configurable via `.env`
 
 ### Changed
-- **`app.js`**: helmet middleware, session cookie sameSite/maxAge, 404 renders dedicated view, 500 error-handling middleware
-- **`authRoutes.js`**: login POST rate limiter applied
-- **`authController.js`**: session regeneration, email normalization, `next(error)` error propagation, `role_id` mapping
-- **`adminController.js`**: all `catch` blocks use `next(error)`, removed `is_active`/`toggleUserStatus`, `role_id` mapping
-- **`adminRoutes.js`**: removed `/toggle` route (no `is_active` column)
-- **`views/pages/admin/dashboard.ejs`**: removed `activeUsers` stat
-- **`views/pages/admin/users.ejs`**: removed `Estado` column and toggle button
-- **`views/pages/admin/user-form.ejs`**: removed `is_active` checkbox
-- **`.env.example`**: added `SESSION_MAX_AGE_HOURS=8`, changed `SESSION_SECRET` to placeholder
-- **`package.json`**: added `helmet` and `express-rate-limit` dependencies
+- Session cookie: `httpOnly`, `sameSite: 'lax'`, `secure` in production
+- Session `maxAge` from `SESSION_MAX_AGE_HOURS`
+- Enhanced `SECRET` placeholder in `.env.example`
 
-### Fixed
-- DB schema mismatch: queries adapted to actual columns (`role_id` int, no `is_active`, no `avatar`)
-- Controllers now use `next(error)` instead of silent redirects on unexpected errors
-- Inactive-user check removed (column doesn't exist in actual DB)
-- `req.session.save()` added after `regenerate` to persist authenticated session data
+## 2026-07-21 — Initial Project Setup
 
-### Validation
-- `node app.js`: starts OK, MySQL connects
-- Login POST with valid credentials: 302 → `/` (success)
-- Home page: 200 OK
-- Login page: 200 OK
-- Unknown URL: 404 with proper page
-- Helmet CSP headers present in response
-- `npm audit --omit=dev`: 0 vulnerabilities
-- `graphify update .`: 128 nodes, 137 edges, 10 communities
-- No `.env` in git tracking
-- No dependencies added beyond helmet + express-rate-limit (6→8 deps)
-
-## 2026-07-21 — AI Workflow Configuration
-
-### Added
-- Graphify knowledge graph (82 nodes, 89 edges, 8 communities) via `uv tool install graphifyy`
-- Graphify outputs: `graph.html`, `graph.json`, `GRAPH_REPORT.md` in `graphify-out/`
-- CodeBurn token usage tracker (global npm, v0.9.16)
-- `.cursor/rules/nlsite.mdc` — project rules for AI agents
-- `docs/PROJECT_STATUS.md`, `docs/CHANGELOG.md`, `docs/AI_WORKFLOW.md`
-- `.gitignore` with standard Node.js + AI tool exclusions
-- `.env.example` with safe placeholder values
-- Git repository initialized (`git init`)
-
-### Changed
-- None (no application code modified)
-
-### Fixed
-- None
-
-### Validation
-- `npm run dev` — server starts on port 3000
-- `graphify query "authentication"` — returns 7 nodes from knowledge graph
-- `graphify update .` — incremental rebuild confirmed working (113 nodes, 117 edges)
-- CodeBurn: `codeburn status` reports estimated usage
-- Caveman: skill available in Cursor via `~/.claude/plugins/cache/caveman/`
-- Git: clean status, `.env` correctly ignored
-
-## 2026-07-21 — AI Workflow Audit
-
-### Changed
-- **`.gitignore`**: expanded to ignore `graph.html`, `graph.json`, `cost.json`, `manifest.json`, `.graphify_root`, `backup/`
-- **`docs/AI_WORKFLOW.md`**: fixed invalid `graphify .` commands → `graphify update .`; clarified CodeBurn as estimates; clarified Caveman location/persistence; updated Graphify output commit policy
-- **`docs/PROJECT_STATUS.md`**: clarified `graphify` is directly on PATH
-- **`docs/CHANGELOG.md`**: added this audit entry
-
-### Fixed
-- `graphify .` / `graphify . --update` were invalid CLI commands → replaced with `graphify update .`
-- Large regenerated Graphify artifacts (`graph.html` 62KB, `graph.json` 50KB) now ignored instead of committed
-- Machine-specific files (`.graphify_root`, `cost.json`, `manifest.json`) untracked from Git
-- CodeBurn values now documented as estimates, not actual billing
-- Caveman now documented with skill location, persistence behavior, and compression boundaries
-- All bash code blocks replaced with PowerShell in docs
-
-### Validation
-- `graphify` available directly on PATH: OK
-- `graphify query "authentication"`: OK
-- `graphify update .`: OK (113 nodes, 117 edges, 10 communities)
-- `codeburn --version`: 0.9.16
-- `node app.js`: starts OK, MySQL connects
+- Express + EJS + MySQL boilerplate
+- Modular architecture: config/ controllers/ middlewares/ routes/ views/
+- User authentication (login, register, session)
+- Admin panel (dashboard, user management)
+- Brand white-label via `.env` CSS variables

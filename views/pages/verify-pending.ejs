@@ -1,0 +1,50 @@
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-icon">✉️</div>
+    <h2>Revisa tu correo electrónico</h2>
+    <p class="auth-subtitle">
+      Hemos enviado un enlace de verificación a
+      <% if (maskedEmail) { %><strong><%= maskedEmail %></strong><% } else { %>tu correo<% } %>.
+    </p>
+
+    <div class="verify-info">
+      <p>Tu cuenta no se creará hasta que confirmes tu dirección de correo.</p>
+      <p class="verify-expires">El enlace expira en <strong><%= expiresMinutes %> minutos</strong>.</p>
+    </div>
+
+    <div class="verify-actions">
+      <a href="/auth/login" class="btn btn-outline">Ir a iniciar sesión</a>
+    </div>
+
+    <p class="auth-footer">
+      ¿No recibiste el correo?
+      <a href="/auth/resend-verification">Reenviar enlace</a>
+    </p>
+  </div>
+</div>
+
+<style>
+  .auth-icon {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+  }
+  .verify-info {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+    color: #166534;
+  }
+  .verify-expires {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #64748b;
+  }
+  .verify-actions {
+    text-align: center;
+    margin-top: 1.25rem;
+  }
+</style>
