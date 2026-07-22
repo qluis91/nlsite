@@ -28,61 +28,8 @@
     aria-labelledby="hero-title"
   >
 
-    <!-- ── Header region: Logo + Nav ── -->
-    <header class="hero-header" data-home-navbar>
-      <a href="/" class="hero-logo" aria-label="<%= site.name %> — Inicio">
-        <span class="hero-logo-stage" aria-hidden="true">
-          <img src="/images/LogoCompleto.png" alt="" class="hero-logo-img hero-logo-img--full">
-          <img src="/images/logoletras.png" alt="" class="hero-logo-img hero-logo-img--compact">
-        </span>
-      </a>
-
-      <button class="hero-nav-toggle" type="button" aria-expanded="false" aria-controls="hero-navigation" aria-label="Abrir menú principal" data-nav-toggle>
-        <span></span><span></span><span></span>
-      </button>
-
-      <nav id="hero-navigation" class="hero-nav" aria-label="Navegación principal" data-nav-panel>
-        <ul class="hero-nav-list">
-          <li class="hero-nav-item hero-nav-item--dropdown" data-nav-dropdown>
-            <button class="hero-nav-link hero-nav-trigger" type="button" aria-expanded="false" aria-controls="nav-shop">Tienda <svg class="hero-nav-chevron" viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"/></svg></button>
-            <div id="nav-shop" class="hero-dropdown-panel" aria-label="Opciones de Tienda"><div class="hero-dropdown-inner">
-              <a href="#productos" class="hero-dropdown-link"><strong>Explorar productos</strong><span>Conoce el catálogo de NinjaLab.</span></a>
-              <a href="#como-trabajamos" class="hero-dropdown-link"><strong>Productos personalizados</strong><span>Convierte una idea en una pieza única.</span></a>
-            </div></div>
-          </li>
-          <li class="hero-nav-item hero-nav-item--dropdown" data-nav-dropdown>
-            <button class="hero-nav-link hero-nav-trigger" type="button" aria-expanded="false" aria-controls="nav-services">Servicios <svg class="hero-nav-chevron" viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"/></svg></button>
-            <div id="nav-services" class="hero-dropdown-panel" aria-label="Opciones de Servicios"><div class="hero-dropdown-inner">
-              <a href="#como-trabajamos" class="hero-dropdown-link"><strong>Impresión 3D</strong><span>Producción precisa para prototipos y proyectos.</span></a>
-              <a href="#galeria" class="hero-dropdown-link"><strong>Diseño y acabados</strong><span>Explora proyectos, pintura y modelado.</span></a>
-            </div></div>
-          </li>
-          <li class="hero-nav-item"><a href="#galeria" class="hero-nav-link">Galería</a></li>
-          <li class="hero-nav-item hero-nav-item--dropdown" data-nav-dropdown data-dropdown-align="end">
-            <button class="hero-nav-link hero-nav-trigger" type="button" aria-expanded="false" aria-controls="nav-about">Nosotros <svg class="hero-nav-chevron" viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"/></svg></button>
-            <div id="nav-about" class="hero-dropdown-panel" aria-label="Opciones de Nosotros"><div class="hero-dropdown-inner">
-              <a href="#nosotros" class="hero-dropdown-link"><strong>Sobre NinjaLab</strong><span>Conoce nuestro enfoque y experiencia.</span></a>
-              <a href="#inicio" class="hero-dropdown-link"><strong>Volver al inicio</strong><span>Regresa a la presentación principal.</span></a>
-            </div></div>
-          </li>
-        </ul>
-
-        <div class="hero-nav-account">
-          <% if (user) { %>
-            <span class="hero-nav-user"><%= user.name %></span>
-            <% if (Number(user.role_id) === 1) { %>
-              <a href="/admin" class="hero-nav-link hero-nav-admin">Admin</a>
-            <% } %>
-            <form action="/auth/logout" method="POST" class="hero-logout-form">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <button type="submit" class="hero-nav-link hero-nav-logout">Salir</button>
-            </form>
-          <% } else { %>
-            <a href="/auth/login" class="hero-nav-link hero-nav-account-link">Cuenta</a>
-          <% } %>
-        </div>
-      </nav>
-    </header>
+    <!-- ── Header region: Logo + Search + Nav ── -->
+    <%- include('../components/home-navbar', { navbarOnHome: true }) %>
 
     <!-- ── Background layers ── -->
     <div class="hero-bg" aria-hidden="true">

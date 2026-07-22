@@ -1,0 +1,83 @@
+<%- include('../components/home-navbar', { navbarOnHome: false }) %>
+
+<main class="search-page" id="search-content">
+  <section class="search-page__hero" aria-labelledby="search-title">
+    <p class="search-page__eyebrow">BÚSQUEDA PÚBLICA</p>
+    <h1 id="search-title">Buscar en NinjaLab</h1>
+    <p class="search-page__intro">Encuentra servicios, proyectos y contenido público del sitio.</p>
+
+    <form class="search-page__form" action="/buscar" method="get" role="search">
+      <label for="search-page-query">¿Qué estás buscando?</label>
+      <div class="search-page__field">
+        <input
+          id="search-page-query"
+          type="search"
+          name="q"
+          value="<%= searchQuery %>"
+          maxlength="100"
+          placeholder="Impresión 3D, figuras, diseño..."
+          autocomplete="off"
+        >
+        <button type="submit">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="m16.5 16.5 4 4"></path>
+          </svg>
+          Buscar
+        </button>
+      </div>
+    </form>
+
+    <% if (queryWasTruncated) { %>
+      <p class="search-page__notice">La búsqueda se limitó a 100 caracteres.</p>
+    <% } %>
+  </section>
+
+  <section class="search-results" aria-labelledby="results-title">
+    <% if (!searchQuery) { %>
+      <div class="search-results__state">
+        <h2 id="results-title">Explora el sitio</h2>
+        <p>Escribe una palabra para buscar productos, servicios y contenido de NinjaLab.</p>
+      </div>
+    <% } else if (searchUnavailable) { %>
+      <div class="search-results__state">
+        <h2 id="results-title">Búsqueda temporalmente no disponible</h2>
+        <p>No pudimos consultar el contenido público. Inténtalo nuevamente.</p>
+      </div>
+    <% } else if (results.length === 0) { %>
+      <div class="search-results__state">
+        <h2 id="results-title">Sin resultados</h2>
+        <p>No encontramos resultados para “<%= searchQuery %>”.</p>
+        <p>Prueba con términos más generales como impresión, figuras, diseño o personalizados.</p>
+      </div>
+    <% } else { %>
+      <div class="search-results__summary" aria-live="polite">
+        <div>
+          <p class="search-results__query">Resultados para “<%= searchQuery %>”</p>
+          <h2 id="results-title">Se encontraron <%= totalResults %> resultados</h2>
+        </div>
+        <a href="/">Volver al inicio</a>
+      </div>
+
+      <ul class="search-results__list">
+        <% results.forEach(function(result) { %>
+          <li>
+            <a class="search-result-card" href="<%= result.url %>">
+              <span class="search-result-card__category"><%= result.category %></span>
+              <h3><%= result.title %></h3>
+              <p><%= result.description %></p>
+              <span class="search-result-card__cta">
+                Ver resultado
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"></path></svg>
+              </span>
+            </a>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+
+    <% if (searchQuery && results.length === 0) { %>
+      <a class="search-results__back" href="/">Volver al inicio</a>
+    <% } %>
+  </section>
+</main>

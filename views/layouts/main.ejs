@@ -37,7 +37,7 @@
   <% } %>
 </head>
 <body class="<%= typeof pageClass !== 'undefined' ? pageClass : '' %>">
-  <% if (typeof pageClass === 'undefined' || pageClass !== 'page-home') { %>
+  <% if ((typeof pageClass === 'undefined' || pageClass !== 'page-home') && (typeof usesHeroNavbar === 'undefined' || !usesHeroNavbar)) { %>
     <%- include('../components/navbar') %>
   <% } %>
 
@@ -58,6 +58,9 @@
     <script type="module" src="/js/home/home.js"></script>
   <% } else { %>
     <script src="/js/main.js"></script>
+  <% } %>
+  <% if (typeof pageModule !== 'undefined' && pageModule) { %>
+    <script type="module" src="<%= pageModule %>"></script>
   <% } %>
 </body>
 </html>

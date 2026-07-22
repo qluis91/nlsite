@@ -21,6 +21,7 @@ const {
 // ── Rutas ──
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const searchRoutes = require('./routes/searchRoutes');
 
 // ── Controllers ──
 const authController = require('./controllers/authController');
@@ -129,6 +130,7 @@ app.post('/admin/login', isAdminGuest, adminLoginLimiter, authController.adminLo
 
 // ── Rutas ──
 app.use('/auth', authRoutes);
+app.use('/buscar', searchRoutes);
 // Admin routes: authentication + admin role enforced at both mount and router level
 app.use('/admin', isAuthenticated, isAdmin, adminRoutes);
 
