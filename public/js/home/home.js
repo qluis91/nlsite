@@ -4,7 +4,9 @@
  * Only initializes when [data-home-page] is present.
  */
 import { initHomeAnimations } from './animations.js';
+import { initGrainientBackground } from './grainientBackground.js';
 import { initHelmet3D } from './helmet3d.js';
+import { initNavbar } from './navbar.js';
 import { initSplashCursor } from './splashCursor.js';
 
 const homePage = document.querySelector('[data-home-page]');
@@ -36,6 +38,31 @@ async function init() {
   if (!homePage) return;
 
   const prefersReduced = reducedMotion();
+
+  // Homepage navigation remains independent from every visual renderer.
+  try {
+    initNavbar();
+  } catch (err) {
+    console.warn('[home] Navbar initialization failed:', err);
+  }
+
+  // Grainient background. Its failure must not affect the other visual systems.
+  if (!prefersReduced) {
+    try {
+      initGrainientBackground({
+        canvas: document.querySelector('[data-grainient-canvas]'),
+        color1: '#b1bac6', color2: '#73767a', color3: '#000000',
+        timeSpeed: 0.25, colorBalance: 0,
+        warpStrength: 1.7, warpFrequency: 3.5, warpSpeed: 3.3, warpAmplitude: 80,
+        blendAngle: 120, blendSoftness: 0.12, rotationAmount: 0,
+        noiseScale: 0.65, grainAmount: 0, grainScale: 0.7, grainAnimated: false,
+        contrast: 1.3, gamma: 1.55, saturation: 0.75,
+        centerX: -0.36, centerY: 0.09, zoom: 0.95,
+      });
+    } catch (err) {
+      console.warn('[Grainient] Background initialization failed.', err);
+    }
+  }
 
   // Decorative fluid cursor. Failure is isolated from animations and Helmet3D.
   if (!prefersReduced) {
