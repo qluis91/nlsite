@@ -48,6 +48,12 @@ async function initGSAP() {
 async function runEntrance(gsap, lenis, heroPanel) {
   const tl = gsap.timeline({ defaults: { ease: 'power2.out' } });
   const hasCanvas = document.querySelector('[data-helmet-canvas]');
+  const compact = window.matchMedia('(max-width: 768px)').matches;
+  const headingOffset = compact ? 24 : 40;
+  const ctaOffset = compact ? 14 : 20;
+  const helmetStart = compact ? 0.95 : 0.7;
+  const ctaStart = compact ? 0.75 : 0.85;
+  const socialStart = compact ? 1.1 : 1.0;
 
   tl.set(heroPanel, { autoAlpha: 1 })
 
@@ -68,7 +74,7 @@ async function runEntrance(gsap, lenis, heroPanel) {
     }, 0.4)
 
     // 5. Heading lines rise sequentially
-    .fromTo('.hero-line', { autoAlpha: 0, y: 40 }, {
+    .fromTo('.hero-line', { autoAlpha: 0, y: headingOffset }, {
       autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.12, ease: 'power3.out',
     }, 0.5)
 
@@ -78,17 +84,17 @@ async function runEntrance(gsap, lenis, heroPanel) {
     // 6. Helmet fades/scales in
     .fromTo(hasCanvas || '.hero-3d', { autoAlpha: 0, scale: 0.9 }, {
       autoAlpha: 1, scale: 1, duration: 0.7, ease: 'power2.out',
-    }, 0.7)
+    }, helmetStart)
 
     // 7. CTA buttons stagger up
-    .fromTo('.hero-btn', { autoAlpha: 0, y: 20 }, {
+    .fromTo('.hero-btn', { autoAlpha: 0, y: ctaOffset }, {
       autoAlpha: 1, y: 0, duration: 0.45, stagger: 0.1, ease: 'power2.out',
-    }, 0.85)
+    }, ctaStart)
 
     // 8. Social buttons reveal
     .fromTo('.hero-social-link', { autoAlpha: 0, y: 12, scale: 0.8 }, {
       autoAlpha: 1, y: 0, scale: 1, duration: 0.35, stagger: 0.07, ease: 'back.out(1.7)',
-    }, 1.0);
+    }, socialStart);
 
   // Mark page as ready
   document.querySelector('[data-home-page]')?.classList.add('is-motion-ready');
