@@ -2,6 +2,11 @@
   const isHomepageNavbar = typeof navbarOnHome !== 'undefined' && navbarOnHome;
   const anchorPrefix = isHomepageNavbar ? '' : '/';
   const navbarQuery = typeof searchQuery !== 'undefined' ? searchQuery : '';
+  const isStoreSearch = typeof navbarSearchContext !== 'undefined' && navbarSearchContext === 'store';
+  const navbarSearchAction = isStoreSearch ? '/tienda' : '/buscar';
+  const navbarSearchName = isStoreSearch ? 'search' : 'q';
+  const navbarSearchLabel = isStoreSearch ? 'Buscar productos' : 'Buscar en NinjaLab';
+  const navbarSearchPlaceholder = isStoreSearch ? 'Buscar productos...' : 'Buscar en NinjaLab...';
 %>
 <header class="hero-header" data-home-navbar>
   <a href="/" class="hero-logo" aria-label="<%= site.name %> — Inicio">
@@ -11,19 +16,19 @@
     </span>
   </a>
 
-  <form class="hero-search hero-search--desktop" action="/buscar" method="get" role="search">
-    <label class="hero-search__label" for="navbar-search">Buscar en NinjaLab</label>
+  <form class="hero-search hero-search--desktop" action="<%= navbarSearchAction %>" method="get" role="search">
+    <label class="hero-search__label" for="navbar-search"><%= navbarSearchLabel %></label>
     <input
       id="navbar-search"
       class="hero-search__input"
       type="search"
-      name="q"
+      name="<%= navbarSearchName %>"
       value="<%= navbarQuery %>"
       maxlength="100"
-      placeholder="Buscar en NinjaLab..."
+      placeholder="<%= navbarSearchPlaceholder %>"
       autocomplete="off"
     >
-    <button class="hero-search__submit" type="submit" aria-label="Buscar en NinjaLab">
+    <button class="hero-search__submit" type="submit" aria-label="<%= navbarSearchLabel %>">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="11" cy="11" r="7"></circle>
         <path d="m16.5 16.5 4 4"></path>
@@ -36,19 +41,19 @@
   </button>
 
   <nav id="hero-navigation" class="hero-nav" aria-label="Navegación principal" data-nav-panel>
-    <form class="hero-search hero-search--mobile" action="/buscar" method="get" role="search">
-      <label class="hero-search__label" for="mobile-navbar-search">Buscar en NinjaLab</label>
+    <form class="hero-search hero-search--mobile" action="<%= navbarSearchAction %>" method="get" role="search">
+      <label class="hero-search__label" for="mobile-navbar-search"><%= navbarSearchLabel %></label>
       <input
         id="mobile-navbar-search"
         class="hero-search__input"
         type="search"
-        name="q"
+        name="<%= navbarSearchName %>"
         value="<%= navbarQuery %>"
         maxlength="100"
-        placeholder="Buscar en NinjaLab..."
+        placeholder="<%= navbarSearchPlaceholder %>"
         autocomplete="off"
       >
-      <button class="hero-search__submit" type="submit" aria-label="Buscar en NinjaLab">
+      <button class="hero-search__submit" type="submit" aria-label="<%= navbarSearchLabel %>">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="11" cy="11" r="7"></circle>
           <path d="m16.5 16.5 4 4"></path>

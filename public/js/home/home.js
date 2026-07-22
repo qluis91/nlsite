@@ -5,15 +5,18 @@
  */
 import { initHomeAnimations } from './animations.js';
 import { initGrainientBackground } from './grainientBackground.js';
-import { initHelmet3D } from './helmet3d.js';
+import { initHelmet3D, signalHelmetError } from './helmet3d.js';
 import { initLogoLoop } from './logoLoop.js';
 import { initNavbar } from './navbar.js';
+import { initPageLoader } from './pageLoader.js';
 import { initProjectCarousel } from './projectCarousel.js';
 import { initSplashCursor } from './splashCursor.js';
 
 const homePage = document.querySelector('[data-home-page]');
 let destroyLogoLoop = () => {};
 let destroyProjectCarousel = () => {};
+let pageLoader = null;
+let removeLoaderListeners = () => {};
 if (!homePage) {
   // Not on the homepage — skip all initialization
   console.warn('[home] data-home-page not found; skipping homepage init.');
@@ -69,6 +72,34 @@ function initShowcase() {
  */
 async function init() {
   if (!homePage) return;
+
+  pageLoader = initPageLoader();
+
+  const onHelmetProgress = (event) => {
+    const percent = event.detail && event.detail.percent;
+    if (!Number.isFinite(percent)) return;
+    pageLoader.setStatus(`Cargando modelo 3D… ${Math.round(percent)}%`);
+  };
+  const onHelmetReady = () => pageLoader.hide();
+  const onHelmetError = () => {
+    pageLoader.setStatus('El modelo 3D no está disponible. Mostrando la página…');
+    pageLoader.hide();
+  };
+
+  window.addEventListener('helmet:progress', onHelmetProgress);
+  window.addEventListener('helmet:ready', onHelmetReady);
+  window.addEventListener('helmet:error', onHelmetError);
+  removeLoaderListeners = () => {
+    window.removeEventListener('helmet:progress', onHelmetProgress);
+    window.removeEventListener('helmet:ready', onHelmetReady);
+    window.removeEventListener('helmet:error', onHelmetError);
+  };
+
+  if (document.documentElement.dataset.helmetReady === 'true') {
+    pageLoader.hide();
+  } else if (document.documentElement.dataset.helmetError === 'true') {
+    onHelmetError();
+  }
 
   const prefersReduced = reducedMotion();
 
@@ -145,9 +176,13 @@ async function init() {
   const fallback = document.querySelector('[data-helmet-fallback]');
   const stage = document.querySelector('.hero-3d');
 
-  if (!canvas || !stage) return;
+  if (!canvas || !stage) {
+    signalHelmetError();
+    return;
+  }
 
   if (!supportsWebGL()) {
+    signalHelmetError();
     // WebGL not available — show fallback
     if (loader) loader.style.display = 'none';
     if (fallback) fallback.hidden = false;
@@ -160,6 +195,7 @@ async function init() {
     if (loader) loader.style.display = 'none';
     if (stage) stage.classList.add('is-loaded');
   } catch (err) {
+    signalHelmetError();
     console.error('[home] Helmet3D init failed:', err);
     if (loader) loader.style.display = 'none';
     if (fallback) fallback.hidden = false;
@@ -168,6 +204,8 @@ async function init() {
 }
 
 window.addEventListener('pagehide', () => {
+  removeLoaderListeners();
+  if (pageLoader) pageLoader.destroy();
   destroyLogoLoop();
   destroyProjectCarousel();
 }, { once: true });

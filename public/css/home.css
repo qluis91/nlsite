@@ -15,6 +15,56 @@ body.page-home .navbar {
   display: none;
 }
 
+body.page-home.is-page-loading {
+  overflow: hidden;
+}
+
+.page-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  min-width: 100%;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(1rem, 3vw, 2rem);
+  overflow: hidden;
+  color: #e8e8e8;
+  background: #000;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 550ms ease, visibility 0s linear 550ms;
+}
+
+.page-loader.is-hiding {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.page-loader__video {
+  grid-area: 1 / 1;
+  display: block;
+  width: min(100%, 90rem);
+  height: min(100%, 100svh);
+  object-fit: contain;
+}
+
+.page-loader__status {
+  grid-area: 1 / 1;
+  align-self: end;
+  z-index: 1;
+  margin: 0 0 clamp(1rem, 4vh, 2.5rem);
+  padding: 0.45rem 0.75rem;
+  color: rgba(232, 232, 232, 0.82);
+  background: rgba(0, 0, 0, 0.48);
+  border-radius: 999px;
+  font-size: clamp(0.72rem, 1.8vw, 0.88rem);
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
 /* ── 1. Homepage tokens ── */
 .home-page {
   --home-accent: #7cf03d;
@@ -949,6 +999,10 @@ body.page-home .navbar {
 
 /* ── 11. Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
+  .page-loader {
+    transition: opacity 80ms ease, visibility 0s linear 80ms;
+  }
+
   .grainient-background {
     display: none;
   }

@@ -14,6 +14,32 @@ const IDLE_ROTATION_SPEED = 0.25;
 const INTERACTION_DAMPING = 0.92;
 const MAX_PIXEL_RATIO = 2;
 const TARGET_MODEL_SIZE = 0.1;
+const AUTO_ROTATE_START_DELAY_MS = 500;
+const FRONT_ROTATION = Object.freeze({
+  x: 0,
+  y: -2,
+  z: 0,
+});
+
+function dispatchHelmetEvent(name, detail) {
+  window.dispatchEvent(new CustomEvent(name, { detail }));
+}
+
+export function signalHelmetError() {
+  const root = document.documentElement;
+  if (root.dataset.helmetReady === 'true' || root.dataset.helmetError === 'true') return;
+  root.dataset.helmetError = 'true';
+  dispatchHelmetEvent('helmet:error', {
+    message: 'El casco 3D no está disponible.',
+  });
+}
+
+function signalHelmetReady() {
+  const root = document.documentElement;
+  if (root.dataset.helmetReady === 'true') return;
+  root.dataset.helmetReady = 'true';
+  dispatchHelmetEvent('helmet:ready', { ready: true });
+}
 
 /**
  * Initialize Three.js scene with the helmet model.
@@ -21,13 +47,25 @@ const TARGET_MODEL_SIZE = 0.1;
  * @param {boolean} prefersReduced — whether user prefers reduced motion
  */
 export async function initHelmet3D(canvas, prefersReduced = false) {
-  if (!canvas) return;
+  if (!canvas) {
+    signalHelmetError();
+    return;
+  }
 
   const stage = canvas.parentElement;
-  if (!stage) return;
+  if (!stage) {
+    signalHelmetError();
+    return;
+  }
 
   // ── Scene setup ──
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  } catch (error) {
+    signalHelmetError();
+    throw error;
+  }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
   renderer.setClearColor(0x000000, 0);
 
@@ -72,6 +110,75 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
   scene.add(modelGroup);
 
   let modelLoaded = false;
+  let loaderHidden = document.documentElement.dataset.pageLoaderHidden === 'true';
+  let presentationStarted = false;
+  let autoRotateEnabled = false;
+  let autoRotateStartTimer = null;
+  let destroyed = false;
+  let targetRotationX = FRONT_ROTATION.x;
+  let targetRotationY = FRONT_ROTATION.y;
+  let currentRotationX = FRONT_ROTATION.x;
+  let currentRotationY = FRONT_ROTATION.y;
+  let isDragging = false;
+  let activePointerId = null;
+  let prevPointerX = 0;
+  let prevPointerY = 0;
+  let idleResumeAt = 0;
+
+  function clearAutoRotateStartTimer() {
+    if (autoRotateStartTimer === null) return;
+    window.clearTimeout(autoRotateStartTimer);
+    autoRotateStartTimer = null;
+  }
+
+  function resetHelmetToFront() {
+    if (!modelLoaded || !modelGroup || destroyed) return;
+
+    isDragging = false;
+    autoRotateEnabled = false;
+    idleResumeAt = 0;
+    stage.classList.remove('is-dragging');
+
+    if (activePointerId !== null && stage.hasPointerCapture(activePointerId)) {
+      stage.releasePointerCapture(activePointerId);
+    }
+    activePointerId = null;
+    prevPointerX = 0;
+    prevPointerY = 0;
+
+    targetRotationX = FRONT_ROTATION.x;
+    targetRotationY = FRONT_ROTATION.y;
+    currentRotationX = FRONT_ROTATION.x;
+    currentRotationY = FRONT_ROTATION.y;
+    modelGroup.rotation.set(
+      FRONT_ROTATION.x,
+      FRONT_ROTATION.y,
+      FRONT_ROTATION.z
+    );
+  }
+
+  function tryStartHelmetPresentation() {
+    if (!modelLoaded || !loaderHidden || presentationStarted || destroyed) return;
+
+    presentationStarted = true;
+    clearAutoRotateStartTimer();
+    resetHelmetToFront();
+
+    if (prefersReduced) return;
+
+    autoRotateStartTimer = window.setTimeout(() => {
+      autoRotateStartTimer = null;
+      if (destroyed || isDragging) return;
+      autoRotateEnabled = true;
+    }, AUTO_ROTATE_START_DELAY_MS);
+  }
+
+  function handlePageLoaderHidden() {
+    loaderHidden = true;
+    tryStartHelmetPresentation();
+  }
+
+  window.addEventListener('page-loader:hidden', handlePageLoaderHidden, { once: true });
 
   try {
     const gltf = await new Promise((resolve, reject) => {
@@ -79,9 +186,18 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
         HELMET_MODEL_URL,
         (result) => resolve(result),
         (event) => {
-          if (!event.total || !loaderText) return;
-          const pct = Math.round((event.loaded / event.total) * 100);
-          loaderText.textContent = 'Cargando modelo 3D\u2026 ' + pct + '%';
+          if (!Number.isFinite(event.total) || event.total <= 0) return;
+          const loaded = Number.isFinite(event.loaded) ? Math.max(0, event.loaded) : 0;
+          const percent = Math.min(100, Math.max(0, (loaded / event.total) * 100));
+          const roundedPercent = Math.round(percent);
+          if (loaderText) {
+            loaderText.textContent = 'Cargando modelo 3D\u2026 ' + roundedPercent + '%';
+          }
+          dispatchHelmetEvent('helmet:progress', {
+            loaded,
+            total: event.total,
+            percent,
+          });
         },
         (err) => reject(err)
       );
@@ -128,10 +244,15 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
     camera.lookAt(0, 0, 0);
 
     modelLoaded = true;
+    tryStartHelmetPresentation();
+    signalHelmetReady();
 
     // Dispatch custom event
     canvas.dispatchEvent(new CustomEvent('helmet-loaded', { bubbles: true }));
   } catch (err) {
+    clearAutoRotateStartTimer();
+    window.removeEventListener('page-loader:hidden', handlePageLoaderHidden);
+    signalHelmetError();
     // Show fallback, hide loader
     if (loaderEl) loaderEl.style.display = 'none';
     if (fallbackEl) fallbackEl.hidden = false;
@@ -141,19 +262,11 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
   }
 
   // ── Pointer interaction (click-and-drag only, no hover) ──
-  let targetRotationX = 0;
-  let targetRotationY = 0;
-  let currentRotationX = 0;
-  let currentRotationY = 0;
-  let isDragging = false;
-  let activePointerId = null;
-  let prevPointerX = 0;
-  let prevPointerY = 0;
-  let idleResumeAt = 0;
-
   function onPointerDown(e) {
     if (!modelLoaded) return;
     if (!e.isPrimary) return;
+    clearAutoRotateStartTimer();
+    autoRotateEnabled = false;
     isDragging = true;
     idleResumeAt = 0;
     activePointerId = e.pointerId;
@@ -219,7 +332,7 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
   }
 
   // Defer to ensure DOM layout is settled
-  requestAnimationFrame(() => {
+  const resizeFrameId = requestAnimationFrame(() => {
     onResize();
   });
 
@@ -228,16 +341,19 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
 
   // ── Visibility pause ──
   let isVisible = true;
-  document.addEventListener('visibilitychange', () => {
+  function onVisibilityChange() {
     isVisible = !document.hidden;
-  });
+  }
+  document.addEventListener('visibilitychange', onVisibilityChange);
 
   // ── Render loop ──
   let lastTime = performance.now();
   const idleSpeed = prefersReduced ? 0.05 : IDLE_ROTATION_SPEED;
+  let animationFrameId = null;
 
   function animate(now) {
-    requestAnimationFrame(animate);
+    if (destroyed) return;
+    animationFrameId = requestAnimationFrame(animate);
 
     if (!isVisible || !modelLoaded) {
       if (isVisible) renderer.render(scene, camera);
@@ -247,12 +363,13 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
     const dt = Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;
 
-    // Idle rotation: resume after delay if not dragging and not reduced-motion
+    // Idle rotation: begin after loader exit, then resume after drag delay.
     if (!isDragging && !prefersReduced) {
-      if (idleResumeAt > 0 && now >= idleResumeAt) {
+      if (!autoRotateEnabled && idleResumeAt > 0 && now >= idleResumeAt) {
+        autoRotateEnabled = true;
         idleResumeAt = 0;
       }
-      if (idleResumeAt === 0) {
+      if (autoRotateEnabled && idleResumeAt === 0) {
         targetRotationY += idleSpeed * dt;
       }
     }
@@ -266,10 +383,28 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
     renderer.render(scene, camera);
   }
 
-  requestAnimationFrame(animate);
+  animationFrameId = requestAnimationFrame(animate);
 
   // ── Cleanup ──
   canvas._helmetCleanup = () => {
+    if (destroyed) return;
+    destroyed = true;
+    clearAutoRotateStartTimer();
+    autoRotateEnabled = false;
+    idleResumeAt = 0;
+    window.removeEventListener('pagehide', canvas._helmetCleanup);
+    window.removeEventListener('page-loader:hidden', handlePageLoaderHidden);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    stage.removeEventListener('pointerdown', onPointerDown);
+    stage.removeEventListener('pointermove', onPointerMove);
+    stage.removeEventListener('pointerup', onPointerUp);
+    stage.removeEventListener('pointercancel', onPointerUp);
+    stage.removeEventListener('lostpointercapture', onLostPointerCapture);
+    window.cancelAnimationFrame(resizeFrameId);
+    if (animationFrameId !== null) {
+      window.cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
     resizeObserver.disconnect();
     scene.traverse((child) => {
       if (child.geometry) child.geometry.dispose();
@@ -283,4 +418,5 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
     });
     renderer.dispose();
   };
+  window.addEventListener('pagehide', canvas._helmetCleanup, { once: true });
 }

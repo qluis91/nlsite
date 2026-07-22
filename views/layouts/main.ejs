@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="<%= site.description %>">
+  <meta name="description" content="<%= typeof metaDescription !== 'undefined' ? metaDescription : site.description %>">
+  <% if (typeof robots !== 'undefined' && robots) { %>
+    <meta name="robots" content="<%= robots %>">
+  <% } %>
   <title><%= typeof title !== 'undefined' ? title + ' | ' + site.name : site.name %></title>
   <link rel="stylesheet" href="/css/style.css">
   <% if (typeof pageStyles !== 'undefined' && Array.isArray(pageStyles)) { %>
