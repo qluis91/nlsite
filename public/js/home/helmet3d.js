@@ -9,7 +9,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 const HELMET_MODEL_URL = 'https://storage.googleapis.com/ninjalab3d/casco.glb';
 const IDLE_ROTATION_SPEED = 0.25;
 const INTERACTION_DAMPING = 0.92;
-const RESUME_DELAY_MS = 2000;
 const MAX_PIXEL_RATIO = 2;
 const TARGET_MODEL_SIZE = 3.2;
 
@@ -137,65 +136,71 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
     throw err;
   }
 
-  // ── Pointer interaction ──
+  // ── Pointer interaction (click-and-drag only, no hover) ──
   let targetRotationX = 0;
   let targetRotationY = 0;
   let currentRotationX = 0;
   let currentRotationY = 0;
-  let isInteracting = false;
-  let interactionTimer = null;
+  let isDragging = false;
+  let activePointerId = null;
   let prevPointerX = 0;
   let prevPointerY = 0;
-  let dragging = false;
+  let idleResumeAt = 0;
 
   function onPointerDown(e) {
     if (!modelLoaded) return;
-    dragging = true;
-    prevPointerX = e.clientX || (e.touches && e.touches[0]?.clientX) || prevPointerX;
-    prevPointerY = e.clientY || (e.touches && e.touches[0]?.clientY) || prevPointerY;
+    if (!e.isPrimary) return;
+    isDragging = true;
+    idleResumeAt = 0;
+    activePointerId = e.pointerId;
+    prevPointerX = e.clientX;
+    prevPointerY = e.clientY;
+    stage.setPointerCapture(e.pointerId);
+    stage.classList.add('is-dragging');
   }
 
   function onPointerMove(e) {
-    if (!modelLoaded) return;
+    if (!modelLoaded || !isDragging) return;
+    if (e.pointerId !== activePointerId) return;
 
-    const clientX = e.clientX || (e.touches && e.touches[0]?.clientX) || 0;
-    const clientY = e.clientY || (e.touches && e.touches[0]?.clientY) || 0;
+    const dx = e.clientX - prevPointerX;
+    const dy = e.clientY - prevPointerY;
 
-    if (dragging) {
-      const dx = clientX - prevPointerX;
-      const dy = clientY - prevPointerY;
-      targetRotationY += dx * 0.01;
-      targetRotationX += dy * 0.005;
-      targetRotationX = THREE.MathUtils.clamp(targetRotationX, -0.8, 0.8);
-      prevPointerX = clientX;
-      prevPointerY = clientY;
-    }
+    targetRotationY += dx * 0.008;
+    targetRotationX += dy * 0.004;
+    targetRotationX = THREE.MathUtils.clamp(targetRotationX, -0.8, 0.8);
 
-    if (!dragging) {
-      const rect = canvas.getBoundingClientRect();
-      const nx = (clientX - rect.left) / Math.max(rect.width, 1) * 2 - 1;
-      const ny = -((clientY - rect.top) / Math.max(rect.height, 1) * 2 - 1);
-      targetRotationY = nx * 0.3;
-      targetRotationX = ny * 0.15;
-    }
-
-    if (Math.abs(clientX - prevPointerX) > 2 || Math.abs(clientY - prevPointerY) > 2) {
-      isInteracting = true;
-      clearTimeout(interactionTimer);
-      interactionTimer = setTimeout(() => { isInteracting = false; }, RESUME_DELAY_MS);
-    }
+    prevPointerX = e.clientX;
+    prevPointerY = e.clientY;
   }
 
-  function onPointerUp() {
-    dragging = false;
+  function endDrag() {
+    if (!isDragging) return;
+    isDragging = false;
+    stage.classList.remove('is-dragging');
+    idleResumeAt = performance.now() + 1800;
+
+    if (activePointerId !== null && stage.hasPointerCapture(activePointerId)) {
+      stage.releasePointerCapture(activePointerId);
+    }
+    activePointerId = null;
   }
 
-  canvas.addEventListener('pointerdown', onPointerDown, { passive: false });
-  window.addEventListener('pointermove', onPointerMove, { passive: true });
-  window.addEventListener('pointerup', onPointerUp, { passive: true });
-  canvas.addEventListener('touchstart', onPointerDown, { passive: false });
-  window.addEventListener('touchmove', onPointerMove, { passive: true });
-  window.addEventListener('touchend', onPointerUp, { passive: true });
+  function onPointerUp(e) {
+    if (e.pointerId !== activePointerId) return;
+    endDrag();
+  }
+
+  function onLostPointerCapture() {
+    endDrag();
+  }
+
+  // Bind events on stage for pointer capture
+  stage.addEventListener('pointerdown', onPointerDown);
+  stage.addEventListener('pointermove', onPointerMove);
+  stage.addEventListener('pointerup', onPointerUp);
+  stage.addEventListener('pointercancel', onPointerUp);
+  stage.addEventListener('lostpointercapture', onLostPointerCapture);
 
   // ── Resize ──
   function onResize() {
@@ -238,8 +243,14 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
     const dt = Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;
 
-    if (!isInteracting && !prefersReduced) {
-      targetRotationY += idleSpeed * dt;
+    // Idle rotation: resume after delay if not dragging and not reduced-motion
+    if (!isDragging && !prefersReduced) {
+      if (idleResumeAt > 0 && now >= idleResumeAt) {
+        idleResumeAt = 0;
+      }
+      if (idleResumeAt === 0) {
+        targetRotationY += idleSpeed * dt;
+      }
     }
 
     currentRotationY += (targetRotationY - currentRotationY) * (1 - INTERACTION_DAMPING);

@@ -441,6 +441,15 @@ body.page-home .navbar {
   align-items: center;
   justify-content: center;
   z-index: 2;
+  cursor: grab;
+}
+
+.hero-3d.is-dragging {
+  cursor: grabbing;
+}
+
+.hero-3d.has-fallback {
+  cursor: default;
 }
 
 .hero-canvas {
