@@ -454,7 +454,7 @@ body.page-home .navbar {
 
 .hero-canvas {
   display: block;
-  width: 100%;
+  width: 200%;
   height: 100%;
   touch-action: pan-y;
 }

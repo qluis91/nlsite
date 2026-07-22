@@ -10,7 +10,7 @@ const HELMET_MODEL_URL = 'https://storage.googleapis.com/ninjalab3d/casco.glb';
 const IDLE_ROTATION_SPEED = 0.25;
 const INTERACTION_DAMPING = 0.92;
 const MAX_PIXEL_RATIO = 2;
-const TARGET_MODEL_SIZE = 3.2;
+const TARGET_MODEL_SIZE = 0.1;
 
 /**
  * Initialize Three.js scene with the helmet model.
