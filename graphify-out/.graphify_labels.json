@@ -15,5 +15,6 @@
   "13": "session.js",
   "14": "2026-07-21 — CSRF Protection",
   "15": "2026-07-21 — Email Verification and Password Recovery",
-  "16": "2026-07-21 — Email Verification and Password Recovery"
+  "17": "2026-07-21 — Critical Panel 1 Runtime Correction — CSP, Three.js, External GLB, Logo, and Navigation",
+  "18": "2026-07-21 — Panel 1 Helmet and Logo Correction"
 }

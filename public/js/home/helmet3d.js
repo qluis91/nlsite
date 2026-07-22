@@ -4,9 +4,12 @@
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 // ── Constants ──
-const HELMET_MODEL_URL = 'https://storage.googleapis.com/ninjalab3d/casco.glb';
+//const HELMET_MODEL_URL = 'https://storage.googleapis.com/ninjalab3d/casco.glb';
+const HELMET_MODEL_URL = 'https://storage.googleapis.com/ninjalab3d/casco-optimized.glb';
+//const HELMET_MODEL_URL = '/3d/casco-optimized.glb';
 const IDLE_ROTATION_SPEED = 0.25;
 const INTERACTION_DAMPING = 0.92;
 const MAX_PIXEL_RATIO = 2;
@@ -65,6 +68,7 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
 
   const loader = new GLTFLoader();
   const modelGroup = new THREE.Group();
+  loader.setMeshoptDecoder(MeshoptDecoder);
   scene.add(modelGroup);
 
   let modelLoaded = false;

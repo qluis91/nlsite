@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-07-21 — Homepage Responsive Adaptation
+
+### Changed
+- **Desktop structure preserved**: Logo/header and hero content now share the same bounded container; the navigation remains at the upper-right and the text/3D composition stays two-column through tablet widths.
+- **Responsive header**: Removed the fixed negative navigation offset, added fluid logo/navigation sizing, controlled wrapping, and a deliberate two-row mobile header that preserves every link and account action.
+- **Responsive copy and CTAs**: Added fluid vertical spacing, bounded heading sizing, 48px minimum button targets, and nearly full-width mobile CTAs without changing copy or visual styles.
+- **3D stage**: Constrained the canvas to `100%` of its stage, added viewport-aware stage heights, and retained the existing Three.js scale, camera fit, model source, idle rotation, and click-drag interaction.
+- **Social links**: Kept lower-right container-aligned placement on desktop and returned the links to normal document flow on mobile.
+- **Animations**: Added `gsap.matchMedia()` movement values for desktop/mobile and a single ScrollTrigger refresh after the external helmet model loads.
+- **Mobile order**: Preserved logical DOM order while presenting copy, 3D object, CTAs, and social links sequentially.
+
+### Validation
+- Static responsive rules reviewed against 1920×1080, 1600×900, 1440×900, 1366×768, 1280×720, 1024×768, 912×1368, 768×1024, 600×960, 480×900, 430×932, 390×844, 375×812, 360×800, and 320×568 targets.
+- `test-auth.js`: 37 passed, 0 failed, 3 credential-dependent flows skipped.
+- Homepage, CSS/JS modules, Three.js, GLTFLoader, login, register, and admin login returned HTTP 200; unknown route returned 404.
+- `npm audit --omit=dev`: 0 vulnerabilities.
+- `git diff --check`: clean.
+- Real browser visual validation: pending because no in-app browser backend was available.
+
+### Remaining Frontend Issues
+- Run the full responsive device-toolbar matrix, continuous resize pass, console/network inspection, and 3D pointer/touch interaction checks in a connected real browser before declaring the responsive homepage complete.
+- Panel 2 remains a transition placeholder and was not modified.
+
 ## 2026-07-21 — Critical Panel 1 Runtime Correction — CSP, Three.js, External GLB, Logo, and Navigation
 
 ### Root Cause — Two Interdependent Failures

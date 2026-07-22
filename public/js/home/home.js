@@ -5,6 +5,7 @@
  */
 import { initHomeAnimations } from './animations.js';
 import { initHelmet3D } from './helmet3d.js';
+import { initSplashCursor } from './splashCursor.js';
 
 const homePage = document.querySelector('[data-home-page]');
 if (!homePage) {
@@ -35,6 +36,33 @@ async function init() {
   if (!homePage) return;
 
   const prefersReduced = reducedMotion();
+
+  // Decorative fluid cursor. Failure is isolated from animations and Helmet3D.
+  if (!prefersReduced) {
+    try {
+      initSplashCursor({
+        canvas: document.querySelector('[data-splash-cursor]'),
+        SIM_RESOLUTION: 128,
+        DYE_RESOLUTION: 1440,
+        CAPTURE_RESOLUTION: 512,
+        DENSITY_DISSIPATION: 5.5,
+        VELOCITY_DISSIPATION: 1.5,
+        PRESSURE: 0.2,
+        PRESSURE_ITERATIONS: 20,
+        CURL: 3,
+        SPLAT_RADIUS: 0.2,
+        SPLAT_FORCE: 6000,
+        SHADING: true,
+        COLOR_UPDATE_SPEED: 10,
+        BACK_COLOR: { r: 0, g: 0, b: 0 },
+        TRANSPARENT: true,
+        RAINBOW_MODE: false,
+        COLOR: '#93eb0d',
+      });
+    } catch (err) {
+      console.warn('[home] Splash cursor init failed:', err);
+    }
+  }
 
   // ── Animation system ──
   if (!prefersReduced) {

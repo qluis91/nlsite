@@ -1,7 +1,7 @@
 # nlSite — Project Status
 
 **Last updated:** 2026-07-21  
-**Current phase:** Critical Panel 1 Runtime Correction — CSP, Three.js, External GLB, Logo, and Navigation
+**Current phase:** Homepage Responsive Adaptation
 
 ---
 
@@ -73,6 +73,9 @@
 - [x] No bundler — vendor aliases + import map for Three.js/GSAP/Lenis
 - [x] Homepage-specific CSS/JS scoped under `.home-page` / `body.page-home`
 - [x] CSP updated for WebGL (`blob:`, `connect-src`, `worker-src`)
+- [x] Homepage responsive structure preserves the desktop header/two-column composition through tablet widths
+- [x] Mobile homepage uses a two-row header, single-column content flow, bounded 3D canvas, full-width CTAs, and in-flow social links
+- [x] Homepage scroll animations use breakpoint-specific GSAP movement and refresh after the 3D model loads
 
 ## New Routes
 
@@ -130,7 +133,7 @@
 - Deployment hardening remains pending
 - `casco.glb` is 26.76 MB (uncompressed 3D asset) — optimization deferred
 - Panel 2 is a transition placeholder only; Panel 3+ not yet designed
-- Manual browser visual validation of Panel 1 required (not yet performed)
+- Manual browser visual validation of the responsive Panel 1 matrix required (in-app browser unavailable during the responsive adaptation)
 - Lenis initialized only on homepage; anchor link behavior not tested
 - GLB loading confirmed working via HTTP; manual browser WebGL rendering validation pending
 
@@ -155,3 +158,4 @@ Persistent rate limiting (**postponed** until after current frontend work), Pane
 | Frontend P1 | Frontend Foundation — Animated Panel 1 (Three.js + GSAP + Lenis) | 2026-07-21 |
 | P1 Visual Fix | Panel 1 Helmet and Logo Correction (3D import fix + logo sizing) | 2026-07-21 |
 | CSP Fix | Critical Panel 1 Runtime Correction (CSP nonce + external GLB + nav) | 2026-07-21 |
+| P1 Responsive | Homepage Responsive Adaptation (layout, 3D stage, social links, animation breakpoints) | 2026-07-21 |

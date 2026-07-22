@@ -29,15 +29,32 @@ body.page-home .navbar {
   --home-text-light: #e8e8e8;
   --home-text-dim: #aaaaaa;
   --home-grid-color: rgba(255, 255, 255, 0.04);
-  --home-panel-padding: clamp(2rem, 5vw, 4rem);
-  --home-content-width: min(90rem, 100% - 4rem);
-  --home-nav-height: 4rem;
+  --home-panel-padding: clamp(1.5rem, 4vw, 4rem);
+  --home-content-width: 90rem;
+  --home-header-clearance: clamp(12rem, 15vw, 15rem);
 
   margin: 0;
+  max-width: 100%;
+  overflow-x: clip;
   background: var(--home-bg-black);
 }
 
 /* ── 2. Panel base ── */
+.splash-cursor-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.splash-cursor-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 .home-panel {
   position: relative;
   width: 100%;
@@ -48,10 +65,12 @@ body.page-home .navbar {
 .home-panel--hero {
   min-height: 100vh;
   min-height: 100svh;
+  height: auto;
   display: flex;
   flex-direction: column;
   background: var(--home-bg-black);
-  padding-top: var(--home-nav-height);
+  padding-top: var(--home-header-clearance);
+  padding-bottom: 0;
 }
 
 /* ── 3.1 Background layers ── */
@@ -150,14 +169,15 @@ body.page-home .navbar {
   display: grid;
   grid-template-columns: minmax(0, auto) minmax(0, 1fr);
   align-items: center;
-  width: 100%;
+  width: min(
+    calc(100% - (var(--home-panel-padding) * 2)),
+    var(--home-content-width)
+  );
   gap: clamp(2rem, 5vw, 6rem);
-  padding: 1.5rem var(--home-panel-padding);
+  padding: 1.5rem 0 0;
   height: auto;
   min-height: 5rem;
-  max-width: min(100%, var(--home-content-width) + 2 * var(--home-panel-padding));
   margin-inline: auto;
-  margin-bottom: 10rem;
 }
 
 .hero-logo {
@@ -181,7 +201,8 @@ body.page-home .navbar {
 .hero-nav {
   z-index: 2;
   justify-self: end;
-  margin-top: -8rem;
+  margin-left: auto;
+  min-width: 0;
 }
 
 .hero-nav-list {
@@ -191,6 +212,8 @@ body.page-home .navbar {
   gap: 2rem;
   margin: 0;
   padding: 0;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .hero-nav-link {
@@ -277,18 +300,27 @@ body.page-home .navbar {
   z-index: 1;
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: center;
-  gap: 2rem;
-  max-width: var(--home-content-width);
-  margin: 0 auto;
-  padding: 2rem var(--home-panel-padding);
-  padding-bottom: 3rem;
+  grid-template-columns: minmax(0, 0.9fr) minmax(420px, 1.1fr);
+  grid-template-areas:
+    "text stage"
+    "ctas stage";
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: clamp(2rem, 4vw, 6rem);
+  width: min(
+    calc(100% - (var(--home-panel-padding) * 2)),
+    var(--home-content-width)
+  );
+  margin-inline: auto;
+  padding: 1rem 0;
 }
 
 .hero-text {
+  grid-area: text;
   position: relative;
   z-index: 2;
+  min-width: 0;
+  align-self: end;
 }
 
 /* ── 5.1 Eyebrow ── */
@@ -300,8 +332,8 @@ body.page-home .navbar {
   text-transform: uppercase;
   color: var(--home-text-dark);
   opacity: 0.85;
-  margin-bottom: 5rem;
-  margin-top: 10rem;
+  margin-bottom: clamp(2rem, 5vh, 5rem);
+  margin-top: clamp(1rem, 5vh, 4rem);
   position: relative;
   padding-bottom: 0.65rem;
 }
@@ -326,7 +358,7 @@ body.page-home .navbar {
     0 0 40px rgba(124, 240, 61, 0.3),
     0 0 80px rgba(124, 240, 61, 0.15),
     0 0 120px rgba(124, 240, 61, 0.08);
-  margin: 0 0 5rem;
+  margin: 0;
   letter-spacing: -0.02em;
 }
 
@@ -340,10 +372,14 @@ body.page-home .navbar {
 
 /* ── 5.3 CTA buttons ── */
 .hero-ctas {
+  grid-area: ctas;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  max-width: 280px;
+  width: min(100%, 280px);
+  margin-top: clamp(2.5rem, 6vh, 5rem);
+  align-self: start;
+  min-width: 0;
 }
 
 .hero-btn {
@@ -360,6 +396,8 @@ body.page-home .navbar {
   position: relative;
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.3s, border-color 0.3s;
+  min-height: 48px;
+  white-space: nowrap;
 }
 
 .hero-btn:active {
@@ -436,10 +474,12 @@ body.page-home .navbar {
 
 /* ── 6. 3D Stage ── */
 .hero-3d {
+  grid-area: stage;
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: clamp(500px, 56vw, 780px);
+  min-width: 0;
+  min-height: clamp(420px, min(50vw, 60vh), 760px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -457,8 +497,9 @@ body.page-home .navbar {
 
 .hero-canvas {
   display: block;
-  width: 200%;
+  width: 100%;
   height: 100%;
+  max-width: 100%;
   touch-action: pan-y;
 }
 
@@ -529,10 +570,19 @@ body.page-home .navbar {
 
 /* ── 7. Social links ── */
 .hero-social {
-  position: absolute;
-  bottom: 2rem;
-  right: var(--home-panel-padding);
-  z-index: 5;
+  position: relative;
+  right: auto;
+  bottom: auto;
+  align-self: flex-end;
+  flex-shrink: 0;
+  width: fit-content;
+  margin-top: 1rem;
+  margin-right: max(
+    var(--home-panel-padding),
+    calc((100% - var(--home-content-width)) / 2)
+  );
+  margin-bottom: clamp(1.5rem, 3vh, 3rem);
+  z-index: 4;
   display: flex;
   gap: 1rem;
 }
@@ -608,194 +658,285 @@ body.page-home .navbar {
 }
 
 /* ── 10. Responsive ── */
-/* Tablet and below: stack columns */
-@media (max-width: 1024px) {
-  .hero-content {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
-    gap: 1.5rem;
-    padding-top: 1rem;
-    text-align: center;
+/* Large desktop adjustments */
+@media (max-width: 1200px) {
+  .home-page {
+    --home-panel-padding: clamp(1.5rem, 3vw, 2.5rem);
   }
 
-  .hero-eyebrow::after {
-    left: 50%;
-    transform: translateX(-50%);
-    width: 2.5rem;
-  }
-
-  .hero-heading {
-    text-align: center;
-    margin-bottom: 4rem;
-  }
-
-  .hero-ctas {
-    margin: 0 auto;
-    max-width: 320px;
-  }
-
-  .hero-3d {
-    min-height: 320px;
-  }
-
-  .hero-social {
-    right: 50%;
-    transform: translateX(50%);
-  }
-}
-
-/* Small tablet: reduce everything */
-@media (max-width: 768px) {
   .hero-header {
-    padding: 1rem;
-    grid-template-columns: minmax(0, auto) 1fr;
-    gap: 1.5rem;
+    gap: clamp(1.5rem, 3vw, 3rem);
   }
 
   .hero-logo {
-    width: clamp(240px, 35vw, 360px);
-  }
-
-  .hero-logo-img {
-    transform: scale(1);
+    width: clamp(320px, 28vw, 400px);
   }
 
   .hero-nav-list {
-    gap: 1rem;
+    gap: clamp(1rem, 2vw, 1.5rem);
+  }
+
+  .hero-content {
+    grid-template-columns: minmax(0, 0.95fr) minmax(360px, 1.05fr);
+    column-gap: clamp(1.5rem, 3vw, 3rem);
+  }
+}
+
+/* Tablet: preserve the two-column composition while it remains usable */
+@media (max-width: 1024px) {
+  .home-page {
+    --home-header-clearance: clamp(10.5rem, 19vw, 12rem);
+  }
+
+  .hero-logo {
+    width: clamp(280px, 31vw, 340px);
+  }
+
+  .hero-nav-list {
+    gap: 0.9rem;
   }
 
   .hero-nav-link {
     font-size: 0.82rem;
   }
 
-  .hero-heading {
-    font-size: clamp(2rem, 5vw, 2rem);
-    margin-bottom: 1.75rem;
-  }
-
-  .hero-3d {
-    min-height: 320px;
-  }
-
-  .hero-btn {
-    padding: 0.75rem 1.25rem;
-    font-size: 0.88rem;
-  }
-
-  .hero-bg-glow {
-    top: 30%;
-    right: 50%;
-    width: 70%;
-    height: 40%;
-    transform: translateX(50%);
-    opacity: 0.8;
-  }
-}
-
-/* Mobile: tighter spacing */
-@media (max-width: 430px) {
-  .home-panel--hero {
-    padding-top: 3.5rem;
-  }
-
-  .hero-header {
-    flex-direction: row;
-    padding: 0.75rem 1rem;
-    height: auto;
-    min-height: auto;
-    grid-template-columns: minmax(0, auto) 1fr;
-    gap: 1rem;
-  }
-
-  .hero-logo {
-    width: clamp(180px, 50vw, 260px);
-  }
-
-  .hero-logo-img {
-    transform: scale(1);
-  }
-
-  .hero-nav-list {
-    gap: 0.7rem;
-  }
-
-  .hero-nav-link {
-    font-size: 0.76rem;
-  }
-
   .hero-nav-account {
-    gap: 0.4rem;
+    gap: 0.6rem;
     margin-left: 0;
   }
 
   .hero-content {
-    padding: 1rem 1rem 2rem;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-
-  .hero-3d {
-    min-height: 250px;
-    order: 3;
-  }
-
-  .hero-text {
-    order: 2;
+    grid-template-columns: minmax(0, 0.95fr) minmax(340px, 1.05fr);
+    column-gap: 1.5rem;
   }
 
   .hero-eyebrow {
-    font-size: 0.62rem;
-    letter-spacing: 0.15em;
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.4rem;
+    margin-top: 1rem;
+    margin-bottom: clamp(1.5rem, 3vh, 2.5rem);
   }
 
   .hero-heading {
-    margin-bottom: 1.25rem;
+    font-size: clamp(2rem, 4vw, 2.55rem);
+  }
+
+  .hero-3d {
+    min-height: clamp(400px, 50vw, 560px);
+  }
+}
+
+/* Mobile: two-row header and deliberate single-column flow */
+@media (max-width: 768px) {
+  .home-page {
+    --home-panel-padding: clamp(1rem, 4vw, 1.5rem);
+  }
+
+  .home-panel--hero {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .hero-header {
+    position: relative;
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+    min-height: auto;
+    padding-top: 0.75rem;
+  }
+
+  .hero-logo {
+    width: clamp(220px, 45vw, 300px);
+  }
+
+  .hero-nav {
+    width: 100%;
+  }
+
+  .hero-nav-list {
+    justify-content: flex-end;
+    gap: 0.75rem 1rem;
+  }
+
+  .hero-nav-link {
+    font-size: 0.8rem;
+  }
+
+  .hero-content {
+    flex: none;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "text"
+      "stage"
+      "ctas";
+    grid-template-rows: auto auto auto;
+    gap: clamp(1rem, 3vw, 1.5rem);
+    padding: clamp(1.5rem, 4vw, 2.5rem) 0 1rem;
+  }
+
+  .hero-text {
+    min-width: 0;
+    align-self: auto;
+  }
+
+  .hero-eyebrow {
+    font-size: clamp(0.62rem, 1.7vw, 0.72rem);
+    margin: 0 0 clamp(1.25rem, 4vw, 2rem);
+  }
+
+  .hero-heading {
+    max-width: 12ch;
+    font-size: clamp(2rem, 8vw, 3rem);
+    margin-bottom: 0;
+  }
+
+  .hero-3d {
+    min-height: clamp(280px, 62vw, 440px);
   }
 
   .hero-ctas {
-    max-width: 100%;
-    width: 100%;
-    gap: 0.6rem;
+    width: min(100%, 430px);
+    margin-top: 0.5rem;
   }
 
   .hero-btn {
     width: 100%;
-    justify-content: center;
-    padding: 0.8rem 1rem;
-    font-size: 0.85rem;
   }
 
   .hero-social {
-    position: static;
-    transform: none;
-    justify-content: center;
-    padding: 1rem 0 0;
+    align-self: flex-end;
+    justify-content: flex-end;
+    margin: 0 var(--home-panel-padding) clamp(1.5rem, 3vh, 2rem);
+    padding: 0.75rem 0 0;
+  }
+
+  .hero-bg-glow {
+    top: 34%;
+    right: 5%;
+    width: 90%;
+    height: 36%;
+  }
+}
+
+/* Small mobile */
+@media (max-width: 480px) {
+  .hero-logo {
+    width: clamp(190px, 58vw, 250px);
+  }
+
+  .hero-nav-list {
+    gap: 0.55rem 0.8rem;
+  }
+
+  .hero-nav-link {
+    font-size: 0.75rem;
+  }
+
+  .hero-nav-account {
+    gap: 0.45rem;
+  }
+
+  .hero-content {
+    padding-top: 1.25rem;
+  }
+
+  .hero-heading {
+    font-size: clamp(1.85rem, 9vw, 2.45rem);
+    line-height: 1.05;
+  }
+
+  .hero-3d {
+    min-height: clamp(240px, 68vw, 320px);
+  }
+
+  .hero-btn {
+    padding: 0.8rem 1rem;
+    font-size: 0.88rem;
+  }
+
+  .hero-social {
     gap: 0.75rem;
   }
 
   .hero-social-link {
-    width: 2.2rem;
-    height: 2.2rem;
-  }
-
-  .hero-social-link svg {
-    width: 0.95rem;
-    height: 0.95rem;
+    width: 2.35rem;
+    height: 2.35rem;
   }
 
   .home-panel--hero::after {
     display: none;
   }
+}
 
-  .hero-bg-glow {
-    top: 35%;
+@media (max-width: 360px) {
+  .hero-header {
+    padding-top: 0.5rem;
+  }
+
+  .hero-nav-list {
+    gap: 0.45rem 0.65rem;
+  }
+
+  .hero-nav-link {
+    font-size: 0.72rem;
+  }
+
+  .hero-heading {
+    font-size: clamp(1.75rem, 8.8vw, 2rem);
+  }
+
+  .hero-3d {
+    min-height: clamp(220px, 70vw, 260px);
+  }
+
+  .hero-social {
+    align-self: center;
+    justify-content: center;
+    margin-inline: auto;
+  }
+}
+
+/* Short desktop viewports */
+@media (max-height: 760px) and (min-width: 769px) {
+  .home-page {
+    --home-header-clearance: clamp(9.5rem, 14vw, 11.5rem);
+  }
+
+  .hero-header {
+    padding-top: 0.75rem;
+  }
+
+  .hero-logo {
+    width: clamp(300px, 25vw, 360px);
+  }
+
+  .hero-content {
+    padding-top: 0;
+    padding-bottom: 0.5rem;
+  }
+
+  .hero-eyebrow {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-heading {
+    font-size: clamp(2rem, 3.4vw, 2.65rem);
+  }
+
+  .hero-ctas {
+    margin-top: 1.75rem;
+  }
+
+  .hero-3d {
+    min-height: clamp(380px, 54vh, 460px);
   }
 }
 
 /* ── 11. Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
+  .splash-cursor-layer {
+    display: none;
+  }
+
   .hero-btn::before {
     display: none;
   }
@@ -819,4 +960,5 @@ body.page-home .navbar {
   .hero-loader-spinner {
     animation-duration: 2s;
   }
+
 }

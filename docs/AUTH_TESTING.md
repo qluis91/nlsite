@@ -267,3 +267,11 @@ Use this checklist to manually verify every authentication flow from the browser
 | 150 | Browser: logo matches reference | Logo size visually matches `PaginaWeb.png` |
 | 151 | Browser: no console errors | No CSP violation, no "Failed to resolve module specifier", no CORS errors |
 | 152 | Browser: nav right-aligned | Navigation items aligned to far right, large gap from logo |
+
+---
+
+## Homepage Responsive Adaptation
+
+Automated checks completed on 2026-07-21: homepage/runtime assets returned 200, the auth/CSRF suite passed 37 checks with 3 credential-dependent flows skipped, and the production dependency audit reported 0 vulnerabilities.
+
+Real-browser validation remains pending because no in-app browser backend was available. Test the full Panel 1 at 1920×1080, 1600×900, 1440×900, 1366×768, 1280×720, 1024×768, 912×1368, 768×1024, 600×960, 480×900, 430×932, 390×844, 375×812, 360×800, and 320×568. At each size confirm the logo/nav separation, text/model/CTA order, full helmet rotation bounds, lower-right desktop social placement, mobile reachability, lack of horizontal scrolling, clean console/network state, click-drag behavior, touch scrolling, and animation end positions. Also perform a continuous resize pass between 1920px and 320px.

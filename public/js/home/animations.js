@@ -100,59 +100,69 @@ async function runEntrance(gsap, lenis, heroPanel) {
  * Scroll behavior — Panel 1 → Panel 2 transition
  */
 async function runScrollAnimations(gsap, lenis, heroPanel) {
-  // Hero copy shifts upward on scroll
-  gsap.to('.hero-text', {
-    scrollTrigger: {
-      trigger: heroPanel,
-      start: 'top top',
-      end: 'bottom top',
-      scrub: 0.8,
-    },
-    y: -40,
-    opacity: 0.45,
-    ease: 'none',
-  });
+  const media = gsap.matchMedia();
 
-  // Helmet shifts and rotates subtly
-  if (document.querySelector('[data-helmet-canvas]')) {
-    gsap.to('.hero-3d', {
+  media.add({
+    desktop: '(min-width: 769px)',
+    mobile: '(max-width: 768px)',
+  }, (context) => {
+    const compact = context.conditions.mobile;
+
+    // Hero copy and CTAs shift upward together on scroll
+    gsap.to(['.hero-text', '.hero-ctas'], {
       scrollTrigger: {
         trigger: heroPanel,
         start: 'top top',
         end: 'bottom top',
         scrub: 0.8,
       },
-      y: 20,
-      scale: 0.92,
-      opacity: 0.5,
+      y: compact ? -16 : -40,
+      opacity: compact ? 0.65 : 0.45,
       ease: 'none',
     });
-  }
 
-  // Social links fade
-  gsap.to('.hero-social', {
-    scrollTrigger: {
-      trigger: heroPanel,
-      start: 'top top',
-      end: 'bottom-=200 top',
-      scrub: 0.6,
-    },
-    opacity: 0,
-    y: 20,
-    ease: 'none',
+    // Helmet shifts and scales subtly
+    if (document.querySelector('[data-helmet-canvas]')) {
+      gsap.to('.hero-3d', {
+        scrollTrigger: {
+          trigger: heroPanel,
+          start: 'top top',
+          end: 'bottom top',
+          scrub: 0.8,
+        },
+        y: compact ? 10 : 20,
+        scale: compact ? 0.97 : 0.92,
+        opacity: compact ? 0.7 : 0.5,
+        ease: 'none',
+      });
+    }
+
+    // Social links fade
+    gsap.to('.hero-social', {
+      scrollTrigger: {
+        trigger: heroPanel,
+        start: 'top top',
+        end: compact ? 'bottom-=80 top' : 'bottom-=200 top',
+        scrub: 0.6,
+      },
+      opacity: 0,
+      ease: 'none',
+    });
+
+    // Grid parallax
+    gsap.to('.hero-bg-grid', {
+      scrollTrigger: {
+        trigger: heroPanel,
+        start: 'top top',
+        end: 'bottom top',
+        scrub: 0.5,
+      },
+      y: compact ? 24 : 60,
+      ease: 'none',
+    });
   });
 
-  // Grid parallax
-  gsap.to('.hero-bg-grid', {
-    scrollTrigger: {
-      trigger: heroPanel,
-      start: 'top top',
-      end: 'bottom top',
-      scrub: 0.5,
-    },
-    y: 60,
-    ease: 'none',
-  });
+  return media;
 }
 
 /**
@@ -211,6 +221,11 @@ export async function initHomeAnimations() {
 
     // Refresh after images/fonts load
     window.addEventListener('load', () => {
+      if (ScrollTrigger) ScrollTrigger.refresh();
+    }, { once: true });
+
+    // The external model load completes after the initial layout pass.
+    document.addEventListener('helmet-loaded', () => {
       if (ScrollTrigger) ScrollTrigger.refresh();
     }, { once: true });
 

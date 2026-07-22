@@ -45,7 +45,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: [
-        "'self'",
+        "'self'","'wasm-unsafe-eval'",
         (req, res) => "'nonce-" + res.locals.cspNonce + "'",
       ],
       imgSrc: ["'self'", 'data:'],
