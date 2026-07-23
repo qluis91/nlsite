@@ -1,0 +1,44 @@
+<div class="page-header">
+  <h1>Categorías</h1>
+  <a href="/admin/catalogo/categorias/nueva" class="btn btn-primary">Nueva Categoría</a>
+</div>
+
+<div class="card">
+  <% if (categories.length === 0) { %>
+    <div class="empty-state">
+      <p>No hay categorías registradas.</p>
+      <a href="/admin/catalogo/categorias/nueva" class="btn btn-primary">Crear primera categoría</a>
+    </div>
+  <% } else { %>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nombre</th>
+          <th>Productos</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% categories.forEach(function(cat) { %>
+          <tr>
+            <td><%= cat.id %></td>
+            <td><strong><%= cat.name %></strong></td>
+            <td><%= cat.product_count %></td>
+            <td class="actions">
+              <a href="/admin/catalogo/categorias/<%= cat.id %>/editar" class="btn btn-sm btn-outline">Editar</a>
+              <form action="/admin/catalogo/categorias/<%= cat.id %>/eliminar" method="POST" class="inline-form" onsubmit="return confirm('¿Eliminar esta categoría?')">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn btn-sm btn-danger" <%= cat.product_count > 0 ? 'disabled title="No se puede eliminar: tiene productos asociados"' : '' %>>Eliminar</button>
+              </form>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<div class="back-link">
+  <a href="/admin">← Volver al panel</a>
+</div>

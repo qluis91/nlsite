@@ -5,24 +5,21 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const crypto = require('crypto');
-const { csrfSync } = require('csrf-sync');
 
 // ── Session store ──
 const { createSessionMiddleware, sessionStore } = require('./config/session');
 
 // ── CSRF Protection ──
-const {
-  csrfSynchronisedProtection,
-  generateToken,
-} = csrfSync({
-  getTokenFromRequest: (req) => req.body?._csrf,
-});
+const { csrfSynchronisedProtection, generateToken } = require('./config/csrf');
 
 // ── Rutas ──
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const adminCatalogRoutes = require('./routes/adminCatalogRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const storeRoutes = require('./routes/storeRoutes');
+const cartRoutes = require('./routes/cartRoutes');
+const checkoutRoutes = require('./routes/checkoutRoutes');
 
 // ── Controllers ──
 const authController = require('./controllers/authController');
@@ -109,9 +106,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── CSRF: validate state-changing requests ──
-app.use(csrfSynchronisedProtection);
-
 // ── Rate Limiter para Login de Administrador ──
 const adminLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -127,12 +121,20 @@ const adminLoginLimiter = rateLimit({
 
 // ── Rutas de Login de Administrador (ANTES del middleware de admin) ──
 app.get('/admin/login', isAdminGuest, authController.showAdminLogin);
-app.post('/admin/login', isAdminGuest, adminLoginLimiter, authController.adminLogin);
+app.post('/admin/login', isAdminGuest, csrfSynchronisedProtection, adminLoginLimiter, authController.adminLogin);
+
+// ── Admin catalog: mounted BEFORE global CSRF so multipart routes handle CSRF after multer ──
+app.use('/admin', isAuthenticated, isAdmin, adminCatalogRoutes);
+
+// ── CSRF: validate state-changing requests (all non-catalog routes) ──
+app.use(csrfSynchronisedProtection);
 
 // ── Rutas ──
 app.use('/auth', authRoutes);
 app.use('/buscar', searchRoutes);
 app.use('/tienda', storeRoutes);
+app.use('/carrito', cartRoutes);
+app.use('/checkout', checkoutRoutes);
 // Admin routes: authentication + admin role enforced at both mount and router level
 app.use('/admin', isAuthenticated, isAdmin, adminRoutes);
 

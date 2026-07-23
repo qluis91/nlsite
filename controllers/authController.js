@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const pool = require('../config/db');
 const { mapRole } = require('../config/roles');
 const mailer = require('../config/mailer');
+const { captureCartForRegeneration, restoreCartAfterRegeneration } = require('../services/cartService');
 
 // ── Helpers ──
 function generateToken() {
@@ -56,6 +57,9 @@ exports.login = async (req, res, next) => {
       return res.redirect('/auth/login');
     }
 
+    // Preserve guest cart before session regeneration
+    const savedCart = captureCartForRegeneration(req);
+
     req.session.regenerate((err) => {
       if (err) return next(err);
 
@@ -67,6 +71,9 @@ exports.login = async (req, res, next) => {
         role_id: roleId,
         role: mapRole(roleId),
       };
+
+      // Restore guest cart into new session
+      restoreCartAfterRegeneration(req, savedCart);
 
       req.session.success_msg = `¡Bienvenido, ${user.name}!`;
       req.session.save((saveErr) => {
@@ -362,6 +369,9 @@ exports.adminLogin = async (req, res, next) => {
       return res.redirect('/admin/login');
     }
 
+    // Preserve guest cart before session regeneration
+    const savedCart = captureCartForRegeneration(req);
+
     req.session.regenerate((err) => {
       if (err) return next(err);
 
@@ -373,6 +383,9 @@ exports.adminLogin = async (req, res, next) => {
         role_id: roleId,
         role: mapRole(roleId),
       };
+
+      // Restore guest cart into new session
+      restoreCartAfterRegeneration(req, savedCart);
 
       req.session.success_msg = `¡Bienvenido, ${user.name}!`;
       req.session.save((saveErr) => {

@@ -143,7 +143,9 @@ code {
 /* ── Sidebar (Admin) ── */
 .admin-layout {
   display: flex;
+  flex-direction: row;
   min-height: 100vh;
+  align-items: stretch;
 }
 
 .sidebar {
@@ -213,14 +215,13 @@ code {
 /* ── Admin Main Area ── */
 .admin-main {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  min-width: 0;
 }
 
 .admin-content {
-  flex: 1;
-  padding: 2rem;
+  padding: 1.5rem 2rem 2rem;
 }
 
 /* ── Alerts ── */
@@ -684,6 +685,21 @@ select.form-control {
   color: #991b1b;
 }
 
+.badge-published {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge-hidden {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-archived {
+  background: #e2e8f0;
+  color: #475569;
+}
+
 /* ── Footer ── */
 .footer {
   background: #fff;
@@ -753,5 +769,209 @@ select.form-control {
 
   .stats-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ══════════════════════════════════════
+   ADMIN CATALOG STYLES
+   ══════════════════════════════════════ */
+
+/* Form sections */
+.form-section {
+  border: 1px solid var(--color-sidebar-hover, #334155);
+  border-radius: 6px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-section legend {
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 0 0.5rem;
+  color: var(--color-primary, #2563eb);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.form-hint {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-top: 0.25rem;
+}
+
+.required {
+  color: #ef4444;
+}
+
+/* Checkbox groups */
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+/* Image grids */
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.image-card {
+  border: 2px solid var(--color-sidebar-hover, #334155);
+  border-radius: 6px;
+  padding: 0.5rem;
+  text-align: center;
+  position: relative;
+}
+
+.image-card.is-primary {
+  border-color: var(--color-primary, #2563eb);
+}
+
+.image-preview {
+  width: 100%;
+  height: auto;
+  max-height: 160px;
+  object-fit: contain;
+  border-radius: 4px;
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.current-images {
+  margin-bottom: 1.5rem;
+}
+
+.current-images h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+/* Inline filters */
+.inline-filters {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.inline-filters .form-group {
+  margin-bottom: 0;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.page-link,
+.page-current {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 0.5rem;
+  border-radius: 4px;
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.page-link {
+  border: 1px solid var(--color-sidebar-hover, #334155);
+  color: var(--color-sidebar-text, #cbd5e1);
+}
+
+.page-link:hover {
+  background: var(--color-sidebar-hover, #334155);
+}
+
+.page-current {
+  background: var(--color-primary, #2563eb);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Thumbnails in tables */
+.thumb-sm {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: #1e293b;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #94a3b8;
+}
+
+.empty-state p {
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+/* Back link */
+.back-link {
+  margin-top: 1rem;
+}
+
+.back-link a {
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+
+.back-link a:hover {
+  color: var(--color-primary, #2563eb);
+}
+
+/* Responsive table */
+.admin-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.inline-form {
+  display: inline;
+  margin: 0;
+}
+
+.btn-xs {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+}
+
+@media (max-width: 768px) {
+  .table {
+    font-size: 0.82rem;
+  }
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  .inline-filters {
+    flex-direction: column;
+  }
+  .admin-content {
+    padding: 1rem;
   }
 }

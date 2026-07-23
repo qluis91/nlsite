@@ -108,6 +108,7 @@
             <option value="price-asc" <%= catalog.filters.sort === 'price-asc' ? 'selected' : '' %>>Precio: menor a mayor</option>
             <option value="price-desc" <%= catalog.filters.sort === 'price-desc' ? 'selected' : '' %>>Precio: mayor a menor</option>
             <option value="name-asc" <%= catalog.filters.sort === 'name-asc' ? 'selected' : '' %>>Nombre A–Z</option>
+            <option value="name-desc" <%= catalog.filters.sort === 'name-desc' ? 'selected' : '' %>>Nombre Z–A</option>
           </select>
           <button class="store-sort__submit" type="submit">Aplicar</button>
         </form>
@@ -160,7 +161,14 @@
                   <h3 class="store-product-card__title"><a href="<%= product.url %>"><%= product.title %></a></h3>
                   <% if (product.description) { %><p class="store-product-card__description"><%= product.description %></p><% } %>
                   <div class="store-product-card__meta">
-                    <p class="store-product-card__price"><%= product.priceLabel %></p>
+                    <div class="store-product-card__price-group">
+                      <p class="store-product-card__price"><%= product.priceLabel %></p>
+                      <% if (product.hasPromotion) { %>
+                        <p class="store-product-card__price-regular">
+                          <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(product.regularPrice) %>
+                        </p>
+                      <% } %>
+                    </div>
                     <p class="store-product-card__availability <%= product.inStock ? 'is-available' : 'is-sold-out' %>"><%= product.availability %></p>
                   </div>
                 </div>

@@ -8,7 +8,13 @@
     <a href="/admin" class="<%= currentPath === '/admin' ? 'active' : '' %>">
       <span class="sidebar-icon">📊</span> Dashboard
     </a>
-    <a href="/admin/users" class="<%= currentPath.startsWith('/admin/users') ? 'active' : '' %>">
+    <a href="/admin/catalogo/categorias" class="<%= (currentPath || '').startsWith('/admin/catalogo/categorias') ? 'active' : '' %>">
+      <span class="sidebar-icon">📁</span> Categorías
+    </a>
+    <a href="/admin/catalogo/productos" class="<%= (currentPath || '').startsWith('/admin/catalogo/productos') ? 'active' : '' %>">
+      <span class="sidebar-icon">📦</span> Productos
+    </a>
+    <a href="/admin/users" class="<%= (currentPath && currentPath.startsWith('/admin/users')) ? 'active' : '' %>">
       <span class="sidebar-icon">👥</span> Usuarios
     </a>
   </nav>

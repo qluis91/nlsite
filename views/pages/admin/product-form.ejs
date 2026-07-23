@@ -1,0 +1,167 @@
+<div class="page-header">
+  <h1><%= product ? 'Editar Producto' : 'Nuevo Producto' %></h1>
+</div>
+
+<div class="card">
+  <form action="<%= action %>" method="POST" enctype="multipart/form-data" class="form product-form" novalidate>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <!-- ══ Información general ══ -->
+    <fieldset class="form-section">
+      <legend>Información general</legend>
+
+      <div class="form-group">
+        <label for="name">Nombre del producto <span class="required">*</span></label>
+        <input type="text" id="name" name="name" value="<%= product ? product.name : '' %>" maxlength="160" required class="form-control">
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="isActive" value="1" <%= !product || product.is_active ? 'checked' : '' %>>
+          Producto activo
+        </label>
+        <p class="form-hint">Los productos inactivos no aparecen en la tienda pública.</p>
+      </div>
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="isPublished" value="1" <%= !product || product.is_published ? 'checked' : '' %>>
+          Mostrar en tienda
+        </label>
+        <p class="form-hint">Cuando está marcado, el producto se muestra en la tienda pública.</p>
+      </div>
+    </fieldset>
+
+    <!-- ══ Categorías ══ -->
+    <fieldset class="form-section">
+      <legend>Categorías <span class="required">*</span></legend>
+      <div class="checkbox-group">
+        <% var selectedIds = product ? product.categoryIds : []; %>
+        <% categories.forEach(function(cat) { %>
+          <label class="checkbox-label">
+            <input type="checkbox" name="categoryIds" value="<%= cat.id %>"
+              <%= selectedIds.includes(cat.id) ? 'checked' : '' %>>
+            <%= cat.name %>
+          </label>
+        <% }); %>
+      </div>
+      <p class="form-hint">Seleccione al menos una categoría.</p>
+    </fieldset>
+
+    <!-- ══ Precios ══ -->
+    <fieldset class="form-section">
+      <legend>Precios</legend>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="regularPrice">Precio regular <span class="required">*</span></label>
+          <input type="number" id="regularPrice" name="regularPrice" step="0.01" min="0"
+            value="<%= product ? product.regular_price : '' %>" class="form-control" placeholder="0.00">
+          <span class="form-hint">Colones (CRC)</span>
+        </div>
+        <div class="form-group">
+          <label for="promotionalPrice">Precio promocional</label>
+          <input type="number" id="promotionalPrice" name="promotionalPrice" step="0.01" min="0"
+            value="<%= product && product.promotional_price ? product.promotional_price : '' %>" class="form-control" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label for="webPrice">Precio web</label>
+          <input type="number" id="webPrice" name="webPrice" step="0.01" min="0"
+            value="<%= product && product.web_price ? product.web_price : '' %>" class="form-control" placeholder="0.00">
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- ══ Inventario y peso ══ -->
+    <fieldset class="form-section">
+      <legend>Inventario y peso</legend>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="stockQuantity">Cantidad en stock</label>
+          <input type="number" id="stockQuantity" name="stockQuantity" min="0" step="1"
+            value="<%= product ? product.stock_quantity : '0' %>" class="form-control">
+        </div>
+        <div class="form-group">
+          <label for="weight">Peso (gramos)</label>
+          <input type="number" id="weight" name="weight" min="0" step="1"
+            value="<%= product && product.weight ? product.weight : '' %>" class="form-control" placeholder="Gramos">
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- ══ Descripción y etiquetas ══ -->
+    <fieldset class="form-section">
+      <legend>Descripción y etiquetas</legend>
+      <div class="form-group">
+        <label for="description">Descripción</label>
+        <textarea id="description" name="description" rows="5" maxlength="10000" class="form-control"><%= product && product.description ? product.description : '' %></textarea>
+      </div>
+      <div class="form-group">
+        <label for="tags">Etiquetas</label>
+        <input type="text" id="tags" name="tags"
+          value="<%= product && product.tags && product.tags.length ? product.tags.join(', ') : '' %>"
+          class="form-control" placeholder="figura, personalizado, decoración">
+        <span class="form-hint">Separa las etiquetas con comas. Máximo 20 etiquetas, 40 caracteres cada una.</span>
+      </div>
+    </fieldset>
+
+    <!-- ══ Imágenes ══ -->
+    <fieldset class="form-section" id="images-section">
+      <legend>Imágenes</legend>
+
+      <p class="form-hint">
+        Máximo 5 imágenes por producto.
+        <% if (product && product.images) { %>
+          Actualmente: <strong><span id="current-image-count"><%= product.images.length %></span> de 5</strong>.
+        <% } %>
+      </p>
+
+      <!-- Current images -->
+      <% if (product && product.images && product.images.length) { %>
+        <div class="current-images">
+          <h4>Imágenes actuales</h4>
+          <div class="image-grid" id="existing-images">
+            <% product.images.forEach(function(img) { %>
+              <div class="image-card <%= img.is_primary ? 'is-primary' : '' %>">
+                <img src="<%= img.file_path %>" alt="" loading="lazy" class="image-preview">
+                <% if (img.is_primary) { %>
+                  <span class="badge badge-primary">Principal</span>
+                <% } else { %>
+                  <form action="/admin/catalogo/productos/<%= product.id %>/imagenes/<%= img.id %>/principal" method="POST" class="inline-form">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" class="btn btn-xs btn-outline">Hacer principal</button>
+                  </form>
+                <% } %>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="removeImageIds" value="<%= img.id %>"> Eliminar
+                </label>
+              </div>
+            <% }); %>
+          </div>
+        </div>
+      <% } %>
+
+      <!-- New images -->
+      <div class="form-group">
+        <label for="primaryImage">Imagen principal</label>
+        <input type="file" id="primaryImage" name="primaryImage" accept="image/jpeg,image/png,image/webp" class="form-control">
+      </div>
+      <div class="form-group">
+        <label for="secondaryImages">Imágenes secundarias</label>
+        <input type="file" id="secondaryImages" name="secondaryImages" accept="image/jpeg,image/png,image/webp" multiple class="form-control">
+      </div>
+
+      <!-- Previews container -->
+      <div id="new-image-previews" class="image-grid" style="display:none;"></div>
+    </fieldset>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary"><%= product ? 'Guardar cambios' : 'Guardar producto' %></button>
+      <a href="/admin/catalogo/productos" class="btn btn-outline">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+<div class="back-link">
+  <a href="/admin/catalogo/productos">← Volver a productos</a>
+</div>
+
+<script src="/js/admin/product-images.js"></script>

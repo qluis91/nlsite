@@ -1,4 +1,5 @@
-const { DEFAULT_LIMIT, getPublicCatalog, normalizeStoreQuery } = require('../services/catalogService');
+const { DEFAULT_LIMIT, getPublicCatalog, getPublicCatalogAsync, getPublicCategories, getProductBySlug, getRelatedProducts, formatWeight, normalizeStoreQuery } = require('../services/catalogService');
+const { buildWhatsAppUrl } = require('../config/publicContact');
 
 function buildStoreUrl(filters, overrides = {}) {
   const next = { ...filters, ...overrides };
@@ -7,7 +8,7 @@ function buildStoreUrl(filters, overrides = {}) {
   if (next.category) params.set('category', next.category);
   if (next.inStock) params.set('inStock', next.inStock);
   if (next.sort && next.sort !== 'featured') params.set('sort', next.sort);
-  if (next.limit && next.limit !== 12) params.set('limit', String(next.limit));
+  if (next.limit && next.limit !== DEFAULT_LIMIT) params.set('limit', String(next.limit));
   if (next.page && next.page !== 1) params.set('page', String(next.page));
   const query = params.toString();
   return query ? `/tienda?${query}` : '/tienda';
@@ -25,12 +26,28 @@ function paginationWindow(currentPage, totalPages) {
   return output;
 }
 
-function showStore(req, res) {
+/**
+ * Validate returnTo parameter — only allow /tienda and /carrito paths.
+ */
+function safeReturnPath(raw) {
+  if (!raw) return '/tienda';
+  const decoded = decodeURIComponent(String(raw));
+  if (/^\/(tienda|carrito)(\/[a-z0-9-]+)?(\?[a-z0-9_=&%-]*)?$/i.test(decoded)) {
+    return decoded;
+  }
+  return '/tienda';
+}
+
+async function showStore(req, res) {
   let catalog;
+  let storeCategories;
   let catalogError = false;
 
   try {
-    catalog = getPublicCatalog(req.query);
+    [catalog, storeCategories] = await Promise.all([
+      getPublicCatalogAsync(req.query),
+      getPublicCategories(),
+    ]);
   } catch (error) {
     catalogError = true;
     console.warn('[store] Public catalog unavailable:', error.message);
@@ -46,14 +63,16 @@ function showStore(req, res) {
     };
     catalog.filters.page = 1;
     catalog.filters.limit = Math.min(catalog.filters.limit, DEFAULT_LIMIT);
+    storeCategories = [];
   }
 
-  const { filters, categories } = catalog;
+  const { filters } = catalog;
+  const categories = storeCategories.length ? storeCategories : catalog.categories;
   const activeCategory = categories.find((category) => category.slug === filters.category) || null;
   const activeFilters = [];
   if (filters.search) {
     activeFilters.push({
-      label: `Búsqueda: “${filters.search}”`,
+      label: `Búsqueda: "${filters.search}"`,
       removeUrl: buildStoreUrl(filters, { search: '', page: 1 }),
     });
   }
@@ -93,8 +112,55 @@ function showStore(req, res) {
   });
 }
 
+async function showProduct(req, res, next) {
+  try {
+    const slug = String(req.params.slug || '').replace(/[^a-z0-9-]/gi, '').slice(0, 180);
+    if (!slug) {
+      return res.redirect('/tienda');
+    }
+
+    const product = await getProductBySlug(slug);
+    if (!product) {
+      return res.status(404).render('pages/tienda-producto', {
+        title: 'Producto no encontrado',
+        layout: 'layouts/main',
+        pageClass: 'page-store',
+        pageStyles: ['/css/home.css', '/css/store.css'],
+        usesHeroNavbar: true,
+        navbarSearchContext: 'store',
+        product: null,
+      });
+    }
+
+    const returnTo = safeReturnPath(req.query.returnTo);
+    const categoryIds = (product.categories || []).map(c => c.id || c.slug);
+    const relatedProducts = await getRelatedProducts(product.id, categoryIds, 4);
+    const whatsappUrl = buildWhatsAppUrl(product.title, 'NinjaLab');
+    const weightLabel = formatWeight(product.weight);
+
+    res.render('pages/tienda-producto', {
+      title: `${product.title} | Tienda`,
+      metaDescription: product.description?.slice(0, 160) || product.title,
+      robots: 'index,follow',
+      layout: 'layouts/main',
+      pageClass: 'page-store',
+      pageStyles: ['/css/home.css', '/css/store.css'],
+      pageModule: '/js/store/product-detail.js',
+      usesHeroNavbar: true,
+      navbarSearchContext: 'store',
+      product,
+      returnTo,
+      relatedProducts,
+      whatsappUrl,
+      weightLabel,
+    });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   buildStoreUrl,
   paginationWindow,
   showStore,
+  showProduct,
+  safeReturnPath,
 };

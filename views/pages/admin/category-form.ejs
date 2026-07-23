@@ -1,0 +1,42 @@
+<div class="page-header">
+  <h1><%= category ? 'Editar Categoría' : 'Nueva Categoría' %></h1>
+</div>
+
+<div class="card">
+  <form action="<%= action %>" method="POST" class="form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="form-group">
+      <label for="name">Nombre de la categoría <span class="required">*</span></label>
+      <input
+        type="text"
+        id="name"
+        name="name"
+        value="<%= category ? category.name : '' %>"
+        maxlength="100"
+        required
+        autocomplete="off"
+        class="form-control"
+        placeholder="Ej: Figuras, Llaveros, Decoración"
+      >
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary"><%= category ? 'Guardar cambios' : 'Guardar categoría' %></button>
+      <a href="/admin/catalogo/categorias" class="btn btn-outline">Cancelar</a>
+      <% if (category) { %>
+        <button type="button" class="btn btn-danger" onclick="if(confirm('¿Eliminar esta categoría?')) { document.getElementById('delete-form').submit(); }">Eliminar categoría</button>
+      <% } %>
+    </div>
+  </form>
+
+  <% if (category) { %>
+    <form id="delete-form" action="/admin/catalogo/categorias/<%= category.id %>/eliminar" method="POST" style="display:none">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    </form>
+  <% } %>
+</div>
+
+<div class="back-link">
+  <a href="/admin/catalogo/categorias">← Volver a categorías</a>
+</div>

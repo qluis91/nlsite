@@ -13,6 +13,11 @@ function setLocals(req, res, next) {
   res.locals.error_msg = req.session.error_msg || null;
   delete req.session.success_msg;
   delete req.session.error_msg;
+  // Cart badge count (light: counts session quantities only)
+  const cart = req.session.cart;
+  res.locals.cartItemCount = cart && Array.isArray(cart.items)
+    ? cart.items.reduce((s, i) => s + (parseInt(i.quantity, 10) || 0), 0)
+    : 0;
   next();
 }
 
