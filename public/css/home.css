@@ -3029,3 +3029,187 @@ body.is-home-nav-open {
     transition: box-shadow 100ms linear, border-color 100ms linear;
   }
 }
+
+/* ============================================
+   Coordinated first-panel entrance
+   Initial states are applied from <head> before first paint.
+   ============================================ */
+.hero-bg {
+  display: block;
+}
+
+.hero-bg-gradient {
+  background:
+    radial-gradient(circle at 72% 34%, rgba(124, 240, 61, 0.12), transparent 34%),
+    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.16), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 42%, rgba(0, 0, 0, 0.28));
+}
+
+.home-panel--hero::after {
+  display: block;
+}
+
+.hero-bg-glow {
+  transform-origin: 70% 45%;
+}
+
+html:not(.hero-entrance-pending) body.page-home .hero-bg-glow {
+  animation: hero-glow-drift 12s ease-in-out infinite alternate;
+}
+
+.hero-word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.hero-support {
+  max-width: 42ch;
+  margin: clamp(1rem, 2.4vh, 1.6rem) 0 0;
+  color: rgba(15, 15, 15, 0.72);
+  font-size: clamp(0.92rem, 1.15vw, 1.05rem);
+  line-height: 1.65;
+  text-wrap: balance;
+}
+
+.hero-eyebrow {
+  text-shadow: 0 0 18px rgba(124, 240, 61, 0.28);
+}
+
+.hero-btn:hover {
+  transform: translateY(-2px);
+}
+
+.hero-btn--outline:hover,
+.hero-btn--outline:focus-visible {
+  background: rgba(124, 240, 61, 0.12);
+  color: var(--home-text-light);
+}
+
+.hero-social-link:hover,
+.hero-social-link:focus-visible {
+  box-shadow: 0 0 18px rgba(124, 240, 61, 0.18);
+}
+
+html.hero-entrance-pending body.page-home [data-hero-animate="background"],
+html.hero-entrance-pending body.page-home [data-hero-animate="glow"],
+html.hero-entrance-pending body.page-home [data-hero-animate="grid"],
+html.hero-entrance-pending body.page-home [data-hero-animate="navbar"],
+html.hero-entrance-pending body.page-home [data-hero-animate="eyebrow"],
+html.hero-entrance-pending body.page-home [data-hero-animate="support"],
+html.hero-entrance-pending body.page-home [data-hero-animate="button"],
+html.hero-entrance-pending body.page-home [data-hero-animate="helmet"],
+html.hero-entrance-pending body.page-home .hero-word,
+html.hero-entrance-pending body.page-home .hero-social-link,
+html.hero-entrance-pending body.page-home .hero-logo,
+html.hero-entrance-pending body.page-home .hero-search--desktop,
+html.hero-entrance-pending body.page-home .hero-nav-list > li,
+html.hero-entrance-pending body.page-home .hero-nav-account,
+html.hero-entrance-pending body.page-home .hero-nav-toggle {
+  opacity: 0;
+  will-change: opacity, transform;
+}
+
+html.hero-entrance-pending body.page-home [data-hero-animate="background"] {
+  transform: scale(1.035);
+}
+
+html.hero-entrance-pending body.page-home [data-hero-animate="glow"] {
+  transform: translate3d(2%, 2%, 0) scale(0.9);
+}
+
+html.hero-entrance-pending body.page-home [data-hero-animate="grid"] {
+  transform: translate3d(0, 18px, 0);
+}
+
+html.hero-entrance-pending body.page-home [data-hero-animate="navbar"] {
+  transform: translate3d(-50%, -18px, 0);
+  filter: blur(8px);
+}
+
+html.hero-entrance-pending body.page-home .hero-logo,
+html.hero-entrance-pending body.page-home .hero-search--desktop,
+html.hero-entrance-pending body.page-home .hero-nav-list > li,
+html.hero-entrance-pending body.page-home .hero-nav-account,
+html.hero-entrance-pending body.page-home .hero-nav-toggle {
+  transform: translate3d(0, -10px, 0);
+  filter: blur(4px);
+  will-change: opacity, transform, filter;
+}
+
+html.hero-entrance-pending body.page-home [data-hero-animate="eyebrow"] {
+  transform: translate3d(0, 12px, 0);
+  filter: blur(6px);
+  letter-spacing: 0.3em;
+}
+
+html.hero-entrance-pending body.page-home .hero-word {
+  transform: translate3d(0, 28px, 0);
+  filter: blur(12px);
+  will-change: opacity, transform, filter;
+}
+
+html.hero-entrance-pending body.page-home [data-hero-animate="support"] {
+  transform: translate3d(0, 14px, 0);
+  filter: blur(4px);
+}
+
+html.hero-entrance-pending body.page-home [data-hero-animate="button"] {
+  transform: translate3d(0, 16px, 0) scale(0.97);
+}
+
+html.hero-entrance-pending body.page-home [data-hero-animate="social"] .hero-social-link {
+  transform: translate3d(0, 12px, 0) scale(0.92);
+}
+
+html.hero-entrance-pending body.page-home [data-hero-animate="helmet"] {
+  transform: translate3d(0, 18px, 0) scale(0.92);
+  filter: saturate(0.72);
+  will-change: opacity, transform, filter;
+}
+
+@keyframes hero-glow-drift {
+  from {
+    transform: translate3d(-1.5%, -1%, 0) scale(0.98);
+    opacity: 0.7;
+  }
+  to {
+    transform: translate3d(2%, 1.5%, 0) scale(1.04);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .home-panel--hero::after {
+    display: none;
+  }
+
+  .hero-support {
+    max-width: 36ch;
+    font-size: clamp(0.86rem, 3.4vw, 0.98rem);
+    line-height: 1.55;
+  }
+
+  html.hero-entrance-pending body.page-home .hero-word {
+    transform: translate3d(0, 16px, 0);
+    filter: blur(7px);
+  }
+
+  html.hero-entrance-pending body.page-home [data-hero-animate="helmet"] {
+    transform: translate3d(0, 10px, 0) scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-bg-glow {
+    animation: none;
+  }
+
+  html.hero-entrance-pending body.page-home [data-hero-animate],
+  html.hero-entrance-pending body.page-home .hero-word,
+  html.hero-entrance-pending body.page-home .hero-social-link {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    will-change: auto;
+  }
+}

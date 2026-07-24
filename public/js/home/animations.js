@@ -2,6 +2,36 @@
  * Página de Inicio — GSAP + ScrollTrigger + Lenis
  * Panel 1 entrance animations and scroll behavior.
  */
+const HERO_ANIMATED_SELECTOR = [
+  '[data-hero-animate]',
+  '.hero-word',
+  '.hero-social-link',
+  '.hero-logo',
+  '.hero-search--desktop',
+  '.hero-nav-list > li',
+  '.hero-nav-account',
+  '.hero-nav-toggle',
+].join(',');
+
+let heroAnimationPromise = null;
+let heroAnimationCompleted = false;
+
+function clearHeroSafetyTimer() {
+  if (!window.__heroEntranceSafetyTimer) return;
+  window.clearTimeout(window.__heroEntranceSafetyTimer);
+  window.__heroEntranceSafetyTimer = null;
+}
+
+export function revealHeroImmediately() {
+  clearHeroSafetyTimer();
+  document.documentElement.classList.remove('hero-entrance-pending');
+  document.querySelectorAll(HERO_ANIMATED_SELECTOR).forEach((element) => {
+    ['opacity', 'visibility', 'transform', 'filter', 'will-change', 'letter-spacing']
+      .forEach((property) => element.style.removeProperty(property));
+  });
+  document.querySelector('[data-home-page]')?.classList.add('is-motion-ready');
+  heroAnimationCompleted = true;
+}
 
 // ── Lenis smooth scrolling ──
 async function initLenis() {
@@ -45,61 +75,85 @@ async function initGSAP() {
  * Panel 1 entrance timeline
  * Animate in: grid → logo → nav → eyebrow → heading lines → helmet → CTAs → social
  */
-async function runEntrance(gsap, lenis, heroPanel) {
-  const tl = gsap.timeline({ defaults: { ease: 'power2.out' } });
-  const hasCanvas = document.querySelector('[data-helmet-canvas]');
+function runEntrance(gsap) {
   const compact = window.matchMedia('(max-width: 768px)').matches;
-  const headingOffset = compact ? 24 : 40;
-  const ctaOffset = compact ? 14 : 20;
-  const helmetStart = compact ? 0.95 : 0.7;
-  const ctaStart = compact ? 0.75 : 0.85;
-  const socialStart = compact ? 1.1 : 1.0;
+  const resolvedFilter = 'blur(0px)';
 
-  tl.set(heroPanel, { autoAlpha: 1 })
+  return new Promise((resolve) => {
+    const tl = gsap.timeline({
+      defaults: { ease: 'power2.out' },
+      onComplete: () => {
+        revealHeroImmediately();
+        resolve();
+      },
+    });
 
-    // 1. Background grid
-    .fromTo('.hero-bg-grid', { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.8 }, 0)
+    tl
+      // 1. Background awakening
+      .to('.hero-bg-gradient', { opacity: 1, scale: 1, duration: 0.8 }, 0)
+      .to('.hero-bg-glow', { opacity: 1, x: 0, y: 0, scale: 1, duration: 1 }, 0.05)
+      .to('.hero-bg-grid', { opacity: 1, y: 0, duration: 0.85 }, 0.08)
 
-    // 2. Logo
-    .fromTo('.hero-logo', { autoAlpha: 0, y: -20 }, { autoAlpha: 1, y: 0, duration: 0.5 }, 0.15)
+      // 2. Premium navbar entrance
+      .to('.hero-header', { opacity: 1, y: 0, filter: resolvedFilter, duration: 0.68 }, 0.08)
+      .to('.hero-logo', { opacity: 1, y: 0, filter: resolvedFilter, duration: 0.58 }, 0.14)
+      .to('.hero-search--desktop', { opacity: 1, y: 0, filter: resolvedFilter, duration: 0.5 }, 0.2)
+      .to('.hero-nav-list > li', {
+        opacity: 1, y: 0, filter: resolvedFilter, duration: 0.48, stagger: 0.055,
+      }, 0.25)
+      .to('.hero-nav-account, .hero-nav-toggle', {
+        opacity: 1, y: 0, filter: resolvedFilter, duration: 0.48,
+      }, 0.42)
 
-    // 3. Navigation items stagger
-    .fromTo('.hero-nav-list > li', { autoAlpha: 0, y: -10 }, {
-      autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.08,
-    }, 0.25)
+      // 3. Eyebrow and light sweep
+      .to('.hero-eyebrow', {
+        opacity: 0.85,
+        y: 0,
+        filter: resolvedFilter,
+        letterSpacing: '0.22em',
+        duration: 0.62,
+      }, 0.42)
 
-    // 4. Eyebrow
-    .fromTo('.hero-eyebrow', { autoAlpha: 0, y: 15 }, {
-      autoAlpha: 1, y: 0, duration: 0.5,
-    }, 0.4)
+      // 4. Word-level blur reveal with stable server-rendered wrapping
+      .to('.hero-word', {
+        opacity: 1,
+        y: 0,
+        filter: resolvedFilter,
+        duration: compact ? 0.56 : 0.68,
+        stagger: compact ? 0.045 : 0.065,
+        ease: 'power3.out',
+      }, 0.58)
 
-    // 5. Heading lines rise sequentially
-    .fromTo('.hero-line', { autoAlpha: 0, y: headingOffset }, {
-      autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.12, ease: 'power3.out',
-    }, 0.5)
+      // 5. Supporting copy
+      .to('.hero-support', {
+        opacity: 1, y: 0, filter: resolvedFilter, duration: 0.5,
+      }, compact ? 0.98 : 1.08)
 
-    // 5b. Glow intensifies
-    .fromTo('.hero-bg-glow', { autoAlpha: 0.2 }, { autoAlpha: 1, duration: 0.8 }, 0.6)
+      // 6. Buttons
+      .to('.hero-btn', {
+        opacity: 1, y: 0, scale: 1, duration: 0.5, stagger: 0.09,
+      }, compact ? 1.08 : 1.2)
 
-    // 6. Helmet fades/scales in
-    .fromTo(hasCanvas || '.hero-3d', { autoAlpha: 0, scale: 0.9 }, {
-      autoAlpha: 1, scale: 1, duration: 0.7, ease: 'power2.out',
-    }, helmetStart)
+      // 7. Social links
+      .to('.hero-social-link', {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.42,
+        stagger: 0.055,
+        ease: 'power2.out',
+      }, compact ? 1.26 : 1.42)
 
-    // 7. CTA buttons stagger up
-    .fromTo('.hero-btn', { autoAlpha: 0, y: ctaOffset }, {
-      autoAlpha: 1, y: 0, duration: 0.45, stagger: 0.1, ease: 'power2.out',
-    }, ctaStart)
-
-    // 8. Social buttons reveal
-    .fromTo('.hero-social-link', { autoAlpha: 0, y: 12, scale: 0.8 }, {
-      autoAlpha: 1, y: 0, scale: 1, duration: 0.35, stagger: 0.07, ease: 'back.out(1.7)',
-    }, socialStart);
-
-  // Mark page as ready
-  document.querySelector('[data-home-page]')?.classList.add('is-motion-ready');
-
-  return tl;
+      // 8. Reveal the existing stage; never target or recreate the canvas.
+      .to('.hero-3d', {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        filter: 'saturate(1)',
+        duration: compact ? 0.72 : 0.9,
+        ease: 'power3.out',
+      }, compact ? 0.7 : 0.66);
+  });
 }
 
 /**
@@ -174,16 +228,18 @@ async function runScrollAnimations(gsap, lenis, heroPanel) {
 /**
  * Public initializer
  */
-export async function initHomeAnimations() {
+async function initializeHomeAnimations() {
   const heroPanel = document.querySelector('[data-panel="1"]');
-  if (!heroPanel) return;
+  if (!heroPanel) {
+    revealHeroImmediately();
+    return;
+  }
 
   try {
-    // Initialize Lenis
-    const lenis = await initLenis();
-
-    // Initialize GSAP
-    const { gsap, ScrollTrigger } = await initGSAP();
+    const [lenis, { gsap, ScrollTrigger }] = await Promise.all([
+      initLenis(),
+      initGSAP(),
+    ]);
 
     // Sync Lenis with ScrollTrigger
     if (ScrollTrigger?.scrollerProxy) {
@@ -206,7 +262,7 @@ export async function initHomeAnimations() {
     }
 
     // Run entrance animation
-    await runEntrance(gsap, lenis, heroPanel);
+    await runEntrance(gsap);
 
     // Run scroll animations
     await runScrollAnimations(gsap, lenis, heroPanel);
@@ -237,8 +293,14 @@ export async function initHomeAnimations() {
 
   } catch (err) {
     console.error('[animations] Initialization error:', err);
-    // Fallback: show content
-    const homePage = document.querySelector('[data-home-page]');
-    if (homePage) homePage.classList.add('is-motion-ready');
+    revealHeroImmediately();
   }
+}
+
+export function initHomeAnimations() {
+  if (heroAnimationPromise) return heroAnimationPromise;
+  if (heroAnimationCompleted) return Promise.resolve();
+
+  heroAnimationPromise = initializeHomeAnimations();
+  return heroAnimationPromise;
 }

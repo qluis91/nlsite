@@ -3,7 +3,7 @@
  * Coordinates animation and 3D modules.
  * Only initializes when [data-home-page] is present.
  */
-import { initHomeAnimations } from './animations.js';
+import { initHomeAnimations, revealHeroImmediately } from './animations.js';
 import { initGrainientBackground } from './grainientBackground.js';
 import { initHelmet3D, signalHelmetError } from './helmet3d.js';
 import { initLogoLoop } from './logoLoop.js';
@@ -315,7 +315,7 @@ async function init() {
     }
   } else {
     // Show everything immediately when reduced motion is preferred
-    homePage.classList.add('is-motion-ready');
+    revealHeroImmediately();
   }
 
 }

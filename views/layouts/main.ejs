@@ -8,6 +8,17 @@
     <meta name="robots" content="<%= robots %>">
   <% } %>
   <title><%= typeof title !== 'undefined' ? title + ' | ' + site.name : site.name %></title>
+  <% if (typeof pageClass !== 'undefined' && pageClass === 'page-home') { %>
+  <script nonce="<%= cspNonce %>">
+    document.documentElement.classList.add('js');
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      document.documentElement.classList.add('hero-entrance-pending');
+      window.__heroEntranceSafetyTimer = window.setTimeout(function () {
+        document.documentElement.classList.remove('hero-entrance-pending');
+      }, 3500);
+    }
+  </script>
+  <% } %>
   <link rel="stylesheet" href="/css/style.css">
   <% if (typeof hideFooter === 'undefined' || hideFooter !== true) { %>
     <link rel="stylesheet" href="/css/footer.css">

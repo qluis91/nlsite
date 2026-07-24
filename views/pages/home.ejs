@@ -58,9 +58,9 @@ const ENABLE_PAGE_INTRO = false;
 
     <!-- ── Background layers ── -->
     <div class="hero-bg" aria-hidden="true">
-      <div class="hero-bg-gradient"></div>
-      <div class="hero-bg-glow"></div>
-      <div class="hero-bg-grid"></div>
+      <div class="hero-bg-gradient" data-hero-animate="background"></div>
+      <div class="hero-bg-glow" data-hero-animate="glow"></div>
+      <div class="hero-bg-grid" data-hero-animate="grid"></div>
     </div>
 
     <!-- ── Hero content ── -->
@@ -68,17 +68,26 @@ const ENABLE_PAGE_INTRO = false;
       <div class="hero-text">
 
         <!-- Eyebrow -->
-        <span class="hero-eyebrow">IMPRESIÓN 3D EN COSTA RICA</span>
+        <span class="hero-eyebrow" data-hero-animate="eyebrow">IMPRESIÓN 3D EN COSTA RICA</span>
 
         <!-- Main title -->
-        <h1 id="hero-title" class="hero-heading">
+        <h1 id="hero-title" class="hero-heading" data-hero-animate="heading">
           <span class="hero-line">
-            Fabricamos tus <span class="desktop-break"><br></span>
-            ideas <span class="desktop-break"><br></span>
-            con precisión <span class="desktop-break"><br></span>
-            <span class="hero-line--accent">milimétrica</span>
+            <span class="hero-word">Fabricamos</span>
+            <span class="hero-word">tus</span>
+            <span class="desktop-break"><br></span>
+            <span class="hero-word">ideas</span>
+            <span class="desktop-break"><br></span>
+            <span class="hero-word">con</span>
+            <span class="hero-word">precisión</span>
+            <span class="desktop-break"><br></span>
+            <span class="hero-word hero-line--accent">milimétrica</span>
           </span>
         </h1>
+
+        <p class="hero-support" data-hero-animate="support">
+          Diseño, prototipado y fabricación con precisión para convertir ideas en piezas reales.
+        </p>
 
       </div>
 
@@ -86,6 +95,7 @@ const ENABLE_PAGE_INTRO = false;
       <div
         class="hero-3d is-loading"
         data-model-state="loading"
+        data-hero-animate="helmet"
         aria-label="Casco 3D interactivo"
         role="img"
         aria-busy="true"
@@ -125,14 +135,14 @@ const ENABLE_PAGE_INTRO = false;
       </div>
 
       <!-- CTA buttons -->
-      <div class="hero-ctas">
-        <a href="#productos" class="hero-btn hero-btn--primary">
+      <div class="hero-ctas" data-hero-animate="actions">
+        <a href="#productos" class="hero-btn hero-btn--primary" data-hero-animate="button">
           Explorar productos
           <svg class="hero-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M5 12h14M12 5l7 7-7 7"/>
           </svg>
         </a>
-        <a href="#como-trabajamos" class="hero-btn hero-btn--outline">
+        <a href="#como-trabajamos" class="hero-btn hero-btn--outline" data-hero-animate="button">
           Cómo trabajamos
           <svg class="hero-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -142,7 +152,7 @@ const ENABLE_PAGE_INTRO = false;
     </div>
 
     <!-- ── Social links (bottom right) ── -->
-    <div class="hero-social">
+    <div class="hero-social" data-hero-animate="social">
       <!-- Placeholder URLs — configure real social links -->
       <a href="#" class="hero-social-link" aria-label="Instagram" rel="noopener noreferrer" target="_blank">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
