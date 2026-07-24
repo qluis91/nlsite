@@ -1,0 +1,58 @@
+<% const esc = value => String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); %>
+
+<main class="st-layout">
+  <%- include('../../components/store-sidebar') %>
+
+  <div class="st-main">
+    <div class="st-lookup">
+
+      <header class="st-lookup__header">
+        <p class="st-lookup__eyebrow">Seguimiento seguro</p>
+        <h1 class="st-lookup__title">Consultar pedido</h1>
+        <p class="st-lookup__desc">Ingresa la referencia del pedido y el correo utilizado al realizar la compra.</p>
+      </header>
+
+      <% if (lookupError) { %>
+        <div id="lookup-error" class="st-lookup__error" role="alert"><%= lookupError %></div>
+      <% } %>
+
+      <form action="/consultar-pedido" method="post" class="st-lookup__form" novalidate data-lookup-form>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+        <div class="st-lookup__field">
+          <label for="order-reference">Referencia del pedido</label>
+          <input
+            id="order-reference"
+            name="reference"
+            type="text"
+            value="<%= esc(form.reference) %>"
+            maxlength="15"
+            autocomplete="off"
+            required
+            placeholder="NL-XXXXXXXXXXXX"
+            <%= lookupError ? 'aria-invalid="true" aria-describedby="lookup-error"' : '' %>
+          >
+        </div>
+
+        <div class="st-lookup__field">
+          <label for="order-email">Correo electrónico</label>
+          <input
+            id="order-email"
+            name="email"
+            type="email"
+            value="<%= esc(form.email) %>"
+            maxlength="180"
+            autocomplete="email"
+            required
+            <%= lookupError ? 'aria-invalid="true" aria-describedby="lookup-error"' : '' %>
+          >
+        </div>
+
+        <button type="submit" class="st-lookup__submit" data-lookup-submit>Verificar pedido</button>
+      </form>
+
+      <p class="st-lookup__login">¿El pedido pertenece a tu cuenta? <a href="/auth/login?returnTo=%2Fcuenta%2Fpedidos">Inicia sesión</a>.</p>
+
+    </div>
+  </div>
+</main>

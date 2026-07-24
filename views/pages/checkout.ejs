@@ -1,299 +1,270 @@
-<%- include('../components/home-navbar', { navbarOnHome: false }) %>
+<% const money = value => new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(value); %>
+<% const esc = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); %>
+<% const fieldError = (name) => errors && errors[name] ? ' st-field--error' : ''; %>
+<% const hasErrors = typeof errors === 'object' && Object.keys(errors).length > 0; %>
+<% var selDelivery = (typeof formData !== 'undefined' && formData.deliveryMethod) || 'local_pickup'; %>
+<% var selPayment = (typeof formData !== 'undefined' && formData.paymentMethod) || ''; %>
+<% var isDeliveryWithAddress = deliveryMethods[selDelivery] && deliveryMethods[selDelivery].requiresAddress; %>
 
-<main class="checkout-page" data-checkout-page>
-  <div class="store-layout">
+<main class="st-layout">
+  <%- include('../components/store-sidebar') %>
 
-    <nav class="pd-breadcrumbs" aria-label="Migas de pan">
-      <a href="/">Inicio</a>
-      <span aria-hidden="true">/</span>
-      <a href="/tienda">Tienda</a>
-      <span aria-hidden="true">/</span>
-      <a href="/carrito">Carrito</a>
-      <span aria-hidden="true">/</span>
-      <span aria-current="page">Finalizar pedido</span>
-    </nav>
+  <div class="st-main">
+    <div class="st-checkout">
 
-    <h1 class="checkout-title">Finalizar pedido</h1>
+      <header class="st-checkout__header">
+        <p class="st-checkout__eyebrow">Tienda NinjaLabCR</p>
+        <h1 class="st-checkout__title">Finalizar pedido</h1>
+      </header>
 
-    <% if (Object.keys(errors).length) { %>
-      <div class="checkout-error-summary" role="alert">
-        <strong>Revisa la información indicada antes de confirmar.</strong>
-      </div>
-    <% } %>
+      <nav class="st-checkout__progress" aria-label="Progreso del pedido">
+        <span class="st-progress-step st-progress-step--done">Carrito</span>
+        <span class="st-progress-sep" aria-hidden="true">→</span>
+        <span class="st-progress-step st-progress-step--current" aria-current="step">Datos y pago</span>
+        <span class="st-progress-sep" aria-hidden="true">→</span>
+        <span class="st-progress-step">Confirmación</span>
+      </nav>
 
-    <form action="/checkout" method="post" class="checkout-layout" novalidate>
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="checkoutToken" value="<%= token %>">
+      <% if (hasErrors) { %>
+        <div class="st-checkout__alert" role="alert">
+          <strong>Revisa la información indicada antes de confirmar.</strong>
+        </div>
+      <% } %>
 
-      <!-- Main form -->
-      <div class="checkout-form">
+      <form action="/checkout" method="post" class="st-checkout__layout" novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="checkoutToken" value="<%= token %>">
 
-        <!-- Customer Information -->
-        <fieldset class="checkout-section">
-          <legend class="checkout-section__title">Información de contacto</legend>
+        <div class="st-checkout__form">
+          <!-- Contact -->
+          <fieldset class="st-checkout__section">
+            <legend class="st-checkout__section-title">Información de contacto</legend>
 
-          <div class="checkout-field">
-            <label for="customerName">Nombre completo <span aria-hidden="true">*</span></label>
-            <input
-              id="customerName"
-              name="customerName"
-              type="text"
-              value="<%= typeof formData !== 'undefined' && formData.customerName ? formData.customerName : (typeof prefill !== 'undefined' ? prefill.customerName : '') %>"
-              maxlength="120"
-              required
-              autocomplete="name"
-              <%= errors.customerName ? 'aria-invalid="true" aria-describedby="err-customerName"' : '' %>
-            >
-            <% if (errors.customerName) { %>
-              <p id="err-customerName" class="checkout-error" role="alert"><%= errors.customerName %></p>
-            <% } %>
-          </div>
+            <div class="st-checkout__field<%= fieldError('customerName') %>">
+              <label for="customerName">Nombre completo <span aria-hidden="true" class="st-required">*</span></label>
+              <input id="customerName" name="customerName" type="text"
+                value="<%= typeof formData !== 'undefined' && formData.customerName ? esc(formData.customerName) : (typeof prefill !== 'undefined' ? esc(prefill.customerName) : '') %>"
+                maxlength="120" required autocomplete="name"
+                <%= errors && errors.customerName ? 'aria-invalid="true" aria-describedby="err-customerName"' : '' %>>
+              <% if (errors && errors.customerName) { %><p id="err-customerName" class="st-checkout__error" role="alert"><%= errors.customerName %></p><% } %>
+            </div>
 
-          <div class="checkout-field">
-            <label for="email">Correo electrónico <span aria-hidden="true">*</span></label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              value="<%= typeof formData !== 'undefined' && formData.email ? formData.email : (typeof prefill !== 'undefined' ? prefill.email : '') %>"
-              maxlength="180"
-              required
-              autocomplete="email"
-              <%= errors.email ? 'aria-invalid="true" aria-describedby="err-email"' : '' %>
-            >
-            <% if (errors.email) { %>
-              <p id="err-email" class="checkout-error" role="alert"><%= errors.email %></p>
-            <% } %>
-          </div>
+            <div class="st-checkout__field<%= fieldError('email') %>">
+              <label for="email">Correo electrónico <span aria-hidden="true" class="st-required">*</span></label>
+              <input id="email" name="email" type="email"
+                value="<%= typeof formData !== 'undefined' && formData.email ? esc(formData.email) : (typeof prefill !== 'undefined' ? esc(prefill.email) : '') %>"
+                maxlength="180" required autocomplete="email"
+                <%= errors && errors.email ? 'aria-invalid="true" aria-describedby="err-email"' : '' %>>
+              <% if (errors && errors.email) { %><p id="err-email" class="st-checkout__error" role="alert"><%= errors.email %></p><% } %>
+            </div>
 
-          <div class="checkout-field">
-            <label for="phone">Teléfono <span aria-hidden="true">*</span></label>
-            <input
-              id="phone"
-              name="phone"
-              type="tel"
-              value="<%= typeof formData !== 'undefined' ? formData.phone : '' %>"
-              maxlength="30"
-              placeholder="+506 1234 5678"
-              required
-              autocomplete="tel"
-              <%= errors.phone ? 'aria-invalid="true" aria-describedby="err-phone"' : '' %>
-            >
-            <% if (errors.phone) { %>
-              <p id="err-phone" class="checkout-error" role="alert"><%= errors.phone %></p>
-            <% } %>
-          </div>
-        </fieldset>
+            <div class="st-checkout__field<%= fieldError('phone') %>">
+              <label for="phone">Teléfono <span aria-hidden="true" class="st-required">*</span></label>
+              <input id="phone" name="phone" type="tel"
+                value="<%= typeof formData !== 'undefined' ? esc(formData.phone) : '' %>"
+                maxlength="30" placeholder="+506 1234 5678" required autocomplete="tel"
+                <%= errors && errors.phone ? 'aria-invalid="true" aria-describedby="err-phone"' : '' %>>
+              <% if (errors && errors.phone) { %><p id="err-phone" class="st-checkout__error" role="alert"><%= errors.phone %></p><% } %>
+            </div>
+          </fieldset>
 
-        <!-- Delivery Method -->
-        <fieldset class="checkout-section">
-          <legend class="checkout-section__title">Método de entrega</legend>
-
-          <% var selectedDelivery = (formData && formData.deliveryMethod) || 'local_pickup'; %>
-          <% Object.values(deliveryMethods).forEach(function(dlv) { %>
-            <label class="checkout-option <%= selectedDelivery === dlv.key ? 'is-selected' : '' %>">
-              <input
-                type="radio"
-                name="deliveryMethod"
-                value="<%= dlv.key %>"
-                <%= selectedDelivery === dlv.key ? 'checked' : '' %>
-                data-delivery-option
-                data-requires-address="<%= dlv.requiresAddress ? 'true' : 'false' %>"
-              >
-              <span class="checkout-option__content">
-                <span class="checkout-option__label"><%= dlv.label %></span>
-                <span class="checkout-option__desc"><%= dlv.description %></span>
-                <span class="checkout-option__cost">
-                  <% if (dlv.shippingAmount === 0) { %>
-                    Costo de envío: <strong>₡0</strong>
-                  <% } else { %>
-                    Costo de envío: <strong>Por calcular según ubicación</strong>
-                  <% } %>
-                </span>
-              </span>
-            </label>
-          <% }); %>
-          <% if (errors.deliveryMethod) { %>
-            <p class="checkout-error" role="alert"><%= errors.deliveryMethod %></p>
-          <% } %>
-        </fieldset>
-
-        <!-- Delivery Address (conditional) -->
-        <% var dlvKey = (typeof formData !== 'undefined' ? formData.deliveryMethod : null) || 'local_pickup'; %>
-        <fieldset class="checkout-section checkout-address" id="checkout-address" data-checkout-address>
-          <legend class="checkout-section__title">Dirección de entrega</legend>
-
-          <% var selectedAddressChoice = (formData && formData.addressChoice) || (defaultAddressId ? 'saved:' + defaultAddressId : 'manual'); %>
-          <% if (user && savedAddresses.length) { %>
-            <div class="checkout-address-choices" role="radiogroup" aria-label="Dirección para este pedido">
-              <% savedAddresses.forEach(function(address) { %>
-                <label class="checkout-address-choice">
-                  <input type="radio" name="addressChoice" value="saved:<%= address.id %>"
-                    <%= selectedAddressChoice === 'saved:' + address.id ? 'checked' : '' %>
-                    data-address-choice>
-                  <span>
-                    <strong><%= address.label %><%= address.isDefault ? ' · Predeterminada' : '' %></strong>
-                    <small><%= address.province %>, <%= address.canton %>, <%= address.district %> · <%= address.addressLine %></small>
-                    <% if (address.contactPhone) { %><small>Contacto de referencia: <%= address.contactPhone %></small><% } %>
+          <!-- Delivery -->
+          <fieldset class="st-checkout__section">
+            <legend class="st-checkout__section-title">Método de entrega</legend>
+            <div class="st-checkout__options">
+              <% Object.values(deliveryMethods).forEach(function(dlv) { %>
+                <label class="st-checkout-option<%= selDelivery === dlv.key ? ' is-selected' : '' %>">
+                  <input type="radio" name="deliveryMethod" value="<%= dlv.key %>"
+                    <%= selDelivery === dlv.key ? 'checked' : '' %>
+                    data-delivery-option
+                    data-requires-address="<%= dlv.requiresAddress ? 'true' : 'false' %>">
+                  <span class="st-checkout-option__content">
+                    <span class="st-checkout-option__label"><%= dlv.label %></span>
+                    <span class="st-checkout-option__desc"><%= dlv.description %></span>
+                    <span class="st-checkout-option__cost">
+                      <% if (dlv.shippingAmount === 0) { %>Costo de envío: <strong>₡0</strong><% } else { %>Costo de envío: <strong>Por calcular según ubicación</strong><% } %>
+                    </span>
                   </span>
                 </label>
               <% }); %>
-              <label class="checkout-address-choice">
-                <input type="radio" name="addressChoice" value="manual"
-                  <%= selectedAddressChoice === 'manual' ? 'checked' : '' %>
-                  data-address-choice>
-                <span><strong>Ingresar otra dirección</strong><small>Usar una dirección solo para este pedido.</small></span>
-              </label>
             </div>
-          <% } else { %>
-            <input type="hidden" name="addressChoice" value="manual">
-          <% } %>
-          <% if (errors.addressChoice) { %>
-            <p id="err-addressChoice" class="checkout-error" role="alert"><%= errors.addressChoice %></p>
-          <% } %>
+            <% if (errors && errors.deliveryMethod) { %><p class="st-checkout__error" role="alert"><%= errors.deliveryMethod %></p><% } %>
+          </fieldset>
 
-          <div class="checkout-manual-address" data-manual-address>
-            <% if (user && savedAddresses.length) { %>
-              <h3>Dirección manual</h3>
-              <p>Estos campos se usarán únicamente si eliges “Ingresar otra dirección”.</p>
-            <% } %>
-          <div class="checkout-field">
-            <label for="province">Provincia <span aria-hidden="true">*</span></label>
-            <select id="province" name="province" data-address-field data-manual-address-field data-manual-required
-              <%= errors.province ? 'aria-invalid="true" aria-describedby="err-province"' : '' %>>
-              <option value="">Selecciona una provincia</option>
-              <% provinces.forEach(function(p) { %>
-                <option value="<%= p %>" <%= typeof formData !== 'undefined' && formData.province === p ? 'selected' : '' %>><%= p %></option>
-              <% }); %>
-            </select>
-            <% if (errors.province) { %>
-              <p id="err-province" class="checkout-error" role="alert"><%= errors.province %></p>
-            <% } %>
-          </div>
+          <!-- Address -->
+          <fieldset class="st-checkout__section st-checkout-address" id="checkout-address" data-checkout-address>
+            <legend class="st-checkout__section-title">Dirección de entrega</legend>
 
-          <div class="checkout-field">
-            <label for="canton">Cantón <span aria-hidden="true">*</span></label>
-            <input id="canton" name="canton" type="text" value="<%= typeof formData !== 'undefined' ? formData.canton : '' %>" maxlength="80" data-address-field data-manual-address-field data-manual-required
-              <%= errors.canton ? 'aria-invalid="true" aria-describedby="err-canton"' : '' %>>
-            <% if (errors.canton) { %>
-              <p id="err-canton" class="checkout-error" role="alert"><%= errors.canton %></p>
-            <% } %>
-          </div>
-
-          <div class="checkout-field">
-            <label for="distrito">Distrito <span aria-hidden="true">*</span></label>
-            <input id="distrito" name="distrito" type="text" value="<%= typeof formData !== 'undefined' ? formData.distrito : '' %>" maxlength="80" data-address-field data-manual-address-field data-manual-required
-              <%= errors.distrito ? 'aria-invalid="true" aria-describedby="err-distrito"' : '' %>>
-            <% if (errors.distrito) { %>
-              <p id="err-distrito" class="checkout-error" role="alert"><%= errors.distrito %></p>
-            <% } %>
-          </div>
-
-          <div class="checkout-field">
-            <label for="addressLine">Dirección exacta <span aria-hidden="true">*</span></label>
-            <textarea id="addressLine" name="addressLine" rows="2" maxlength="300" data-address-field data-manual-address-field data-manual-required
-              <%= errors.addressLine ? 'aria-invalid="true" aria-describedby="err-addressLine"' : '' %>><%= typeof formData !== 'undefined' ? formData.addressLine : '' %></textarea>
-            <% if (errors.addressLine) { %>
-              <p id="err-addressLine" class="checkout-error" role="alert"><%= errors.addressLine %></p>
-            <% } %>
-          </div>
-
-          <div class="checkout-field">
-            <label for="addressReference">Referencias</label>
-            <textarea id="addressReference" name="addressReference" rows="2" maxlength="200" data-address-field data-manual-address-field
-              <%= errors.addressReference ? 'aria-invalid="true" aria-describedby="err-addressReference"' : '' %>><%= typeof formData !== 'undefined' ? formData.addressReference : '' %></textarea>
-            <% if (errors.addressReference) { %>
-              <p id="err-addressReference" class="checkout-error" role="alert"><%= errors.addressReference %></p>
-            <% } %>
-          </div>
-          </div>
-        </fieldset>
-
-        <!-- Payment Method -->
-        <fieldset class="checkout-section">
-          <legend class="checkout-section__title">Método de pago</legend>
-
-          <% allPaymentKeys.forEach(function(k) {
-            var pm = paymentMethods[k];
-            if (pm.enabled) { %>
-              <label class="checkout-option <%= typeof formData !== 'undefined' && formData.paymentMethod === k ? 'is-selected' : '' %>">
-                <input type="radio" name="paymentMethod" value="<%= k %>"
-                  <%= typeof formData !== 'undefined' && formData.paymentMethod === k ? 'checked' : '' %>
-                  data-payment-option>
-                <span class="checkout-option__content">
-                  <span class="checkout-option__label"><%= pm.label %></span>
-                  <span class="checkout-option__desc"><%= pm.description %></span>
-                </span>
-              </label>
+            <% var selAddrChoice = (typeof formData !== 'undefined' && formData.addressChoice) || (defaultAddressId ? 'saved:' + defaultAddressId : 'manual'); %>
+            <% if (user && savedAddresses && savedAddresses.length) { %>
+              <div class="st-checkout__addr-choices" role="radiogroup" aria-label="Dirección para este pedido">
+                <% savedAddresses.forEach(function(address) { %>
+                  <label class="st-checkout__addr-choice">
+                    <input type="radio" name="addressChoice" value="saved:<%= address.id %>"
+                      <%= selAddrChoice === 'saved:' + address.id ? 'checked' : '' %> data-address-choice>
+                    <span>
+                      <strong><%= address.label %><%= address.isDefault ? ' · Predeterminada' : '' %></strong>
+                      <small><%= [address.province, address.canton, address.district].filter(Boolean).join(', ') %><%= address.addressLine ? ' · ' + address.addressLine : '' %></small>
+                      <% if (address.contactPhone) { %><small>Contacto: <%= address.contactPhone %></small><% } %>
+                    </span>
+                  </label>
+                <% }); %>
+                <label class="st-checkout__addr-choice">
+                  <input type="radio" name="addressChoice" value="manual"
+                    <%= selAddrChoice === 'manual' ? 'checked' : '' %> data-address-choice>
+                  <span><strong>Ingresar otra dirección</strong><small>Usar una dirección solo para este pedido.</small></span>
+                </label>
+              </div>
             <% } else { %>
-              <label class="checkout-option checkout-option--disabled">
-                <input type="radio" disabled>
-                <span class="checkout-option__content">
-                  <span class="checkout-option__label"><%= pm.label %></span>
-                  <span class="checkout-option__desc"><%= pm.description %></span>
-                  <span class="checkout-option__tag">Próximamente</span>
-                </span>
-              </label>
+              <input type="hidden" name="addressChoice" value="manual">
             <% } %>
-          <% }); %>
-          <% if (errors.paymentMethod) { %>
-            <p class="checkout-error" role="alert"><%= errors.paymentMethod %></p>
-          <% } %>
-        </fieldset>
-      </div>
+            <% if (errors && errors.addressChoice) { %><p class="st-checkout__error" role="alert"><%= errors.addressChoice %></p><% } %>
 
-      <!-- Order Summary -->
-      <div class="checkout-summary" aria-labelledby="checkout-summary-title">
-        <h2 id="checkout-summary-title" class="checkout-summary__title">Resumen del pedido</h2>
+            <div class="st-checkout__manual-addr" data-manual-address>
+              <% if (user && savedAddresses && savedAddresses.length) { %>
+                <p class="st-checkout__manual-hint">Estos campos se usarán únicamente si eliges "Ingresar otra dirección".</p>
+              <% } %>
 
-        <div class="checkout-summary__items" role="list">
-          <% checkout.items.forEach(function(item) { %>
-            <div class="checkout-line" role="listitem">
-              <span class="checkout-line__name"><%= item.title %> × <%= item.quantity %></span>
-              <span class="checkout-line__price">
-                <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(item.lineTotal) %>
-              </span>
+              <div class="st-checkout__field<%= fieldError('province') %>">
+                <label for="province">Provincia <span aria-hidden="true" class="st-required">*</span></label>
+                <select id="province" name="province" data-address-field data-manual-address-field data-manual-required
+                  <%= errors && errors.province ? 'aria-invalid="true" aria-describedby="err-province"' : '' %>>
+                  <option value="">Selecciona una provincia</option>
+                  <% provinces.forEach(function(p) { %>
+                    <option value="<%= p %>" <%= typeof formData !== 'undefined' && formData.province === p ? 'selected' : '' %>><%= p %></option>
+                  <% }); %>
+                </select>
+                <% if (errors && errors.province) { %><p id="err-province" class="st-checkout__error" role="alert"><%= errors.province %></p><% } %>
+              </div>
+
+              <div class="st-checkout__field<%= fieldError('canton') %>">
+                <label for="canton">Cantón <span aria-hidden="true" class="st-required">*</span></label>
+                <input id="canton" name="canton" type="text"
+                  value="<%= typeof formData !== 'undefined' ? esc(formData.canton) : '' %>"
+                  maxlength="80" data-address-field data-manual-address-field data-manual-required
+                  <%= errors && errors.canton ? 'aria-invalid="true" aria-describedby="err-canton"' : '' %>>
+                <% if (errors && errors.canton) { %><p id="err-canton" class="st-checkout__error" role="alert"><%= errors.canton %></p><% } %>
+              </div>
+
+              <div class="st-checkout__field<%= fieldError('distrito') %>">
+                <label for="distrito">Distrito <span aria-hidden="true" class="st-required">*</span></label>
+                <input id="distrito" name="distrito" type="text"
+                  value="<%= typeof formData !== 'undefined' ? esc(formData.distrito) : '' %>"
+                  maxlength="80" data-address-field data-manual-address-field data-manual-required
+                  <%= errors && errors.distrito ? 'aria-invalid="true" aria-describedby="err-distrito"' : '' %>>
+                <% if (errors && errors.distrito) { %><p id="err-distrito" class="st-checkout__error" role="alert"><%= errors.distrito %></p><% } %>
+              </div>
+
+              <div class="st-checkout__field<%= fieldError('addressLine') %>">
+                <label for="addressLine">Dirección exacta <span aria-hidden="true" class="st-required">*</span></label>
+                <textarea id="addressLine" name="addressLine" rows="2" maxlength="300"
+                  data-address-field data-manual-address-field data-manual-required
+                  <%= errors && errors.addressLine ? 'aria-invalid="true" aria-describedby="err-addressLine"' : '' %>><%= typeof formData !== 'undefined' ? esc(formData.addressLine) : '' %></textarea>
+                <% if (errors && errors.addressLine) { %><p id="err-addressLine" class="st-checkout__error" role="alert"><%= errors.addressLine %></p><% } %>
+              </div>
+
+              <div class="st-checkout__field<%= fieldError('addressReference') %>">
+                <label for="addressReference">Referencias</label>
+                <textarea id="addressReference" name="addressReference" rows="2" maxlength="200"
+                  data-address-field data-manual-address-field
+                  <%= errors && errors.addressReference ? 'aria-invalid="true" aria-describedby="err-addressReference"' : '' %>><%= typeof formData !== 'undefined' ? esc(formData.addressReference) : '' %></textarea>
+                <% if (errors && errors.addressReference) { %><p id="err-addressReference" class="st-checkout__error" role="alert"><%= errors.addressReference %></p><% } %>
+              </div>
             </div>
-          <% }); %>
+          </fieldset>
+
+          <!-- Payment -->
+          <fieldset class="st-checkout__section">
+            <legend class="st-checkout__section-title">Método de pago</legend>
+            <div class="st-checkout__options">
+              <% allPaymentKeys.forEach(function(k) {
+                var pm = paymentMethods[k];
+                if (pm.enabled) { %>
+                  <label class="st-checkout-option<%= selPayment === k ? ' is-selected' : '' %>">
+                    <input type="radio" name="paymentMethod" value="<%= k %>"
+                      <%= selPayment === k ? 'checked' : '' %> data-payment-option>
+                    <span class="st-checkout-option__content">
+                      <span class="st-checkout-option__label"><%= pm.label %></span>
+                      <span class="st-checkout-option__desc"><%= pm.description %></span>
+                    </span>
+                  </label>
+                <% } else { %>
+                  <label class="st-checkout-option st-checkout-option--disabled" aria-disabled="true">
+                    <input type="radio" name="paymentMethod" value="<%= k %>" disabled>
+                    <span class="st-checkout-option__content">
+                      <span class="st-checkout-option__label"><%= pm.label %></span>
+                      <span class="st-checkout-option__desc"><%= pm.description %></span>
+                      <span class="st-checkout-option__tag">Próximamente</span>
+                    </span>
+                  </label>
+                <% } %>
+              <% }); %>
+            </div>
+            <% if (errors && errors.paymentMethod) { %><p class="st-checkout__error" role="alert"><%= errors.paymentMethod %></p><% } %>
+          </fieldset>
         </div>
 
-        <div class="checkout-summary__row">
-          <span>Subtotal de productos</span>
-          <span>
-            <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(checkout.subtotal) %>
-          </span>
-        </div>
-        <div class="checkout-summary__row checkout-summary__row--shipping" id="checkout-shipping-display"
-          <%= (typeof formData !== 'undefined' && formData.deliveryMethod && deliveryMethods[formData.deliveryMethod] && !deliveryMethods[formData.deliveryMethod].requiresAddress) ? 'style="display:flex"' : 'style="display:none"' %>
-          data-shipping-required="false">
-          <span>Envío</span><span class="checkout-summary__shipping-val">₡0</span>
-        </div>
-        <div class="checkout-summary__row checkout-summary__row--shipping" id="checkout-shipping-pending"
-          <%= (typeof formData !== 'undefined' && formData.deliveryMethod && deliveryMethods[formData.deliveryMethod] && deliveryMethods[formData.deliveryMethod].requiresAddress) ? 'style="display:flex"' : 'style="display:none"' %>
-          data-shipping-required="true">
-          <span>Envío</span><span class="checkout-summary__shipping-pending">Por calcular</span>
-        </div>
-        <div class="checkout-summary__row checkout-summary__row--total">
-          <span>Total final</span>
-          <span id="checkout-final-total" class="checkout-summary__final-val">
-            <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(checkout.subtotal) %>
-          </span>
-          <span id="checkout-final-pending" style="display:none">Pendiente</span>
-        </div>
+        <!-- Summary -->
+        <div class="st-checkout__summary" aria-labelledby="checkout-summary-title">
+          <h2 id="checkout-summary-title" class="st-checkout__summary-title">Resumen del pedido</h2>
 
-        <button type="submit" class="checkout-submit">
-          Confirmar pedido
-        </button>
+          <ul class="st-checkout__items" role="list">
+            <% checkout.items.forEach(function(item) { %>
+              <li class="st-checkout__line">
+                <span class="st-checkout__line-name"><%= item.title %> × <%= item.quantity %></span>
+                <span class="st-checkout__line-price"><%= money(item.lineTotal) %></span>
+              </li>
+            <% }); %>
+          </ul>
 
-        <p class="checkout-submit__hint">
-          <% if (typeof formData !== 'undefined' && formData.deliveryMethod && deliveryMethods[formData.deliveryMethod] && deliveryMethods[formData.deliveryMethod].requiresAddress) { %>
-            Recibirás la cotización de envío después de confirmar.
-          <% } else { %>
-            Los precios se confirmarán al continuar.
-          <% } %>
-        </p>
-      </div>
-    </form>
+          <div class="st-checkout__divider" aria-hidden="true"></div>
 
+          <dl class="st-checkout__rows">
+            <div class="st-checkout__row">
+              <dt>Subtotal</dt>
+              <dd><%= money(checkout.subtotal) %></dd>
+            </div>
+            <div class="st-checkout__row" id="checkout-shipping-display"
+              data-shipping-required="false"
+              style="display:<%= isDeliveryWithAddress ? 'none' : 'flex' %>">
+              <dt>Envío</dt>
+              <dd class="st-checkout__shipping-val">₡0</dd>
+            </div>
+            <div class="st-checkout__row" id="checkout-shipping-pending"
+              data-shipping-required="true"
+              style="display:<%= isDeliveryWithAddress ? 'flex' : 'none' %>">
+              <dt>Envío</dt>
+              <dd class="st-checkout__shipping-pending">Por calcular</dd>
+            </div>
+          </dl>
+
+          <div class="st-checkout__divider" aria-hidden="true"></div>
+
+          <div class="st-checkout__row st-checkout__row--total" id="checkout-final-total"
+            style="display:<%= isDeliveryWithAddress ? 'none' : '' %>">
+            <dt>Total final</dt>
+            <dd><%= money(checkout.subtotal) %></dd>
+          </div>
+          <div class="st-checkout__row st-checkout__row--total" id="checkout-final-pending"
+            style="display:<%= isDeliveryWithAddress ? '' : 'none' %>">
+            <dt>Total final</dt>
+            <dd class="st-checkout__shipping-pending">Pendiente</dd>
+          </div>
+
+          <button type="submit" class="st-checkout__submit" data-checkout-submit>
+            Confirmar pedido
+          </button>
+
+          <p class="st-checkout__hint">
+            <% if (isDeliveryWithAddress) { %>
+              Recibirás la cotización de envío después de confirmar.
+            <% } else { %>
+              Los precios se confirmarán al continuar.
+            <% } %>
+          </p>
+        </div>
+      </form>
+
+    </div>
   </div>
 </main>

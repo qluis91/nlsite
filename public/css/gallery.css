@@ -299,9 +299,12 @@ body.page-gallery {
 }
 
 .gallery-card__title {
+  overflow: hidden;
   color: var(--gallery-ink);
   font-size: clamp(1.05rem, 1.4vw, 1.25rem);
   line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gallery-card__description {
@@ -310,8 +313,10 @@ body.page-gallery {
   color: var(--gallery-muted);
   font-size: 0.86rem;
   line-height: 1.5;
+  text-overflow: ellipsis;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .gallery-card:hover .gallery-card__media img,
@@ -428,8 +433,11 @@ body.page-gallery {
 }
 
 .gallery-circular__title {
+  overflow: hidden;
   margin-top: 0.25rem;
   font-size: clamp(1.1rem, 2vw, 1.55rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gallery-circular__action {
@@ -703,8 +711,11 @@ body.page-gallery {
 }
 
 .gallery-ring__title {
+  overflow: hidden;
   margin-top: 0.25rem;
   font-size: clamp(1.15rem, 2.2vw, 1.7rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gallery-ring__action {
@@ -775,6 +786,11 @@ body.page-gallery {
   cursor: grabbing;
 }
 
+.gallery-infinite:focus-visible {
+  outline: 3px solid #4e8700;
+  outline-offset: 4px;
+}
+
 .gallery-infinite__canvas {
   position: absolute;
   inset: 0;
@@ -783,7 +799,6 @@ body.page-gallery {
   width: 100%;
   height: 100%;
   touch-action: none;
-  outline: none;
   opacity: 0;
   transition: opacity 0.45s ease;
 }
@@ -1217,6 +1232,9 @@ body.is-gallery-modal-open {
   }
 
   .gallery-ring {
+    --ring-card-width: 210px;
+    --ring-card-height: 248px;
+    --ring-radius: 520px;
     height: clamp(28rem, 66vh, 36rem);
     min-height: 28rem;
     border-radius: 0.8rem;

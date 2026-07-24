@@ -197,8 +197,10 @@ test('account routes are mounted, ordered, authenticated, and owner-scoped', asy
 
   const orders = await request('GET', '/cuenta/pedidos', null, authenticatedJar);
   assert.equal(orders.status, 200);
-  assert.match(orders.data, /account-shell/);
-  assert.match(orders.data, /href="\/cuenta\/pedidos" aria-current="page"/);
+  assert.match(orders.data, /st-layout/);
+  assert.match(orders.data, /st-sidebar/);
+  assert.match(orders.data, /href="\/cuenta\/pedidos"/);
+  assert.match(orders.data, /st-orders__title/);
   assert.equal((await request('GET', `/cuenta/pedidos/${fixture.refs[0]}`, null, authenticatedJar)).status, 200);
   assert.equal((await request('GET', `/cuenta/pedidos/${fixture.otherRef}`, null, authenticatedJar)).status, 404);
   assert.equal((await request('GET', '/cuenta/pedidos/INVALID', null, authenticatedJar)).status, 404);

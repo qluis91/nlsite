@@ -53,8 +53,8 @@ export class RingGalleryRenderer {
       throw new Error('Ring Gallery requires at least one item.');
     }
     this.container = container;
-    this.items = items;
-    this.visualItems = normalizeRingItems(items);
+    this.items = items.slice();
+    this.visualItems = normalizeRingItems(this.items);
     this.options = {
       dragSensitivity: 0.17,
       friction: 0.93,
@@ -419,8 +419,8 @@ export class RingGalleryRenderer {
       this.container.style.removeProperty(property);
     });
     this.cards.length = 0;
-    this.visualItems.length = 0;
-    this.items.length = 0;
+    this.visualItems = [];
+    this.items = [];
     this.options.onActiveChange = () => {};
     this.options.onSelect = () => {};
     this.container = null;

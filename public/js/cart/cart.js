@@ -1,11 +1,13 @@
 /**
  * Cart page — progressive enhancement for quantity ± controls.
- * No-JS flow works fully with server-rendered forms.
+ * CSP-safe: no inline handlers. No-JS flow works fully with server-rendered forms.
  */
 
-function initCart() {
-  const decs = document.querySelectorAll('.cart-qty-dec');
-  const incs = document.querySelectorAll('.cart-qty-inc');
+let initDone = false;
+
+export function initCart() {
+  if (initDone) return;
+  initDone = true;
 
   function adjust(el, delta) {
     const targetId = el.getAttribute('data-qty-target');
@@ -17,27 +19,33 @@ function initCart() {
     let val = parseInt(input.value, 10) || min;
     val = Math.max(min, Math.min(max, val + delta));
     input.value = String(val);
-    // Disable buttons at boundaries
-    const wrapper = input.closest('.pd-quantity__control');
-    if (wrapper) {
-      const decBtn = wrapper.querySelector('[data-qty-target]');
-      const incBtn = wrapper.querySelector('.cart-qty-inc');
-      if (decBtn && decBtn === el && val <= min) return;
-      if (incBtn && incBtn !== el && val >= max) return;
-    }
   }
 
-  decs.forEach(b => b.addEventListener('click', () => adjust(b, -1)));
-  incs.forEach(b => b.addEventListener('click', () => adjust(b, 1)));
+  document.querySelectorAll('.cart-qty-dec').forEach(b => {
+    b.addEventListener('click', () => adjust(b, -1));
+  });
+  document.querySelectorAll('.cart-qty-inc').forEach(b => {
+    b.addEventListener('click', () => adjust(b, 1));
+  });
 
-  // Sync product-detail quantity to cart form on detail page
+  // Clear cart confirmation
+  const clearBtn = document.querySelector('[data-cart-clear-btn]');
+  const clearForm = document.querySelector('[data-cart-clear-form]');
+  if (clearBtn && clearForm) {
+    clearBtn.addEventListener('click', () => {
+      if (confirm('¿Estás seguro de vaciar el carrito?')) {
+        clearForm.submit();
+      }
+    });
+  }
+
+  // Sync product-detail quantity to cart form
   const detailQty = document.querySelector('[data-quantity-input]');
   const cartQtyHidden = document.querySelector('[data-cart-quantity]');
   if (detailQty && cartQtyHidden) {
-    const syncQty = () => { cartQtyHidden.value = detailQty.value || '1'; };
-    detailQty.addEventListener('input', syncQty);
-    detailQty.addEventListener('change', syncQty);
-    // Also sync when ± buttons change it (they modify the input)
+    const sync = () => { cartQtyHidden.value = detailQty.value || '1'; };
+    detailQty.addEventListener('input', sync);
+    detailQty.addEventListener('change', sync);
     const obs = new MutationObserver(() => {
       cartQtyHidden.value = detailQty.value || '1';
     });
@@ -45,4 +53,8 @@ function initCart() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', initCart);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initCart);
+} else {
+  initCart();
+}

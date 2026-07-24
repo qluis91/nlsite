@@ -97,6 +97,21 @@ function avatarStoragePath(userId) {
 }
 
 /**
+ * Storage path for category hero images.
+ * @param {number|string} categoryId
+ * @returns {{ dir: string, urlPrefix: string }}
+ */
+function categoryStoragePath(categoryId) {
+  const safeId = String(Number(categoryId));
+  if (!/^[1-9]\d*$/.test(safeId)) {
+    throw new Error('Identificador de categoría inválido.');
+  }
+  const dir = path.join(UPLOAD_ROOT, 'categories', safeId);
+  const urlPrefix = `/uploads/categories/${safeId}/`;
+  return { dir, urlPrefix };
+}
+
+/**
  * Process a single image buffer through Sharp.
  * @param {Buffer} inputBuffer
  * @param {{ maxWidth?: number, maxHeight?: number, quality?: number, format?: string }} profile
@@ -245,6 +260,7 @@ module.exports = {
   ensureDir,
   productStoragePath,
   avatarStoragePath,
+  categoryStoragePath,
   processBuffer,
   processImage,
   processUploadedImages,

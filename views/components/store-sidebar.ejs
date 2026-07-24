@@ -1,0 +1,85 @@
+<aside class="st-sidebar" aria-label="Navegación de la tienda">
+  <div class="st-sidebar__inner">
+    <a href="/" class="st-sidebar__logo" aria-label="<%= site.name %> — Ir al inicio">
+      <img
+        src="/images/LogoCompleto.png"
+        alt="<%= site.name %> — Impresión y diseño 3D"
+        width="240"
+        height="96"
+        loading="eager"
+      >
+    </a>
+
+    <nav class="st-sidebar__nav" aria-label="Páginas principales">
+      <ul class="st-sidebar__links">
+        <li><a href="/tienda" class="st-sidebar__link <%= typeof currentPath !== 'undefined' && currentPath === '/tienda' ? 'is-active' : '' %>">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><polyline points="3.27 6.96 12 12.01 20.73 6.96" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          Tienda
+        </a></li>
+        <li><a href="/carrito" class="st-sidebar__link">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          Carrito
+          <% if (cartItemCount && cartItemCount > 0) { %>
+            <span class="st-sidebar__badge"><%= cartItemCount %></span>
+          <% } %>
+        </a></li>
+        <% if (user) { %>
+          <li><a href="/cuenta" class="st-sidebar__link">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+            Mi cuenta
+          </a></li>
+          <li><a href="/cuenta/pedidos" class="st-sidebar__link">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="14 2 14 8 20 8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+            Mis pedidos
+          </a></li>
+        <% } else { %>
+          <li><a href="/auth/login" class="st-sidebar__link">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><polyline points="10 17 15 12 10 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="15" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            Iniciar sesión
+          </a></li>
+        <% } %>
+        <li><a href="/consultar-pedido" class="st-sidebar__link">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m21 21-4.3-4.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Consultar pedido
+        </a></li>
+      </ul>
+    </nav>
+
+    <div class="st-sidebar__divider" aria-hidden="true"></div>
+
+    <nav class="st-sidebar__nav" aria-label="Categorías de productos">
+      <h3 class="st-sidebar__heading">Categorías</h3>
+      <ul class="st-sidebar__links">
+        <li>
+          <a
+            href="/tienda"
+            class="st-sidebar__link st-sidebar__link--sm <%= !activeCategory ? 'is-active' : '' %>"
+            <%= !activeCategory ? 'aria-current="page"' : '' %>
+          >Todos los productos</a>
+        </li>
+        <% if (typeof categories !== 'undefined' && categories.length) { %>
+          <% categories.forEach(function(cat) { %>
+            <li>
+              <a
+                href="/tienda?category=<%= cat.slug %>"
+                class="st-sidebar__link st-sidebar__link--sm <%= typeof activeCategory !== 'undefined' && activeCategory && activeCategory.slug === cat.slug ? 'is-active' : '' %>"
+                <%= typeof activeCategory !== 'undefined' && activeCategory && activeCategory.slug === cat.slug ? 'aria-current="page"' : '' %>
+              ><%= cat.name %></a>
+            </li>
+          <% }); %>
+        <% } %>
+      </ul>
+    </nav>
+
+    <% if (user) { %>
+      <div class="st-sidebar__divider" aria-hidden="true"></div>
+      <div class="st-sidebar__user">
+        <span class="st-sidebar__user-name"><%= user.name %></span>
+        <form action="/auth/logout" method="POST" class="st-sidebar__logout-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="st-sidebar__logout">Cerrar sesión</button>
+        </form>
+      </div>
+    <% } %>
+  </div>
+</aside>

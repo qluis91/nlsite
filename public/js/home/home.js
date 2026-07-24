@@ -10,11 +10,13 @@ import { initLogoLoop } from './logoLoop.js';
 import { initNavbar } from './navbar.js';
 import { initPageLoader } from './pageLoader.js';
 import { initProjectCarousel } from './projectCarousel.js';
+import { initServicesCarousel } from './servicesCarousel.mjs';
 import { initSplashCursor } from './splashCursor.js';
 
 const homePage = document.querySelector('[data-home-page]');
 let destroyLogoLoop = () => {};
 let destroyProjectCarousel = () => {};
+let destroyServicesCarousel = () => {};
 let pageLoader = null;
 let removeLoaderListeners = () => {};
 if (!homePage) {
@@ -225,6 +227,16 @@ async function init() {
   // Panel 2 modules are isolated from the hero renderers.
   initShowcase();
 
+  // Panel 3 — Services circular carousel
+  const servicesRoot = document.querySelector('[data-services-carousel]');
+  if (servicesRoot) {
+    try {
+      destroyServicesCarousel = initServicesCarousel(servicesRoot);
+    } catch (error) {
+      console.warn('[Services] Carousel initialization failed.', error);
+    }
+  }
+
   // Grainient background. Its failure must not affect the other visual systems.
   if (!prefersReduced) {
     try {
@@ -316,6 +328,7 @@ window.addEventListener('pagehide', () => {
   if (pageLoader) pageLoader.destroy();
   destroyLogoLoop();
   destroyProjectCarousel();
+  destroyServicesCarousel();
 }, { once: true });
 
 // Auto-initialize

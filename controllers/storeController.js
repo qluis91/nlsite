@@ -1,4 +1,4 @@
-const { DEFAULT_LIMIT, getPublicCatalog, getPublicCatalogAsync, getPublicCategories, getProductBySlug, getRelatedProducts, formatWeight, normalizeStoreQuery } = require('../services/catalogService');
+const { DEFAULT_LIMIT, getPublicCatalog, getPublicCatalogAsync, getPublicCategories, getProductBySlug, getRelatedProducts, formatWeight, normalizeStoreQuery, resolveStoreHero } = require('../services/catalogService');
 const { buildWhatsAppUrl } = require('../config/publicContact');
 
 function buildStoreUrl(filters, overrides = {}) {
@@ -89,24 +89,26 @@ async function showStore(req, res) {
     });
   }
 
+  const storeHero = resolveStoreHero({
+    activeCategory,
+    search: filters.search,
+  });
+
   res.render('pages/tienda', {
     title: 'Tienda de impresión 3D',
     metaDescription: 'Explora productos, figuras y piezas personalizadas impresas en 3D por NinjaLab CR.',
     robots: activeFilters.length ? 'noindex,follow' : 'index,follow',
-    layout: 'layouts/main',
+    layout: 'layouts/store',
     pageClass: 'page-store',
-    pageStyles: ['/css/home.css', '/css/store.css'],
+    pageStyles: ['/css/store.css'],
     pageModule: '/js/store/store.js',
-    usesHeroNavbar: true,
-    navbarOnHome: false,
-    navbarSearchContext: 'store',
-    searchQuery: filters.search,
     catalog,
     categories,
     catalogError,
     activeCategory,
     activeFilters,
     activeFilterCount: activeFilters.length,
+    storeHero,
     buildStoreUrl: (overrides) => buildStoreUrl(filters, overrides),
     paginationPages: paginationWindow(filters.page, catalog.totalPages),
   });
@@ -119,16 +121,25 @@ async function showProduct(req, res, next) {
       return res.redirect('/tienda');
     }
 
-    const product = await getProductBySlug(slug);
+    const [product, categories] = await Promise.all([
+      getProductBySlug(slug),
+      getPublicCategories(),
+    ]);
+
     if (!product) {
       return res.status(404).render('pages/tienda-producto', {
         title: 'Producto no encontrado',
-        layout: 'layouts/main',
+        layout: 'layouts/store',
         pageClass: 'page-store',
-        pageStyles: ['/css/home.css', '/css/store.css'],
-        usesHeroNavbar: true,
-        navbarSearchContext: 'store',
+        pageStyles: ['/css/store.css'],
+        pageModule: '/js/store/product-detail.js',
         product: null,
+        categories,
+        activeCategory: null,
+        relatedProducts: [],
+        returnTo: '/tienda',
+        whatsappUrl: '',
+        weightLabel: '',
       });
     }
 
@@ -137,18 +148,22 @@ async function showProduct(req, res, next) {
     const relatedProducts = await getRelatedProducts(product.id, categoryIds, 4);
     const whatsappUrl = buildWhatsAppUrl(product.title, 'NinjaLab');
     const weightLabel = formatWeight(product.weight);
+    const primaryCategory = (product.categories && product.categories[0]) || null;
+    const activeCategory = primaryCategory
+      ? (categories.find((c) => c.slug === primaryCategory.slug) || primaryCategory)
+      : null;
 
     res.render('pages/tienda-producto', {
       title: `${product.title} | Tienda`,
       metaDescription: product.description?.slice(0, 160) || product.title,
       robots: 'index,follow',
-      layout: 'layouts/main',
+      layout: 'layouts/store',
       pageClass: 'page-store',
-      pageStyles: ['/css/home.css', '/css/store.css'],
+      pageStyles: ['/css/store.css'],
       pageModule: '/js/store/product-detail.js',
-      usesHeroNavbar: true,
-      navbarSearchContext: 'store',
       product,
+      categories,
+      activeCategory,
       returnTo,
       relatedProducts,
       whatsappUrl,

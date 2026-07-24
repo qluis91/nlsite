@@ -145,7 +145,7 @@ export class CircularGalleryRenderer {
   constructor(container, options = {}) {
     if (!container) throw new Error('Circular Gallery requires a container.');
     this.container = container;
-    this.items = Array.isArray(options.items) ? options.items : [];
+    this.items = Array.isArray(options.items) ? options.items.slice() : [];
     if (!this.items.length) throw new Error('Circular Gallery requires at least one item.');
     this.options = {
       bend: 0,

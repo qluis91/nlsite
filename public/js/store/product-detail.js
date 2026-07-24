@@ -1,5 +1,6 @@
 /**
  * Product detail — gallery thumbnails + quantity control.
+ * CSP-safe: no inline handlers. Idempotent via WeakMap.
  */
 const detailInstances = new WeakMap();
 
@@ -9,10 +10,10 @@ export function initProductDetail(root) {
 
   const mainImage = root.querySelector('[data-product-main-image]');
   const thumbnails = [...root.querySelectorAll('[data-product-thumbnail]')];
-  const gallery = root.querySelector('[data-product-gallery]');
   const quantityRoot = root.querySelector('[data-product-quantity]');
   const removers = [];
   let destroyed = false;
+  let activeIndex = Math.max(0, thumbnails.findIndex((t) => t.classList.contains('is-active')));
 
   const listen = (target, event, handler, options) => {
     if (!target) return;
@@ -20,43 +21,64 @@ export function initProductDetail(root) {
     removers.push(() => target.removeEventListener(event, handler, options));
   };
 
-  // ── Gallery: thumbnail click → swap main image ──
-  if (mainImage && thumbnails.length) {
-    function setActiveThumbnail(btn) {
-      thumbnails.forEach(t => {
-        t.classList.remove('is-active');
-        t.setAttribute('aria-pressed', 'false');
-      });
-      btn.classList.add('is-active');
-      btn.setAttribute('aria-pressed', 'true');
+  function setActiveThumbnail(btn, index) {
+    thumbnails.forEach((t) => {
+      t.classList.remove('is-active');
+      t.setAttribute('aria-pressed', 'false');
+    });
+    btn.classList.add('is-active');
+    btn.setAttribute('aria-pressed', 'true');
+    activeIndex = index;
+  }
+
+  function selectThumbnail(btn, index) {
+    const src = btn.getAttribute('data-image-src');
+    const alt = btn.getAttribute('data-image-alt');
+    if (src && mainImage) {
+      mainImage.src = src;
+      if (alt) mainImage.alt = alt;
     }
+    setActiveThumbnail(btn, index);
+  }
 
-    for (const btn of thumbnails) {
-      listen(btn, 'click', () => {
-        const src = btn.getAttribute('data-image-src');
-        const alt = btn.getAttribute('data-image-alt');
-        if (src && mainImage) {
-          mainImage.src = src;
-          if (alt) mainImage.alt = alt;
-          setActiveThumbnail(btn);
+  if (mainImage && thumbnails.length) {
+    thumbnails.forEach((btn, index) => {
+      listen(btn, 'click', () => selectThumbnail(btn, index));
+
+      listen(btn, 'keydown', (event) => {
+        if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+          event.preventDefault();
+          const next = (index + 1) % thumbnails.length;
+          thumbnails[next].focus();
+          selectThumbnail(thumbnails[next], next);
+        } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+          event.preventDefault();
+          const prev = (index - 1 + thumbnails.length) % thumbnails.length;
+          thumbnails[prev].focus();
+          selectThumbnail(thumbnails[prev], prev);
+        } else if (event.key === 'Home') {
+          event.preventDefault();
+          thumbnails[0].focus();
+          selectThumbnail(thumbnails[0], 0);
+        } else if (event.key === 'End') {
+          event.preventDefault();
+          const last = thumbnails.length - 1;
+          thumbnails[last].focus();
+          selectThumbnail(thumbnails[last], last);
         }
       });
+    });
 
-      listen(btn, 'keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          btn.click();
-        }
-      });
+    if (activeIndex < 0 && thumbnails[0]) {
+      setActiveThumbnail(thumbnails[0], 0);
     }
   }
 
-  // ── Quantity control ──
   if (quantityRoot) {
     const input = quantityRoot.querySelector('[data-quantity-input]');
     const decBtn = quantityRoot.querySelector('[data-quantity-decrease]');
     const incBtn = quantityRoot.querySelector('[data-quantity-increase]');
-    const cartHidden = document.querySelector('[data-cart-quantity]');
+    const cartHidden = root.querySelector('[data-cart-quantity]');
 
     if (input && decBtn && incBtn) {
       const min = parseInt(input.min, 10) || 1;
@@ -68,7 +90,7 @@ export function initProductDetail(root) {
 
       function updateButtons() {
         const val = parseInt(input.value, 10) || min;
-        decBtn.disabled = val <= min;
+        decBtn.disabled = val <= min || input.disabled;
         incBtn.disabled = val >= max || input.disabled;
         syncCartHidden();
       }
@@ -91,7 +113,7 @@ export function initProductDetail(root) {
 
       listen(input, 'input', () => {
         let val = parseInt(input.value, 10);
-        if (isNaN(val) || val < min) val = min;
+        if (Number.isNaN(val) || val < min) val = min;
         if (val > max) val = max;
         input.value = String(val);
         updateButtons();
@@ -105,7 +127,7 @@ export function initProductDetail(root) {
   function cleanup() {
     if (destroyed) return;
     destroyed = true;
-    removers.splice(0).forEach(r => r());
+    removers.splice(0).forEach((remove) => remove());
     if (detailInstances.get(root) === cleanup) detailInstances.delete(root);
   }
 
@@ -113,7 +135,6 @@ export function initProductDetail(root) {
   return cleanup;
 }
 
-// Auto-init
-const root = document.querySelector('[data-product-gallery]')?.closest('.store-page');
+const root = document.querySelector('[data-product-page]');
 const destroy = initProductDetail(root);
 if (destroy) window.addEventListener('pagehide', destroy, { once: true });

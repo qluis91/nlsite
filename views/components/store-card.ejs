@@ -1,0 +1,29 @@
+<% const index = typeof idx !== 'undefined' ? idx : 0; %>
+<li>
+  <article class="st-card">
+    <a class="st-card__link" href="<%= product.url %>" aria-label="Ver <%= product.title %>">
+      <div class="st-card__media">
+        <% if (product.image) { %>
+          <img
+            src="<%= product.image %>"
+            alt="<%= product.title %>"
+            width="<%= product.imageWidth %>"
+            height="<%= product.imageHeight %>"
+            loading="<%= index < 4 ? 'eager' : 'lazy' %>"
+            decoding="async"
+          >
+        <% } else { %>
+          <span class="st-card__placeholder" aria-hidden="true">NINJALAB</span>
+        <% } %>
+      </div>
+      <div class="st-card__body">
+        <% if (product.categoryName) { %><p class="st-card__category"><%= product.categoryName %></p><% } %>
+        <h3 class="st-card__title"><%= product.title %></h3>
+        <div class="st-card__footer">
+          <p class="st-card__price"><%= product.priceLabel %></p>
+          <p class="st-card__availability <%= product.inStock ? 'is-available' : 'is-sold-out' %>"><%= product.availability %></p>
+        </div>
+      </div>
+    </a>
+  </article>
+</li>

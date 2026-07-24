@@ -38,13 +38,53 @@ exports.createCategory = async (req, res, next) => {
       req.session.error_msg = nameResult.error;
       return res.redirect('/admin/catalogo/categorias/nueva');
     }
+    const descResult = v.validateCategoryDescription(req.body.description);
+    const heroTitle = v.validateHeroTitle(req.body.hero_title);
+    const heroDesc = v.validateHeroDescription(req.body.hero_description);
+    const heroAlt = v.validateHeroAlt(req.body.hero_alt);
+    const heroPos = v.validateHeroPosition(req.body.hero_position);
+    for (const result of [descResult, heroTitle, heroDesc, heroAlt, heroPos]) {
+      if (!result.valid) {
+        req.session.error_msg = result.error;
+        return res.redirect('/admin/catalogo/categorias/nueva');
+      }
+    }
+
     const slug = v.slugify(nameResult.value);
     const taken = await catalog.isCategorySlugTaken(slug);
     if (taken) {
       req.session.error_msg = 'Ya existe una categoría con ese nombre.';
       return res.redirect('/admin/catalogo/categorias/nueva');
     }
-    await catalog.createCategory(nameResult.value, slug);
+
+    const created = await catalog.createCategory(nameResult.value, slug, {
+      description: descResult.value,
+      hero_title: heroTitle.value,
+      hero_description: heroDesc.value,
+      hero_image: null,
+      hero_alt: heroAlt.value,
+      hero_position: heroPos.value,
+    });
+
+    if (req.file) {
+      try {
+        const { dir, urlPrefix } = imgProc.categoryStoragePath(created.id);
+        const result = await imgProc.processImage(req.file, dir, imgProc.PROFILES.category);
+        const heroImage = urlPrefix + result.fileName;
+        await catalog.updateCategory(created.id, nameResult.value, slug, {
+          description: descResult.value,
+          hero_title: heroTitle.value,
+          hero_description: heroDesc.value,
+          hero_image: heroImage,
+          hero_alt: heroAlt.value,
+          hero_position: heroPos.value,
+        });
+      } catch (imgErr) {
+        req.session.error_msg = imgErr.message || 'No se pudo procesar la imagen del hero.';
+        return res.redirect(`/admin/catalogo/categorias/${created.id}/editar`);
+      }
+    }
+
     req.session.success_msg = 'Categoría creada exitosamente.';
     res.redirect('/admin/catalogo/categorias');
   } catch (err) { next(err); }
@@ -78,13 +118,57 @@ exports.updateCategory = async (req, res, next) => {
       req.session.error_msg = nameResult.error;
       return res.redirect(`/admin/catalogo/categorias/${cat.id}/editar`);
     }
+    const descResult = v.validateCategoryDescription(req.body.description);
+    const heroTitle = v.validateHeroTitle(req.body.hero_title);
+    const heroDesc = v.validateHeroDescription(req.body.hero_description);
+    const heroAlt = v.validateHeroAlt(req.body.hero_alt);
+    const heroPos = v.validateHeroPosition(req.body.hero_position);
+    for (const result of [descResult, heroTitle, heroDesc, heroAlt, heroPos]) {
+      if (!result.valid) {
+        req.session.error_msg = result.error;
+        return res.redirect(`/admin/catalogo/categorias/${cat.id}/editar`);
+      }
+    }
+
     const slug = v.slugify(nameResult.value);
     const taken = await catalog.isCategorySlugTaken(slug, cat.id);
     if (taken) {
       req.session.error_msg = 'Ya existe otra categoría con ese nombre.';
       return res.redirect(`/admin/catalogo/categorias/${cat.id}/editar`);
     }
-    await catalog.updateCategory(cat.id, nameResult.value, slug);
+
+    let heroImage = cat.hero_image || null;
+    const removeHero = req.body.remove_hero_image === '1';
+
+    if (removeHero && heroImage) {
+      const abs = path.join(imgProc.UPLOAD_ROOT, heroImage.replace(/^\/uploads\//, ''));
+      await imgProc.deleteProcessedImage(abs);
+      heroImage = null;
+    }
+
+    if (req.file) {
+      try {
+        const { dir, urlPrefix } = imgProc.categoryStoragePath(cat.id);
+        const result = await imgProc.processImage(req.file, dir, imgProc.PROFILES.category);
+        if (heroImage) {
+          const abs = path.join(imgProc.UPLOAD_ROOT, heroImage.replace(/^\/uploads\//, ''));
+          await imgProc.deleteProcessedImage(abs);
+        }
+        heroImage = urlPrefix + result.fileName;
+      } catch (imgErr) {
+        req.session.error_msg = imgErr.message || 'No se pudo procesar la imagen del hero.';
+        return res.redirect(`/admin/catalogo/categorias/${cat.id}/editar`);
+      }
+    }
+
+    await catalog.updateCategory(cat.id, nameResult.value, slug, {
+      description: descResult.value,
+      hero_title: heroTitle.value,
+      hero_description: heroDesc.value,
+      hero_image: heroImage,
+      hero_alt: heroAlt.value,
+      hero_position: heroPos.value,
+    });
     req.session.success_msg = 'Categoría actualizada exitosamente.';
     res.redirect('/admin/catalogo/categorias');
   } catch (err) { next(err); }

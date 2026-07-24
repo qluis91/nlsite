@@ -170,7 +170,7 @@ function getJsonCatalog(query = {}) {
   const data = loadCatalogData();
   const categories = data.categories
     .filter((category) => category && category.active !== false && /^[a-z0-9-]{1,80}$/i.test(category.slug))
-    .map((category) => ({ slug: category.slug, name: String(category.name || category.slug) }))
+    .map(mapPublicCategory)
     .sort((left, right) => left.name.localeCompare(right.name, 'es', { sensitivity: 'base' }));
   const categoryMap = new Map(categories.map((category) => [category.slug, category]));
   const requestedCategoryIsValid = !filters.category || categoryMap.has(filters.category);
@@ -212,25 +212,117 @@ function getJsonCatalog(query = {}) {
 }
 
 /**
- * Get all public categories for store sidebar.
+ * Get all public categories for store sidebar and hero resolution.
  */
 async function getPublicCategories() {
   if (!pool) {
     const data = loadCatalogData();
     return (data.categories || [])
       .filter(cat => cat && cat.active !== false && /^[a-z0-9-]{1,80}$/i.test(cat.slug))
-      .map(cat => ({ slug: cat.slug, name: String(cat.name || cat.slug) }))
+      .map(cat => mapPublicCategory(cat))
       .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
   }
   try {
     const [rows] = await pool.query(
-      'SELECT slug, name FROM categories ORDER BY name ASC'
+      `SELECT slug, name, description, hero_title, hero_description,
+              hero_image, hero_alt, hero_position
+       FROM categories
+       ORDER BY name ASC`
     );
-    return rows.map(r => ({ slug: r.slug, name: r.name }));
+    return rows.map(mapPublicCategory);
   } catch (err) {
+    // Older DBs without hero columns: fall back to slug/name only
+    if (err.code === 'ER_BAD_FIELD_ERROR') {
+      try {
+        const [rows] = await pool.query('SELECT slug, name FROM categories ORDER BY name ASC');
+        return rows.map(mapPublicCategory);
+      } catch (fallbackErr) {
+        console.warn('[catalog] Categories query failed:', fallbackErr.message);
+        return [];
+      }
+    }
     console.warn('[catalog] Categories query failed:', err.message);
     return [];
   }
+}
+
+const HERO_POSITIONS = new Set(['center', 'top', 'bottom', 'left', 'right']);
+const DEFAULT_STORE_HERO = Object.freeze({
+  eyebrow: 'Tienda NinjaLabCR',
+  title: 'Ideas creadas en 3D',
+  description: 'Descubre productos impresos, diseñados y personalizados por NinjaLabCR en Costa Rica.',
+  imageUrl: '/images/LogoCompleto.png',
+  imageAlt: 'NinjaLabCR — Impresión y diseño 3D',
+  imagePosition: 'center',
+  contextText: '',
+});
+
+function mapPublicCategory(cat) {
+  return {
+    slug: String(cat.slug || ''),
+    name: String(cat.name || cat.slug || ''),
+    description: typeof cat.description === 'string' ? cat.description : '',
+    hero_title: typeof cat.hero_title === 'string' ? cat.hero_title : '',
+    hero_description: typeof cat.hero_description === 'string' ? cat.hero_description : '',
+    hero_image: typeof cat.hero_image === 'string' ? cat.hero_image : '',
+    hero_alt: typeof cat.hero_alt === 'string' ? cat.hero_alt : '',
+    hero_position: typeof cat.hero_position === 'string' ? cat.hero_position : 'center',
+  };
+}
+
+function isSafeHeroImagePath(raw) {
+  const value = String(raw || '');
+  return (
+    /^\/uploads\/categories\/[1-9]\d*\/[a-z0-9._-]+\.(webp|jpe?g|png|avif)$/i.test(value)
+    || /^\/images\/[a-z0-9._/-]+\.(webp|jpe?g|png|avif|gif)$/i.test(value)
+  );
+}
+
+function normalizeHeroPosition(raw) {
+  const value = String(raw || '').trim().toLowerCase();
+  return HERO_POSITIONS.has(value) ? value : 'center';
+}
+
+/**
+ * Resolve the store catalog hero view model from the active category / search.
+ * Fallback order documented in Phase 1.5.
+ */
+function resolveStoreHero({ activeCategory = null, search = '' } = {}) {
+  const searchText = String(search || '').replace(/\0/g, '').trim().slice(0, 100);
+  const contextText = searchText ? `Resultados para “${searchText}”` : '';
+
+  if (!activeCategory) {
+    return {
+      ...DEFAULT_STORE_HERO,
+      contextText,
+    };
+  }
+
+  const name = String(activeCategory.name || '').trim() || DEFAULT_STORE_HERO.title;
+  const title = String(activeCategory.hero_title || '').trim() || name || DEFAULT_STORE_HERO.title;
+  const description = String(activeCategory.hero_description || '').trim()
+    || String(activeCategory.description || '').trim()
+    || DEFAULT_STORE_HERO.description;
+
+  let imageUrl = '';
+  if (isSafeHeroImagePath(activeCategory.hero_image)) {
+    imageUrl = activeCategory.hero_image;
+  } else {
+    imageUrl = DEFAULT_STORE_HERO.imageUrl;
+  }
+
+  const imageAlt = String(activeCategory.hero_alt || '').trim()
+    || (name ? `Productos de ${name} en NinjaLabCR` : DEFAULT_STORE_HERO.imageAlt);
+
+  return {
+    eyebrow: 'Tienda NinjaLabCR',
+    title,
+    description,
+    imageUrl,
+    imageAlt,
+    imagePosition: normalizeHeroPosition(activeCategory.hero_position),
+    contextText,
+  };
 }
 
 /**
@@ -517,12 +609,14 @@ async function getRelatedProducts(productId, categoryIds, limit = 4) {
 function serializeRelatedProducts(rows) {
   return rows.map(p => {
     const pricing = resolveDisplayPrice(p);
+    const image = p.image && /^\/uploads\/products\/[a-z0-9_./-]+$/i.test(p.image) ? p.image : '';
     return {
       id: p.id,
       title: p.name,
       slug: p.slug,
       url: `/tienda/${p.slug}`,
-      primaryImage: p.image && /^\/uploads\/products\/[a-z0-9_./-]+$/i.test(p.image) ? p.image : '',
+      image,
+      primaryImage: image,
       imageWidth: p.imageWidth || 1200,
       imageHeight: p.imageHeight || 1500,
       regularPrice: pricing.regularPrice,
@@ -609,6 +703,8 @@ module.exports = {
   DEFAULT_LIMIT,
   MAX_LIMIT,
   MAX_SEARCH_LENGTH,
+  HERO_POSITIONS,
+  DEFAULT_STORE_HERO,
   getPublicCatalog,
   getPublicCatalogAsync,
   getPublicCategories,
@@ -619,4 +715,7 @@ module.exports = {
   resolveDisplayPrice,
   normalizeCatalogText,
   normalizeStoreQuery,
+  resolveStoreHero,
+  isSafeHeroImagePath,
+  normalizeHeroPosition,
 };

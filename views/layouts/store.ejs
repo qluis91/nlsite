@@ -9,15 +9,12 @@
   <% } %>
   <title><%= typeof title !== 'undefined' ? title + ' | ' + site.name : site.name %></title>
   <link rel="stylesheet" href="/css/style.css">
-  <% if (typeof hideFooter === 'undefined' || hideFooter !== true) { %>
-    <link rel="stylesheet" href="/css/footer.css">
-  <% } %>
+  <link rel="stylesheet" href="/css/footer.css">
   <% if (typeof pageStyles !== 'undefined' && Array.isArray(pageStyles)) { %>
     <% pageStyles.forEach(function(s) { %>
       <link rel="stylesheet" href="<%= s %>">
     <% }); %>
   <% } %>
-  <!-- Variables CSS inyectadas desde config/site.js -->
   <style nonce="<%= cspNonce %>">
     :root {
       --color-primary: <%= site.colors.primary %>;
@@ -30,23 +27,8 @@
       --color-warning: <%= site.colors.warning %>;
     }
   </style>
-
-  <% if (typeof pageClass !== 'undefined' && pageClass === 'page-home') { %>
-  <script type="importmap" nonce="<%= cspNonce %>">
-  {
-    "imports": {
-      "three": "/vendor/three/build/three.module.js",
-      "three/addons/": "/vendor/three/examples/jsm/"
-    }
-  }
-  </script>
-  <% } %>
 </head>
 <body class="<%= typeof pageClass !== 'undefined' ? pageClass : '' %>">
-  <% if ((typeof pageClass === 'undefined' || pageClass !== 'page-home') && (typeof usesHeroNavbar === 'undefined' || !usesHeroNavbar)) { %>
-    <%- include('../components/navbar') %>
-  <% } %>
-
   <% if (success_msg) { %>
     <div class="alert alert-success"><%= success_msg %></div>
   <% } %>
@@ -56,17 +38,10 @@
 
   <%- body || '' %>
 
-  <% if (typeof hideFooter === 'undefined' || hideFooter !== true) { %>
-    <%- include('../components/footer') %>
-  <% } %>
+  <%- include('../components/footer') %>
 
   <script type="module" src="/js/footerMagicRings.mjs"></script>
-
-  <% if (typeof pageClass !== 'undefined' && pageClass === 'page-home') { %>
-    <script type="module" src="/js/home/home.js"></script>
-  <% } else { %>
-    <script src="/js/main.js"></script>
-  <% } %>
+  <script src="/js/main.js"></script>
   <% if (typeof pageModule !== 'undefined' && pageModule) { %>
     <script type="module" src="<%= pageModule %>"></script>
   <% } %>

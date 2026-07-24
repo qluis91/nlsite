@@ -1,6 +1,127 @@
-<footer class="footer">
-  <div class="container">
-    <p>&copy; <%= new Date().getFullYear() %> <%= site.name %> &mdash; Todos los derechos reservados.</p>
-    <p class="footer-tagline"><%= site.description %></p>
+<!-- ═══ NinjaLabCR Footer ═══ -->
+<footer class="nl-footer" data-nl-footer>
+  <% if (typeof pageClass === 'undefined' || !pageClass || !pageClass.includes('home')) { %>
+  <canvas
+    class="nl-footer__rings"
+    data-nl-footer-canvas
+    aria-hidden="true"
+  ></canvas>
+  <% } %>
+
+  <div class="nl-footer__panel">
+    <div class="nl-footer__inner">
+      <!-- ── Brand ── -->
+      <div class="nl-footer__brand">
+        <img
+          src="/images/LogoCompleto.png"
+          alt="<%= site.name %> — Impresión y diseño 3D"
+          class="nl-footer__logo"
+          width="180"
+          height="72"
+          loading="lazy"
+        >
+        <p class="nl-footer__desc">Impresión 3D, diseño, pintura y modelado en Costa Rica. Convertimos tus ideas en piezas reales con precisión profesional.</p>
+        <div class="nl-footer__social">
+          <a
+            href="https://www.instagram.com/ninjalabcr"
+            class="nl-footer__social-link"
+            aria-label="Instagram — NinjaLabCR"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20">
+              <rect x="2" y="2" width="20" height="20" rx="5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+              <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+              <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"/>
+            </svg>
+          </a>
+          <a
+            href="https://www.facebook.com/ninjalabcr"
+            class="nl-footer__social-link"
+            aria-label="Facebook — NinjaLabCR"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20">
+              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            </svg>
+          </a>
+          <a
+            href="https://www.tiktok.com/@ninjalabcr"
+            class="nl-footer__social-link"
+            aria-label="TikTok — NinjaLabCR"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20">
+              <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+          <a
+            href="https://wa.me/50688888888"
+            class="nl-footer__social-link"
+            aria-label="WhatsApp — NinjaLabCR"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- ── Servicios ── -->
+      <div class="nl-footer__col">
+        <h4 class="nl-footer__heading">Servicios</h4>
+        <ul class="nl-footer__links">
+          <li><a href="/tienda">Impresión 3D</a></li>
+          <li><a href="/galeria">Diseño y acabados</a></li>
+          <li><a href="/tienda">Figuras personalizadas</a></li>
+          <li><a href="/tienda">Prototipos</a></li>
+        </ul>
+      </div>
+
+      <!-- ── Explorar ── -->
+      <div class="nl-footer__col">
+        <h4 class="nl-footer__heading">Explorar</h4>
+        <ul class="nl-footer__links">
+          <li><a href="/tienda">Tienda</a></li>
+          <li><a href="/galeria">Galería</a></li>
+          <li><a href="/carrito">Carrito</a></li>
+          <li><a href="/consultar-pedido">Consultar pedido</a></li>
+          <li><a href="/cuenta">Mi cuenta</a></li>
+        </ul>
+      </div>
+      <!-- ── NinjaLabCR ── -->
+      <div class="nl-footer__col">
+        <h4 class="nl-footer__heading"><%= site.name %></h4>
+        <ul class="nl-footer__links">
+          <li><a href="/#nosotros">Sobre nosotros</a></li>
+          <li><a href="/#como-trabajamos">Cómo trabajamos</a></li>
+          <li><a href="/galeria">Proyectos</a></li>
+        </ul>
+      </div>
+      <!-- ── Contacto ── -->
+      <div class="nl-footer__col">
+        <h4 class="nl-footer__heading">Contacto</h4>
+        <ul class="nl-footer__links">
+          <li><a href="/#nosotros">info@ninjalabcr.com</a></li>
+          <li><a href="/#como-trabajamos">WhatsApp: +506 7024-0270</a></li>
+          <li><a href="/galeria">Horario: Lunes a Viernes 10:00 - 19:00</a></li>
+        </ul>
+        <br>
+        <a href="/tienda" class="nl-footer__cta">
+          Explorar productos
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><path d="M5 12h14M12 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        </a>
+      </div>
+    </div>
+
+    <!-- ── Legal ── -->
+    <div class="nl-footer__legal">
+      <p>&copy; <%= new Date().getFullYear() %> <%= site.name %>. Todos los derechos reservados.</p>
+      <p class="nl-footer__tagline">Hecho en Costa Rica con precisión milimétrica.</p>
+    </div>
   </div>
 </footer>

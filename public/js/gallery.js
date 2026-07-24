@@ -58,6 +58,8 @@ if (page) {
     title.textContent = item.title || '';
     description.textContent = item.description || '';
     description.hidden = !item.description;
+    if (!item.description) dialog.removeAttribute('aria-describedby');
+    else dialog.setAttribute('aria-describedby', 'gallery-modal-description');
     category.textContent = item.category || '';
     category.hidden = !item.category;
     position.textContent = `${currentIndex + 1} de ${items.length}`;
@@ -137,6 +139,10 @@ if (page) {
 
   document.addEventListener('keydown', (event) => {
     if (!modal || modal.hidden) return;
+    // Let video player native controls handle arrow keys
+    if (document.activeElement?.tagName === 'VIDEO' && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+      return;
+    }
     if (event.key === 'Escape') {
       event.preventDefault();
       closeModal();
@@ -175,7 +181,7 @@ if (page) {
 
   import('./gallery/galleryModes.mjs')
     .then(({ setupGalleryModes }) => {
-      setupGalleryModes({ page, items, openGalleryItemById });
+      setupGalleryModes({ page, items: items.slice(), openGalleryItemById });
     })
     .catch((error) => {
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {

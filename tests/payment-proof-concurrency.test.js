@@ -42,7 +42,7 @@ function xtoken(html) { const m = html.match(/name="checkoutToken"\s+value="([^"
 function xref(html) { const m = html.match(/confirmacion\/(NL-[A-Z0-9]+)/); return m?m[1]:''; }
 
 async function createEligibleOrder() {
-  let r = await get('/tienda/ninja'); let ck = r.ck;
+  let r = await get('/tienda/casco-batman'); let ck = r.ck;
   const pid = xpid(r.b), cs = xc(r.b);
   assert.ok(pid, 'Product ID found');
   r = await postF('/carrito/agregar', 'productId='+pid+'&quantity=1&returnTo=%2Fcarrito&_csrf='+cs, ck);

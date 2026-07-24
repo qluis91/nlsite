@@ -27,12 +27,10 @@ function checkoutViewData(req, checkout, token, options, extra = {}) {
   return {
     title: 'Finalizar pedido',
     robots: 'noindex,nofollow',
-    layout: 'layouts/main',
-    pageClass: 'page-checkout',
-    pageStyles: ['/css/home.css', '/css/store.css', '/css/cart.css', '/css/checkout.css'],
+    layout: 'layouts/store',
+    pageClass: 'page-store',
+    pageStyles: ['/css/store.css'],
     pageModule: '/js/checkout/checkout.js',
-    usesHeroNavbar: true,
-    navbarSearchContext: 'store',
     checkout,
     token,
     deliveryMethods: DELIVERY_METHODS,
@@ -111,7 +109,11 @@ exports.showCheckout = async (req, res, next) => {
       email: user ? user.email : '',
     };
 
-    const addressOptions = await checkoutAddressOptions(req);
+    const { getPublicCategories } = require('../services/catalogService');
+    const [addressOptions, categories] = await Promise.all([
+      checkoutAddressOptions(req),
+      getPublicCategories(),
+    ]);
     const initialChoice = addressOptions.defaultAddressId
       ? `saved:${addressOptions.defaultAddressId}`
       : 'manual';
@@ -120,6 +122,8 @@ exports.showCheckout = async (req, res, next) => {
       prefill,
       errors: {},
       formData: { addressChoice: initialChoice },
+      categories,
+      activeCategory: null,
     }));
   } catch (err) { next(err); }
 };
@@ -154,11 +158,17 @@ exports.submitCheckout = async (req, res, next) => {
     }
 
     if (!payload.valid) {
-      const addressOptions = await checkoutAddressOptions(req);
+      const { getPublicCategories } = require('../services/catalogService');
+      const [addressOptions, categories] = await Promise.all([
+        checkoutAddressOptions(req),
+        getPublicCategories(),
+      ]);
       return res.status(422).render('pages/checkout', checkoutViewData(
         req, validation.hydrated, sessionToken, addressOptions, {
         prefill: { customerName: '', email: '' },
         errors: payload.errors,
+        categories,
+        activeCategory: null,
         formData: {
           customerName: req.body.customerName || '',
           email: req.body.email || '',
@@ -219,14 +229,19 @@ exports.showConfirmation = async (req, res, next) => {
     if (!allowed) return renderConfirmationNotFound(res);
     const order = await customerOrders.getCustomerSafeOrder(reference);
     if (!order) return renderConfirmationNotFound(res);
-    return res.render('pages/customer-order-detail', {
+
+    const { getPublicCategories } = require('../services/catalogService');
+    const categories = await getPublicCategories();
+
+    return res.render('pages/checkout-confirmation', {
       title: 'Pedido recibido',
       robots: 'noindex,nofollow',
-      layout: 'layouts/main',
-      pageClass: 'page-account-orders',
-      pageStyles: ['/css/account-orders.css'],
+      layout: 'layouts/store',
+      pageClass: 'page-store',
+      pageStyles: ['/css/store.css'],
       order,
-      detailContext: 'confirmation',
+      categories,
+      activeCategory: null,
       isConfirmation: true,
     });
   } catch (err) { next(err); }

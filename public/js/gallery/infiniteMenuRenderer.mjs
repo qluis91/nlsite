@@ -1010,7 +1010,7 @@ export class InfiniteMenuRenderer {
     this.releaseResources();
     this.canvas?.remove();
     this.container?.classList.remove('is-ready', 'is-dragging');
-    this.items.length = 0;
+    this.items = [];
     this.spherePoints = null;
     this.instanceData = null;
     this.atlasCanvas = null;

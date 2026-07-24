@@ -17,7 +17,7 @@ const MAX_CUSTOMER_PAGE_SIZE = 50;
 const RECENT_ORDER_TTL_MS = 60 * 60 * 1000;
 
 const ORDER_FIELDS = `
-  o.id AS internal_id, o.order_reference, o.customer_name,
+  o.id AS internal_id, o.order_reference, o.customer_name, o.customer_email, o.customer_phone,
   o.delivery_method, o.shipping_status, o.shipping_amount,
   o.payment_method, o.payment_status, o.order_status,
   o.province, o.canton, o.district, o.address_line, o.address_reference,
@@ -188,6 +188,8 @@ function serializeCustomerOrder(row, items, events) {
     productSubtotal: row.product_subtotal,
     finalTotal: row.final_total,
     customerName: row.customer_name,
+    customerEmail: row.customer_email || '',
+    customerPhone: String(row.customer_phone || ''),
     deliveryAddress: row.delivery_method === 'local_pickup' ? null : {
       province: row.province, canton: row.canton, district: row.district,
       addressLine: row.address_line, reference: row.address_reference,
@@ -350,6 +352,130 @@ function canAccessCustomerOrder({ order, authenticatedUser, session, now = Date.
   return order.user_id === null && canAccessGuestOrder(order.order_reference, session, now);
 }
 
+// ── Resolve the primary next action for customer-facing display ──
+function resolveNextAction(order, proofSummary, tilopayTx) {
+  if (order.orderStatus === 'cancelled') return null;
+
+  if (order.shippingStatus === 'pending_quote' || order.finalTotal === null) {
+    return { type: 'wait_shipping', title: 'Esperar cotización de envío',
+      description: 'NinjaLab confirmará el costo de envío y el total final.', enabled: false };
+  }
+
+  if (order.paymentStatus === 'paid') {
+    if (order.orderStatus === 'completed') return null;
+    if (order.orderStatus === 'ready_for_pickup') {
+      return { type: 'pickup', title: 'Listo para retirar',
+        description: 'Tu pedido está listo. Acércate a recogerlo.', enabled: false };
+    }
+    if (order.orderStatus === 'dispatched') {
+      return { type: 'tracking', title: 'En camino',
+        description: 'Tu pedido fue enviado.', enabled: false };
+    }
+    return { type: 'preparing', title: 'En preparación',
+      description: 'Tu pedido está en producción.', enabled: false };
+  }
+
+  const hasTilopayPending = tilopayTx && tilopayTx.some(tx => tx.status === 'pending' || tx.status === 'creating' || tx.status === 'unknown');
+  const hasTilopayApproved = tilopayTx && tilopayTx.some(tx => tx.status === 'approved');
+  const tilopayEligible = order.paymentMethod === 'tilopay' && order.orderStatus === 'pending_payment';
+
+  if (hasTilopayApproved) {
+    return { type: 'payment_processing', title: 'Pago en proceso',
+      description: 'Tu pago con tarjeta está siendo confirmado.', enabled: false };
+  }
+
+  if (hasTilopayPending && tilopayTx) {
+    const pendingTx = tilopayTx.find(tx => tx.status === 'pending' || tx.status === 'creating' || tx.status === 'unknown');
+    return { type: 'tilopay_verify', title: 'Pago en proceso',
+      description: 'Verifica el estado de tu pago con tarjeta.',
+      tilopayInternalRef: pendingTx ? pendingTx.internalRef : null, enabled: true };
+  }
+
+  if (tilopayEligible) {
+    return { type: 'pay_tilopay', title: 'Pagar con tarjeta',
+      description: 'Completa tu pago de forma segura con Tilopay.',
+      isTilopay: true, enabled: true };
+  }
+
+  const proofNotSubmitted = !proofSummary || proofSummary.status === 'not_submitted';
+  const proofRejected = proofSummary && proofSummary.status === 'rejected';
+  const proofReviewing = proofSummary && proofSummary.status === 'pending_review';
+  const proofApproved = proofSummary && proofSummary.status === 'approved';
+
+  if (proofNotSubmitted) {
+    return { type: 'upload_proof', title: 'Subir comprobante',
+      description: 'Adjunta el comprobante de SINPE o transferencia.', isProof: true, enabled: true };
+  }
+
+  if (proofRejected) {
+    return { type: 'proof_rejected', title: 'Comprobante rechazado',
+      description: proofSummary.proof.rejectionReason || 'Intenta subir un nuevo comprobante.',
+      isProof: true, enabled: true };
+  }
+
+  if (proofReviewing) {
+    return { type: 'proof_reviewing', title: 'Comprobante en revisión',
+      description: 'NinjaLab está revisando tu comprobante.', enabled: false };
+  }
+
+  if (proofApproved) {
+    return { type: 'payment_processing', title: 'Pago en proceso',
+      description: 'Tu comprobante fue aprobado.', enabled: false };
+  }
+
+  return null;
+}
+
+// ── Resolve order progress stages for visual timeline ──
+function resolveOrderProgress(order) {
+  const stages = [
+    { key: 'received', label: 'Pedido recibido', description: 'Recibimos tu pedido.',
+      state: 'done', occurredAt: order.createdAt },
+    { key: 'payment', label: 'Pago', description: '',
+      state: 'upcoming', occurredAt: null },
+    { key: 'fulfillment', label: 'Preparación / envío', description: '',
+      state: 'upcoming', occurredAt: null },
+    { key: 'completed', label: 'Completado', description: '',
+      state: 'upcoming', occurredAt: null },
+  ];
+
+  if (order.orderStatus === 'cancelled') {
+    stages.forEach(s => { s.state = s.key === 'received' ? 'done' : 'skipped'; });
+    return {
+      stages: stages.concat({ key: 'cancelled', label: 'Cancelado', description: 'Tu pedido fue cancelado.',
+        state: 'error', occurredAt: order.updatedAt }),
+      currentKey: 'cancelled', exceptionalState: 'cancelled',
+    };
+  }
+
+  if (order.paymentStatus === 'paid') {
+    stages[1].state = 'done';
+    stages[1].description = 'Pago confirmado.';
+    stages[1].occurredAt = order.updatedAt;
+  } else if (order.shippingStatus === 'pending_quote') {
+    stages[1].state = 'current';
+    stages[1].description = 'Pendiente de cotización de envío.';
+  } else {
+    stages[1].state = 'current';
+    stages[1].description = 'Pago pendiente.';
+  }
+
+  const activeStatuses = ['preparing', 'ready_for_pickup', 'ready_for_dispatch', 'dispatched'];
+  if (activeStatuses.includes(order.orderStatus) && order.paymentStatus === 'paid') {
+    stages[2].state = 'current';
+    stages[2].description = CUSTOMER_ORDER_STATUS_LABELS[order.orderStatus] || 'En proceso.';
+    if (stages[1].state === 'current') stages[1].state = 'done';
+  }
+
+  if (order.orderStatus === 'completed') {
+    stages.forEach(s => { s.state = 'done'; });
+    stages[3].description = 'Pedido completado.';
+  }
+
+  const currentStage = stages.find(s => s.state === 'current') || stages[stages.length - 1];
+  return { stages, currentKey: currentStage.key, exceptionalState: null };
+}
+
 module.exports = {
   ORDER_REFERENCE_RE, GUEST_GRANT_TTL_MS, MAX_GUEST_GRANTS,
   normalizeReference, normalizeEmail, normalizePagination,
@@ -357,4 +483,5 @@ module.exports = {
   listOrdersForUser, getAccountDashboardSummary, getAccessRecord, getOrderForUser, getCustomerSafeOrder,
   verifyGuestOrder, sanitizeGuestAccessGrants, grantGuestOrderAccess,
   hasRecentOrderAccess, recordRecentOrderAccess, canAccessGuestOrder, canAccessCustomerOrder,
+  resolveNextAction, resolveOrderProgress,
 };

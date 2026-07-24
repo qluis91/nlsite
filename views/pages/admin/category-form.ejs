@@ -3,7 +3,7 @@
 </div>
 
 <div class="card">
-  <form action="<%= action %>" method="POST" class="form">
+  <form action="<%= action %>" method="POST" class="form" enctype="multipart/form-data">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
     <div class="form-group">
@@ -20,6 +20,108 @@
         placeholder="Ej: Figuras, Llaveros, Decoración"
       >
     </div>
+
+    <div class="form-group">
+      <label for="description">Descripción corta</label>
+      <textarea
+        id="description"
+        name="description"
+        maxlength="500"
+        rows="3"
+        class="form-control"
+        placeholder="Breve descripción de la categoría (opcional)"
+      ><%= category && category.description ? category.description : '' %></textarea>
+      <p class="form-help">Se usa como respaldo del hero si no hay descripción promocional.</p>
+    </div>
+
+    <fieldset class="form-fieldset">
+      <legend>Hero de la tienda (opcional)</legend>
+      <p class="form-help">Estos campos personalizan el banner contextual cuando un visitante filtra por esta categoría.</p>
+
+      <div class="form-group">
+        <label for="hero_title">Título del hero</label>
+        <input
+          type="text"
+          id="hero_title"
+          name="hero_title"
+          value="<%= category && category.hero_title ? category.hero_title : '' %>"
+          maxlength="160"
+          class="form-control"
+          placeholder="Ej: Figuras coleccionables en 3D"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="hero_description">Descripción del hero</label>
+        <textarea
+          id="hero_description"
+          name="hero_description"
+          maxlength="500"
+          rows="3"
+          class="form-control"
+          placeholder="Texto introductorio del banner (opcional)"
+        ><%= category && category.hero_description ? category.hero_description : '' %></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="hero_image">Imagen del hero</label>
+        <% if (category && category.hero_image) { %>
+          <div class="form-current-image" style="margin-bottom:0.75rem">
+            <img
+              src="<%= category.hero_image %>"
+              alt="<%= category.hero_alt || ('Imagen actual de ' + category.name) %>"
+              width="320"
+              height="180"
+              style="max-width:100%;height:auto;border-radius:0.5rem;object-fit:cover"
+            >
+            <label class="form-check" style="display:block;margin-top:0.5rem">
+              <input type="checkbox" name="remove_hero_image" value="1">
+              Eliminar imagen actual
+            </label>
+          </div>
+        <% } %>
+        <input
+          type="file"
+          id="hero_image"
+          name="hero_image"
+          accept="image/jpeg,image/png,image/webp,image/avif"
+          class="form-control"
+        >
+        <p class="form-help">JPEG, PNG, WebP o AVIF. Máx. 10 MB. Se convierte a WebP optimizado.</p>
+      </div>
+
+      <div class="form-group">
+        <label for="hero_alt">Texto alternativo de la imagen</label>
+        <input
+          type="text"
+          id="hero_alt"
+          name="hero_alt"
+          value="<%= category && category.hero_alt ? category.hero_alt : '' %>"
+          maxlength="200"
+          class="form-control"
+          placeholder="Describe la imagen para accesibilidad"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="hero_position">Posición focal de la imagen</label>
+        <select id="hero_position" name="hero_position" class="form-control">
+          <%
+            const positions = [
+              { value: 'center', label: 'Centro' },
+              { value: 'top', label: 'Arriba' },
+              { value: 'bottom', label: 'Abajo' },
+              { value: 'left', label: 'Izquierda' },
+              { value: 'right', label: 'Derecha' },
+            ];
+            const currentPos = (category && category.hero_position) ? category.hero_position : 'center';
+          %>
+          <% positions.forEach(function(pos) { %>
+            <option value="<%= pos.value %>" <%= currentPos === pos.value ? 'selected' : '' %>><%= pos.label %></option>
+          <% }); %>
+        </select>
+      </div>
+    </fieldset>
 
     <div class="form-actions">
       <button type="submit" class="btn btn-primary"><%= category ? 'Guardar cambios' : 'Guardar categoría' %></button>

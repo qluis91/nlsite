@@ -19,6 +19,72 @@ function validateCategoryName(name) {
   return { valid: true, value: trimmed };
 }
 
+const HERO_POSITIONS = new Set(['center', 'top', 'bottom', 'left', 'right']);
+const HERO_TITLE_MAX = 160;
+const HERO_DESC_MAX = 500;
+const HERO_ALT_MAX = 200;
+const CATEGORY_DESC_MAX = 500;
+
+/**
+ * Optional short category description.
+ */
+function validateCategoryDescription(value) {
+  const trimmed = String(value ?? '').replace(/\0/g, '').trim();
+  if (!trimmed) return { valid: true, value: null };
+  if (trimmed.length > CATEGORY_DESC_MAX) {
+    return { valid: false, error: `La descripción no debe exceder ${CATEGORY_DESC_MAX} caracteres.`, value: trimmed };
+  }
+  return { valid: true, value: trimmed };
+}
+
+/**
+ * Optional category hero title.
+ */
+function validateHeroTitle(value) {
+  const trimmed = String(value ?? '').replace(/\0/g, '').trim();
+  if (!trimmed) return { valid: true, value: null };
+  if (trimmed.length > HERO_TITLE_MAX) {
+    return { valid: false, error: `El título del hero no debe exceder ${HERO_TITLE_MAX} caracteres.`, value: trimmed };
+  }
+  return { valid: true, value: trimmed };
+}
+
+/**
+ * Optional category hero description.
+ */
+function validateHeroDescription(value) {
+  const trimmed = String(value ?? '').replace(/\0/g, '').trim();
+  if (!trimmed) return { valid: true, value: null };
+  if (trimmed.length > HERO_DESC_MAX) {
+    return { valid: false, error: `La descripción del hero no debe exceder ${HERO_DESC_MAX} caracteres.`, value: trimmed };
+  }
+  return { valid: true, value: trimmed };
+}
+
+/**
+ * Optional hero image alt text.
+ */
+function validateHeroAlt(value) {
+  const trimmed = String(value ?? '').replace(/\0/g, '').trim();
+  if (!trimmed) return { valid: true, value: null };
+  if (trimmed.length > HERO_ALT_MAX) {
+    return { valid: false, error: `El texto alternativo no debe exceder ${HERO_ALT_MAX} caracteres.`, value: trimmed };
+  }
+  return { valid: true, value: trimmed };
+}
+
+/**
+ * Allowlisted hero image focal position.
+ */
+function validateHeroPosition(value) {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw) return { valid: true, value: 'center' };
+  if (!HERO_POSITIONS.has(raw)) {
+    return { valid: false, error: 'La posición de la imagen no es válida.', value: 'center' };
+  }
+  return { valid: true, value: raw };
+}
+
 /**
  * Slugify a string for URLs.
  */
@@ -147,6 +213,16 @@ function validateImageCount(existingCount, removeIds, newCount) {
 
 module.exports = {
   validateCategoryName,
+  validateCategoryDescription,
+  validateHeroTitle,
+  validateHeroDescription,
+  validateHeroAlt,
+  validateHeroPosition,
+  HERO_POSITIONS,
+  HERO_TITLE_MAX,
+  HERO_DESC_MAX,
+  HERO_ALT_MAX,
+  CATEGORY_DESC_MAX,
   slugify,
   validateProductName,
   validatePrice,

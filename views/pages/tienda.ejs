@@ -1,196 +1,109 @@
-<%- include('../components/home-navbar', { navbarOnHome: false }) %>
+<main class="st-layout">
+  <%- include('../components/store-sidebar') %>
 
-<main class="store-page" data-store-page>
-  <header class="store-hero">
-    <div class="store-layout">
-      <p class="store-hero__eyebrow">CATÁLOGO NINJALAB</p>
-      <h1 class="store-hero__title">Tienda NinjaLab</h1>
-      <div class="store-hero__footer">
-        <p class="store-hero__description">
-          Explora piezas, figuras, diseños y productos creados con precisión en impresión 3D.
-        </p>
-        <p class="store-hero__summary">
-          <% if (catalog.totalProducts === 1) { %>
-            1 producto
-          <% } else { %>
-            <%= catalog.totalProducts %> productos
-          <% } %>
-        </p>
+  <div class="st-main">
+    <header class="st-header">
+      <div class="st-header__row">
+        <form class="st-search" action="/tienda" method="get" role="search">
+          <label class="st-search__label" for="store-search">Buscar productos</label>
+          <input
+            id="store-search"
+            class="st-search__input"
+            type="search"
+            name="search"
+            value="<%= catalog.filters.search %>"
+            maxlength="100"
+            placeholder="Buscar en la tienda..."
+            autocomplete="off"
+          >
+          <% if (catalog.filters.category) { %><input type="hidden" name="category" value="<%= catalog.filters.category %>"><% } %>
+          <button class="st-search__submit" type="submit" aria-label="Buscar">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18">
+              <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/>
+              <path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </form>
+
+        <div class="st-header__meta">
+          <p class="st-header__count" aria-live="polite">
+            <strong><%= catalog.totalProducts %></strong> <%= catalog.totalProducts === 1 ? 'producto' : 'productos' %>
+          </p>
+
+          <form class="st-sort" method="get" action="/tienda" data-store-sort-form>
+            <% if (catalog.filters.search) { %><input type="hidden" name="search" value="<%= catalog.filters.search %>"><% } %>
+            <% if (catalog.filters.category) { %><input type="hidden" name="category" value="<%= catalog.filters.category %>"><% } %>
+            <% if (catalog.filters.inStock) { %><input type="hidden" name="inStock" value="<%= catalog.filters.inStock %>"><% } %>
+            <label for="store-sort-select" class="st-sort__label">Ordenar:</label>
+            <select id="store-sort-select" name="sort" class="st-sort__select" data-store-sort>
+              <option value="featured" <%= catalog.filters.sort === 'featured' ? 'selected' : '' %>>Destacados</option>
+              <option value="newest" <%= catalog.filters.sort === 'newest' ? 'selected' : '' %>>Más recientes</option>
+              <option value="price-asc" <%= catalog.filters.sort === 'price-asc' ? 'selected' : '' %>>Menor precio</option>
+              <option value="price-desc" <%= catalog.filters.sort === 'price-desc' ? 'selected' : '' %>>Mayor precio</option>
+              <option value="name-asc" <%= catalog.filters.sort === 'name-asc' ? 'selected' : '' %>>Nombre A–Z</option>
+              <option value="name-desc" <%= catalog.filters.sort === 'name-desc' ? 'selected' : '' %>>Nombre Z–A</option>
+            </select>
+          </form>
+        </div>
       </div>
-      <% if (catalog.filters.search) { %>
-        <p class="store-hero__search-summary">Resultados para “<%= catalog.filters.search %>”</p>
-      <% } %>
-      <% if (catalog.filters.searchWasTruncated) { %>
-        <p class="store-hero__notice">La búsqueda se limitó a 100 caracteres.</p>
-      <% } %>
-    </div>
-  </header>
-
-  <div class="store-layout store-workspace">
-    <button
-      class="store-filter-toggle"
-      type="button"
-      aria-expanded="false"
-      aria-controls="store-filters"
-      data-store-filter-toggle
-    >
-      Filtros<% if (activeFilterCount) { %> (<%= activeFilterCount %>)<% } %>
-    </button>
-
-    <button class="store-filter-backdrop" type="button" aria-label="Cerrar filtros" data-store-filter-backdrop hidden></button>
-
-    <aside id="store-filters" class="store-filters" aria-labelledby="store-filters-title" data-store-filters>
-      <div class="store-filters__header">
-        <h2 id="store-filters-title">Filtrar productos</h2>
-        <button class="store-filters__close" type="button" aria-label="Cerrar filtros" data-store-filter-close>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
-        </button>
-      </div>
-
-      <nav class="store-filter-group" aria-label="Categorías de productos">
-        <h3>Categorías</h3>
-        <a class="store-filter-link <%= !catalog.filters.category ? 'is-active' : '' %>" href="<%= buildStoreUrl({ category: '', page: 1 }) %>">
-          Todos los productos
-        </a>
-        <% categories.forEach(function(category) { %>
-          <a
-            class="store-filter-link <%= catalog.filters.category === category.slug ? 'is-active' : '' %>"
-            href="<%= buildStoreUrl({ category: category.slug, page: 1 }) %>"
-          ><%= category.name %></a>
-        <% }); %>
-        <% if (categories.length === 0) { %>
-          <p class="store-filter-group__empty">Sin categorías publicadas.</p>
-        <% } %>
-      </nav>
-
-      <nav class="store-filter-group" aria-label="Disponibilidad">
-        <h3>Disponibilidad</h3>
-        <a class="store-filter-link <%= !catalog.filters.inStock ? 'is-active' : '' %>" href="<%= buildStoreUrl({ inStock: '', page: 1 }) %>">Todos</a>
-        <a class="store-filter-link <%= catalog.filters.inStock === 'true' ? 'is-active' : '' %>" href="<%= buildStoreUrl({ inStock: 'true', page: 1 }) %>">Disponibles</a>
-        <a class="store-filter-link <%= catalog.filters.inStock === 'false' ? 'is-active' : '' %>" href="<%= buildStoreUrl({ inStock: 'false', page: 1 }) %>">Agotados</a>
-      </nav>
-
-      <a class="store-filters__clear" href="/tienda">Limpiar filtros</a>
-    </aside>
-
-    <section class="store-catalog" aria-labelledby="store-catalog-title">
-      <h2 id="store-catalog-title" class="store-visually-hidden">Productos</h2>
 
       <% if (activeFilters.length) { %>
-        <div class="store-active-filters" aria-label="Filtros activos">
+        <div class="st-active-filters" aria-label="Filtros activos">
           <% activeFilters.forEach(function(filter) { %>
-            <a class="store-filter-chip" href="<%= filter.removeUrl %>">
-              <span><%= filter.label %></span>
-              <span aria-hidden="true">×</span>
+            <a class="st-chip" href="<%= filter.removeUrl %>">
+              <%= filter.label %>
+              <span aria-hidden="true">&times;</span>
             </a>
           <% }); %>
-          <% if (activeFilters.length > 1) { %>
-            <a class="store-active-filters__clear" href="/tienda">Limpiar filtros</a>
-          <% } %>
+          <a class="st-chip st-chip--clear" href="/tienda">Limpiar filtros</a>
         </div>
       <% } %>
+    </header>
 
-      <div class="store-toolbar">
-        <p class="store-toolbar__count" aria-live="polite">
-          <strong><%= catalog.totalProducts %></strong>
-          <%= catalog.totalProducts === 1 ? 'producto' : 'productos' %>
-        </p>
+    <%- include('../components/store-hero', { storeHero: storeHero }) %>
 
-        <form class="store-sort" method="get" action="/tienda" data-store-sort-form>
-          <% if (catalog.filters.search) { %><input type="hidden" name="search" value="<%= catalog.filters.search %>"><% } %>
-          <% if (catalog.filters.category) { %><input type="hidden" name="category" value="<%= catalog.filters.category %>"><% } %>
-          <% if (catalog.filters.inStock) { %><input type="hidden" name="inStock" value="<%= catalog.filters.inStock %>"><% } %>
-          <% if (catalog.filters.limit !== 12) { %><input type="hidden" name="limit" value="<%= catalog.filters.limit %>"><% } %>
-          <label for="store-sort">Ordenar</label>
-          <select id="store-sort" name="sort" data-store-sort>
-            <option value="featured" <%= catalog.filters.sort === 'featured' ? 'selected' : '' %>>Destacados</option>
-            <option value="newest" <%= catalog.filters.sort === 'newest' ? 'selected' : '' %>>Más recientes</option>
-            <option value="price-asc" <%= catalog.filters.sort === 'price-asc' ? 'selected' : '' %>>Precio: menor a mayor</option>
-            <option value="price-desc" <%= catalog.filters.sort === 'price-desc' ? 'selected' : '' %>>Precio: mayor a menor</option>
-            <option value="name-asc" <%= catalog.filters.sort === 'name-asc' ? 'selected' : '' %>>Nombre A–Z</option>
-            <option value="name-desc" <%= catalog.filters.sort === 'name-desc' ? 'selected' : '' %>>Nombre Z–A</option>
-          </select>
-          <button class="store-sort__submit" type="submit">Aplicar</button>
-        </form>
-      </div>
-
+    <section class="st-catalog" aria-label="Catálogo de productos">
       <% if (catalogError) { %>
-        <div class="store-empty-state" role="status">
+        <div class="st-empty" role="status">
           <h3>No pudimos cargar el catálogo.</h3>
           <p>Inténtalo nuevamente en unos minutos.</p>
           <a href="/tienda">Reintentar</a>
         </div>
       <% } else if (catalog.totalCatalogProducts === 0) { %>
-        <div class="store-empty-state" role="status">
+        <div class="st-empty" role="status">
           <h3>Todavía no hay productos disponibles.</h3>
           <p>Estamos preparando el catálogo público de NinjaLab.</p>
           <a href="/">Volver al inicio</a>
         </div>
       <% } else if (catalog.products.length === 0) { %>
-        <div class="store-empty-state" role="status">
+        <div class="st-empty" role="status">
           <h3>No encontramos productos con esos filtros.</h3>
           <p>Prueba con otra búsqueda o elimina algunos filtros.</p>
-          <div class="store-empty-state__actions">
-            <a href="/tienda">Limpiar filtros</a>
-            <a href="/tienda">Ver todos los productos</a>
+          <div>
+            <a href="/tienda" class="btn">Ver todos los productos</a>
           </div>
         </div>
       <% } else { %>
-        <ul class="store-product-grid">
+        <ul class="st-grid">
           <% catalog.products.forEach(function(product, index) { %>
-            <li>
-              <article class="store-product-card">
-                <a class="store-product-card__image-link" href="<%= product.url %>" aria-label="Ver <%= product.title %>">
-                  <div class="store-product-card__media">
-                    <% if (product.image) { %>
-                      <img
-                        src="<%= product.image %>"
-                        alt="<%= product.title %>"
-                        width="<%= product.imageWidth %>"
-                        height="<%= product.imageHeight %>"
-                        loading="<%= index < 4 ? 'eager' : 'lazy' %>"
-                        decoding="async"
-                      >
-                    <% } else { %>
-                      <span class="store-product-card__image-placeholder" aria-hidden="true">NINJALAB</span>
-                    <% } %>
-                  </div>
-                </a>
-                <div class="store-product-card__body">
-                  <% if (product.categoryName) { %><p class="store-product-card__category"><%= product.categoryName %></p><% } %>
-                  <h3 class="store-product-card__title"><a href="<%= product.url %>"><%= product.title %></a></h3>
-                  <% if (product.description) { %><p class="store-product-card__description"><%= product.description %></p><% } %>
-                  <div class="store-product-card__meta">
-                    <div class="store-product-card__price-group">
-                      <p class="store-product-card__price"><%= product.priceLabel %></p>
-                      <% if (product.hasPromotion) { %>
-                        <p class="store-product-card__price-regular">
-                          <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(product.regularPrice) %>
-                        </p>
-                      <% } %>
-                    </div>
-                    <p class="store-product-card__availability <%= product.inStock ? 'is-available' : 'is-sold-out' %>"><%= product.availability %></p>
-                  </div>
-                </div>
-              </article>
-            </li>
+            <%- include('../components/store-card', { product: product, idx: index }) %>
           <% }); %>
         </ul>
       <% } %>
 
       <% if (!catalogError && catalog.totalPages > 1) { %>
-        <nav class="store-pagination" aria-label="Paginación del catálogo">
+        <nav class="st-pagination" aria-label="Paginación del catálogo">
           <% if (catalog.filters.page > 1) { %>
             <a href="<%= buildStoreUrl({ page: catalog.filters.page - 1 }) %>" rel="prev" aria-label="Página anterior">Anterior</a>
           <% } else { %>
             <span class="is-disabled" aria-disabled="true">Anterior</span>
           <% } %>
 
-          <ol>
+          <ol class="st-pagination__pages">
             <% paginationPages.forEach(function(page) { %>
               <li>
                 <% if (page === 'ellipsis') { %>
-                  <span aria-hidden="true">…</span>
+                  <span aria-hidden="true">&hellip;</span>
                 <% } else if (page === catalog.filters.page) { %>
                   <span class="is-current" aria-current="page"><%= page %></span>
                 <% } else { %>

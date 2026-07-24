@@ -1,117 +1,121 @@
-<%- include('../components/home-navbar', { navbarOnHome: false }) %>
+<% const money = value => value === null || value === undefined ? null : new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(value); %>
+<% const isPaid = order.paymentStatus === 'paid'; %>
+<% const isPendingShipping = order.shippingStatus === 'pending_quote'; %>
 
-<main class="checkout-page" data-checkout-page>
-  <div class="store-layout">
+<main class="st-layout">
+  <%- include('../components/store-sidebar') %>
 
-    <nav class="pd-breadcrumbs" aria-label="Migas de pan">
-      <a href="/">Inicio</a>
-      <span aria-hidden="true">/</span>
-      <a href="/tienda">Tienda</a>
-      <span aria-hidden="true">/</span>
-      <span aria-current="page">Pedido confirmado</span>
-    </nav>
+  <div class="st-main">
+    <div class="st-confirm">
 
-    <div class="confirm-hero">
-      <h1 class="confirm-hero__title">¡Pedido recibido!</h1>
-      <p class="confirm-hero__ref">Pedido <strong><%= order.order_reference %></strong></p>
-    </div>
+      <header class="st-confirm__header">
+        <p class="st-confirm__eyebrow">Tienda NinjaLabCR</p>
+        <h1 class="st-confirm__title">¡Pedido recibido!</h1>
+        <p class="st-confirm__ref">Pedido <strong><%= order.reference %></strong></p>
+      </header>
 
-    <div class="confirm-layout">
-      <!-- Order details -->
-      <div class="confirm-details">
-        <section class="checkout-section">
-          <h2 class="checkout-section__title">Datos del pedido</h2>
-          <dl class="confirm-meta">
-            <dt>Cliente</dt>
-            <dd><%= order.customer_name %></dd>
-            <dt>Correo</dt>
-            <dd><%= order.customer_email %></dd>
-            <dt>Teléfono</dt>
-            <dd><%= order.customer_phone %></dd>
-            <dt>Entrega</dt>
-            <dd><%= dlvLabel %></dd>
-            <dt>Pago</dt>
-            <dd><%= pmtLabel %></dd>
-          </dl>
-        </section>
-
-        <% if (isPendingShipping) { %>
-          <section class="checkout-section">
-            <h2 class="checkout-section__title">Estado del envío</h2>
-            <div class="confirm-notice confirm-notice--shipping">
-              <p><strong>Tu pedido incluye envío con costo pendiente de cotización.</strong></p>
-              <p>NinjaLab se comunicará contigo al <strong><%= order.customer_phone %></strong> o al correo <strong><%= order.customer_email %></strong> para confirmar el costo de envío y el total final.</p>
-              <p class="confirm-notice__warn">⚠️ No realices ningún pago todavía. Espera la confirmación del costo de envío.</p>
-            </div>
+      <div class="st-confirm__layout">
+        <div class="st-confirm__details">
+          <!-- Order info -->
+          <section class="st-confirm__section">
+            <h2 class="st-confirm__section-title">Datos del pedido</h2>
+            <dl class="st-confirm__meta">
+              <div><dt>Cliente</dt><dd><%= order.customerName %></dd></div>
+              <div><dt>Correo</dt><dd><%= order.customerEmail %></dd></div>
+              <div><dt>Teléfono</dt><dd><%= order.customerPhone %></dd></div>
+              <div><dt>Entrega</dt><dd><%= order.deliveryMethodLabel %></dd></div>
+              <div><dt>Pago</dt><dd><%= order.paymentMethodLabel %></dd></div>
+            </dl>
           </section>
-        <% } else if (!isPaid) { %>
-          <section class="checkout-section">
-            <h2 class="checkout-section__title">Instrucciones de pago</h2>
-            <div class="confirm-notice confirm-notice--payment">
-              <% if (order.payment_method === 'sinpe') { %>
-                <p>Puedes realizar el <strong>SINPE Móvil</strong> al número:</p>
-                <p class="confirm-notice__phone">+506 7024 0270</p>
-                <p>Incluye el número de pedido <strong><%= order.order_reference %></strong> en el detalle del SINPE.</p>
-              <% } else { %>
-                <p>Puedes realizar la <strong>transferencia bancaria</strong>. NinjaLab te enviará los datos bancarios junto con la confirmación del pedido.</p>
-              <% } %>
-              <p class="confirm-notice__pending">El pedido permanecerá <strong>pendiente</strong> hasta confirmar el pago.</p>
-            </div>
-          </section>
-        <% } %>
 
-        <!-- Order items -->
-        <section class="checkout-section">
-          <h2 class="checkout-section__title">Productos</h2>
-          <div class="confirm-items" role="list">
-            <% items.forEach(function(item) { %>
-              <div class="confirm-item" role="listitem">
-                <span class="confirm-item__name"><%= item.product_name %> × <%= item.quantity %></span>
-                <span class="confirm-item__price">
-                  <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(item.line_total) %>
-                </span>
+          <% if (order.deliveryAddress) { %>
+            <section class="st-confirm__section">
+              <h2 class="st-confirm__section-title">Dirección de entrega</h2>
+              <address class="st-confirm__address">
+                <%= [order.deliveryAddress.province, order.deliveryAddress.canton, order.deliveryAddress.district, order.deliveryAddress.addressLine, order.deliveryAddress.reference].filter(Boolean).join(', ') %>
+              </address>
+            </section>
+          <% } %>
+
+          <% if (isPendingShipping) { %>
+            <section class="st-confirm__section">
+              <h2 class="st-confirm__section-title">Estado del envío</h2>
+              <div class="st-confirm__notice st-confirm__notice--warn">
+                <p><strong>Tu pedido incluye envío con costo pendiente de cotización.</strong></p>
+                <p>NinjaLab se comunicará contigo al <strong><%= order.customerPhone %></strong> o al correo <strong><%= order.customerEmail %></strong> para confirmar el costo de envío y el total final.</p>
+                <p class="st-confirm__warn">No realices ningún pago todavía. Espera la confirmación del costo de envío.</p>
               </div>
-            <% }); %>
+            </section>
+          <% } else if (!isPaid) { %>
+            <section class="st-confirm__section">
+              <h2 class="st-confirm__section-title">Instrucciones de pago</h2>
+              <div class="st-confirm__notice">
+                <% if (order.paymentMethod === 'sinpe') { %>
+                  <p>Realiza el <strong>SINPE Móvil</strong> al número:</p>
+                  <p class="st-confirm__phone">+506 7024 0270</p>
+                  <p>Incluye el número de pedido <strong><%= order.reference %></strong> en el detalle.</p>
+                <% } else if (order.paymentMethod === 'bank_transfer') { %>
+                  <p>Realiza la <strong>transferencia bancaria</strong>. NinjaLab te enviará los datos bancarios junto con la confirmación.</p>
+                <% } %>
+                <p class="st-confirm__pending">El pedido permanecerá <strong>pendiente</strong> hasta confirmar el pago.</p>
+              </div>
+            </section>
+          <% } %>
+
+          <!-- Items -->
+          <section class="st-confirm__section">
+            <h2 class="st-confirm__section-title">Productos</h2>
+            <ul class="st-confirm__items" role="list">
+              <% order.items.forEach(function(item) { %>
+                <li class="st-confirm__line">
+                  <span class="st-confirm__line-name"><%= item.productName %> × <%= item.quantity %></span>
+                  <span class="st-confirm__line-price"><%= money(item.lineTotal) %></span>
+                </li>
+              <% }); %>
+            </ul>
+          </section>
+        </div>
+
+        <!-- Totals -->
+        <aside class="st-confirm__summary">
+          <dl class="st-confirm__rows">
+            <div class="st-confirm__row">
+              <dt>Subtotal</dt>
+              <dd><%= money(order.productSubtotal) %></dd>
+            </div>
+            <div class="st-confirm__row">
+              <dt>Envío</dt>
+              <% if (isPendingShipping) { %>
+                <dd class="st-confirm__pending-val">Por calcular</dd>
+              <% } else { %>
+                <dd><%= money(order.shippingAmount) %></dd>
+              <% } %>
+            </div>
+          </dl>
+          <div class="st-confirm__divider" aria-hidden="true"></div>
+          <div class="st-confirm__row st-confirm__row--total">
+            <dt>Total final</dt>
+            <% if (isPendingShipping) { %>
+              <dd class="st-confirm__pending-val">Pendiente</dd>
+            <% } else { %>
+              <dd><%= money(order.finalTotal) %></dd>
+            <% } %>
           </div>
-        </section>
+          <div class="st-confirm__row">
+            <dt>Estado del pago</dt>
+            <dd><span class="st-confirm__status"><%= isPaid ? 'Pagado' : 'Pendiente' %></span></dd>
+          </div>
+
+          <% if (order.paymentStatus === 'pending' && order.paymentMethod !== 'tilopay' && !isPendingShipping) { %>
+            <p class="st-confirm__proof-hint">Adjunta el comprobante en los detalles del pedido una vez realizado el pago.</p>
+          <% } %>
+        </aside>
       </div>
 
-      <!-- Totals sidebar -->
-      <div class="confirm-summary">
-        <div class="checkout-summary__row">
-          <span>Subtotal</span>
-          <span>
-            <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(order.product_subtotal) %>
-          </span>
-        </div>
-        <div class="checkout-summary__row">
-          <span>Envío</span>
-          <% if (isPendingShipping) { %>
-            <span class="confirm-summary__pending">Por calcular</span>
-          <% } else { %>
-            <span><%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(order.shipping_amount) %></span>
-          <% } %>
-        </div>
-        <div class="checkout-summary__row checkout-summary__row--total">
-          <span>Total final</span>
-          <% if (isPendingShipping) { %>
-            <span class="confirm-summary__pending">Pendiente</span>
-          <% } else { %>
-            <span>
-              <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(order.final_total) %>
-            </span>
-          <% } %>
-        </div>
-        <div class="checkout-summary__row">
-          <span>Estado del pago</span>
-          <span class="confirm-summary__status"><%= isPaid ? 'Pagado' : 'Pendiente' %></span>
-        </div>
+      <div class="st-confirm__actions">
+        <a href="/tienda" class="st-confirm__store-link">← Seguir comprando</a>
       </div>
-    </div>
 
-    <div class="confirm-actions">
-      <a href="/tienda" class="confirm-actions__store">← Seguir comprando</a>
     </div>
-
   </div>
 </main>

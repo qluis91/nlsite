@@ -74,9 +74,21 @@ const proofFileUpload = multer({
   },
 }).single('proofFile');
 
+const categoryHeroUpload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: MAX_FILE_SIZE,
+    files: 1,
+    fields: 12,
+    fieldSize: 64 * 1024,
+  },
+}).single('hero_image');
+
 module.exports = {
   productImageUpload,
   singleImageUpload,
   avatarImageUpload,
   proofFileUpload,
+  categoryHeroUpload,
 };

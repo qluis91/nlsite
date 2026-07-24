@@ -1,0 +1,29 @@
+<section class="st-hero" aria-labelledby="store-hero-title">
+  <div class="st-hero__content">
+    <% if (storeHero.eyebrow) { %>
+      <p class="st-hero__eyebrow"><%= storeHero.eyebrow %></p>
+    <% } %>
+    <h1 id="store-hero-title" class="st-hero__title"><%= storeHero.title %></h1>
+    <% if (storeHero.description) { %>
+      <p class="st-hero__description"><%= storeHero.description %></p>
+    <% } %>
+    <% if (storeHero.contextText) { %>
+      <p class="st-hero__context"><%= storeHero.contextText %></p>
+    <% } %>
+  </div>
+  <div class="st-hero__media st-hero__media--<%= storeHero.imagePosition || 'center' %>">
+    <% if (storeHero.imageUrl) { %>
+      <img
+        class="st-hero__image"
+        src="<%= storeHero.imageUrl %>"
+        alt="<%= storeHero.imageAlt %>"
+        width="1200"
+        height="675"
+        loading="eager"
+        decoding="async"
+      >
+    <% } else { %>
+      <div class="st-hero__fallback" aria-hidden="true"></div>
+    <% } %>
+  </div>
+</section>

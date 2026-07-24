@@ -10,6 +10,12 @@ const MIGRATIONS = [
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(120) NOT NULL UNIQUE,
+    description VARCHAR(500) NULL,
+    hero_title VARCHAR(160) NULL,
+    hero_description VARCHAR(500) NULL,
+    hero_image VARCHAR(500) NULL,
+    hero_alt VARCHAR(200) NULL,
+    hero_position VARCHAR(20) NULL DEFAULT 'center',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,

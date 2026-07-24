@@ -131,18 +131,20 @@ exports.showCart = async (req, res, next) => {
   try {
     const cart = cartService.getSessionCart(req);
     const hydrated = await cartService.hydrateCart(cart);
+    const { getPublicCategories } = require('../services/catalogService');
+    const categories = await getPublicCategories();
 
     res.render('pages/carrito', {
       title: 'Carrito',
       metaDescription: `Tu carrito de NinjaLab — ${hydrated.itemCount} artículos`,
       robots: 'noindex,nofollow',
-      layout: 'layouts/main',
-      pageClass: 'page-cart',
-      pageStyles: ['/css/home.css', '/css/store.css', '/css/cart.css'],
+      layout: 'layouts/store',
+      pageClass: 'page-store',
+      pageStyles: ['/css/store.css'],
       pageModule: '/js/cart/cart.js',
-      usesHeroNavbar: true,
-      navbarSearchContext: 'store',
       cart: hydrated,
+      categories,
+      activeCategory: null,
       removedCount: hydrated.removedItems.length,
     });
   } catch (err) { next(err); }

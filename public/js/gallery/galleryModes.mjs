@@ -367,6 +367,13 @@ export function setupGalleryModes({ page, items, openGalleryItemById }) {
       setUrlFromLink(link);
       activateMode(link.dataset.galleryView);
     });
+    link.addEventListener('keydown', (event) => {
+      if (event.key === ' ') {
+        event.preventDefault();
+        setUrlFromLink(link);
+        activateMode(link.dataset.galleryView);
+      }
+    });
   });
 
   circular.action?.addEventListener('click', () => {

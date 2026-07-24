@@ -1,0 +1,231 @@
+<% const money = value => value === null || value === undefined ? null : new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(value); %>
+<% const dateStr = (d) => d ? new Intl.DateTimeFormat('es-CR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(d)) : ''; %>
+<% const dateShort = (d) => d ? new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium' }).format(new Date(d)) : ''; %>
+
+<main class="st-layout">
+  <%- include('../../components/store-sidebar') %>
+
+  <div class="st-main">
+    <div class="st-order-detail">
+
+      <nav class="st-order__back" aria-label="Navegación">
+        <% if (detailContext === 'account') { %><a href="/cuenta/pedidos">← Mis pedidos</a><% } %>
+        <% if (detailContext === 'guest') { %><a href="/consultar-pedido">← Consultar pedido</a><% } %>
+      </nav>
+
+      <header class="st-order__header">
+        <div class="st-order__header-main">
+          <p class="st-order__eyebrow"><%= detailContext === 'account' ? 'Detalle del pedido' : 'Consulta de pedido' %></p>
+          <h1 class="st-order__ref"><%= order.reference %></h1>
+          <p class="st-order__date"><time datetime="<%= new Date(order.createdAt).toISOString() %>"><%= dateStr(order.createdAt) %></time></p>
+        </div>
+        <span class="st-order__badge"><%= order.orderStatusLabel %></span>
+      </header>
+
+      <!-- Progress timeline -->
+      <section class="st-order__progress" aria-labelledby="progress-heading">
+        <h2 id="progress-heading" class="st-visually-hidden">Progreso del pedido</h2>
+        <div class="st-progress" role="list" aria-label="Etapas del pedido">
+          <% if (orderProgress && orderProgress.stages) {
+            orderProgress.stages.forEach(function(stage, idx) { %>
+              <div class="st-progress__step st-progress__step--<%= stage.state %>" role="listitem" <%= stage.state === 'current' ? 'aria-current="step"' : '' %>>
+                <div class="st-progress__dot" aria-hidden="true">
+                  <% if (stage.state === 'done') { %><svg viewBox="0 0 24 24" width="16" height="16"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><% } else if (stage.state === 'error') { %><svg viewBox="0 0 24 24" width="16" height="16"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg><% } %>
+                </div>
+                <div class="st-progress__info">
+                  <span class="st-progress__label"><%= stage.label %></span>
+                  <% if (stage.description) { %><span class="st-progress__desc"><%= stage.description %></span><% } %>
+                  <% if (stage.occurredAt) { %><span class="st-progress__time"><%= dateShort(stage.occurredAt) %></span><% } %>
+                </div>
+              </div>
+            <% }); } %>
+        </div>
+      </section>
+
+      <!-- Next action -->
+      <% if (nextAction && nextAction.title) { %>
+        <section class="st-order__action" aria-labelledby="action-heading">
+          <h2 id="action-heading" class="st-visually-hidden">Acción requerida</h2>
+          <div class="st-action-card">
+            <div class="st-action-card__info">
+              <p class="st-action-card__title"><%= nextAction.title %></p>
+              <p class="st-action-card__desc"><%= nextAction.description %></p>
+            </div>
+            <% if (nextAction.enabled) { %>
+              <% if (nextAction.isProof) { %>
+                <form method="post" action="/<%= detailContext === 'account' ? 'cuenta/pedidos' : 'consultar-pedido' %>/<%= order.reference %>/comprobante" enctype="multipart/form-data" class="st-action-card__form" data-proof-form>
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <label class="st-action-card__file">
+                    <span>Adjuntar comprobante</span>
+                    <span class="st-action-card__file-hint">JPG, PNG, WebP o PDF · Máx. 5 MB</span>
+                    <input type="file" name="proofFile" accept="image/jpeg,image/png,image/webp,application/pdf" required data-proof-file>
+                  </label>
+                  <span class="st-action-card__file-name" data-proof-name aria-live="polite"></span>
+                  <button type="submit" class="st-action-card__submit" data-proof-submit>Enviar comprobante</button>
+                </form>
+              <% } else if (nextAction.isTilopay) { %>
+                <form method="post" action="/<%= detailContext === 'account' ? 'cuenta/pedidos' : 'consultar-pedido' %>/<%= order.reference %>/pagar/tilopay" class="st-action-card__form" data-tilopay-form>
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="st-action-card__submit st-action-card__submit--tilopay" data-tilopay-submit>Pagar con Tilopay</button>
+                </form>
+              <% } else if (nextAction.internalRef) { %>
+                <form method="post" action="/<%= detailContext === 'account' ? 'cuenta/pedidos' : 'consultar-pedido' %>/<%= order.reference %>/tilopay/verificar" class="st-action-card__form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <input type="hidden" name="internalRef" value="<%= nextAction.internalRef %>">
+                  <button type="submit" class="st-action-card__submit">Verificar estado</button>
+                </form>
+              <% } %>
+            <% } %>
+          </div>
+        </section>
+      <% } %>
+
+      <div class="st-order__layout">
+        <div class="st-order__body">
+          <!-- Products -->
+          <section class="st-order__section" aria-labelledby="products-heading">
+            <h2 id="products-heading" class="st-order__section-title">Productos</h2>
+            <ul class="st-order__items" role="list">
+              <% order.items.forEach(function(item) { %>
+                <li class="st-order__item">
+                  <% if (item.primaryImage) { %>
+                    <img class="st-order__item-img" src="<%= item.primaryImage %>" alt="<%= item.productName %>" loading="lazy" width="80" height="80">
+                  <% } else { %>
+                    <div class="st-order__item-placeholder" aria-hidden="true"></div>
+                  <% } %>
+                  <div class="st-order__item-info">
+                    <p class="st-order__item-name">
+                      <% if (item.productUrl) { %><a href="<%= item.productUrl %>"><%= item.productName %></a><% } else { %><%= item.productName %><% } %>
+                    </p>
+                    <p class="st-order__item-meta">Cantidad: <%= item.quantity %> · <%= money(item.unitPrice) %> c/u</p>
+                  </div>
+                  <p class="st-order__item-total"><%= money(item.lineTotal) %></p>
+                </li>
+              <% }); %>
+            </ul>
+          </section>
+
+          <!-- Payment -->
+          <section class="st-order__section" aria-labelledby="payment-heading">
+            <h2 id="payment-heading" class="st-order__section-title">Pago</h2>
+            <dl class="st-order__meta">
+              <div><dt>Método</dt><dd><%= order.paymentMethodLabel %></dd></div>
+              <div><dt>Estado</dt><dd><span class="st-order__pay-status"><%= order.paymentStatusLabel %></span></dd></div>
+            </dl>
+            <% if (order.paymentInstructions) { %>
+              <div class="st-order__payment-info st-order__payment-info--<%= order.paymentInstructions.type %>">
+                <p class="st-order__payment-title"><%= order.paymentInstructions.title %></p>
+                <% order.paymentInstructions.lines.forEach(function(line) { %><p><%= line %></p><% }) %>
+              </div>
+            <% } %>
+          </section>
+
+          <!-- Tilopay transactions -->
+          <% if (typeof tilopayTx !== 'undefined' && tilopayTx && tilopayTx.length > 0) { %>
+            <section class="st-order__section" aria-labelledby="tilopay-heading">
+              <h2 id="tilopay-heading" class="st-order__section-title">Pago con tarjeta</h2>
+              <% tilopayTx.forEach(function(tx) { %>
+                <div class="st-order__tilopay">
+                  <p><strong>Estado:</strong>
+                    <% if (tx.status === 'approved') { %><span class="st-order__tilopay-status st-order__tilopay-status--approved">Confirmado ✓</span>
+                    <% } else if (tx.status === 'declined') { %><span class="st-order__tilopay-status st-order__tilopay-status--declined">Rechazado</span>
+                    <% } else if (tx.status === 'cancelled') { %><span class="st-order__tilopay-status st-order__tilopay-status--cancelled">Cancelado</span>
+                    <% } else if (tx.status === 'failed') { %><span class="st-order__tilopay-status st-order__tilopay-status--failed">Error</span>
+                    <% } else { %><span class="st-order__tilopay-status st-order__tilopay-status--pending">En proceso</span><% } %>
+                  </p>
+                  <p>Monto: <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(tx.amount) %></p>
+                  <p>Iniciado: <%= dateStr(tx.createdAt) %></p>
+                  <% if (tx.confirmedAt) { %><p>Confirmado: <%= dateStr(tx.confirmedAt) %></p><% } %>
+                </div>
+              <% }); %>
+            </section>
+          <% } %>
+
+          <!-- Proof status -->
+          <% if (typeof proofSummary !== 'undefined' && proofSummary && proofSummary.status !== 'not_submitted') { %>
+            <section class="st-order__section" aria-labelledby="proof-heading">
+              <h2 id="proof-heading" class="st-order__section-title">Comprobante de pago</h2>
+              <div class="st-order__proof">
+                <% if (proofSummary.status === 'pending_review') { %>
+                  <p class="st-order__proof-status st-order__proof-status--pending">En revisión</p>
+                  <p>Tu comprobante fue enviado y NinjaLab lo está revisando.</p>
+                <% } else if (proofSummary.status === 'approved') { %>
+                  <p class="st-order__proof-status st-order__proof-status--approved">Aprobado ✓</p>
+                  <p>Tu comprobante fue aprobado y el pago confirmado.</p>
+                <% } else { %>
+                  <p class="st-order__proof-status st-order__proof-status--rejected">Rechazado</p>
+                  <% if (proofSummary.proof.rejectionReason) { %><p>Motivo: <%= proofSummary.proof.rejectionReason %></p><% } %>
+                <% } %>
+                <% if (detailContext === 'account') { %>
+                  <a href="/cuenta/pedidos/<%= order.reference %>/comprobante/<%= proofSummary.proof.id %>" class="st-order__proof-link">Ver comprobante</a>
+                <% } %>
+              </div>
+            </section>
+          <% } %>
+
+          <!-- Delivery -->
+          <section class="st-order__section" aria-labelledby="delivery-heading">
+            <h2 id="delivery-heading" class="st-order__section-title">Entrega</h2>
+            <dl class="st-order__meta">
+              <div><dt>Método</dt><dd><%= order.deliveryMethodLabel %></dd></div>
+              <div><dt>Estado</dt><dd><%= order.shippingStatusLabel %></dd></div>
+              <div><dt>Costo</dt><dd><%= order.shippingAmount === null ? 'Por calcular' : money(order.shippingAmount) %></dd></div>
+            </dl>
+            <% if (order.deliveryAddress) { %>
+              <address class="st-order__address"><%= [order.deliveryAddress.province, order.deliveryAddress.canton, order.deliveryAddress.district, order.deliveryAddress.addressLine, order.deliveryAddress.reference].filter(Boolean).join(', ') %></address>
+            <% } else { %>
+              <p class="st-order__no-addr">No requiere dirección de entrega.</p>
+            <% } %>
+          </section>
+
+          <!-- Timeline -->
+          <section class="st-order__section" aria-labelledby="timeline-heading">
+            <h2 id="timeline-heading" class="st-order__section-title">Seguimiento</h2>
+            <ol class="st-order__timeline">
+              <% order.timeline.forEach(function(item) { %>
+                <li>
+                  <div class="st-order__tl-header">
+                    <h3><%= item.label %></h3>
+                    <time datetime="<%= new Date(item.occurredAt).toISOString() %>"><%= dateStr(item.occurredAt) %></time>
+                  </div>
+                  <p><%= item.description %></p>
+                </li>
+              <% }) %>
+            </ol>
+          </section>
+        </div>
+
+        <!-- Totals sidebar -->
+        <aside class="st-order__summary" aria-labelledby="totals-heading">
+          <h2 id="totals-heading" class="st-order__summary-title">Totales</h2>
+          <dl class="st-order__summary-rows">
+            <div class="st-order__summary-row">
+              <dt>Productos</dt><dd><%= money(order.productSubtotal) %></dd>
+            </div>
+            <div class="st-order__summary-row">
+              <dt>Envío</dt>
+              <dd><%= order.shippingAmount === null ? 'Por calcular' : money(order.shippingAmount) %></dd>
+            </div>
+            <div class="st-order__summary-divider" aria-hidden="true"></div>
+            <div class="st-order__summary-row st-order__summary-row--total">
+              <dt>Total</dt>
+              <dd><%= order.finalTotal === null ? 'Pendiente' : money(order.finalTotal) %></dd>
+            </div>
+            <div class="st-order__summary-row">
+              <dt>Pago</dt><dd><%= order.paymentStatusLabel %></dd>
+            </div>
+          </dl>
+          <div class="st-order__summary-actions">
+            <% if (detailContext === 'account') { %>
+              <a href="/cuenta/pedidos" class="st-order__summary-link">Ver todos mis pedidos</a>
+            <% } else { %>
+              <a href="/consultar-pedido" class="st-order__summary-link">Consultar otro pedido</a>
+            <% } %>
+            <a href="/tienda" class="st-order__summary-link">Ir a la tienda</a>
+          </div>
+        </aside>
+      </div>
+
+    </div>
+  </div>
+</main>

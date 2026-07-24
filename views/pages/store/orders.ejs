@@ -1,0 +1,60 @@
+<% const money = value => value === null || value === undefined ? null : new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(value); %>
+
+<main class="st-layout">
+  <%- include('../../components/store-sidebar') %>
+
+  <div class="st-main">
+    <div class="st-orders">
+
+      <header class="st-orders__header">
+        <p class="st-orders__eyebrow">Mi cuenta</p>
+        <h1 class="st-orders__title">Mis pedidos</h1>
+        <% if (typeof orders !== 'undefined' && orders.length) { %>
+          <p class="st-orders__count"><%= total %> <%= total === 1 ? 'pedido' : 'pedidos' %></p>
+        <% } %>
+      </header>
+
+      <% if (!orders.length) { %>
+        <div class="st-empty">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="48" height="48" style="color:var(--store-green-dim);margin-bottom:0.75rem;opacity:0.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="14 2 14 8 20 8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          <h2>Todavía no tienes pedidos</h2>
+          <p>Explora la tienda para realizar tu primera compra.</p>
+          <a href="/tienda" class="st-cart__empty-link">Ir a la tienda</a>
+        </div>
+      <% } else { %>
+        <div class="st-orders__list" role="list">
+          <% orders.forEach(function(order) { %>
+            <article class="st-order-card" role="listitem">
+              <div class="st-order-card__header">
+                <h2 class="st-order-card__ref">
+                  <a href="/cuenta/pedidos/<%= order.reference %>"><%= order.reference %></a>
+                </h2>
+                <span class="st-order-card__status"><%= order.orderStatusLabel %></span>
+              </div>
+              <dl class="st-order-card__meta">
+                <div><dt>Fecha</dt><dd><time datetime="<%= new Date(order.createdAt).toISOString() %>"><%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium' }).format(new Date(order.createdAt)) %></time></dd></div>
+                <div><dt>Productos</dt><dd><%= order.itemCount %></dd></div>
+                <div><dt>Entrega</dt><dd><%= order.deliveryMethodLabel %></dd></div>
+                <div><dt>Envío</dt><dd><%= order.shippingAmount === null ? 'Por calcular' : money(order.shippingAmount) %></dd></div>
+                <div><dt>Pago</dt><dd><span class="st-order-card__pay-status"><%= order.paymentStatusLabel %></span></dd></div>
+                <div><dt>Total</dt><dd class="st-order-card__total"><%= order.finalTotal === null ? 'Pendiente' : money(order.finalTotal) %></dd></div>
+              </dl>
+              <a class="st-order-card__link" href="/cuenta/pedidos/<%= order.reference %>">
+                Ver detalle<span class="st-visually-hidden"> del pedido <%= order.reference %></span>
+              </a>
+            </article>
+          <% }); %>
+        </div>
+
+        <% if (totalPages > 1) { %>
+          <nav class="st-orders__pagination" aria-label="Paginación de pedidos">
+            <% if (page > 1) { %><a href="/cuenta/pedidos?page=<%= page - 1 %>&limit=<%= limit %>" rel="prev" class="st-orders__pagelink">← Anterior</a><% } %>
+            <span aria-current="page" class="st-orders__pageinfo">Página <%= page %> de <%= totalPages %></span>
+            <% if (page < totalPages) { %><a href="/cuenta/pedidos?page=<%= page + 1 %>&limit=<%= limit %>" rel="next" class="st-orders__pagelink">Siguiente →</a><% } %>
+          </nav>
+        <% } %>
+      <% } %>
+
+    </div>
+  </div>
+</main>

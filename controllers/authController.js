@@ -30,7 +30,9 @@ exports.showLogin = (req, res) => {
     title: 'Iniciar Sesión',
     layout: 'layouts/main',
     pageClass: 'page-auth',
+    pageStyles: ['/css/auth.css'],
     robots: 'noindex, nofollow',
+    hideFooter: true,
     returnTo: safeAuthReturnPath(req.query.returnTo),
     form,
   });

@@ -1,153 +1,148 @@
-<%- include('../components/home-navbar', { navbarOnHome: false }) %>
+<main class="st-layout" data-cart-page>
+  <%- include('../components/store-sidebar') %>
 
-<main class="cart-page" data-cart-page>
-  <div class="store-layout">
+  <div class="st-main">
+    <div class="st-cart">
 
-    <nav class="pd-breadcrumbs" aria-label="Migas de pan">
-      <a href="/">Inicio</a>
-      <span aria-hidden="true">/</span>
-      <a href="/tienda">Tienda</a>
-      <span aria-hidden="true">/</span>
-      <span aria-current="page">Carrito</span>
-    </nav>
+      <header class="st-cart__header">
+        <p class="st-cart__eyebrow">Tienda NinjaLabCR</p>
+        <h1 class="st-cart__title">Tu carrito<% if (cart.itemCount) { %> <span class="st-cart__count"><%= cart.itemCount %> <%= cart.itemCount === 1 ? 'artículo' : 'artículos' %></span><% } %></h1>
+      </header>
 
-    <h1 class="cart-title">Tu carrito</h1>
+      <% if (removedCount > 0) { %>
+        <div class="st-cart__alert" role="alert">
+          Algunos productos ya no están disponibles y fueron retirados del carrito.
+        </div>
+      <% } %>
 
-    <% if (removedCount > 0) { %>
-      <div class="alert alert-warning" role="alert">
-        Algunos productos ya no están disponibles y fueron retirados del carrito.
-      </div>
-    <% } %>
-
-    <% if (!cart.items.length) { %>
-      <div class="cart-empty" role="status">
-        <p class="cart-empty__text">Tu carrito está vacío.</p>
-        <p class="cart-empty__hint">Explora la tienda y agrega productos.</p>
-        <a href="/tienda" class="cart-empty__link">Ir a la tienda</a>
-      </div>
-    <% } else { %>
-      <div class="cart-layout">
-        <!-- Items -->
-        <div class="cart-items" role="list" aria-label="Artículos en tu carrito">
-          <% cart.items.forEach(function(item) { %>
-            <div class="cart-item <%= item.available ? '' : 'cart-item--unavailable' %>" role="listitem">
-              <div class="cart-item__media">
-                <a href="<%= item.url %>" aria-label="Ver <%= item.title %>">
+      <% if (!cart.items.length) { %>
+        <div class="st-empty" role="status">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="48" height="48" style="color:var(--store-green-dim);margin-bottom:0.75rem;opacity:0.6"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          <h2>Tu carrito está vacío</h2>
+          <p>Explora la tienda y agrega productos que te interesen.</p>
+          <a href="/tienda" class="st-cart__empty-link">Ir a la tienda</a>
+        </div>
+      <% } else { %>
+        <div class="st-cart__layout">
+          <ul class="st-cart__items" role="list" aria-label="Artículos en tu carrito">
+            <% cart.items.forEach(function(item) { %>
+              <li class="st-cart-item <%= item.available ? '' : 'st-cart-item--unavailable' %>" role="listitem">
+                <a class="st-cart-item__image" href="<%= item.url %>" aria-label="Ver <%= item.title %>">
                   <% if (item.primaryImage) { %>
                     <img src="<%= item.primaryImage %>" alt="<%= item.title %>" loading="lazy" width="<%= item.imageWidth || 200 %>" height="<%= item.imageHeight || 200 %>">
                   <% } else { %>
-                    <span class="cart-item__placeholder" aria-hidden="true">NINJALAB</span>
+                    <span class="st-cart-item__placeholder" aria-hidden="true">NINJALAB</span>
                   <% } %>
                 </a>
-              </div>
 
-              <div class="cart-item__details">
-                <h2 class="cart-item__title">
-                  <a href="<%= item.url %>"><%= item.title %></a>
-                </h2>
+                <div class="st-cart-item__info">
+                  <p class="st-cart-item__name"><a href="<%= item.url %>"><%= item.title %></a></p>
 
-                <p class="cart-item__price">
-                  <span class="cart-item__unit-price"><%= item.priceLabel %></span>
-                  <% if (item.hasPromotion && item.regularPrice > item.displayPrice) { %>
-                    <span class="cart-item__price-regular">
-                      <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(item.regularPrice) %>
-                    </span>
-                  <% } %>
-                </p>
+                  <p class="st-cart-item__price">
+                    <%= item.priceLabel %>
+                    <% if (item.hasPromotion && item.regularPrice > item.displayPrice) { %>
+                      <span class="st-cart-item__price-regular">
+                        <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC',
+                        maximumFractionDigits: 0 }).format(item.regularPrice) %>
+                      </span>
+                    <% } %>
+                  </p>
 
-                <p class="cart-item__stock <%= item.available ? 'is-available' : 'is-sold-out' %>">
-                  <% if (item.available) { %>
-                    Disponible
-                  <% } else { %>
-                    Este producto está agotado.
-                  <% } %>
-                </p>
-              </div>
-
-              <div class="cart-item__actions">
-                <% if (item.available) { %>
-                  <form action="/carrito/actualizar" method="post" class="cart-item__quantity-form">
-                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                    <input type="hidden" name="productId" value="<%= item.productId %>">
-                    <label for="qty-<%= item.productId %>" class="cart-item__qty-label">Cantidad</label>
-                    <div class="pd-quantity__control">
-                      <button type="button" class="pd-quantity__btn cart-qty-dec" data-qty-target="qty-<%= item.productId %>" aria-label="Reducir cantidad de <%= item.title %>">−</button>
-                      <input
-                        id="qty-<%= item.productId %>"
-                        type="number"
-                        name="quantity"
-                        min="1"
-                        max="<%= Math.min(item.stockQuantity, 99) %>"
-                        value="<%= item.quantity %>"
-                        inputmode="numeric"
-                        class="cart-item__qty-input"
-                      >
-                      <button type="button" class="pd-quantity__btn cart-qty-inc" data-qty-target="qty-<%= item.productId %>" aria-label="Aumentar cantidad de <%= item.title %>">+</button>
-                    </div>
-                    <button type="submit" class="cart-item__qty-update">Actualizar</button>
-                  </form>
-                <% } %>
-
-                <div class="cart-item__line-total">
-                  <span class="cart-item__line-label">Subtotal</span>
-                  <span class="cart-item__line-value">
-                    <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(item.lineTotal) %>
-                  </span>
+                  <p class="st-cart-item__stock <%= item.available ? 'is-available' : 'is-sold-out' %>">
+                    <% if (item.available) { %>Disponible<% } else { %>Agotado<% } %>
+                  </p>
                 </div>
 
-                <form action="/carrito/eliminar" method="post" class="cart-item__remove-form">
+                <div class="st-cart-item__controls">
+                  <% if (item.available) { %>
+                    <form action="/carrito/actualizar" method="post" class="st-cart-item__qty-form" data-cart-qty-form>
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <input type="hidden" name="productId" value="<%= item.productId %>">
+                      <label for="qty-<%= item.productId %>" class="st-visually-hidden">Cantidad de <%= item.title %></label>
+                      <div class="st-cart-item__qty">
+                        <button type="button" class="st-cart-item__qty-btn cart-qty-dec" data-qty-target="qty-<%= item.productId %>" aria-label="Reducir cantidad de <%= item.title %>">−</button>
+                        <input
+                          id="qty-<%= item.productId %>"
+                          type="number"
+                          name="quantity"
+                          min="1"
+                          max="<%= Math.min(item.stockQuantity, 99) %>"
+                          value="<%= item.quantity %>"
+                          inputmode="numeric"
+                          class="st-cart-item__qty-input"
+                        >
+                        <button type="button" class="st-cart-item__qty-btn cart-qty-inc" data-qty-target="qty-<%= item.productId %>" aria-label="Aumentar cantidad de <%= item.title %>">+</button>
+                      </div>
+                      <button type="submit" class="st-cart-item__qty-submit">Actualizar</button>
+                    </form>
+                  <% } %>
+
+                  <p class="st-cart-item__line">
+                    <span class="st-cart-item__line-label">Subtotal</span>
+                    <span class="st-cart-item__line-value">
+                      <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(item.lineTotal) %>
+                    </span>
+                  </p>
+
+                  <form action="/carrito/eliminar" method="post" class="st-cart-item__remove-form" data-cart-remove-form>
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="productId" value="<%= item.productId %>">
+                    <button type="submit" class="st-cart-item__remove" aria-label="Eliminar <%= item.title %> del carrito">
+                      <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-.87 12.14A2 2 0 0 1 16.14 20H7.86a2 2 0 0 1-1.99-1.86L5 6" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+                      Eliminar
+                    </button>
+                  </form>
+                </div>
+
+                <form action="/carrito/eliminar" method="post" data-cart-remove-confirm class="st-cart-item__remove-confirm" hidden>
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                   <input type="hidden" name="productId" value="<%= item.productId %>">
-                  <button type="submit" class="cart-item__remove" aria-label="Eliminar <%= item.title %> del carrito">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-.87 12.14A2 2 0 0 1 16.14 20H7.86a2 2 0 0 1-1.99-1.86L5 6"/></svg>
-                    Eliminar
-                  </button>
                 </form>
+              </li>
+            <% }); %>
+          </ul>
+
+          <aside class="st-cart__summary" aria-labelledby="cart-summary-title">
+            <h2 id="cart-summary-title" class="st-cart__summary-title">Resumen</h2>
+
+            <dl class="st-cart__summary-rows">
+              <div class="st-cart__summary-row">
+                <dt>Productos</dt>
+                <dd><%= cart.uniqueItemCount %></dd>
               </div>
+              <div class="st-cart__summary-row">
+                <dt>Cantidad total</dt>
+                <dd><%= cart.itemCount %></dd>
+              </div>
+            </dl>
+
+            <div class="st-cart__summary-divider" aria-hidden="true"></div>
+
+            <div class="st-cart__summary-row st-cart__summary-row--total">
+              <dt>Subtotal</dt>
+              <dd><%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(cart.subtotal) %></dd>
             </div>
-          <% }); %>
+
+            <p class="st-cart__summary-note">Los precios y la disponibilidad se confirmarán nuevamente al continuar con la compra.</p>
+
+            <% if (cart.items.some(i => i.available)) { %>
+              <a href="/checkout" class="st-cart__checkout">
+                Continuar con la compra
+              </a>
+            <% } else { %>
+              <p class="st-cart__checkout-notice">No hay productos disponibles para comprar. Revisa los artículos agotados.</p>
+            <% } %>
+
+            <a href="/tienda" class="st-cart__continue">← Seguir comprando</a>
+
+            <form action="/carrito/vaciar" method="post" data-cart-clear-form>
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="button" class="st-cart__clear" data-cart-clear-btn>Vaciar carrito</button>
+            </form>
+          </aside>
         </div>
+      <% } %>
 
-        <!-- Summary -->
-        <aside class="cart-summary" aria-labelledby="cart-summary-title">
-          <h2 id="cart-summary-title" class="cart-summary__title">Resumen</h2>
-
-          <div class="cart-summary__row">
-            <span>Productos</span>
-            <span><%= cart.uniqueItemCount %></span>
-          </div>
-          <div class="cart-summary__row">
-            <span>Cantidad total</span>
-            <span><%= cart.itemCount %></span>
-          </div>
-          <div class="cart-summary__row cart-summary__row--total">
-            <span>Subtotal</span>
-            <span>
-              <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(cart.subtotal) %>
-            </span>
-          </div>
-
-          <p class="cart-summary__disclaimer">Los precios y la disponibilidad se confirmarán nuevamente al continuar con la compra.</p>
-
-          <% if (cart.items.some(i => i.available)) { %>
-            <a href="/checkout" class="cart-summary__checkout cart-summary__checkout--enabled">
-              Continuar con la compra
-            </a>
-          <% } else { %>
-            <p class="cart-summary__checkout-notice">No hay productos disponibles para comprar. Revisa los artículos agotados.</p>
-          <% } %>
-
-          <a href="/tienda" class="cart-summary__continue">← Seguir comprando</a>
-
-          <form action="/carrito/vaciar" method="post" class="cart-summary__clear-form">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <button type="submit" class="cart-summary__clear" onclick="return confirm('¿Estás seguro de vaciar el carrito?')">
-              Vaciar carrito
-            </button>
-          </form>
-        </aside>
-      </div>
-    <% } %>
-
+    </div>
   </div>
 </main>

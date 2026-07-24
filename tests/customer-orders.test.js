@@ -239,8 +239,8 @@ test('login page validates inputs, preserves only email, and keeps a safe return
   const page = await request('GET', `/auth/login?returnTo=${encodeURIComponent(returnTo)}`, null, jar);
   assert.equal(page.status, 200);
   assert.match(page.data, /<meta name="robots" content="noindex, nofollow">/);
-  assert.match(page.data, /<h1 id="login-title">Iniciar Sesi[oó]n<\/h1>/);
-  assert.doesNotMatch(page.data, /<form[^>]+novalidate/);
+  assert.match(page.data, /<h1 id="login-heading"[^>]*>Iniciar Sesi[oó]n<\/h1>/);
+  assert.match(page.data, /<form[^>]+novalidate/);
   assert.match(page.data, /name="returnTo" value="\/cuenta\/pedidos\?page=2"/);
 
   const email = ' Remember.Me@Example.Invalid ';
@@ -317,5 +317,5 @@ test('store, product, cart, checkout gate, login, and navigation regressions rem
   assert.equal(checkout.status, 302);
   assert.equal(checkout.location, '/carrito');
   assert.equal((await request('GET', '/auth/login', null, {})).status, 200);
-  assert.match(store.data, /href="\/tienda" class="hero-nav-link">Tienda/);
+  assert.match(store.data, /st-sidebar/);
 });

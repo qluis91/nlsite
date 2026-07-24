@@ -21,19 +21,60 @@ async function listCategories() {
 }
 
 async function getCategoryById(id) {
-  const [rows] = await pool.query('SELECT id, name, slug FROM categories WHERE id = ?', [id]);
+  const [rows] = await pool.query(
+    `SELECT id, name, slug, description, hero_title, hero_description,
+            hero_image, hero_alt, hero_position
+     FROM categories WHERE id = ?`,
+    [id]
+  );
   return rows[0] || null;
 }
 
-async function createCategory(name, slug) {
+async function createCategory(name, slug, hero = {}) {
   const s = slug || slugify(name);
-  const [result] = await pool.query('INSERT INTO categories (name, slug) VALUES (?, ?)', [name, s]);
+  const [result] = await pool.query(
+    `INSERT INTO categories
+      (name, slug, description, hero_title, hero_description, hero_image, hero_alt, hero_position)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      name,
+      s,
+      hero.description || null,
+      hero.hero_title || null,
+      hero.hero_description || null,
+      hero.hero_image || null,
+      hero.hero_alt || null,
+      hero.hero_position || 'center',
+    ]
+  );
   return { id: result.insertId, name, slug: s };
 }
 
-async function updateCategory(id, name, slug) {
+async function updateCategory(id, name, slug, hero = {}) {
   const s = slug || slugify(name);
-  await pool.query('UPDATE categories SET name = ?, slug = ? WHERE id = ?', [name, s, id]);
+  await pool.query(
+    `UPDATE categories SET
+      name = ?,
+      slug = ?,
+      description = ?,
+      hero_title = ?,
+      hero_description = ?,
+      hero_image = ?,
+      hero_alt = ?,
+      hero_position = ?
+     WHERE id = ?`,
+    [
+      name,
+      s,
+      hero.description || null,
+      hero.hero_title || null,
+      hero.hero_description || null,
+      hero.hero_image || null,
+      hero.hero_alt || null,
+      hero.hero_position || 'center',
+      id,
+    ]
+  );
   return { id, name, slug: s };
 }
 
