@@ -9,9 +9,10 @@ const pool = require('../config/db');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { startTestServer, stopTestServer, getPort } = require('./testServer');
 
 const JPEG = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAAA//EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8Af8D/2Q==', 'base64');
-const BASE = 'http://localhost:3000';
+let BASE = 'http://localhost:3000';
 
 function get(url, ck) {
   return new Promise(R => h.get(BASE+url, ck?{headers:{Cookie:ck}}:{}, resp=>{let d='';const sc=resp.headers['set-cookie'];resp.on('data',c=>d+=c);resp.on('end',()=>{const nc=(sc&&sc.length>0)?sc.map(c=>c.split(';')[0]).join('; '):(ck||'');R({s:resp.statusCode,b:d,ck:nc})})}));
@@ -42,7 +43,15 @@ function xtoken(html) { const m = html.match(/name="checkoutToken"\s+value="([^"
 function xref(html) { const m = html.match(/confirmacion\/(NL-[A-Z0-9]+)/); return m?m[1]:''; }
 
 async function createEligibleOrder() {
-  let r = await get('/tienda/casco-batman'); let ck = r.ck;
+  // Create a disposable in-stock product so the fixture never depends on real catalog.
+  const testSlug = 'test-pp-' + crypto.randomBytes(4).toString('hex');
+  const [pi] = await pool.query(
+    "INSERT INTO products (name, slug, description, regular_price, stock_quantity, is_active, is_published) VALUES (?,?,?,?,?,?,?)",
+    ['PP Test Product', testSlug, 'Temp product for concurrency test', '1000.00', 99, 1, 1]
+  );
+  const testPid = pi.insertId;
+  testProductIds.push(testPid);
+  let r = await get('/tienda/' + testSlug); let ck = r.ck;
   const pid = xpid(r.b), cs = xc(r.b);
   assert.ok(pid, 'Product ID found');
   r = await postF('/carrito/agregar', 'productId='+pid+'&quantity=1&returnTo=%2Fcarrito&_csrf='+cs, ck);
@@ -57,11 +66,19 @@ async function createEligibleOrder() {
   return { ref, ck };
 }
 
-// Track created test orders for cleanup
+// Track created test orders and products for cleanup
 const testOrders = [];
+const testProductIds = [];
 
 describe('Payment Proof CSRF & Concurrency', () => {
+  before(async () => {
+    await startTestServer();
+    BASE = `http://127.0.0.1:${getPort()}`;
+  });
   after(async () => {
+    for (const pid of testProductIds) {
+      try { await pool.query('DELETE FROM products WHERE id=?', [pid]); } catch(_){}
+    }
     for (const ref of testOrders) {
       try {
         const id = (await pool.query('SELECT id FROM orders WHERE order_reference=?',[ref]))[0][0]?.id;
@@ -74,6 +91,7 @@ describe('Payment Proof CSRF & Concurrency', () => {
       } catch(_){}
     }
     try { await pool.end(); } catch (_) {}
+    stopTestServer();
   });
 
   // ── CSRF architecture validation ──

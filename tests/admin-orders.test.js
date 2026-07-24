@@ -44,6 +44,19 @@ test('lifecycle rules differ for pickup and delivery', () => {
   assert.deepEqual(getAllowedNextStatuses({ order_status: 'ready_for_pickup', delivery_method: 'uber_flash' }), []);
 });
 
+test('tracking validators reject invalid input', () => {
+  const { validateCarrier, validateTrackingNumber, validateTrackingUrl } = require('../validators/adminOrderValidator');
+  assert.equal(validateCarrier('DHL Costa Rica').valid, true);
+  assert.equal(validateCarrier('x'.repeat(41)).valid, false);
+  assert.equal(validateCarrier('').value, null);
+  assert.equal(validateTrackingNumber('ABC1234567').valid, true);
+  assert.equal(validateTrackingNumber('x'.repeat(121)).valid, false);
+  assert.equal(validateTrackingUrl('https://tracking.example.com/ABC123').valid, true);
+  assert.equal(validateTrackingUrl('ftp://track.example.com').valid, false);
+  assert.equal(validateTrackingUrl('not-a-url').valid, false);
+  assert.equal(validateTrackingUrl('').value, null);
+});
+
 test('quotation, manual payment and cancellation gates reject unsafe states', () => {
   const delivery = { delivery_method: 'uber_flash', shipping_status: 'pending_quote', payment_status: 'pending', order_status: 'pending_shipping_quote', payment_method: 'sinpe', final_total: null };
   assert.equal(canQuoteShipping(delivery), true);
@@ -59,7 +72,7 @@ test('admin routes are protected after global CSRF and all mutation forms carry 
   const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
   assert.ok(app.indexOf('app.use(csrfSynchronisedProtection)') < app.indexOf("app.use('/admin', isAuthenticated, isAdmin, adminOrderRoutes)"));
   const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'adminOrderRoutes.js'), 'utf8');
-  for (const endpoint of ['quote-shipping', 'confirm-payment', 'status', 'notes', 'cancel', 'aprobar', 'rechazar']) assert.match(routes, new RegExp(`router\\.post\\([^\\n]+${endpoint}`));
+  for (const endpoint of ['quote-shipping', 'confirm-payment', 'status', 'notes', 'cancel', 'tracking', 'aprobar', 'rechazar']) assert.match(routes, new RegExp(`router\\.post\\([^\\n]+${endpoint}`));
   const detail = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'order-detail.ejs'), 'utf8');
 
   // Extract every POST form block from the EJS source.
@@ -154,10 +167,12 @@ test('active database has hardened schema and consistent existing orders', async
   const [[eventsTable]] = await pool.query("SELECT COUNT(*) total FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='order_events'");
   const [[anomalies]] = await pool.query("SELECT COUNT(*) total FROM orders WHERE order_status IS NULL OR product_subtotal < 0 OR shipping_amount < 0 OR final_total < 0");
   const [[missingAuditHistory]] = await pool.query('SELECT COUNT(*) total FROM orders o LEFT JOIN order_events e ON e.order_id=o.id WHERE e.id IS NULL');
+  const [[trackingCols]] = await pool.query("SELECT COUNT(*) total FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='orders' AND COLUMN_NAME IN ('carrier','tracking_number','tracking_url')");
   assert.equal(Number(uniqueIndex.total), 1);
   assert.equal(Number(eventsTable.total), 1);
   assert.equal(Number(anomalies.total), 0);
   assert.equal(Number(missingAuditHistory.total), 0);
+  assert.equal(Number(trackingCols.total), 3);
 });
 
 test('active unique constraint rejects a duplicate idempotency key without persistence', async () => {

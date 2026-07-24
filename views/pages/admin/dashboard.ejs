@@ -5,6 +5,30 @@
 
 <div class="stats-grid">
   <div class="stat-card stat-primary">
+    <h3><%= stats.totalOrders %></h3>
+    <p>Pedidos Totales</p>
+  </div>
+  <a href="/admin/orders?orderStatus=pending_payment&orderStatus=pending_shipping_quote" class="stat-card stat-warning" style="text-decoration:none">
+    <h3><%= stats.pendingPayment %></h3>
+    <p>Pagos Pendientes</p>
+  </a>
+  <div class="stat-card stat-danger">
+    <h3><%= stats.pendingReview %></h3>
+    <p>Comprobantes por Revisar</p>
+  </div>
+  <div class="stat-card stat-info">
+    <h3><%= stats.inProduction %></h3>
+    <p>En Producción</p>
+  </div>
+  <div class="stat-card stat-success">
+    <h3><%= stats.readyForPickup %></h3>
+    <p>Listos para Retirar</p>
+  </div>
+  <a href="/admin/orders?orderStatus=ready_for_dispatch" class="stat-card stat-success" style="text-decoration:none">
+    <h3><%= stats.readyForDispatch %></h3>
+    <p>Listos para Enviar</p>
+  </a>
+  <div class="stat-card stat-primary">
     <h3><%= stats.totalUsers %></h3>
     <p>Usuarios Totales</p>
   </div>
@@ -16,11 +40,41 @@
     <h3><%= stats.totalAdmins %></h3>
     <p>Administradores</p>
   </div>
+  <div class="stat-card stat-danger">
+    <h3><%= stats.lowStock %></h3>
+    <p>Productos con Stock Bajo</p>
+  </div>
 </div>
+
+<%
+  const dashboardRecentOrders = typeof recentOrders !== 'undefined' && Array.isArray(recentOrders)
+    ? recentOrders
+    : [];
+%>
+<% if (dashboardRecentOrders.length > 0) { %>
+<div class="card">
+  <h2>Pedidos Recientes</h2>
+  <div class="admin-table-wrap"><table class="table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Estado</th><th>Pago</th><th>Total</th><th>Fecha</th></tr></thead><tbody>
+  <% dashboardRecentOrders.forEach(function(order) { %><tr>
+    <td><a href="/admin/orders/<%= order.order_reference %>"><strong><%= order.order_reference %></strong></a></td>
+    <td><%= order.customer_name %></td>
+    <td><span class="status-pill"><%= order.orderStatusLabel %></span></td>
+    <td><%= order.paymentStatusLabel %></td>
+    <td><%= order.final_total === null ? 'Pendiente' : new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(order.final_total) %></td>
+    <td><%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(order.created_at)) %></td>
+  </tr><% }) %></tbody></table></div>
+</div>
+<% } else { %>
+<div class="card">
+  <h2>Pedidos Recientes</h2>
+  <p>No hay pedidos recientes.</p>
+</div>
+<% } %>
 
 <div class="card">
   <h2>Acciones Rápidas</h2>
   <div class="quick-actions">
+    <a href="/admin/orders" class="btn btn-primary">Pedidos</a>
     <a href="/admin/catalogo/categorias" class="btn btn-primary">Categorías</a>
     <a href="/admin/catalogo/productos" class="btn btn-primary">Productos</a>
     <a href="/admin/users" class="btn btn-primary">Gestionar Usuarios</a>

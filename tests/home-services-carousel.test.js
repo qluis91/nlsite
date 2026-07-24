@@ -19,7 +19,9 @@ test('generic core: instance, lifecycle, cleanup, reduced-motion', () => {
   assert.match(s, /data-circ-carousel-generated/);
   assert.match(s, /stage\.remove\(\)/);
   assert.match(s, /reducedMotion/);
-  assert.match(s, /angle\.current = angle\.target/);
+  assert.match(s, /currentPosition = targetPosition/);
+  assert.match(s, /let currentPosition = 0/);
+  assert.match(s, /let targetPosition = 0/);
   assert.match(s, /export function createCircularCarousel/);
   assert.doesNotMatch(s, /let activeInstance/);
   assert.doesNotMatch(s, /React|gsap|three/);
@@ -28,10 +30,12 @@ test('generic core: instance, lifecycle, cleanup, reduced-motion', () => {
 test('generic core: input handlers', () => {
   const s = read('public/js/ui/circularCarousel.mjs');
   assert.match(s, /onPointerDown/);
-  assert.match(s, /onWheel/);
   assert.match(s, /onKeyDown/);
   assert.match(s, /ArrowRight/);
   assert.match(s, /ArrowLeft/);
+  assert.match(s, /pointer\.axis === 'horizontal'/);
+  assert.match(s, /Math\.abs\(dx\) <= Math\.abs\(dy\) \+ 5/);
+  assert.doesNotMatch(s, /onWheel|wheelTimer|listen\(root, 'wheel'/);
   assert.match(s, /IntersectionObserver/);
   assert.match(s, /ResizeObserver/);
 });
@@ -42,7 +46,7 @@ test('geometry: wrapped distance yields five visible desktop cards with six item
   const moduleUrl = pathToFileURL(path.join(root, 'public/js/ui/circularCarousel.mjs')).href;
   const { wrappedDistance } = await import(moduleUrl);
   const distances = Array.from({ length: 6 }, (_, index) => wrappedDistance(index, 0, 6));
-  assert.deepEqual(distances, [0, 1, 2, 3, -2, -1]);
+  assert.deepEqual(distances, [0, 1, 2, -3, -2, -1]);
   assert.equal(distances.filter(distance => Math.abs(distance) <= 2).length, 5);
 });
 
@@ -51,8 +55,8 @@ test('geometry: desktop uses explicit -2..2 slots without circular projection', 
   ['-2', '-1', '0', '1', '2'].forEach(distance => {
     assert.ok(s.includes(`'${distance}': Object.freeze`), `has desktop slot ${distance}`);
   });
-  assert.match(s, /wrappedDistance\(i, frontIndex, totalItems\)/);
-  assert.match(s, /stageWidth \* slot\.xRatio/);
+  assert.match(s, /wrappedDistance\(i, currentPosition, totalItems\)/);
+  assert.match(s, /stageWidth \* presentation\.xRatio/);
   assert.doesNotMatch(s, /Math\.(?:sin|cos)\(/);
   assert.doesNotMatch(s, /radiusX|radiusY|VISIBLE_COS|cardAngle|depth/);
 });
@@ -70,7 +74,28 @@ test('geometry: hidden cards are removed from display and accessibility tree', (
   assert.match(s, /card\.setAttribute\('aria-hidden', 'true'\)/);
   assert.match(s, /card\.inert = true/);
   assert.match(s, /card\.removeAttribute\('aria-current'\)/);
-  assert.match(s, /distance === 0/);
+  assert.match(s, /Math\.abs\(distance\) < 0\.5/);
+});
+
+test('animation: fractional slot interpolation and fade boundary are explicit', () => {
+  const s = read('public/js/ui/circularCarousel.mjs');
+  assert.match(s, /interpolateSlotPresentation/);
+  assert.match(s, /Math\.floor\(distance\)/);
+  assert.match(s, /Math\.ceil\(distance\)/);
+  assert.match(s, /fadeBoundary: 2\.6/);
+  assert.match(s, /absoluteDistance >= config\.fadeBoundary/);
+  assert.match(s, /currentPosition = lerp\(currentPosition, targetPosition, ease\)/);
+  assert.match(s, /positionEase = 0\.1/);
+});
+
+test('infinite wrap: targets stay unbounded and navigation moves relatively', () => {
+  const s = read('public/js/ui/circularCarousel.mjs');
+  assert.match(s, /targetPosition \+= delta/);
+  assert.match(s, /next\(\) \{ moveBy\(1\); \}/);
+  assert.match(s, /prev\(\) \{ moveBy\(-1\); \}/);
+  assert.match(s, /safeModulo\(position, ownedItems\.length\)/);
+  assert.doesNotMatch(s, /targetPosition = safeModulo/);
+  assert.match(s, /POSITION_REBASE_LIMIT/);
 });
 
 test('geometry: tablet and mobile use three-card slot sets', () => {
@@ -181,6 +206,8 @@ test('CSS: portrait glass cards, transparent stage, and responsive sizing', () =
   assert.match(c, /@media \(max-width: 1199px\)/);
   assert.match(c, /@media \(max-width: 767px\)/);
   assert.match(c, /prefers-reduced-motion: reduce/);
+  assert.match(c, /touch-action:\s*pan-y/);
+  assert.doesNotMatch(c, /\.circ-carousel__card\s*\{[^}]*transition:[^;}]*transform/s);
   assert.match(c, /--service-card-width:\s*280px/);
   assert.match(c, /--service-card-height:\s*470px/);
   assert.match(c, /height:\s*clamp\(520px,\s*42vw,\s*570px\)/);

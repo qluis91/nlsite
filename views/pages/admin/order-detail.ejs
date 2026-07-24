@@ -6,6 +6,28 @@
     <section class="order-card"><h2>Cliente y entrega</h2><dl class="order-data"><dt>Cliente</dt><dd><%= order.customer_name %></dd><dt>Correo</dt><dd><%= order.customer_email %></dd><dt>Teléfono</dt><dd><%= order.customer_phone %></dd><dt>Entrega</dt><dd><%= order.deliveryMethodLabel %></dd><dt>Dirección</dt><dd><%= [order.province, order.canton, order.district, order.address_line, order.address_reference].filter(Boolean).join(', ') || 'Retiro en local' %></dd></dl></section>
     <section class="order-card"><h2>Totales</h2><dl class="order-data"><dt>Productos</dt><dd><%= money(order.product_subtotal) %></dd><dt>Envío</dt><dd><%= order.shipping_status === 'pending_quote' ? 'Por cotizar' : money(order.shipping_amount) %></dd><dt>Total final</dt><dd><strong><%= money(order.final_total) %></strong></dd><dt>Pago</dt><dd><%= order.paymentMethodLabel %> · <%= order.paymentStatusLabel %></dd></dl></section>
   </div>
+  <% if (order.delivery_method !== 'local_pickup') { %>
+  <section class="order-card"><h2>Información de envío</h2>
+    <% if (order.carrier || order.tracking_number || order.tracking_url) { %>
+      <dl class="order-data">
+        <% if (order.carrier) { %><dt>Empresa</dt><dd><%= order.carrier %></dd><% } %>
+        <% if (order.tracking_number) { %><dt>Rastreo</dt><dd><code><%= order.tracking_number %></code></dd><% } %>
+        <% if (order.tracking_url) { %><dt>Enlace</dt><dd><a href="<%= order.tracking_url %>" rel="noopener noreferrer" target="_blank"><%= order.tracking_url %></a></dd><% } %>
+      </dl>
+    <% } else { %>
+      <p style="color:var(--color-muted, #888)">Sin información de envío registrada.</p>
+    <% } %>
+    <form method="post" action="/admin/orders/<%= order.order_reference %>/tracking" style="margin-top:1rem">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem">
+        <label>Empresa de envío<input name="carrier" maxlength="40" value="<%= order.carrier || '' %>" placeholder="Ej: DHL, Correos"></label>
+        <label>Número de rastreo<input name="trackingNumber" maxlength="120" value="<%= order.tracking_number || '' %>"></label>
+        <label>URL de rastreo<input name="trackingUrl" maxlength="500" type="url" value="<%= order.tracking_url || '' %>" placeholder="https://..."></label>
+      </div>
+      <button class="btn btn-secondary btn-sm" type="submit" style="margin-top:0.75rem">Actualizar envío</button>
+    </form>
+  </section>
+  <% } %>
   <section class="order-card"><h2>Productos</h2><div class="admin-table-wrap"><table class="table"><thead><tr><th>Producto</th><th>Cantidad</th><th>Unitario</th><th>Total</th></tr></thead><tbody><% items.forEach(function(item) { %><tr><td><%= item.product_name %></td><td><%= item.quantity %></td><td><%= money(item.unit_price) %></td><td><%= money(item.line_total) %></td></tr><% }) %></tbody></table></div></section>
   <% if (proofSummary && proofSummary.status !== 'not_submitted') { %>
     <section class="order-card"><h2>Comprobante de pago</h2>

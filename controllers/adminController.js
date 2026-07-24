@@ -9,6 +9,35 @@ exports.dashboard = async (req, res, next) => {
     const [adminCount] = await pool.query('SELECT COUNT(*) AS total FROM users WHERE role_id = 1');
     const [activeCount] = await pool.query('SELECT COUNT(*) AS total FROM users WHERE is_active = 1');
 
+    const orderQueries = [
+      ['pendingPayment', "SELECT COUNT(*) AS total FROM orders WHERE order_status IN ('pending_payment','pending_shipping_quote')"],
+      ['pendingReview', "SELECT COUNT(*) AS total FROM payment_proofs WHERE status = 'pending_review'"],
+      ['inProduction', "SELECT COUNT(*) AS total FROM orders WHERE order_status IN ('preparing','ready_for_pickup','ready_for_dispatch')"],
+      ['readyForPickup', "SELECT COUNT(*) AS total FROM orders WHERE order_status = 'ready_for_pickup'"],
+      ['readyForDispatch', "SELECT COUNT(*) AS total FROM orders WHERE order_status = 'ready_for_dispatch'"],
+      ['totalOrders', 'SELECT COUNT(*) AS total FROM orders'],
+    ];
+    const orderStats = {};
+    for (const [key, sql] of orderQueries) {
+      const [[row]] = await pool.query(sql);
+      orderStats[key] = Number(row.total);
+    }
+    const [lowStock] = await pool.query(
+      "SELECT COUNT(*) AS total FROM products WHERE is_active = 1 AND is_published = 1 AND stock_quantity > 0 AND stock_quantity <= 5"
+    );
+    orderStats.lowStock = Number(lowStock[0].total);
+
+    const [recentOrders] = await pool.query(
+      `SELECT o.order_reference, o.customer_name, o.order_status, o.payment_status, o.final_total, o.created_at
+         FROM orders o ORDER BY o.created_at DESC LIMIT 8`
+    );
+    const { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } = require('../config/orderOptions');
+    const recent = recentOrders.map(o => ({
+      ...o,
+      orderStatusLabel: ORDER_STATUS_LABELS[o.order_status] || o.order_status,
+      paymentStatusLabel: PAYMENT_STATUS_LABELS[o.payment_status] || o.payment_status,
+    }));
+
     res.render('pages/admin/dashboard', {
       title: 'Panel de Control',
       layout: 'layouts/admin',
@@ -16,7 +45,9 @@ exports.dashboard = async (req, res, next) => {
         totalUsers: userCount[0].total,
         totalAdmins: adminCount[0].total,
         activeUsers: activeCount[0].total,
+        ...orderStats,
       },
+      recentOrders: Array.isArray(recent) ? recent : [],
     });
   } catch (error) {
     return next(error);

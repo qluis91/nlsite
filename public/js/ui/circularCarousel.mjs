@@ -1,8 +1,8 @@
 /**
- * Circular Carousel — Generic DOM-based circular/ring carousel.
- * Shares interaction model with Circular Gallery but uses DOM cards
- * (no WebGL, no textures). Supports drag, wheel, keyboard, inertia,
- * snap, pause/resume, reduced-motion, and full destroy lifecycle.
+ * Circular Carousel — Generic DOM-based carousel interaction controller.
+ * Uses continuous positions with front-facing visual slots (no WebGL).
+ * Supports horizontal drag, keyboard, snap, pause/resume, reduced-motion,
+ * seamless wrapping, and a complete destroy lifecycle.
  *
  * Multiple instances can exist independently.
  */
@@ -11,15 +11,20 @@ function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
-function safeModulo(value, length) {
+export function safeModulo(value, length) {
   if (!length) return 0;
   return ((Math.round(value) % length) + length) % length;
 }
 
-export function wrappedDistance(index, activeIndex, count) {
-  let distance = index - activeIndex;
-  if (distance > count / 2) distance -= count;
-  if (distance < -count / 2) distance += count;
+function continuousModulo(value, length) {
+  if (!length) return 0;
+  return ((value % length) + length) % length;
+}
+
+export function wrappedDistance(index, position, count) {
+  if (!count) return 0;
+  let distance = index - position;
+  distance -= Math.round(distance / count) * count;
   return distance;
 }
 
@@ -43,6 +48,82 @@ const MOBILE_SLOTS = Object.freeze({
   '1': Object.freeze({ xRatio: 0.52, y: 8, scale: 0.9, opacity: 0.8, zIndex: 2 }),
 });
 
+const DESKTOP_EXIT = Object.freeze({
+  negative: Object.freeze({ xRatio: -0.54, y: 18, scale: 0.84, opacity: 0 }),
+  positive: Object.freeze({ xRatio: 0.54, y: 18, scale: 0.84, opacity: 0 }),
+});
+
+const TABLET_EXIT = Object.freeze({
+  negative: Object.freeze({ xRatio: -0.46, y: 12, scale: 0.86, opacity: 0 }),
+  positive: Object.freeze({ xRatio: 0.46, y: 12, scale: 0.86, opacity: 0 }),
+});
+
+const MOBILE_EXIT = Object.freeze({
+  negative: Object.freeze({ xRatio: -0.7, y: 14, scale: 0.84, opacity: 0 }),
+  positive: Object.freeze({ xRatio: 0.7, y: 14, scale: 0.84, opacity: 0 }),
+});
+
+const DESKTOP_LAYOUT = Object.freeze({
+  slots: DESKTOP_SLOTS,
+  exit: DESKTOP_EXIT,
+  maxVisibleDistance: 2,
+  fadeBoundary: 2.6,
+});
+
+const TABLET_LAYOUT = Object.freeze({
+  slots: TABLET_SLOTS,
+  exit: TABLET_EXIT,
+  maxVisibleDistance: 1,
+  fadeBoundary: 1.6,
+});
+
+const MOBILE_LAYOUT = Object.freeze({
+  slots: MOBILE_SLOTS,
+  exit: MOBILE_EXIT,
+  maxVisibleDistance: 1,
+  fadeBoundary: 1.6,
+});
+
+function layoutForMode(mode) {
+  if (mode === 'mobile') return MOBILE_LAYOUT;
+  if (mode === 'tablet') return TABLET_LAYOUT;
+  return DESKTOP_LAYOUT;
+}
+
+export function interpolateSlotPresentation(distance, mode = 'desktop', output = {}) {
+  const config = layoutForMode(mode);
+  const absoluteDistance = Math.abs(distance);
+  if (absoluteDistance >= config.fadeBoundary) return false;
+
+  let from;
+  let to;
+  let progress;
+
+  if (absoluteDistance > config.maxVisibleDistance) {
+    const side = distance < 0 ? 'negative' : 'positive';
+    from = config.slots[String((distance < 0 ? -1 : 1) * config.maxVisibleDistance)];
+    to = config.exit[side];
+    progress = (absoluteDistance - config.maxVisibleDistance)
+      / (config.fadeBoundary - config.maxVisibleDistance);
+  } else {
+    const lowerDistance = Math.floor(distance);
+    const upperDistance = Math.ceil(distance);
+    from = config.slots[String(lowerDistance)];
+    to = config.slots[String(upperDistance)];
+    progress = distance - lowerDistance;
+  }
+
+  output.xRatio = lerp(from.xRatio, to.xRatio, progress);
+  output.y = lerp(from.y, to.y, progress);
+  output.scale = lerp(from.scale, to.scale, progress);
+  output.opacity = lerp(from.opacity, to.opacity, progress);
+  output.zIndex = Math.max(1, Math.round((config.fadeBoundary - absoluteDistance) * 100));
+  return true;
+}
+
+const SETTLE_EPSILON = 0.002;
+const POSITION_REBASE_LIMIT = 6000;
+
 export function createCircularCarousel(options = {}) {
   const {
     root,
@@ -57,6 +138,7 @@ export function createCircularCarousel(options = {}) {
     mobileCardHeight = 430,
     snapAngle = true,
     reducedMotion = false,
+    positionEase = 0.1,
   } = options;
 
   if (!root) throw new Error('CircularCarousel requires a root element.');
@@ -72,16 +154,30 @@ export function createCircularCarousel(options = {}) {
   let destroyed = false;
   let rafId = null;
   const pauseReasons = new Set();
-  let angle = { current: 0, target: 0, last: 0 };
+  let currentPosition = 0;
+  let targetPosition = 0;
+  let lastPosition = 0;
   let activeIndex = -1;
-  const pointer = { active: false, moved: false, id: null, startX: 0, startAngle: 0 };
-  let wheelTimer = null;
+  let dragPixelsPerItem = cardWidth * 0.8;
+  const pointer = {
+    active: false,
+    axis: null,
+    moved: false,
+    id: null,
+    startX: 0,
+    startY: 0,
+    startPosition: 0,
+    lastPosition: 0,
+    lastTime: 0,
+    velocity: 0,
+  };
   let resizeObserver = null;
   let intersectionObserver = null;
   const allRemovers = [];
 
   // ── DOM ──
   const cardElements = [];
+  const presentationStates = [];
 
   const stage = document.createElement('div');
   stage.className = 'circ-carousel__stage';
@@ -101,6 +197,7 @@ export function createCircularCarousel(options = {}) {
     card.setAttribute('data-circ-index', String(index));
     track.appendChild(card);
     cardElements.push(card);
+    presentationStates.push({ xRatio: 0, y: 0, scale: 1, opacity: 0, zIndex: 1 });
   });
 
   // ── Helpers ──
@@ -109,11 +206,13 @@ export function createCircularCarousel(options = {}) {
     allRemovers.push(() => target.removeEventListener(event, handler, eventOptions));
   }
 
-  function normalizedIndex(rawAngle) {
-    return safeModulo(rawAngle, ownedItems.length);
+  function normalizedIndex(position = targetPosition) {
+    return safeModulo(position, ownedItems.length);
   }
 
   function setCardVisibility(card, visible) {
+    if (card.__circVisible === visible) return;
+    card.__circVisible = visible;
     if (visible) {
       card.style.display = '';
       card.removeAttribute('aria-hidden');
@@ -128,6 +227,31 @@ export function createCircularCarousel(options = {}) {
     card.classList.remove('circ-carousel__card--active');
   }
 
+  function updateActive(force = false) {
+    if (!force) {
+      if (pointer.active || Math.abs(currentPosition - targetPosition) > SETTLE_EPSILON) return;
+      if (Math.abs(targetPosition - Math.round(targetPosition)) > SETTLE_EPSILON) return;
+    }
+    const nextIndex = normalizedIndex(targetPosition);
+    if (!force && nextIndex === activeIndex) return;
+    activeIndex = nextIndex;
+    for (let index = 0; index < cardElements.length; index += 1) {
+      const card = cardElements[index];
+      if (index === activeIndex) card.setAttribute('aria-current', 'true');
+      else card.removeAttribute('aria-current');
+    }
+    onActiveChange(ownedItems[activeIndex], activeIndex, ownedItems.length);
+  }
+
+  function rebasePositionIfIdle() {
+    if (pointer.active || Math.abs(currentPosition - targetPosition) > SETTLE_EPSILON) return;
+    if (Math.abs(targetPosition) < POSITION_REBASE_LIMIT) return;
+    const offset = Math.trunc(targetPosition / ownedItems.length) * ownedItems.length;
+    currentPosition -= offset;
+    targetPosition -= offset;
+    lastPosition -= offset;
+  }
+
   // ── Layout ──
   function layout() {
     if (destroyed || ownedItems.length === 0) return;
@@ -138,56 +262,79 @@ export function createCircularCarousel(options = {}) {
 
     const isMobile = viewportWidth <= 767;
     const isTablet = viewportWidth >= 768 && viewportWidth < 1200;
-    const slots = isMobile ? MOBILE_SLOTS : (isTablet ? TABLET_SLOTS : DESKTOP_SLOTS);
+    const mode = isMobile ? 'mobile' : (isTablet ? 'tablet' : 'desktop');
     const currentCardWidth = isMobile
       ? Math.min(mobileCardWidth, Math.max(220, stageWidth - 64))
       : (isTablet ? tabletCardWidth : cardWidth);
     const currentCardHeight = isMobile
       ? mobileCardHeight
       : (isTablet ? tabletCardHeight : cardHeight);
-    const frontIndex = normalizedIndex(angle.current);
     const totalItems = ownedItems.length;
+    dragPixelsPerItem = Math.max(160, currentCardWidth * 0.82);
 
-    cardElements.forEach((card, i) => {
-      const distance = wrappedDistance(i, frontIndex, totalItems);
-      const slot = slots[String(distance)];
-      if (!slot) {
+    for (let i = 0; i < cardElements.length; i += 1) {
+      const card = cardElements[i];
+      const distance = wrappedDistance(i, currentPosition, totalItems);
+      const presentation = presentationStates[i];
+      if (!interpolateSlotPresentation(distance, mode, presentation)) {
         setCardVisibility(card, false);
-        return;
+        continue;
       }
 
-      const x = stageWidth / 2 + stageWidth * slot.xRatio - currentCardWidth / 2;
-      const y = stageHeight / 2 - currentCardHeight / 2 + slot.y;
+      const x = stageWidth / 2 + stageWidth * presentation.xRatio - currentCardWidth / 2;
+      const y = stageHeight / 2 - currentCardHeight / 2 + presentation.y;
       setCardVisibility(card, true);
       card.style.position = 'absolute';
       card.style.left = '0';
       card.style.top = '0';
       card.style.width = `${currentCardWidth}px`;
       card.style.height = `${currentCardHeight}px`;
-      card.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${slot.scale})`;
-      card.style.opacity = String(slot.opacity);
-      card.style.zIndex = String(slot.zIndex);
+      card.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${presentation.scale})`;
+      card.style.opacity = String(presentation.opacity);
+      card.style.zIndex = String(presentation.zIndex);
 
-      if (distance === 0) {
+      if (Math.abs(distance) < 0.5) {
         card.classList.add('circ-carousel__card--active');
-        card.setAttribute('aria-current', 'true');
       } else {
         card.classList.remove('circ-carousel__card--active');
+      }
+
+      if (i === activeIndex) {
+        card.setAttribute('aria-current', 'true');
+      } else {
         card.removeAttribute('aria-current');
       }
-    });
-
-    const newActive = normalizedIndex(angle.current);
-    if (newActive !== activeIndex) {
-      activeIndex = newActive;
-      onActiveChange(ownedItems[activeIndex], activeIndex, ownedItems.length);
     }
   }
 
   // ── Snap ──
   function snap() {
-    if (ownedItems.length <= 1) angle.target = 0;
-    else angle.target = Math.round(angle.target);
+    if (ownedItems.length <= 1) targetPosition = 0;
+    else targetPosition = Math.round(targetPosition);
+    scheduleRAF();
+  }
+
+  function moveBy(delta) {
+    if (!Number.isFinite(delta) || ownedItems.length <= 1) return;
+    targetPosition += delta;
+    scheduleRAF();
+  }
+
+  function goTo(index, direction = 0) {
+    if (!Number.isFinite(index) || ownedItems.length <= 1) return;
+    const destination = safeModulo(index, ownedItems.length);
+    const origin = continuousModulo(targetPosition, ownedItems.length);
+    let delta = destination - origin;
+
+    if (direction > 0 && delta <= 0) delta += ownedItems.length;
+    else if (direction < 0 && delta >= 0) delta -= ownedItems.length;
+    else if (direction === 0) {
+      if (delta > ownedItems.length / 2) delta -= ownedItems.length;
+      if (delta < -ownedItems.length / 2) delta += ownedItems.length;
+    }
+
+    targetPosition += delta;
+    scheduleRAF();
   }
 
   // ── Frame ──
@@ -196,19 +343,24 @@ export function createCircularCarousel(options = {}) {
     if (destroyed || pauseReasons.size) return;
 
     if (reducedMotion) {
-      angle.current = angle.target;
+      currentPosition = targetPosition;
     } else {
-      const ease = ownedItems.length > 3 ? 0.12 : 0.18;
-      angle.current = lerp(angle.current, angle.target, ease);
-      if (Math.abs(angle.current - angle.target) < 0.005) {
-        angle.current = angle.target;
+      const ease = pointer.active && pointer.axis === 'horizontal'
+        ? Math.max(positionEase, 0.22)
+        : positionEase;
+      currentPosition = lerp(currentPosition, targetPosition, ease);
+      if (Math.abs(currentPosition - targetPosition) < SETTLE_EPSILON) {
+        currentPosition = targetPosition;
       }
     }
 
     layout();
-    angle.last = angle.current;
+    lastPosition = currentPosition;
+    updateActive();
+    rebasePositionIfIdle();
 
-    if (Math.abs(angle.current - angle.target) > 0.001 || pointer.active) {
+    if (Math.abs(currentPosition - targetPosition) > SETTLE_EPSILON
+      || (pointer.active && pointer.axis === 'horizontal')) {
       scheduleRAF();
     }
   }
@@ -220,70 +372,80 @@ export function createCircularCarousel(options = {}) {
 
   // ── Input handlers ──
   function onPointerDown(event) {
-    if (destroyed || event.button > 0 || event.target.closest('button, a')) return;
+    if (destroyed || event.button > 0 || event.target.closest?.('button, a')) return;
     if (ownedItems.length <= 1) return;
     pointer.active = true;
+    pointer.axis = null;
     pointer.moved = false;
     pointer.id = event.pointerId;
     pointer.startX = event.clientX;
-    pointer.startAngle = angle.target;
-    root.setPointerCapture?.(event.pointerId);
-    root.classList.add('circ-carousel--dragging');
+    pointer.startY = event.clientY;
+    targetPosition = currentPosition;
+    pointer.startPosition = currentPosition;
+    pointer.lastPosition = currentPosition;
+    pointer.lastTime = Number.isFinite(event.timeStamp) ? event.timeStamp : performance.now();
+    pointer.velocity = 0;
   }
 
   function onPointerMove(event) {
     if (!pointer.active || event.pointerId !== pointer.id || ownedItems.length <= 1) return;
     const dx = event.clientX - pointer.startX;
-    if (Math.abs(dx) > 3) pointer.moved = true;
-    const sensitivity = reducedMotion ? 0.012 : 0.008;
-    angle.target = pointer.startAngle + dx * sensitivity;
+    const dy = event.clientY - pointer.startY;
+
+    if (pointer.axis === null) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 7) return;
+      if (Math.abs(dx) <= Math.abs(dy) + 5) {
+        pointer.active = false;
+        pointer.axis = 'vertical';
+        pointer.id = null;
+        return;
+      }
+      pointer.axis = 'horizontal';
+      pointer.moved = true;
+      root.setPointerCapture?.(event.pointerId);
+      root.classList.add('circ-carousel--dragging');
+    }
+
+    if (pointer.axis !== 'horizontal') return;
+    event.preventDefault?.();
+    targetPosition = pointer.startPosition - dx / dragPixelsPerItem;
+    const now = Number.isFinite(event.timeStamp) ? event.timeStamp : performance.now();
+    const elapsed = Math.max(1, now - pointer.lastTime);
+    const instantVelocity = (targetPosition - pointer.lastPosition) / elapsed;
+    pointer.velocity = lerp(pointer.velocity, instantVelocity, 0.35);
+    pointer.lastPosition = targetPosition;
+    pointer.lastTime = now;
     scheduleRAF();
   }
 
   function onPointerUp(event) {
     if (!pointer.active || event.pointerId !== pointer.id) return;
-    root.releasePointerCapture?.(event.pointerId);
+    const wasHorizontal = pointer.axis === 'horizontal';
+    if (wasHorizontal) root.releasePointerCapture?.(event.pointerId);
     pointer.active = false;
     pointer.id = null;
+    pointer.axis = null;
     root.classList.remove('circ-carousel--dragging');
-    if (pointer.moved && snapAngle) {
-      snap();
-      scheduleRAF();
-    }
-  }
-
-  function onWheel(event) {
-    if (ownedItems.length <= 1) return;
-    const isFocused = root.contains(document.activeElement);
-    const isHovered = event.target === root || root.contains(event.target);
-    if (!isFocused && !isHovered) return;
-
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-    if (!Number.isFinite(delta) || delta === 0) return;
-
-    event.preventDefault();
-    const step = reducedMotion ? 1 : 0.4;
-    angle.target += Math.sign(delta) * step;
-    clearTimeout(wheelTimer);
-    wheelTimer = setTimeout(() => {
+    if (wasHorizontal && pointer.moved) {
+      if (!reducedMotion && event.type !== 'pointercancel') {
+        const momentum = Math.max(-0.45, Math.min(0.45, pointer.velocity * 180));
+        targetPosition += momentum;
+      }
       if (snapAngle) snap();
-      scheduleRAF();
-    }, 180);
-    scheduleRAF();
+      else scheduleRAF();
+    }
   }
 
   function onKeyDown(event) {
     if (ownedItems.length <= 1) return;
     let handled = true;
-    if (event.key === 'ArrowRight') { angle.target += 1; }
-    else if (event.key === 'ArrowLeft') { angle.target -= 1; }
-    else if (event.key === 'Home') { angle.target = 0; }
+    if (event.key === 'ArrowRight') moveBy(1);
+    else if (event.key === 'ArrowLeft') moveBy(-1);
+    else if (event.key === 'Home') goTo(0);
     else { handled = false; }
 
     if (handled) {
       event.preventDefault();
-      if (snapAngle) snap();
-      scheduleRAF();
     }
   }
 
@@ -313,7 +475,6 @@ export function createCircularCarousel(options = {}) {
     destroyed = true;
 
     if (rafId !== null) cancelAnimationFrame(rafId);
-    clearTimeout(wheelTimer);
 
     resizeObserver?.disconnect();
     intersectionObserver?.disconnect();
@@ -324,6 +485,7 @@ export function createCircularCarousel(options = {}) {
     stage.querySelectorAll('[data-circ-carousel-generated]').forEach((el) => el.remove());
     stage.remove();
     cardElements.length = 0;
+    presentationStates.length = 0;
 
     root.classList.remove('circ-carousel--dragging');
   }
@@ -333,7 +495,6 @@ export function createCircularCarousel(options = {}) {
   listen(root, 'pointermove', onPointerMove);
   listen(root, 'pointerup', onPointerUp);
   listen(root, 'pointercancel', onPointerUp);
-  listen(root, 'wheel', onWheel, { passive: false });
   listen(root, 'keydown', onKeyDown);
   listen(document, 'visibilitychange', onVisibilityChange);
 
@@ -360,6 +521,7 @@ export function createCircularCarousel(options = {}) {
   }
 
   // ── Initial layout ──
+  updateActive(true);
   scheduleRAF();
   layout();
 
@@ -368,12 +530,13 @@ export function createCircularCarousel(options = {}) {
     resume,
     destroy,
     get activeIndex() { return activeIndex; },
-    goTo(index) {
-      angle.target = safeModulo(index, ownedItems.length);
-      if (snapAngle) snap();
-      scheduleRAF();
+    get currentPosition() { return currentPosition; },
+    get targetPosition() { return targetPosition; },
+    get isSettled() {
+      return rafId === null && Math.abs(currentPosition - targetPosition) <= SETTLE_EPSILON;
     },
-    next() { this.goTo(activeIndex + 1); },
-    prev() { this.goTo(activeIndex - 1); },
+    goTo,
+    next() { moveBy(1); },
+    prev() { moveBy(-1); },
   };
 }

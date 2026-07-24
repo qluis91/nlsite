@@ -2764,6 +2764,7 @@ body.is-home-nav-open {
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: pan-y;
 }
 
 .services-carousel:focus-visible {
@@ -3025,6 +3026,6 @@ body.is-home-nav-open {
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .circ-carousel__card {
-    transition: opacity 100ms ease;
+    transition: box-shadow 100ms linear, border-color 100ms linear;
   }
 }

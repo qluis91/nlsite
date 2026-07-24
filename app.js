@@ -5,6 +5,29 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
+
+// ── Environment validation (fail-fast) ──
+const { validateEnv } = require('./config/envValidator');
+const envIssues = validateEnv();
+if (envIssues.length) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    console.error('❌ Error de configuración:');
+    for (const issue of envIssues) console.error('  • ' + issue);
+    process.exit(1);
+  } else if (process.env.NODE_ENV !== 'test') {
+    console.warn('⚠️  Advertencias de configuración:');
+    for (const issue of envIssues) console.warn('  • ' + issue);
+  }
+}
+
+// ── Ensure upload directories ──
+const UPLOAD_PUBLIC = process.env.UPLOAD_PUBLIC_DIR || path.join(__dirname, 'public', 'uploads');
+const UPLOAD_PROOFS = process.env.UPLOAD_PROOFS_DIR || path.join(__dirname, 'storage', 'payment-proofs');
+[UPLOAD_PUBLIC, UPLOAD_PROOFS].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
 
 // ── Session store ──
 const { createSessionMiddleware, sessionStore } = require('./config/session');
@@ -38,6 +61,10 @@ const { setLocals, isAuthenticated, isAdmin, isAdminGuest } = require('./middlew
 // ── Inicializar Express ──
 const app = express();
 const PORT = process.env.PORT || 3000;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// ── Trust proxy in production (Railway, etc.) ──
+if (IS_PRODUCTION) app.set('trust proxy', 1);
 
 // ── Per-request CSP nonce (MUST run before Helmet) ──
 app.use((req, res, next) => {
@@ -62,6 +89,8 @@ app.use(helmet({
         'https://storage.googleapis.com',
       ],
       workerSrc: ["'self'", 'blob:'],
+      frameAncestors: ["'self'"],
+      formAction: ["'self'"],
     },
   },
 }));
@@ -88,7 +117,6 @@ app.use(
   '/vendor/three/examples/jsm',
   express.static(path.join(__dirname, 'node_modules/three/examples/jsm'))
 );
-// alias '/vendor/three/' → node_modules/three/ so 'three' import resolves
 app.use(
   '/vendor/three',
   express.static(path.join(__dirname, 'node_modules/three'))
@@ -127,48 +155,104 @@ const adminLoginLimiter = rateLimit({
   },
 });
 
+// ── Global auth rate limiters ──
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    req.session.error_msg = 'Demasiados intentos. Inténtalo nuevamente en unos minutos.';
+    return res.redirect('/auth/login');
+  },
+});
+
+const guestLookupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    res.status(429).send('No pudimos verificar los datos del pedido. Inténtalo nuevamente más tarde.');
+  },
+});
+
 // ── Rutas de Login de Administrador (ANTES del middleware de admin) ──
 app.get('/admin/login', isAdminGuest, authController.showAdminLogin);
 app.post('/admin/login', isAdminGuest, csrfSynchronisedProtection, adminLoginLimiter, authController.adminLogin);
 
 // ── Admin catalog: mounted BEFORE global CSRF so multipart routes handle CSRF after multer ──
 app.use('/admin', isAuthenticated, isAdmin, adminCatalogRoutes);
-// Admin gallery uses multipart uploads, so Multer must parse before route-level CSRF.
 app.use('/admin', isAuthenticated, isAdmin, adminGalleryRoutes);
-// Multipart avatar upload must parse the body before synchronized CSRF validation.
 app.use('/cuenta', isAuthenticated, accountAvatarRoutes);
-// Payment proof upload routes (multipart) must mount BEFORE global CSRF
 const paymentProofAccountRoutes = require('./routes/paymentProofAccountRoutes');
 const paymentProofGuestRoutes = require('./routes/paymentProofGuestRoutes');
 app.use('/cuenta', isAuthenticated, paymentProofAccountRoutes);
 app.use('/consultar-pedido', paymentProofGuestRoutes);
 
-// Tilopay payment initiation (customer + guest) — mounts BEFORE global CSRF
 app.use('/cuenta', isAuthenticated, tilopayRoutes);
 app.use('/consultar-pedido', tilopayGuestRoutes);
 
-// ── CSRF: validate state-changing requests (all non-catalog routes) ──
 app.use(csrfSynchronisedProtection);
 
-// ── Tilopay webhook (own authentication, no session, no CSRF) ──
 app.use('/webhooks', tilopayWebhookRoutes);
-
-// ── Tilopay return/cancel (GET, no CSRF needed — provider redirect) ──
-// Return routes are GET and handled by the router from tilopayRoutes
 app.use('/pagos', tilopayRoutes);
 
 // ── Rutas ──
-app.use('/auth', authRoutes);
+app.use('/auth', authLimiter, authRoutes);
 app.use('/buscar', searchRoutes);
 app.use('/tienda', storeRoutes);
 app.use('/galeria', galleryRoutes);
 app.use('/carrito', cartRoutes);
 app.use('/checkout', checkoutRoutes);
-app.use('/consultar-pedido', guestOrderRoutes);
+app.use('/consultar-pedido', guestLookupLimiter, guestOrderRoutes);
 app.use('/cuenta', isAuthenticated, accountRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminOrderRoutes);
-// Admin routes: authentication + admin role enforced at both mount and router level
 app.use('/admin', isAuthenticated, isAdmin, adminRoutes);
+
+// ── SEO: robots.txt ──
+const BASE_URL = process.env.APP_URL || 'http://localhost:' + PORT;
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain');
+  res.send(
+    `User-agent: *\n` +
+    `Allow: /\n` +
+    `Disallow: /admin\n` +
+    `Disallow: /cuenta\n` +
+    `Disallow: /carrito\n` +
+    `Disallow: /checkout\n` +
+    `Disallow: /auth\n` +
+    `Disallow: /consultar-pedido\n` +
+    `Sitemap: ${BASE_URL}/sitemap.xml\n`
+  );
+});
+
+// ── SEO: sitemap.xml ──
+app.get('/sitemap.xml', async (_req, res) => {
+  try {
+    const pool = require('./config/db');
+    const urls = [{ loc: '/', priority: '1.0' }, { loc: '/tienda', priority: '0.9' }, { loc: '/galeria', priority: '0.8' }];
+    const [products] = await pool.query(
+      "SELECT slug, updated_at FROM products WHERE is_active = 1 AND is_published = 1 ORDER BY updated_at DESC LIMIT 500"
+    );
+    for (const p of products) {
+      urls.push({ loc: '/tienda/' + p.slug, priority: '0.7', lastmod: p.updated_at ? new Date(p.updated_at).toISOString().slice(0, 10) : null });
+    }
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+    for (const u of urls) {
+      xml += '  <url>\n';
+      xml += `    <loc>${BASE_URL}${u.loc}</loc>\n`;
+      if (u.lastmod) xml += `    <lastmod>${u.lastmod}</lastmod>\n`;
+      xml += `    <priority>${u.priority}</priority>\n`;
+      xml += '  </url>\n';
+    }
+    xml += '</urlset>';
+    res.type('application/xml');
+    res.send(xml);
+  } catch (_err) {
+    res.status(500).send('');
+  }
+});
 
 // ── Página de Inicio ──
 app.get('/', (req, res) => {
@@ -180,12 +264,37 @@ app.get('/', (req, res) => {
   });
 });
 
+// ── Controlled public-upload static mount ──
+const UPLOAD_PUBLIC_ABS = path.resolve(UPLOAD_PUBLIC);
+const PUBLIC_ABS = path.resolve(path.join(__dirname, 'public'));
+if (UPLOAD_PUBLIC_ABS !== PUBLIC_ABS && !UPLOAD_PUBLIC_ABS.startsWith(PUBLIC_ABS + path.sep)) {
+  app.use('/uploads', express.static(UPLOAD_PUBLIC_ABS, {
+    dotfiles: 'deny',
+    index: false,
+    maxAge: '7d',
+  }));
+}
+
+// ── Health / Readiness (no auth, no session) ──
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+const { probeDatabase } = require('./config/databaseReadiness');
+app.get('/ready', async (_req, res) => {
+  const ready = await probeDatabase();
+  res.status(ready ? 200 : 503).json({ status: ready ? 'ok' : 'not_ready' });
+});
+
 // ── 404 - Página no encontrada ──
 app.use((req, res) => {
-  res.status(404).render('pages/404', {
-    title: 'Página no encontrada',
-    layout: 'layouts/main',
-  });
+  if (req.accepts('html')) {
+    return res.status(404).render('pages/404', {
+      title: 'Página no encontrada',
+      layout: 'layouts/main',
+    });
+  }
+  return res.status(404).json({ error: 'Not found' });
 });
 
 // ── 403 - CSRF token inválido ──
@@ -202,26 +311,91 @@ app.use((err, req, res, next) => {
 
 // ── 500 - Error del servidor ──
 app.use((err, req, res, _next) => {
-  console.error('Error del servidor:', err);
-  res.status(500).render('pages/500', {
-    title: 'Error del servidor',
-    layout: 'layouts/main',
-  });
+  const log = process.env.NODE_ENV !== 'production'
+    ? console.error.bind(console, 'Error del servidor:', err)
+    : () => { /* silence in production */ };
+  log();
+  if (req.accepts('html')) {
+    return res.status(500).render('pages/500', {
+      title: 'Error del servidor',
+      layout: 'layouts/main',
+    });
+  }
+  return res.status(500).json({ error: 'Internal server error' });
 });
 
-// ── Iniciar servidor (esperar store readiness) ──
-sessionStore.onReady()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log('═══════════════════════════════════════');
-      console.log('  🚀 Servidor corriendo en:');
-      console.log('  ➜ http://localhost:' + PORT);
-      console.log('  🌐 Entorno: ' + (process.env.NODE_ENV || 'development'));
-      console.log('  💾 Sesiones: MySQL (persistentes)');
-      console.log('═══════════════════════════════════════');
-    });
-  })
-  .catch((err) => {
+// ── Startup: 1) session store, 2) primary DB, 3) listen ──
+let server;
+let _started = false;
+
+async function startServer() {
+  if (_started) return;
+  _started = true;
+
+  try {
+    await sessionStore.onReady();
+  } catch (err) {
     console.error('❌ Error al iniciar el almacenamiento de sesiones en MySQL:', err.message);
     process.exit(1);
+  }
+
+  const { assertDatabaseReady } = require('./config/databaseReadiness');
+  try {
+    await assertDatabaseReady();
+  } catch (err) {
+    console.error('❌', err.message);
+    process.exit(1);
+  }
+
+  server = app.listen(PORT, () => {
+    console.log('═══════════════════════════════════════');
+    console.log('  🚀 Servidor corriendo en:');
+    console.log('  ➜ http://localhost:' + PORT);
+    console.log('  🌐 Entorno: ' + (process.env.NODE_ENV || 'development'));
+    console.log('  💾 Sesiones: MySQL (persistentes)');
+    console.log('═══════════════════════════════════════');
   });
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+// ── Graceful shutdown ──
+const SHUTDOWN_TIMEOUT_MS = 10000;
+let _shutdownHandlersRegistered = false;
+
+function gracefulShutdown(signal) {
+  console.log(`\n⏳ Señal ${signal} recibida. Cerrando servidor...`);
+  if (server) {
+    server.close(() => {
+      console.log('✅ Servidor HTTP cerrado.');
+    });
+  }
+  const db = require('./config/db');
+  Promise.resolve().then(() => {
+    if (typeof db.end === 'function') return db.end().catch(() => {});
+  }).then(() => {
+    try { sessionStore.close(() => {}); } catch (_) {}
+  }).finally(() => {
+    console.log('✅ Recursos cerrados.');
+    process.exit(0);
+  });
+  setTimeout(() => { console.error('⛔ Cierre forzado por timeout.'); process.exit(1); }, SHUTDOWN_TIMEOUT_MS);
+}
+
+if (!_shutdownHandlersRegistered) {
+  _shutdownHandlersRegistered = true;
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.on('uncaughtException', (err) => {
+    console.error('❌ Excepción no capturada:', process.env.NODE_ENV !== 'production' ? err : err.message);
+    process.exit(1);
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.error('❌ Promesa rechazada sin manejar:', process.env.NODE_ENV !== 'production' ? reason : reason?.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { startServer };

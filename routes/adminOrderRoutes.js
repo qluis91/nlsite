@@ -11,6 +11,8 @@ router.post('/orders/:reference/confirm-payment', controller.confirmPayment);
 router.post('/orders/:reference/status', controller.changeStatus);
 router.post('/orders/:reference/notes', controller.addNote);
 router.post('/orders/:reference/cancel', controller.cancel);
+// Tracking & shipping
+router.post('/orders/:reference/tracking', controller.updateTracking);
 // Payment proof
 router.get('/orders/:reference/comprobante/:proofId', proofCtrl.adminPreview);
 router.post('/orders/:reference/comprobante/:proofId/aprobar', proofCtrl.adminApprove);

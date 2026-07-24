@@ -14,6 +14,10 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_MONEY_CENTS = 9999999999n;
 const MAX_NOTE_LENGTH = 500;
 const MAX_PAYMENT_REFERENCE_LENGTH = 120;
+const MAX_CARRIER_LENGTH = 40;
+const MAX_TRACKING_NUMBER_LENGTH = 120;
+const TRACKING_URL_PROTOCOLS = ['https:', 'http:'];
+const MAX_TRACKING_URL_LENGTH = 500;
 
 function first(value) {
   return Array.isArray(value) ? value[0] : value;
@@ -50,6 +54,30 @@ function validateBoundedText(value, max, required, fieldLabel) {
   if (required && !text) return { valid: false, error: `${fieldLabel} es obligatorio.` };
   if (text.length > max) return { valid: false, error: `${fieldLabel} no puede exceder ${max} caracteres.` };
   return { valid: true, value: text || null };
+}
+
+function validateCarrier(value) {
+  return validateBoundedText(value, MAX_CARRIER_LENGTH, false, 'La empresa de envío');
+}
+
+function validateTrackingNumber(value) {
+  return validateBoundedText(value, MAX_TRACKING_NUMBER_LENGTH, false, 'El número de rastreo');
+}
+
+function validateTrackingUrl(value) {
+  const result = validateBoundedText(value, MAX_TRACKING_URL_LENGTH, false, 'La URL de rastreo');
+  if (!result.valid) return result;
+  if (result.value) {
+    try {
+      const parsed = new URL(result.value);
+      if (!TRACKING_URL_PROTOCOLS.includes(parsed.protocol)) {
+        return { valid: false, error: 'La URL de rastreo debe usar http o https.' };
+      }
+    } catch (_err) {
+      return { valid: false, error: 'La URL de rastreo no es válida.' };
+    }
+  }
+  return result;
 }
 
 function validateNote(value, required = false) {
@@ -105,6 +133,9 @@ function parseOrderFilters(query = {}) {
 module.exports = {
   MAX_NOTE_LENGTH,
   MAX_PAYMENT_REFERENCE_LENGTH,
+  MAX_CARRIER_LENGTH,
+  MAX_TRACKING_NUMBER_LENGTH,
+  MAX_TRACKING_URL_LENGTH,
   validateOrderReference,
   parseMoneyToCents,
   decimalToCents,
@@ -112,5 +143,8 @@ module.exports = {
   validateNote,
   validatePaymentReference,
   validateOrderStatus,
+  validateCarrier,
+  validateTrackingNumber,
+  validateTrackingUrl,
   parseOrderFilters,
 };

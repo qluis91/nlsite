@@ -212,7 +212,20 @@ async function cancelOrder(reference, actorUserId) {
   });
 }
 
+async function updateTracking(reference, { carrier, trackingNumber, trackingUrl }, actorUserId) {
+  return withLockedOrder(reference, async (conn, order) => {
+    const previous = { carrier: order.carrier, tracking_number: order.tracking_number, tracking_url: order.tracking_url };
+    await conn.query(
+      'UPDATE orders SET carrier = ?, tracking_number = ?, tracking_url = ? WHERE id = ?',
+      [carrier, trackingNumber, trackingUrl, order.id]
+    );
+    await insertEvent(conn, order.id, actorUserId, 'tracking_updated', {
+      metadata: { previous, current: { carrier, trackingNumber, trackingUrl } },
+    });
+  });
+}
+
 module.exports = {
   AdminOrderError, listOrders, getOrderByReference, quoteShipping,
-  confirmPayment, transitionOrder, addInternalNote, cancelOrder,
+  confirmPayment, transitionOrder, addInternalNote, cancelOrder, updateTracking,
 };

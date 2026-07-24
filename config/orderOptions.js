@@ -82,6 +82,7 @@ const EVENT_TYPE_LABELS = Object.freeze({
   tilopay_payment_reconciled: 'Pago con Tilopay conciliado',
   tilopay_callback_received: 'Notificación de Tilopay recibida',
   tilopay_amount_mismatch: 'Discrepancia en monto de Tilopay',
+  tracking_updated: 'Información de envío actualizada',
 });
 
 function initialOrderStatus(shippingStatus, paymentStatus = 'pending') {

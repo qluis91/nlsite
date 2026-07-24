@@ -1,7 +1,7 @@
 /**
  * Store Phase 1.5 — light theme, dynamic hero, CSP sort binding.
  */
-const { describe, test } = require('node:test');
+const { describe, test, before, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -30,7 +30,9 @@ try {
   pool = null;
 }
 
-const BASE = 'http://localhost:3000';
+const { startTestServer, stopTestServer, getPort } = require('./testServer');
+
+let BASE = 'http://localhost:3000';
 
 function httpGet(urlPath) {
   return new Promise((resolve, reject) => {
@@ -276,6 +278,14 @@ describe('light theme CSS contract', () => {
 });
 
 describe('rendered /tienda hero behavior', () => {
+  before(async () => {
+    await startTestServer();
+    BASE = `http://127.0.0.1:${getPort()}`;
+  });
+  after(() => {
+    stopTestServer();
+  });
+
   test('GET /tienda renders default hero', async () => {
     const r = await httpGet('/tienda');
     assert.strictEqual(r.status, 200);

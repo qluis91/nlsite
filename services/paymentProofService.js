@@ -11,7 +11,7 @@ const { canConfirmPayment } = require('../config/orderOptions');
 const { getWhatsAppPhone } = require('../config/publicContact');
 
 // ── Private storage ──
-const PROOF_ROOT = path.join(__dirname, '..', 'storage', 'payment-proofs');
+const PROOF_ROOT = process.env.UPLOAD_PROOFS_DIR || path.join(__dirname, '..', 'storage', 'payment-proofs');
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ALLOWED_PDF_MIME = new Set(['application/pdf']);

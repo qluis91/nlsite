@@ -3,6 +3,7 @@ const tilopayService = require('../services/tilopayService');
 const {
   validateOrderReference, parseMoneyToCents, validateNote,
   validatePaymentReference, validateOrderStatus,
+  validateCarrier, validateTrackingNumber, validateTrackingUrl,
 } = require('../validators/adminOrderValidator');
 const {
   ORDER_STATUSES, ORDER_STATUS_LABELS, SHIPPING_STATUS_LABELS, PAYMENT_STATUS_LABELS,
@@ -99,6 +100,25 @@ exports.cancel = async (req, res) => {
   try {
     await service.cancelOrder(reference, req.session.user.id);
     req.session.success_msg = 'Pedido cancelado e inventario restaurado.';
+    return res.redirect(`/admin/orders/${reference}`);
+  } catch (error) { return handleOperationError(req, res, error, reference); }
+};
+
+exports.updateTracking = async (req, res) => {
+  const reference = referenceOrRedirect(req, res); if (!reference) return;
+  const carrier = validateCarrier(req.body.carrier);
+  const trackingNumber = validateTrackingNumber(req.body.trackingNumber);
+  const trackingUrl = validateTrackingUrl(req.body.trackingUrl);
+  if (!carrier.valid) { req.session.error_msg = carrier.error; return res.redirect(`/admin/orders/${reference}`); }
+  if (!trackingNumber.valid) { req.session.error_msg = trackingNumber.error; return res.redirect(`/admin/orders/${reference}`); }
+  if (!trackingUrl.valid) { req.session.error_msg = trackingUrl.error; return res.redirect(`/admin/orders/${reference}`); }
+  try {
+    await service.updateTracking(reference, {
+      carrier: carrier.value,
+      trackingNumber: trackingNumber.value,
+      trackingUrl: trackingUrl.value,
+    }, req.session.user.id);
+    req.session.success_msg = 'Información de envío actualizada.';
     return res.redirect(`/admin/orders/${reference}`);
   } catch (error) { return handleOperationError(req, res, error, reference); }
 };

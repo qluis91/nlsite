@@ -1,13 +1,15 @@
 /**
  * Store layout tests — Phase 1 sidebar + grid redesign.
  */
-const { describe, test } = require('node:test');
+const { describe, test, before, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 
-const BASE = 'http://localhost:3000';
+const { startTestServer, stopTestServer, getPort } = require('./testServer');
+
+let BASE = 'http://localhost:3000';
 
 function httpGet(path, cookie) {
   return new Promise((resolve, reject) => {
@@ -33,6 +35,14 @@ const storeController = fs.readFileSync(path.resolve(__dirname, '../controllers/
 const storeJs = fs.readFileSync(path.resolve(__dirname, '../public/js/store/store.js'), 'utf8');
 
 describe('Store Layout — Phase 1', () => {
+  before(async () => {
+    await startTestServer();
+    BASE = `http://127.0.0.1:${getPort()}`;
+  });
+  after(() => {
+    stopTestServer();
+  });
+
   let storeHtml = '';
 
   test('GET /tienda returns 200', async () => {

@@ -8,7 +8,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 // ── Configuration ──
-const UPLOAD_ROOT = path.join(__dirname, '..', 'public', 'uploads');
+const UPLOAD_ROOT = process.env.UPLOAD_PUBLIC_DIR || path.join(__dirname, '..', 'public', 'uploads');
 const DEFAULT_PROFILE = {
   maxWidth: 1800,
   maxHeight: 1800,
