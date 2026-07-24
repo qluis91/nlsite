@@ -347,7 +347,7 @@ async function startServer() {
     process.exit(1);
   }
 
-  server = app.listen(PORT, () => {
+  server = app.listen(PORT, '0.0.0.0', () => {
     console.log('═══════════════════════════════════════');
     console.log('  🚀 Servidor corriendo en:');
     console.log('  ➜ http://localhost:' + PORT);
