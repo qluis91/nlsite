@@ -44,7 +44,7 @@
               <p class="confirm-notice__warn">⚠️ No realices ningún pago todavía. Espera la confirmación del costo de envío.</p>
             </div>
           </section>
-        <% } else { %>
+        <% } else if (!isPaid) { %>
           <section class="checkout-section">
             <h2 class="checkout-section__title">Instrucciones de pago</h2>
             <div class="confirm-notice confirm-notice--payment">
@@ -89,7 +89,7 @@
           <% if (isPendingShipping) { %>
             <span class="confirm-summary__pending">Por calcular</span>
           <% } else { %>
-            <span>₡0</span>
+            <span><%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(order.shipping_amount) %></span>
           <% } %>
         </div>
         <div class="checkout-summary__row checkout-summary__row--total">
@@ -104,7 +104,7 @@
         </div>
         <div class="checkout-summary__row">
           <span>Estado del pago</span>
-          <span class="confirm-summary__status">Pendiente</span>
+          <span class="confirm-summary__status"><%= isPaid ? 'Pagado' : 'Pendiente' %></span>
         </div>
       </div>
     </div>

@@ -1,0 +1,59 @@
+<header class="account-header">
+  <p class="account-header__eyebrow">Cuenta</p>
+  <h1>Direcciones</h1>
+  <p>Guarda hasta <%= maxAddresses %> destinos para completar tus pedidos con mayor rapidez.</p>
+</header>
+
+<section class="account-section" aria-labelledby="saved-addresses-heading">
+  <div class="account-section__heading">
+    <div>
+      <p>Libreta</p>
+      <h2 id="saved-addresses-heading">Direcciones guardadas</h2>
+    </div>
+    <% if (addresses.length < maxAddresses) { %>
+      <a class="account-button" href="/cuenta/direcciones/nueva">Nueva dirección</a>
+    <% } %>
+  </div>
+
+  <% if (!addresses.length) { %>
+    <div class="account-empty">
+      <h3>Aún no tienes direcciones guardadas</h3>
+      <p>Agrega una para seleccionarla durante el checkout.</p>
+      <a class="account-button" href="/cuenta/direcciones/nueva">Agregar dirección</a>
+    </div>
+  <% } else { %>
+    <div class="account-addresses" role="list">
+      <% addresses.forEach(function(address) { %>
+        <article class="account-address-card <%= address.isDefault ? 'is-default' : '' %>" role="listitem">
+          <div class="account-address-card__heading">
+            <h3><%= address.label %></h3>
+            <% if (address.isDefault) { %>
+              <span class="account-address-card__badge">Predeterminada</span>
+            <% } %>
+          </div>
+          <address>
+            <%= address.province %>, <%= address.canton %>, <%= address.district %><br>
+            <%= address.addressLine %>
+            <% if (address.addressReference) { %><br><%= address.addressReference %><% } %>
+          </address>
+          <% if (address.contactPhone) { %>
+            <p>Teléfono de contacto: <%= address.contactPhone %></p>
+          <% } %>
+          <div class="account-address-card__actions">
+            <a class="account-button account-button--secondary" href="/cuenta/direcciones/<%= address.id %>/editar">Editar</a>
+            <% if (!address.isDefault) { %>
+              <form action="/cuenta/direcciones/<%= address.id %>/predeterminada" method="POST">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="account-button account-button--secondary" type="submit">Usar como predeterminada</button>
+              </form>
+            <% } %>
+            <form action="/cuenta/direcciones/<%= address.id %>/eliminar" method="POST">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button class="account-button account-button--danger" type="submit">Eliminar</button>
+            </form>
+          </div>
+        </article>
+      <% }); %>
+    </div>
+  <% } %>
+</section>

@@ -3,9 +3,91 @@
  */
 const { validateCheckoutPayload } = require('../validators/checkoutValidator');
 const { validateCartForCheckout, generateCheckoutToken, createOrder } = require('../services/orderService');
-const { getSessionCart, clearCart, sanitizeCart } = require('../services/cartService');
+const { getSessionCart, clearCart } = require('../services/cartService');
 const { DELIVERY_METHODS, PAYMENT_METHODS, ALL_PAYMENT_KEYS, CR_PROVINCES } = require('../config/checkoutOptions');
-const pool = require('../config/db');
+const customerOrders = require('../services/customerOrderService');
+const addressService = require('../services/addressService');
+const { parsePositiveId } = require('../validators/addressValidator');
+
+const ADDRESS_ERROR_FIELDS = ['province', 'canton', 'distrito', 'addressLine', 'addressReference'];
+
+async function checkoutAddressOptions(req) {
+  if (!req.session.user) {
+    return { savedAddresses: [], defaultAddressId: null };
+  }
+  const savedAddresses = await addressService.listForUser(req.session.user.id);
+  const defaultAddress = savedAddresses.find((address) => address.isDefault);
+  return {
+    savedAddresses,
+    defaultAddressId: defaultAddress ? defaultAddress.id : null,
+  };
+}
+
+function checkoutViewData(req, checkout, token, options, extra = {}) {
+  return {
+    title: 'Finalizar pedido',
+    robots: 'noindex,nofollow',
+    layout: 'layouts/main',
+    pageClass: 'page-checkout',
+    pageStyles: ['/css/home.css', '/css/store.css', '/css/cart.css', '/css/checkout.css'],
+    pageModule: '/js/checkout/checkout.js',
+    usesHeroNavbar: true,
+    navbarSearchContext: 'store',
+    checkout,
+    token,
+    deliveryMethods: DELIVERY_METHODS,
+    paymentMethods: PAYMENT_METHODS,
+    allPaymentKeys: ALL_PAYMENT_KEYS,
+    provinces: CR_PROVINCES,
+    ...options,
+    ...extra,
+  };
+}
+
+async function resolveCheckoutAddress(req, deliveryKey) {
+  const delivery = DELIVERY_METHODS[deliveryKey];
+  if (!delivery || !delivery.requiresAddress) {
+    return { input: req.body, addressChoice: 'manual', error: null };
+  }
+
+  const choice = String(req.body.addressChoice || '');
+  if (!req.session.user) {
+    if (choice !== 'manual') {
+      return {
+        input: req.body,
+        addressChoice: 'manual',
+        error: 'Selecciona una dirección válida.',
+      };
+    }
+    return { input: req.body, addressChoice: 'manual', error: null };
+  }
+
+  if (choice === 'manual') {
+    return { input: req.body, addressChoice: choice, error: null };
+  }
+
+  const match = /^saved:([1-9]\d*)$/.exec(choice);
+  const addressId = match ? parsePositiveId(match[1]) : null;
+  if (!addressId) {
+    return { input: req.body, addressChoice: choice, error: 'Selecciona una dirección válida.' };
+  }
+  const address = await addressService.getForUser(addressId, req.session.user.id);
+  if (!address) {
+    return { input: req.body, addressChoice: choice, error: 'Selecciona una dirección válida.' };
+  }
+  return {
+    input: {
+      ...req.body,
+      province: address.province,
+      canton: address.canton,
+      distrito: address.district,
+      addressLine: address.addressLine,
+      addressReference: address.addressReference,
+    },
+    addressChoice: choice,
+    error: null,
+  };
+}
 
 // ── GET /checkout ──
 exports.showCheckout = async (req, res, next) => {
@@ -29,25 +111,16 @@ exports.showCheckout = async (req, res, next) => {
       email: user ? user.email : '',
     };
 
-    res.render('pages/checkout', {
-      title: 'Finalizar pedido',
-      robots: 'noindex,nofollow',
-      layout: 'layouts/main',
-      pageClass: 'page-checkout',
-      pageStyles: ['/css/home.css', '/css/store.css', '/css/cart.css', '/css/checkout.css'],
-      pageModule: '/js/checkout/checkout.js',
-      usesHeroNavbar: true,
-      navbarSearchContext: 'store',
-      checkout: validation.hydrated,
-      token,
+    const addressOptions = await checkoutAddressOptions(req);
+    const initialChoice = addressOptions.defaultAddressId
+      ? `saved:${addressOptions.defaultAddressId}`
+      : 'manual';
+
+    res.render('pages/checkout', checkoutViewData(req, validation.hydrated, token, addressOptions, {
       prefill,
-      deliveryMethods: DELIVERY_METHODS,
-      paymentMethods: PAYMENT_METHODS,
-      allPaymentKeys: ALL_PAYMENT_KEYS,
-      provinces: CR_PROVINCES,
       errors: {},
-      formData: {},
-    });
+      formData: { addressChoice: initialChoice },
+    }));
   } catch (err) { next(err); }
 };
 
@@ -72,27 +145,19 @@ exports.submitCheckout = async (req, res, next) => {
 
     // Validate form payload
     const deliveryKey = String(req.body.deliveryMethod || '');
-    const dlvConfig = DELIVERY_METHODS[deliveryKey];
-    const payload = validateCheckoutPayload(req.body, dlvConfig);
+    const resolvedAddress = await resolveCheckoutAddress(req, deliveryKey);
+    const payload = validateCheckoutPayload(resolvedAddress.input);
+    if (resolvedAddress.error) {
+      payload.valid = false;
+      payload.errors.addressChoice = resolvedAddress.error;
+      ADDRESS_ERROR_FIELDS.forEach((field) => delete payload.errors[field]);
+    }
 
     if (!payload.valid) {
-      // Re-render with errors
-      return res.render('pages/checkout', {
-        title: 'Finalizar pedido',
-        robots: 'noindex,nofollow',
-        layout: 'layouts/main',
-        pageClass: 'page-checkout',
-        pageStyles: ['/css/home.css', '/css/store.css', '/css/cart.css', '/css/checkout.css'],
-        pageModule: '/js/checkout/checkout.js',
-        usesHeroNavbar: true,
-        navbarSearchContext: 'store',
-        checkout: validation.hydrated,
-        token: sessionToken,
+      const addressOptions = await checkoutAddressOptions(req);
+      return res.status(422).render('pages/checkout', checkoutViewData(
+        req, validation.hydrated, sessionToken, addressOptions, {
         prefill: { customerName: '', email: '' },
-        deliveryMethods: DELIVERY_METHODS,
-        paymentMethods: PAYMENT_METHODS,
-        allPaymentKeys: ALL_PAYMENT_KEYS,
-        provinces: CR_PROVINCES,
         errors: payload.errors,
         formData: {
           customerName: req.body.customerName || '',
@@ -100,13 +165,14 @@ exports.submitCheckout = async (req, res, next) => {
           phone: req.body.phone || '',
           deliveryMethod: req.body.deliveryMethod || '',
           paymentMethod: req.body.paymentMethod || '',
+          addressChoice: resolvedAddress.addressChoice,
           province: req.body.province || '',
           canton: req.body.canton || '',
           distrito: req.body.distrito || '',
           addressLine: req.body.addressLine || '',
           addressReference: req.body.addressReference || '',
         },
-      });
+      }));
     }
 
     // Create order
@@ -129,17 +195,8 @@ exports.submitCheckout = async (req, res, next) => {
     clearCart(cart);
     delete req.session.checkoutToken;
 
-    // Store recent order reference for guest access
-    if (!req.session.recentOrders) req.session.recentOrders = [];
-    req.session.recentOrders.push({
-      reference: result.orderRef,
-      id: result.orderId,
-      expiresAt: Date.now() + 3600000, // 1 hour
-    });
-    // Keep only last 5
-    if (req.session.recentOrders.length > 5) {
-      req.session.recentOrders = req.session.recentOrders.slice(-5);
-    }
+    // Store only a bounded, expiring reference grant for immediate confirmation.
+    customerOrders.recordRecentOrderAccess(req.session, result.orderRef);
 
     req.session.success_msg = '¡Pedido recibido! Revisa los detalles de tu compra.';
     res.redirect('/checkout/confirmacion/' + result.orderRef);
@@ -153,67 +210,31 @@ exports.submitCheckout = async (req, res, next) => {
 // ── GET /checkout/confirmacion/:reference ──
 exports.showConfirmation = async (req, res, next) => {
   try {
-    const ref = String(req.params.reference || '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 24);
-    if (!ref) return res.redirect('/tienda');
-
-    const [rows] = await pool.query(
-      `SELECT o.* FROM orders o WHERE o.order_reference = ? LIMIT 1`,
-      [ref]
-    );
-    if (!rows[0]) {
-      return res.status(404).render('pages/404', {
-        title: 'Pedido no encontrado',
-        layout: 'layouts/main',
-      });
-    }
-
-    const order = rows[0];
-
-    // Authorization: owner OR session recent order
-    const userId = req.session.user ? req.session.user.id : null;
-    const recentRefs = (req.session.recentOrders || []).map(r => r.reference);
-    if (order.user_id && order.user_id !== userId && !recentRefs.includes(ref)) {
-      return res.status(404).render('pages/404', {
-        title: 'Pedido no encontrado',
-        layout: 'layouts/main',
-      });
-    }
-    if (!order.user_id && !recentRefs.includes(ref)) {
-      return res.status(404).render('pages/404', {
-        title: 'Pedido no encontrado',
-        layout: 'layouts/main',
-      });
-    }
-
-    // Get order items
-    const [items] = await pool.query(
-      'SELECT * FROM order_items WHERE order_id = ? ORDER BY id ASC',
-      [order.id]
-    );
-
-    // Determine display values
-    const dlvLabel = DELIVERY_METHODS[order.delivery_method]
-      ? DELIVERY_METHODS[order.delivery_method].label : order.delivery_method;
-    const pmtLabel = PAYMENT_METHODS[order.payment_method]
-      ? PAYMENT_METHODS[order.payment_method].label : order.payment_method;
-
-    const isPendingShipping = order.shipping_status === 'pending_quote';
-    const isPickup = order.delivery_method === 'local_pickup';
-
-    res.render('pages/checkout-confirmation', {
+    const reference = customerOrders.normalizeReference(req.params.reference);
+    if (!reference) return renderConfirmationNotFound(res);
+    const accessRecord = await customerOrders.getAccessRecord(reference);
+    const allowed = customerOrders.canAccessCustomerOrder({
+      order: accessRecord, authenticatedUser: req.session.user, session: req.session,
+    });
+    if (!allowed) return renderConfirmationNotFound(res);
+    const order = await customerOrders.getCustomerSafeOrder(reference);
+    if (!order) return renderConfirmationNotFound(res);
+    return res.render('pages/customer-order-detail', {
       title: 'Pedido recibido',
       robots: 'noindex,nofollow',
       layout: 'layouts/main',
-      pageClass: 'page-checkout',
-      pageStyles: ['/css/home.css', '/css/store.css', '/css/cart.css', '/css/checkout.css'],
-      usesHeroNavbar: true,
-      navbarSearchContext: 'store',
+      pageClass: 'page-account-orders',
+      pageStyles: ['/css/account-orders.css'],
       order,
-      items,
-      dlvLabel,
-      pmtLabel,
-      isPendingShipping,
-      isPickup,
+      detailContext: 'confirmation',
+      isConfirmation: true,
     });
   } catch (err) { next(err); }
 };
+
+exports.resolveCheckoutAddress = resolveCheckoutAddress;
+exports.checkoutAddressOptions = checkoutAddressOptions;
+
+function renderConfirmationNotFound(res) {
+  return res.status(404).render('pages/404', { title: 'Pedido no encontrado', layout: 'layouts/main' });
+}

@@ -1,0 +1,93 @@
+<div class="page-header">
+  <div>
+    <h1>Galería</h1>
+    <p>Administra imágenes y videos publicados.</p>
+  </div>
+  <div class="gallery-admin-actions">
+    <a href="/admin/galeria/categorias" class="btn btn-outline">Categorías</a>
+    <a href="/admin/galeria/nuevo" class="btn btn-primary">Agregar elemento</a>
+  </div>
+</div>
+
+<div class="card filters-bar">
+  <form method="GET" action="/admin/galeria" class="gallery-admin-filters">
+    <input class="form-control" type="search" name="search" value="<%= filters.search %>" maxlength="100" placeholder="Buscar por título…">
+    <select class="form-control" name="category">
+      <option value="">Todas las categorías</option>
+      <% categories.forEach(function(category) { %>
+        <option value="<%= category.id %>" <%= filters.categoryId === Number(category.id) ? 'selected' : '' %>><%= category.name %></option>
+      <% }); %>
+    </select>
+    <select class="form-control" name="type">
+      <option value="">Todos los formatos</option>
+      <option value="image" <%= filters.mediaType === 'image' ? 'selected' : '' %>>Imágenes</option>
+      <option value="video" <%= filters.mediaType === 'video' ? 'selected' : '' %>>Videos</option>
+    </select>
+    <select class="form-control" name="published">
+      <option value="">Cualquier publicación</option>
+      <option value="published" <%= filters.published === 'published' ? 'selected' : '' %>>Publicados</option>
+      <option value="draft" <%= filters.published === 'draft' ? 'selected' : '' %>>Borradores</option>
+    </select>
+    <select class="form-control" name="featured">
+      <option value="">Todos</option>
+      <option value="featured" <%= filters.featured === 'featured' ? 'selected' : '' %>>Destacados</option>
+      <option value="standard" <%= filters.featured === 'standard' ? 'selected' : '' %>>No destacados</option>
+    </select>
+    <button class="btn btn-outline" type="submit">Filtrar</button>
+  </form>
+</div>
+
+<div class="card gallery-admin-table-wrap">
+  <% if (!items.length) { %>
+    <div class="empty-state">
+      <p>Aún no has agregado elementos a la galería.</p>
+      <a href="/admin/galeria/nuevo" class="btn btn-primary">Agregar primer elemento</a>
+    </div>
+  <% } else { %>
+    <p><strong><%= total %></strong> elemento(s) — Página <%= page %> de <%= totalPages %></p>
+    <table class="table gallery-admin-table">
+      <thead><tr>
+        <th>Miniatura</th><th>Título</th><th>Tipo</th><th>Categoría</th>
+        <th>Publicado</th><th>Destacado</th><th>Orden</th><th>Creado</th><th>Acciones</th>
+      </tr></thead>
+      <tbody>
+        <% items.forEach(function(item) { %>
+          <tr>
+            <td><img class="gallery-admin-thumb" src="<%= item.thumbnail_path %>" alt="" width="64" height="64" loading="lazy"></td>
+            <td><strong><%= item.title %></strong></td>
+            <td><%= item.media_type === 'video' ? 'Video' : 'Imagen' %></td>
+            <td><%= item.category_name || 'Sin categoría' %></td>
+            <td><span class="badge <%= item.is_published ? 'badge-published' : 'badge-hidden' %>"><%= item.is_published ? 'Publicado' : 'Borrador' %></span></td>
+            <td><%= item.is_featured ? 'Sí' : 'No' %></td>
+            <td><%= item.sort_order %></td>
+            <td><%= new Date(item.created_at).toLocaleDateString('es-CR') %></td>
+            <td class="gallery-admin-row-actions">
+              <a class="btn btn-sm btn-outline" href="/admin/galeria/<%= item.id %>/editar">Editar</a>
+              <form action="/admin/galeria/<%= item.id %>/publicar" method="POST">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="btn btn-sm btn-outline" type="submit"><%= item.is_published ? 'Ocultar' : 'Publicar' %></button>
+              </form>
+              <form action="/admin/galeria/<%= item.id %>/destacar" method="POST">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="btn btn-sm btn-outline" type="submit"><%= item.is_featured ? 'No destacar' : 'Destacar' %></button>
+              </form>
+              <form action="/admin/galeria/<%= item.id %>/eliminar" method="POST" data-confirm="¿Eliminar este elemento y sus archivos?">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="btn btn-sm btn-danger" type="submit">Eliminar</button>
+              </form>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<% if (totalPages > 1) { %>
+  <nav class="pagination" aria-label="Paginación">
+    <% for (let current = 1; current <= totalPages; current += 1) { %>
+      <% if (current === page) { %><span class="page-current"><%= current %></span>
+      <% } else { %><a class="page-link" href="<%= buildAdminGalleryUrl({ page: current }) %>"><%= current %></a><% } %>
+    <% } %>
+  </nav>
+<% } %>

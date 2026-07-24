@@ -15,6 +15,12 @@
 
     <h1 class="checkout-title">Finalizar pedido</h1>
 
+    <% if (Object.keys(errors).length) { %>
+      <div class="checkout-error-summary" role="alert">
+        <strong>Revisa la información indicada antes de confirmar.</strong>
+      </div>
+    <% } %>
+
     <form action="/checkout" method="post" class="checkout-layout" novalidate>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="checkoutToken" value="<%= token %>">
@@ -83,13 +89,14 @@
         <fieldset class="checkout-section">
           <legend class="checkout-section__title">Método de entrega</legend>
 
+          <% var selectedDelivery = (formData && formData.deliveryMethod) || 'local_pickup'; %>
           <% Object.values(deliveryMethods).forEach(function(dlv) { %>
-            <label class="checkout-option <%= (typeof formData !== 'undefined' && formData.deliveryMethod === dlv.key) || (!formData && dlv.key === 'local_pickup') ? 'is-selected' : '' %>">
+            <label class="checkout-option <%= selectedDelivery === dlv.key ? 'is-selected' : '' %>">
               <input
                 type="radio"
                 name="deliveryMethod"
                 value="<%= dlv.key %>"
-                <%= (typeof formData !== 'undefined' && formData.deliveryMethod === dlv.key) || (!formData && dlv.key === 'local_pickup') ? 'checked' : '' %>
+                <%= selectedDelivery === dlv.key ? 'checked' : '' %>
                 data-delivery-option
                 data-requires-address="<%= dlv.requiresAddress ? 'true' : 'false' %>"
               >
@@ -112,14 +119,47 @@
         </fieldset>
 
         <!-- Delivery Address (conditional) -->
-        <fieldset class="checkout-section checkout-address" id="checkout-address" data-checkout-address
-          <% var dlvKey = (typeof formData !== 'undefined' ? formData.deliveryMethod : null) || 'local_pickup'; %>
-          <%= deliveryMethods[dlvKey] && deliveryMethods[dlvKey].requiresAddress ? '' : 'style="display:none"' %>>
+        <% var dlvKey = (typeof formData !== 'undefined' ? formData.deliveryMethod : null) || 'local_pickup'; %>
+        <fieldset class="checkout-section checkout-address" id="checkout-address" data-checkout-address>
           <legend class="checkout-section__title">Dirección de entrega</legend>
 
+          <% var selectedAddressChoice = (formData && formData.addressChoice) || (defaultAddressId ? 'saved:' + defaultAddressId : 'manual'); %>
+          <% if (user && savedAddresses.length) { %>
+            <div class="checkout-address-choices" role="radiogroup" aria-label="Dirección para este pedido">
+              <% savedAddresses.forEach(function(address) { %>
+                <label class="checkout-address-choice">
+                  <input type="radio" name="addressChoice" value="saved:<%= address.id %>"
+                    <%= selectedAddressChoice === 'saved:' + address.id ? 'checked' : '' %>
+                    data-address-choice>
+                  <span>
+                    <strong><%= address.label %><%= address.isDefault ? ' · Predeterminada' : '' %></strong>
+                    <small><%= address.province %>, <%= address.canton %>, <%= address.district %> · <%= address.addressLine %></small>
+                    <% if (address.contactPhone) { %><small>Contacto de referencia: <%= address.contactPhone %></small><% } %>
+                  </span>
+                </label>
+              <% }); %>
+              <label class="checkout-address-choice">
+                <input type="radio" name="addressChoice" value="manual"
+                  <%= selectedAddressChoice === 'manual' ? 'checked' : '' %>
+                  data-address-choice>
+                <span><strong>Ingresar otra dirección</strong><small>Usar una dirección solo para este pedido.</small></span>
+              </label>
+            </div>
+          <% } else { %>
+            <input type="hidden" name="addressChoice" value="manual">
+          <% } %>
+          <% if (errors.addressChoice) { %>
+            <p id="err-addressChoice" class="checkout-error" role="alert"><%= errors.addressChoice %></p>
+          <% } %>
+
+          <div class="checkout-manual-address" data-manual-address>
+            <% if (user && savedAddresses.length) { %>
+              <h3>Dirección manual</h3>
+              <p>Estos campos se usarán únicamente si eliges “Ingresar otra dirección”.</p>
+            <% } %>
           <div class="checkout-field">
             <label for="province">Provincia <span aria-hidden="true">*</span></label>
-            <select id="province" name="province" required data-address-field
+            <select id="province" name="province" data-address-field data-manual-address-field data-manual-required
               <%= errors.province ? 'aria-invalid="true" aria-describedby="err-province"' : '' %>>
               <option value="">Selecciona una provincia</option>
               <% provinces.forEach(function(p) { %>
@@ -133,7 +173,7 @@
 
           <div class="checkout-field">
             <label for="canton">Cantón <span aria-hidden="true">*</span></label>
-            <input id="canton" name="canton" type="text" value="<%= typeof formData !== 'undefined' ? formData.canton : '' %>" maxlength="80" required data-address-field
+            <input id="canton" name="canton" type="text" value="<%= typeof formData !== 'undefined' ? formData.canton : '' %>" maxlength="80" data-address-field data-manual-address-field data-manual-required
               <%= errors.canton ? 'aria-invalid="true" aria-describedby="err-canton"' : '' %>>
             <% if (errors.canton) { %>
               <p id="err-canton" class="checkout-error" role="alert"><%= errors.canton %></p>
@@ -142,7 +182,7 @@
 
           <div class="checkout-field">
             <label for="distrito">Distrito <span aria-hidden="true">*</span></label>
-            <input id="distrito" name="distrito" type="text" value="<%= typeof formData !== 'undefined' ? formData.distrito : '' %>" maxlength="80" required data-address-field
+            <input id="distrito" name="distrito" type="text" value="<%= typeof formData !== 'undefined' ? formData.distrito : '' %>" maxlength="80" data-address-field data-manual-address-field data-manual-required
               <%= errors.distrito ? 'aria-invalid="true" aria-describedby="err-distrito"' : '' %>>
             <% if (errors.distrito) { %>
               <p id="err-distrito" class="checkout-error" role="alert"><%= errors.distrito %></p>
@@ -151,7 +191,7 @@
 
           <div class="checkout-field">
             <label for="addressLine">Dirección exacta <span aria-hidden="true">*</span></label>
-            <textarea id="addressLine" name="addressLine" rows="2" maxlength="300" required data-address-field
+            <textarea id="addressLine" name="addressLine" rows="2" maxlength="300" data-address-field data-manual-address-field data-manual-required
               <%= errors.addressLine ? 'aria-invalid="true" aria-describedby="err-addressLine"' : '' %>><%= typeof formData !== 'undefined' ? formData.addressLine : '' %></textarea>
             <% if (errors.addressLine) { %>
               <p id="err-addressLine" class="checkout-error" role="alert"><%= errors.addressLine %></p>
@@ -160,11 +200,12 @@
 
           <div class="checkout-field">
             <label for="addressReference">Referencias</label>
-            <textarea id="addressReference" name="addressReference" rows="2" maxlength="200" data-address-field
+            <textarea id="addressReference" name="addressReference" rows="2" maxlength="200" data-address-field data-manual-address-field
               <%= errors.addressReference ? 'aria-invalid="true" aria-describedby="err-addressReference"' : '' %>><%= typeof formData !== 'undefined' ? formData.addressReference : '' %></textarea>
             <% if (errors.addressReference) { %>
               <p id="err-addressReference" class="checkout-error" role="alert"><%= errors.addressReference %></p>
             <% } %>
+          </div>
           </div>
         </fieldset>
 

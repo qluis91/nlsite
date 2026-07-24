@@ -1,0 +1,42 @@
+<main class="account-orders">
+  <div class="account-orders__heading">
+    <div><p class="account-orders__eyebrow">Tu cuenta</p><h1>Mis pedidos</h1></div>
+    <a class="account-orders__store-link" href="/tienda">Explorar la tienda</a>
+  </div>
+
+  <% if (!orders.length) { %>
+    <section class="account-orders__empty" aria-labelledby="empty-orders-title">
+      <h2 id="empty-orders-title">Todavía no tienes pedidos.</h2>
+      <p>Explora la tienda para realizar tu primera compra.</p>
+      <a class="account-orders__button" href="/tienda">Ir a la tienda</a>
+    </section>
+  <% } else { %>
+    <div class="account-orders-list">
+      <% orders.forEach(function(order) { %>
+        <article class="account-order-card">
+          <div class="account-order-card__header">
+            <div><p class="account-order-card__label">Pedido</p><h2><%= order.reference %></h2></div>
+            <span class="account-order-status"><%= order.orderStatusLabel %></span>
+          </div>
+          <dl class="account-order-card__data">
+            <div><dt>Fecha</dt><dd><time datetime="<%= new Date(order.createdAt).toISOString() %>"><%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium' }).format(new Date(order.createdAt)) %></time></dd></div>
+            <div><dt>Productos</dt><dd><%= order.itemCount %></dd></div>
+            <div><dt>Entrega</dt><dd><%= order.deliveryMethodLabel %></dd></div>
+            <div><dt>Envío</dt><dd><%= order.shippingAmount === null ? 'Por calcular' : new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(order.shippingAmount) %></dd></div>
+            <div><dt>Pago</dt><dd><%= order.paymentStatusLabel %></dd></div>
+            <div><dt>Total final</dt><dd><strong><%= order.finalTotal === null ? 'Pendiente' : new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(order.finalTotal) %></strong></dd></div>
+          </dl>
+          <a class="account-orders__button" href="/cuenta/pedidos/<%= order.reference %>">Ver detalle<span class="sr-only"> del pedido <%= order.reference %></span></a>
+        </article>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <% if (totalPages > 1) { %>
+    <nav class="account-orders__pagination" aria-label="Paginación de pedidos">
+      <% if (page > 1) { %><a href="/cuenta/pedidos?page=<%= page - 1 %>&limit=<%= limit %>" rel="prev">Anterior</a><% } %>
+      <span aria-current="page">Página <%= page %> de <%= totalPages %></span>
+      <% if (page < totalPages) { %><a href="/cuenta/pedidos?page=<%= page + 1 %>&limit=<%= limit %>" rel="next">Siguiente</a><% } %>
+    </nav>
+  <% } %>
+</main>

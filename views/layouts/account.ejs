@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Área privada de la cuenta de cliente.">
+  <meta name="robots" content="noindex, nofollow">
+  <title><%= title %> | <%= site.name %></title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/account-orders.css">
+  <link rel="stylesheet" href="/css/account.css">
+  <style nonce="<%= cspNonce %>">
+    :root {
+      --color-primary: <%= site.colors.primary %>;
+      --color-primary-hover: <%= site.colors.primaryHover %>;
+      --color-secondary: <%= site.colors.secondary %>;
+      --color-accent: <%= site.colors.accent %>;
+      --color-bg: <%= site.colors.bg %>;
+      --color-success: <%= site.colors.success %>;
+      --color-danger: <%= site.colors.danger %>;
+      --color-warning: <%= site.colors.warning %>;
+    }
+  </style>
+</head>
+<body class="account-page">
+  <%- include('../components/navbar') %>
+
+  <% if (success_msg) { %>
+    <div class="account-flash account-flash--success" role="status"><%= success_msg %></div>
+  <% } %>
+  <% if (error_msg) { %>
+    <div class="account-flash account-flash--error" role="alert"><%= error_msg %></div>
+  <% } %>
+
+  <div class="account-shell">
+    <%- include('../components/account-sidebar') %>
+    <div class="account-main">
+      <%- body || '' %>
+    </div>
+  </div>
+
+  <%- include('../components/footer') %>
+  <script src="/js/main.js"></script>
+</body>
+</html>

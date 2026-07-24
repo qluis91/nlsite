@@ -1,0 +1,28 @@
+<div class="admin-orders">
+  <div class="page-header"><div><h1>Pedidos</h1><p>Seguimiento de cotización, pago y entrega.</p></div></div>
+
+  <form method="get" action="/admin/orders" class="order-filters">
+    <label>Buscar<input type="search" name="search" value="<%= filters.search %>" placeholder="Referencia, cliente, correo o teléfono"></label>
+    <label>Estado<select name="orderStatus"><option value="">Todos</option><% options.ORDER_STATUSES.forEach(function(value) { %><option value="<%= value %>" <%= filters.orderStatus === value ? 'selected' : '' %>><%= options.ORDER_STATUS_LABELS[value] %></option><% }) %></select></label>
+    <label>Pago<select name="paymentStatus"><option value="">Todos</option><% Object.keys(options.PAYMENT_STATUS_LABELS).forEach(function(value) { %><option value="<%= value %>" <%= filters.paymentStatus === value ? 'selected' : '' %>><%= options.PAYMENT_STATUS_LABELS[value] %></option><% }) %></select></label>
+    <label>Envío<select name="shippingStatus"><option value="">Todos</option><% Object.keys(options.SHIPPING_STATUS_LABELS).forEach(function(value) { %><option value="<%= value %>" <%= filters.shippingStatus === value ? 'selected' : '' %>><%= options.SHIPPING_STATUS_LABELS[value] %></option><% }) %></select></label>
+    <label>Entrega<select name="deliveryMethod"><option value="">Todas</option><% Object.keys(options.DELIVERY_METHOD_LABELS).forEach(function(value) { %><option value="<%= value %>" <%= filters.deliveryMethod === value ? 'selected' : '' %>><%= options.DELIVERY_METHOD_LABELS[value] %></option><% }) %></select></label>
+    <label>Desde<input type="date" name="dateFrom" value="<%= filters.dateFrom %>"></label>
+    <label>Hasta<input type="date" name="dateTo" value="<%= filters.dateTo %>"></label>
+    <label>Orden<select name="sort"><option value="newest" <%= filters.sort === 'newest' ? 'selected' : '' %>>Más recientes</option><option value="oldest" <%= filters.sort === 'oldest' ? 'selected' : '' %>>Más antiguos</option><option value="total-desc" <%= filters.sort === 'total-desc' ? 'selected' : '' %>>Mayor total</option><option value="total-asc" <%= filters.sort === 'total-asc' ? 'selected' : '' %>>Menor total</option></select></label>
+    <button class="btn btn-primary" type="submit">Filtrar</button><a class="btn btn-secondary" href="/admin/orders">Limpiar</a>
+  </form>
+
+  <p class="order-count"><%= total %> pedido<%= total === 1 ? '' : 's' %></p>
+  <div class="admin-table-wrap"><table class="table order-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Estado</th><th>Pago</th><th>Total</th><th>Fecha</th></tr></thead><tbody>
+  <% if (!orders.length) { %><tr><td colspan="7" class="empty-state">No se encontraron pedidos.</td></tr><% } %>
+  <% orders.forEach(function(order) { %><tr>
+    <td><a href="/admin/orders/<%= order.order_reference %>"><strong><%= order.order_reference %></strong></a></td>
+    <td><%= order.customer_name %><small><%= order.customer_email %></small></td>
+    <td><%= order.deliveryMethodLabel %></td><td><span class="status-pill"><%= order.orderStatusLabel %></span></td>
+    <td><%= order.paymentStatusLabel %></td><td><%= order.final_total === null ? 'Pendiente' : new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(order.final_total) %></td>
+    <td><%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(order.created_at)) %></td>
+  </tr><% }) %></tbody></table></div>
+  <% const queryFor = function(page) { const p = new URLSearchParams(); Object.entries(filters).forEach(function(entry) { if (entry[0] !== 'page' && entry[1]) p.set(entry[0], entry[1]); }); p.set('page', page); return p.toString(); }; %>
+  <% if (totalPages > 1) { %><nav class="order-pagination" aria-label="Paginación"><% if (filters.page > 1) { %><a class="btn btn-secondary" href="/admin/orders?<%= queryFor(filters.page - 1) %>">Anterior</a><% } %><span>Página <%= filters.page %> de <%= totalPages %></span><% if (filters.page < totalPages) { %><a class="btn btn-secondary" href="/admin/orders?<%= queryFor(filters.page + 1) %>">Siguiente</a><% } %></nav><% } %>
+</div>

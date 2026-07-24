@@ -26,7 +26,15 @@ const ALLOWED_MIME_TYPES = new Set([
 // ── Profiles ──
 const PROFILES = {
   product: { maxWidth: 1800, maxHeight: 1800, quality: 80, format: 'webp' },
-  avatar: { maxWidth: 400, maxHeight: 400, quality: 80, format: 'webp' },
+  avatar: {
+    maxWidth: 512,
+    maxHeight: 512,
+    quality: 82,
+    format: 'webp',
+    fit: 'cover',
+    position: 'attention',
+    withoutEnlargement: false,
+  },
   gallery: { maxWidth: 2400, maxHeight: 1600, quality: 80, format: 'webp' },
   category: { maxWidth: 1200, maxHeight: 800, quality: 80, format: 'webp' },
 };
@@ -78,6 +86,16 @@ function productStoragePath(productId) {
   return { dir, urlPrefix };
 }
 
+function avatarStoragePath(userId) {
+  const safeUserId = String(Number(userId));
+  if (!/^[1-9]\d*$/.test(safeUserId)) {
+    throw new Error('Identificador de usuario inválido.');
+  }
+  const dir = path.join(UPLOAD_ROOT, 'avatars', safeUserId);
+  const urlPrefix = `/uploads/avatars/${safeUserId}/`;
+  return { dir, urlPrefix };
+}
+
 /**
  * Process a single image buffer through Sharp.
  * @param {Buffer} inputBuffer
@@ -91,8 +109,9 @@ async function processBuffer(inputBuffer, profile = {}) {
     .resize({
       width: cfg.maxWidth,
       height: cfg.maxHeight,
-      fit: 'inside',
-      withoutEnlargement: true,
+      fit: cfg.fit || 'inside',
+      position: cfg.position || 'centre',
+      withoutEnlargement: cfg.withoutEnlargement !== false,
     });
 
   if (cfg.format === 'webp') {
@@ -185,11 +204,20 @@ async function deleteProcessedImage(absolutePath) {
       // Verify path is within upload root
       const resolved = path.resolve(absolutePath);
       const rootResolved = path.resolve(UPLOAD_ROOT);
-      if (!resolved.startsWith(rootResolved)) {
+      if (resolved !== rootResolved && !resolved.startsWith(`${rootResolved}${path.sep}`)) {
         console.warn('[imageProcessing] Refusing to delete file outside upload root:', resolved);
         return;
       }
-      await fs.promises.unlink(resolved);
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        try {
+          await fs.promises.unlink(resolved);
+          return;
+        } catch (error) {
+          const transient = error.code === 'EBUSY' || error.code === 'EPERM';
+          if (!transient || attempt === 3) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+        }
+      }
     }
   } catch (err) {
     console.warn('[imageProcessing] Could not delete file:', absolutePath, err.message);
@@ -216,6 +244,7 @@ module.exports = {
   uniqueFileName,
   ensureDir,
   productStoragePath,
+  avatarStoragePath,
   processBuffer,
   processImage,
   processUploadedImages,

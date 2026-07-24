@@ -1,0 +1,136 @@
+<% const money = value => value === null || value === undefined ? null : new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(value); %>
+<main class="account-order-detail">
+  <nav class="account-order-detail__back" aria-label="Navegación del pedido">
+    <% if (detailContext === 'account') { %><a href="/cuenta/pedidos">← Mis pedidos</a><% } %>
+    <% if (detailContext === 'guest') { %><a href="/consultar-pedido">← Consultar otro pedido</a><% } %>
+    <% if (detailContext === 'confirmation') { %><a href="/tienda">← Seguir comprando</a><% } %>
+  </nav>
+
+  <header class="account-order-detail__header">
+    <div><p class="account-orders__eyebrow"><%= isConfirmation ? '¡Pedido recibido!' : 'Detalle del pedido' %></p><h1><%= order.reference %></h1><p><time datetime="<%= new Date(order.createdAt).toISOString() %>"><%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(order.createdAt)) %></time></p></div>
+    <span class="account-order-status"><%= order.orderStatusLabel %></span>
+  </header>
+
+  <section class="account-order-summary" aria-labelledby="status-heading">
+    <h2 id="status-heading">Estado actual</h2>
+    <dl><div><dt>Pedido</dt><dd><%= order.orderStatusLabel %></dd></div><div><dt>Pago</dt><dd><%= order.paymentStatusLabel %></dd></div><div><dt>Envío</dt><dd><%= order.shippingStatusLabel %></dd></div></dl>
+  </section>
+
+  <div class="account-order-detail__grid">
+    <section class="account-order-detail__section" aria-labelledby="products-heading">
+      <h2 id="products-heading">Productos</h2>
+      <div class="account-order-items">
+        <% order.items.forEach(function(item) { %>
+          <article class="account-order-item">
+            <% if (item.primaryImage) { %><img src="<%= item.primaryImage %>" alt="<%= item.productName %>" loading="lazy"><% } else { %><div class="account-order-item__placeholder" aria-hidden="true"></div><% } %>
+            <div><h3><% if (item.productUrl) { %><a href="<%= item.productUrl %>"><%= item.productName %></a><% } else { %><%= item.productName %><% } %></h3><p>Cantidad: <%= item.quantity %></p><p><%= money(item.unitPrice) %> por unidad</p></div>
+            <strong><%= money(item.lineTotal) %></strong>
+          </article>
+        <% }) %>
+      </div>
+    </section>
+
+    <aside class="account-order-detail__section account-order-totals" aria-labelledby="totals-heading">
+      <h2 id="totals-heading">Totales</h2>
+      <dl><div><dt>Productos</dt><dd><%= money(order.productSubtotal) %></dd></div><div><dt>Envío</dt><dd><%= order.shippingAmount === null ? 'Por calcular' : money(order.shippingAmount) %></dd></div><div class="account-order-totals__final"><dt>Total final</dt><dd><%= order.finalTotal === null ? 'Pendiente' : money(order.finalTotal) %></dd></div></dl>
+    </aside>
+  </div>
+
+  <div class="account-order-detail__grid">
+    <section class="account-order-detail__section" aria-labelledby="delivery-heading"><h2 id="delivery-heading">Entrega</h2><dl class="account-order-detail__data"><dt>Método</dt><dd><%= order.deliveryMethodLabel %></dd><dt>Estado</dt><dd><%= order.shippingStatusLabel %></dd><dt>Costo</dt><dd><%= order.shippingAmount === null ? 'Por calcular' : money(order.shippingAmount) %></dd></dl><% if (order.deliveryAddress) { %><address><%= [order.deliveryAddress.province, order.deliveryAddress.canton, order.deliveryAddress.district, order.deliveryAddress.addressLine, order.deliveryAddress.reference].filter(Boolean).join(', ') %></address><% } else { %><p>No requiere dirección de entrega.</p><% } %></section>
+    <section class="account-order-detail__section" aria-labelledby="payment-heading"><h2 id="payment-heading">Pago</h2><dl class="account-order-detail__data"><dt>Método</dt><dd><%= order.paymentMethodLabel %></dd><dt>Estado</dt><dd><%= order.paymentStatusLabel %></dd></dl><% if (order.paymentInstructions) { %><div class="account-order-payment account-order-payment--<%= order.paymentInstructions.type %>"><h3><%= order.paymentInstructions.title %></h3><% order.paymentInstructions.lines.forEach(function(line) { %><p><%= line %></p><% }) %></div><% } %></section>
+  </div>
+
+  <% if (typeof tilopayTx !== 'undefined' && tilopayTx && tilopayTx.length > 0) { %>
+    <section class="account-order-detail__section proof-block" aria-labelledby="tilopay-heading">
+      <h2 id="tilopay-heading">Pago con tarjeta</h2>
+      <% tilopayTx.forEach(function(tx) { %>
+        <div class="proof-status <% if (tx.status === 'approved') { %>proof-status--approved<% } else if (tx.status === 'declined' || tx.status === 'failed' || tx.status === 'cancelled') { %>proof-status--rejected<% } else if (tx.status === 'pending' || tx.status === 'creating') { %>proof-status--pending<% } %>">
+          <p><strong>Estado:</strong> <%= ['approved'].includes(tx.status) ? 'Confirmado ✓' : ['declined'].includes(tx.status) ? 'Rechazado' : ['cancelled'].includes(tx.status) ? 'Cancelado' : ['failed'].includes(tx.status) ? 'Error' : 'En proceso' %></p>
+          <p>Monto: <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(tx.amount) %></p>
+          <p>Iniciado: <%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(tx.createdAt)) %></p>
+          <% if (tx.confirmedAt) { %><p>Confirmado: <%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(tx.confirmedAt)) %></p><% } %>
+        </div>
+        <% if ((tx.status === 'pending' || tx.status === 'creating' || tx.status === 'unknown') && tx.internalRef) { %>
+          <form method="post" action="/<%= detailContext === 'account' ? 'cuenta/pedidos' : 'consultar-pedido' %>/<%= order.reference %>/tilopay/verificar" style="margin: 0.5rem 0;" class="proof-upload-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="internalRef" value="<%= tx.internalRef %>">
+            <button type="submit" class="account-orders__button" style="background:#6b7280;color:#fff;font-size:0.875rem;">Verificar estado del pago</button>
+          </form>
+        <% } %>
+      <% }); %>
+      <% if (order.paymentStatus === 'pending' && order.orderStatus === 'pending_payment' && order.finalTotal !== null) { %>
+        <form method="post" action="/<%= detailContext === 'account' ? 'cuenta/pedidos' : 'consultar-pedido' %>/<%= order.reference %>/pagar/tilopay" class="proof-upload-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="account-orders__button" style="background:#2563eb;color:#fff">Pagar con Tilopay</button>
+        </form>
+      <% } %>
+    </section>
+  <% } else if (order.paymentMethod === 'tilopay' && order.paymentStatus === 'pending') { %>
+    <section class="account-order-detail__section proof-block" aria-labelledby="tilopay-heading">
+      <h2 id="tilopay-heading">Pago con tarjeta</h2>
+      <% if (order.orderStatus === 'pending_shipping_quote' || order.shippingStatus === 'pending_quote') { %>
+        <div class="proof-status proof-status--pending"><p>El pago con tarjeta estará disponible una vez que se cotice el envío.</p></div>
+      <% } else if (order.finalTotal !== null) { %>
+        <form method="post" action="/<%= detailContext === 'account' ? 'cuenta/pedidos' : 'consultar-pedido' %>/<%= order.reference %>/pagar/tilopay" class="proof-upload-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="account-orders__button" style="background:#2563eb;color:#fff">Pagar con Tilopay</button>
+        </form>
+      <% } %>
+    </section>
+  <% } %>
+
+  <% if (typeof proofSummary !== 'undefined' && proofSummary && proofSummary.status !== 'not_submitted') { %>
+    <section class="account-order-detail__section proof-block" aria-labelledby="proof-heading">
+      <h2 id="proof-heading">Comprobante de pago</h2>
+      <% if (proofSummary.status === 'pending_review') { %>
+        <div class="proof-status proof-status--pending">
+          <p><strong>Estado:</strong> En revisión</p>
+          <p>Tu comprobante fue enviado y NinjaLab lo está revisando.</p>
+          <p><a href="/cuenta/pedidos/<%= order.reference %>/comprobante/<%= proofSummary.proof.id %>">Ver comprobante</a></p>
+        </div>
+      <% } else if (proofSummary.status === 'approved') { %>
+        <div class="proof-status proof-status--approved">
+          <p><strong>Estado:</strong> Aprobado ✓</p>
+          <p>Tu comprobante fue aprobado y el pago confirmado.</p>
+          <p><a href="/cuenta/pedidos/<%= order.reference %>/comprobante/<%= proofSummary.proof.id %>">Ver comprobante</a></p>
+        </div>
+      <% } else { %>
+        <div class="proof-status proof-status--rejected">
+          <p><strong>Estado:</strong> Rechazado</p>
+          <% if (proofSummary.proof.rejectionReason) { %><p><strong>Motivo:</strong> <%= proofSummary.proof.rejectionReason %></p><% } %>
+          <form method="post" action="/cuenta/pedidos/<%= order.reference %>/comprobante" enctype="multipart/form-data" class="proof-upload-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <label>Enviar un nuevo comprobante <span class="proof-hint">JPG, PNG, WebP o PDF · Máximo 5 MB</span>
+              <input type="file" name="proofFile" accept="image/jpeg,image/png,image/webp,application/pdf" required>
+            </label>
+            <button type="submit" class="account-orders__button">Enviar comprobante</button>
+          </form>
+        </div>
+      <% } %>
+    </section>
+  <% } else if (order.paymentInstructions && order.paymentInstructions.type !== 'wait_for_quote' && order.paymentInstructions.type !== 'confirmed' && order.paymentStatus === 'pending') { %>
+    <section class="account-order-detail__section proof-block" aria-labelledby="proof-heading">
+      <h2 id="proof-heading">Comprobante de pago</h2>
+      <p>Adjunta el comprobante de SINPE Móvil o transferencia.</p>
+      <p class="proof-hint">El pedido no se marcará como pagado hasta que NinjaLab lo revise.</p>
+      <% if (detailContext === 'account') { %>
+        <form method="post" action="/cuenta/pedidos/<%= order.reference %>/comprobante" enctype="multipart/form-data" class="proof-upload-form">
+      <% } else { %>
+        <form method="post" action="/consultar-pedido/<%= order.reference %>/comprobante" enctype="multipart/form-data" class="proof-upload-form">
+      <% } %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label>Archivo JPG, PNG, WebP o PDF · Máximo 5 MB
+          <input type="file" name="proofFile" accept="image/jpeg,image/png,image/webp,application/pdf" required>
+        </label>
+        <button type="submit" class="account-orders__button">Enviar comprobante</button>
+      </form>
+    </section>
+  <% } %>
+
+  <section class="account-order-detail__section" aria-labelledby="timeline-heading"><h2 id="timeline-heading">Seguimiento del pedido</h2><ol class="account-order-timeline"><% order.timeline.forEach(function(item) { %><li><div><h3><%= item.label %></h3><time datetime="<%= new Date(item.occurredAt).toISOString() %>"><%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.occurredAt)) %></time></div><p><%= item.description %></p></li><% }) %></ol></section>
+
+  <div class="account-order-detail__actions">
+    <% if (user) { %><a class="account-orders__button" href="/cuenta/pedidos">Ver todos mis pedidos</a><% } else { %><p>Guarda la referencia del pedido para consultarlo más tarde.</p><a class="account-orders__button" href="/consultar-pedido">Consultar pedido más tarde</a><% } %>
+  </div>
+</main>

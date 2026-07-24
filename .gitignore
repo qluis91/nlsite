@@ -41,10 +41,29 @@ sessions/
 
 # ── Uploads ──
 uploads/
+/public/uploads/gallery/images/*
+/public/uploads/gallery/thumbnails/*
+/public/uploads/gallery/videos/*
+/public/uploads/gallery/posters/*
+!/public/uploads/
+!/public/uploads/gallery/
+!/public/uploads/gallery/images/
+!/public/uploads/gallery/thumbnails/
+!/public/uploads/gallery/videos/
+!/public/uploads/gallery/posters/
+!/public/uploads/gallery/images/.gitkeep
+!/public/uploads/gallery/thumbnails/.gitkeep
+!/public/uploads/gallery/videos/.gitkeep
+!/public/uploads/gallery/posters/.gitkeep
+
+# ── Private storage (payment proofs, etc.) ──
+storage/
 
 # ── Database ──
 *.sql.gz
 *.sql.bak
+/database-dumps/
+/backups/
 
 # ── CodeBurn (no repo files, but just in case) ──
 .codeburn/

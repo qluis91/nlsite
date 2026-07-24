@@ -22,10 +22,18 @@ function setLocals(req, res, next) {
 }
 
 // ── Proteger rutas: requiere sesión con id válido ──
+function safeAuthReturnPath(value) {
+  const raw = String(value || '');
+  return /^\/cuenta(?:\/(?:perfil|seguridad|direcciones(?:\/(?:nueva|[1-9]\d*\/editar))?|pedidos(?:\/NL-[A-Z0-9]{12})?))?(?:\?page=\d+(?:&limit=\d+)?)?$/.test(raw)
+    ? raw
+    : '/';
+}
+
 function isAuthenticated(req, res, next) {
   if (req.session.user && req.session.user.id) return next();
   req.session.error_msg = 'Debes iniciar sesión para acceder.';
-  return res.redirect('/auth/login');
+  const returnTo = safeAuthReturnPath(req.originalUrl);
+  return res.redirect(returnTo === '/' ? '/auth/login' : `/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
 }
 
 // ── Redirigir usuarios ya logueados ──
@@ -49,4 +57,4 @@ function isAdminGuest(req, res, next) {
   return res.redirect('/auth/login');
 }
 
-module.exports = { setLocals, isAuthenticated, isGuest, isAdmin, isAdminGuest };
+module.exports = { setLocals, isAuthenticated, isGuest, isAdmin, isAdminGuest, safeAuthReturnPath };

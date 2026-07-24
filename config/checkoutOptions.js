@@ -59,10 +59,13 @@ const PAYMENT_METHODS = {
   },
   tilopay: {
     key: 'tilopay',
-    label: 'Tilo Pay',
-    description: 'Pago con tarjeta mediante Tilo Pay.',
-    enabled: false,
-    paymentStatus: null,
+    label: 'Tarjeta de crédito / débito con Tilopay',
+    description: 'Pago seguro con tarjeta mediante Tilopay.',
+    enabled: (() => {
+      try { return !!require('./tilopay').ENABLED; }
+      catch { return false; }
+    })(),
+    paymentStatus: 'pending',
   },
 };
 

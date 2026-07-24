@@ -6,6 +6,7 @@ const pool = require('../config/db');
 const { getPublicProductsByIds } = require('./catalogService');
 const { sanitizeCart, clearCart } = require('./cartService');
 const { DELIVERY_METHODS } = require('../config/checkoutOptions');
+const { initialOrderStatus } = require('../config/orderOptions');
 
 // ── Order reference generator ──
 function generateOrderReference() {
@@ -118,10 +119,13 @@ async function createOrder(checkoutData, cart) {
   const idempotencyKey = hashCheckoutToken(checkoutToken);
   const orderRef = generateOrderReference();
 
-  // Check duplicate idempotency key
+  // A repeated token only resolves inside the same owner/guest context.
   const [existing] = await pool.query(
-    'SELECT id, order_reference FROM orders WHERE idempotency_key = ? LIMIT 1',
-    [idempotencyKey]
+    `SELECT id, order_reference FROM orders
+      WHERE idempotency_key = ?
+        AND ((user_id IS NULL AND ? IS NULL) OR user_id = ?)
+      LIMIT 1`,
+    [idempotencyKey, userId, userId]
   );
   if (existing.length > 0) {
     return { duplicate: true, orderRef: existing[0].order_reference, orderId: existing[0].id };
@@ -130,6 +134,7 @@ async function createOrder(checkoutData, cart) {
   // Shipping amount and final total
   const shippingAmount = dlvConfig.shippingAmount; // 0 for pickup, null for others
   const finalTotal = dlvConfig.shippingStatus === 'not_required' ? subtotal : null;
+  const orderStatus = initialOrderStatus(dlvConfig.shippingStatus, 'pending');
 
   // Transaction
   const conn = await pool.getConnection();
@@ -156,19 +161,25 @@ async function createOrder(checkoutData, cart) {
       `INSERT INTO orders (
         order_reference, user_id, customer_name, customer_email, customer_phone,
         delivery_method, shipping_status, shipping_amount,
-        payment_method, payment_status,
+        payment_method, payment_status, order_status,
         province, canton, district, address_line, address_reference,
         product_subtotal, final_total, idempotency_key
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         orderRef, userId, customerName, email, phone,
         deliveryMethod, dlvConfig.shippingStatus, shippingAmount,
-        paymentMethod, 'pending',
+        paymentMethod, 'pending', orderStatus,
         province || null, canton || null, district || null, addressLine || null, addressReference || null,
         subtotal, finalTotal, idempotencyKey
       ]
     );
     const orderId = orderResult.insertId;
+
+    await conn.query(
+      `INSERT INTO order_events (order_id, actor_user_id, event_type, to_status, metadata_json)
+       VALUES (?, ?, 'order_created', ?, ?)`,
+      [orderId, userId, orderStatus, JSON.stringify({ source: 'checkout' })]
+    );
 
     // 3. Insert order items
     for (const item of items) {
@@ -216,6 +227,18 @@ async function createOrder(checkoutData, cart) {
     };
   } catch (err) {
     await conn.rollback();
+    if (err && err.code === 'ER_DUP_ENTRY') {
+      const [duplicateRows] = await pool.query(
+        `SELECT id, order_reference FROM orders
+          WHERE idempotency_key = ?
+            AND ((user_id IS NULL AND ? IS NULL) OR user_id = ?)
+          LIMIT 1`,
+        [idempotencyKey, userId, userId]
+      );
+      if (duplicateRows[0]) {
+        return { duplicate: true, orderRef: duplicateRows[0].order_reference, orderId: duplicateRows[0].id };
+      }
+    }
     throw err;
   } finally {
     conn.release();

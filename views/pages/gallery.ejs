@@ -1,0 +1,173 @@
+<%- include('../components/home-navbar', { navbarOnHome: false }) %>
+
+<main class="gallery-page" data-gallery-page data-requested-view="<%= filters.view %>">
+  <header class="gallery-hero">
+    <div class="gallery-shell">
+      <p class="gallery-hero__eyebrow">PROYECTOS NINJALAB</p>
+      <h1>Nuestra galería</h1>
+      <div class="gallery-hero__summary">
+        <p>Explora algunos de los proyectos, productos y procesos creados en NinjaLabCR. Descubre imágenes y videos de nuestro trabajo.</p>
+        <span><strong><%= total %></strong> <%= total === 1 ? 'proyecto' : 'proyectos' %></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="gallery-shell gallery-content">
+    <% if (invalidCategory) { %>
+      <p class="gallery-notice" role="status">La categoría solicitada no existe o no está disponible. Mostramos toda la galería.</p>
+    <% } %>
+
+    <section class="gallery-filters" aria-labelledby="gallery-filters-title">
+      <h2 id="gallery-filters-title">Explorar galería</h2>
+      <nav class="gallery-filter-group" aria-label="Categorías">
+        <span>Categorías</span>
+        <a href="<%= buildGalleryUrl({ category: '', page: 1 }) %>" <% if (!filters.category) { %>aria-current="true"<% } %>>Todos</a>
+        <% categories.forEach(function(category) { %>
+          <a
+            href="<%= buildGalleryUrl({ category: category.slug, page: 1 }) %>"
+            <% if (filters.category === category.slug) { %>aria-current="true"<% } %>
+          ><%= category.name %></a>
+        <% }); %>
+      </nav>
+      <nav class="gallery-filter-group" aria-label="Tipo de medio">
+        <span>Formato</span>
+        <a href="<%= buildGalleryUrl({ type: '', page: 1 }) %>" <% if (!filters.type) { %>aria-current="true"<% } %>>Todos</a>
+        <a href="<%= buildGalleryUrl({ type: 'image', page: 1 }) %>" <% if (filters.type === 'image') { %>aria-current="true"<% } %>>Imágenes</a>
+        <a href="<%= buildGalleryUrl({ type: 'video', page: 1 }) %>" <% if (filters.type === 'video') { %>aria-current="true"<% } %>>Videos</a>
+      </nav>
+    </section>
+
+    <section class="gallery-results" aria-labelledby="gallery-results-title">
+      <div class="gallery-results__header">
+        <div>
+          <h2 id="gallery-results-title">
+          <%= activeCategory ? activeCategory.name : (filters.type === 'video' ? 'Videos' : filters.type === 'image' ? 'Imágenes' : 'Todos los proyectos') %>
+          </h2>
+          <p>Selecciona un elemento para abrir el visor.</p>
+        </div>
+        <nav class="gallery-view-switcher" aria-label="Visualización de galería">
+          <a class="gallery-view-switcher__item" href="<%= buildGalleryUrl({ view: 'grid' }) %>" data-gallery-view="grid" <% if (filters.view === 'grid') { %>aria-current="true"<% } %>>Cuadrícula</a>
+          <a class="gallery-view-switcher__item" href="<%= buildGalleryUrl({ view: 'circular' }) %>" data-gallery-view="circular" <% if (filters.view === 'circular') { %>aria-current="true"<% } %>>Galería circular</a>
+          <a class="gallery-view-switcher__item" href="<%= buildGalleryUrl({ view: 'ring' }) %>" data-gallery-view="ring" <% if (filters.view === 'ring') { %>aria-current="true"<% } %>>Carrusel 3D</a>
+          <a class="gallery-view-switcher__item" href="<%= buildGalleryUrl({ view: 'infinite' }) %>" data-gallery-view="infinite" <% if (filters.view === 'infinite') { %>aria-current="true"<% } %>>Menú infinito</a>
+        </nav>
+      </div>
+
+      <% if (!items.length) { %>
+        <div class="gallery-empty" role="status">
+          <h3>Todavía no hay proyectos publicados en esta categoría.</h3>
+          <p>Prueba con otro filtro o vuelve a consultar pronto.</p>
+          <a href="/galeria">Ver toda la galería</a>
+        </div>
+      <% } else { %>
+        <ul class="gallery-grid" data-gallery-grid>
+          <% items.forEach(function(item) { %>
+            <%- include('../partials/gallery-card', { item }) %>
+          <% }); %>
+        </ul>
+        <section
+          class="gallery-circular"
+          data-gallery-circular
+          data-requested-view="<%= filters.view %>"
+          role="region"
+          aria-label="Galería circular. Usa las flechas izquierda y derecha para navegar."
+          tabindex="0"
+          hidden
+        >
+          <div class="gallery-circular__viewport" data-gallery-circular-viewport></div>
+          <div class="gallery-circular__loader" data-gallery-circular-loader role="status">Preparando galería circular…</div>
+          <div class="gallery-circular__overlay" data-gallery-circular-overlay hidden>
+            <p class="gallery-circular__meta" data-gallery-circular-meta></p>
+            <h3 class="gallery-circular__title" data-gallery-circular-title></h3>
+            <button class="gallery-circular__action" type="button" data-gallery-circular-action>Ver proyecto</button>
+          </div>
+          <p class="gallery-circular__hint">Arrastra horizontalmente o usa las flechas. El desplazamiento vertical de la página permanece disponible.</p>
+          <p class="gallery-circular__fallback" data-gallery-circular-fallback role="status" hidden></p>
+          <p class="gallery-visually-hidden" data-gallery-circular-live aria-live="polite"></p>
+        </section>
+        <section
+          class="gallery-ring"
+          data-gallery-ring
+          role="region"
+          aria-label="Carrusel tridimensional de la galer&#237;a"
+          aria-describedby="gallery-ring-hint"
+          tabindex="0"
+          hidden
+        >
+          <div class="gallery-ring__loader" data-gallery-ring-loader role="status">Preparando carrusel 3D&hellip;</div>
+          <div class="gallery-ring__viewport" data-gallery-ring-viewport>
+            <div class="gallery-ring__track" data-gallery-ring-track></div>
+          </div>
+          <div class="gallery-ring__vignette" aria-hidden="true"></div>
+          <div class="gallery-ring__overlay" data-gallery-ring-overlay hidden>
+            <p class="gallery-ring__meta" data-gallery-ring-meta></p>
+            <h3 class="gallery-ring__title" data-gallery-ring-title></h3>
+            <button class="gallery-ring__action" type="button" data-gallery-ring-action>Ver proyecto</button>
+          </div>
+          <p class="gallery-ring__hint" id="gallery-ring-hint">Arrastra horizontalmente o utiliza las flechas para explorar.</p>
+          <p class="gallery-ring__fallback" data-gallery-ring-fallback role="status" hidden></p>
+          <p class="gallery-visually-hidden" data-gallery-ring-live aria-live="polite"></p>
+        </section>
+        <section
+          class="gallery-infinite"
+          data-gallery-infinite
+          role="region"
+          aria-label="Menú infinito tridimensional de la galería"
+          aria-describedby="gallery-infinite-hint"
+          tabindex="0"
+          hidden
+        >
+          <canvas class="gallery-infinite__canvas" data-gallery-infinite-canvas></canvas>
+          <div class="gallery-infinite__loader" data-gallery-infinite-loader role="status">Preparando menú infinito…</div>
+          <div class="gallery-infinite__overlay" data-gallery-infinite-overlay hidden>
+            <p class="gallery-infinite__meta" data-gallery-infinite-meta></p>
+            <h3 class="gallery-infinite__title" data-gallery-infinite-title></h3>
+            <button class="gallery-infinite__action" type="button" data-gallery-infinite-action>Ver proyecto</button>
+          </div>
+          <p class="gallery-infinite__hint" id="gallery-infinite-hint">Arrastra en cualquier dirección para explorar.</p>
+          <p class="gallery-infinite__fallback" data-gallery-infinite-fallback role="status" hidden></p>
+          <p class="gallery-visually-hidden" data-gallery-infinite-live aria-live="polite"></p>
+        </section>
+      <% } %>
+    </section>
+
+    <% if (totalPages > 1) { %>
+      <nav class="gallery-pagination" aria-label="Paginación de galería">
+        <% if (page > 1) { %>
+          <a href="<%= buildGalleryUrl({ page: page - 1 }) %>" rel="prev">Anterior</a>
+        <% } else { %>
+          <span aria-disabled="true">Anterior</span>
+        <% } %>
+        <ol>
+          <% paginationPages.forEach(function(pageNumber) { %>
+            <li>
+              <% if (pageNumber === 'ellipsis') { %>
+                <span aria-hidden="true">…</span>
+              <% } else if (pageNumber === page) { %>
+                <span aria-current="page"><%= pageNumber %></span>
+              <% } else { %>
+                <a href="<%= buildGalleryUrl({ page: pageNumber }) %>"><%= pageNumber %></a>
+              <% } %>
+            </li>
+          <% }); %>
+        </ol>
+        <% if (page < totalPages) { %>
+          <a href="<%= buildGalleryUrl({ page: page + 1 }) %>" rel="next">Siguiente</a>
+        <% } else { %>
+          <span aria-disabled="true">Siguiente</span>
+        <% } %>
+      </nav>
+    <% } %>
+
+    <aside class="gallery-cta">
+      <div>
+        <p>¿Tienes una idea en mente?</p>
+        <h2>Convirtámosla en algo real.</h2>
+      </div>
+      <a href="/#como-trabajamos">Conocer el proceso</a>
+    </aside>
+  </div>
+
+  <script type="application/json" id="gallery-data"><%- galleryJson %></script>
+  <%- include('../partials/gallery-lightbox') %>
+</main>

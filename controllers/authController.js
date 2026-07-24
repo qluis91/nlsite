@@ -4,6 +4,7 @@ const pool = require('../config/db');
 const { mapRole } = require('../config/roles');
 const mailer = require('../config/mailer');
 const { captureCartForRegeneration, restoreCartAfterRegeneration } = require('../services/cartService');
+const { safeAuthReturnPath } = require('../middlewares/authMiddleware');
 
 // ── Helpers ──
 function generateToken() {
@@ -22,9 +23,16 @@ function expiresAt(minutesEnv) {
 
 // ── Mostrar formulario de Login ──
 exports.showLogin = (req, res) => {
+  const form = req.session.loginForm || {};
+  delete req.session.loginForm;
+
   res.render('pages/login', {
     title: 'Iniciar Sesión',
     layout: 'layouts/main',
+    pageClass: 'page-auth',
+    robots: 'noindex, nofollow',
+    returnTo: safeAuthReturnPath(req.query.returnTo),
+    form,
   });
 };
 
@@ -33,10 +41,15 @@ exports.login = async (req, res, next) => {
   try {
     const email = (req.body.email || '').trim().toLowerCase();
     const password = req.body.password || '';
+    const returnTo = safeAuthReturnPath(req.body.returnTo);
+    const loginPath = returnTo === '/' ? '/auth/login' : `/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
+
+    // Never persist the password; only keep the normalized email after an error.
+    req.session.loginForm = { email };
 
     if (!email || !password) {
       req.session.error_msg = 'Todos los campos son obligatorios.';
-      return res.redirect('/auth/login');
+      return res.redirect(loginPath);
     }
 
     const [rows] = await pool.query(
@@ -46,7 +59,7 @@ exports.login = async (req, res, next) => {
 
     if (rows.length !== 1) {
       req.session.error_msg = 'Correo electrónico o contraseña incorrectos.';
-      return res.redirect('/auth/login');
+      return res.redirect(loginPath);
     }
 
     const user = rows[0];
@@ -54,7 +67,7 @@ exports.login = async (req, res, next) => {
 
     if (!validPassword) {
       req.session.error_msg = 'Correo electrónico o contraseña incorrectos.';
-      return res.redirect('/auth/login');
+      return res.redirect(loginPath);
     }
 
     // Preserve guest cart before session regeneration
@@ -78,7 +91,7 @@ exports.login = async (req, res, next) => {
       req.session.success_msg = `¡Bienvenido, ${user.name}!`;
       req.session.save((saveErr) => {
         if (saveErr) return next(saveErr);
-        return res.redirect('/');
+        return res.redirect(returnTo);
       });
     });
   } catch (error) {

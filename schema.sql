@@ -15,10 +15,35 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(100) NOT NULL,
   email VARCHAR(100) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
+  last_name VARCHAR(100) NULL,
+  phone VARCHAR(30) NULL,
+  avatar_path VARCHAR(500) NULL,
+  password_changed_at DATETIME NULL,
   role_id INT DEFAULT 2,             -- 1 = admin, 2 = user
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Direcciones guardadas de clientes ──
+CREATE TABLE IF NOT EXISTS user_addresses (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  label VARCHAR(60) NOT NULL,
+  province VARCHAR(60) NOT NULL,
+  canton VARCHAR(80) NOT NULL,
+  district VARCHAR(80) NOT NULL,
+  address_line VARCHAR(300) NOT NULL,
+  address_reference VARCHAR(200) NULL,
+  contact_phone VARCHAR(15) NULL,
+  is_default TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_user_addresses_user (user_id),
+  INDEX idx_user_addresses_user_default (user_id, is_default),
+  CONSTRAINT fk_user_addresses_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Registros pendientes de verificación ──
@@ -125,10 +150,51 @@ CREATE TABLE IF NOT EXISTS product_images (
   INDEX idx_pi_product_primary (product_id, is_primary)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ── Categorías de Galería ──
+CREATE TABLE IF NOT EXISTS gallery_categories (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  slug VARCHAR(180) NOT NULL,
+  description VARCHAR(1000) NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_gallery_categories_slug (slug),
+  KEY idx_gallery_categories_active_order (is_active, sort_order, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Elementos de Galería ──
+CREATE TABLE IF NOT EXISTS gallery_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  category_id INT NULL,
+  title VARCHAR(160) NOT NULL,
+  slug VARCHAR(180) NOT NULL,
+  description TEXT NULL,
+  media_type VARCHAR(10) NOT NULL,
+  media_path VARCHAR(500) NOT NULL,
+  thumbnail_path VARCHAR(500) NOT NULL,
+  poster_path VARCHAR(500) NULL,
+  alt_text VARCHAR(300) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_featured TINYINT(1) NOT NULL DEFAULT 0,
+  is_published TINYINT(1) NOT NULL DEFAULT 0,
+  published_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_gallery_items_slug (slug),
+  KEY idx_gallery_items_category (category_id),
+  KEY idx_gallery_items_type (media_type),
+  KEY idx_gallery_items_published_order (is_published, is_featured, sort_order, published_at, id),
+  KEY idx_gallery_items_featured (is_featured),
+  CONSTRAINT fk_gallery_items_category
+    FOREIGN KEY (category_id) REFERENCES gallery_categories(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── Tabla de Órdenes ──
 CREATE TABLE IF NOT EXISTS orders (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  order_reference VARCHAR(24) NOT NULL UNIQUE COMMENT 'Public order number (NL-XXXXXX)',
+  order_reference VARCHAR(24) NOT NULL COMMENT 'Public order number (NL-XXXXXX)',
   user_id INT NULL,
   customer_name VARCHAR(120) NOT NULL,
   customer_email VARCHAR(180) NOT NULL,
@@ -138,6 +204,7 @@ CREATE TABLE IF NOT EXISTS orders (
   shipping_amount DECIMAL(10,2) NULL DEFAULT NULL,
   payment_method VARCHAR(20) NOT NULL COMMENT 'sinpe | bank_transfer',
   payment_status VARCHAR(10) NOT NULL DEFAULT 'pending' COMMENT 'pending | paid',
+  order_status VARCHAR(40) NOT NULL DEFAULT 'pending_shipping_quote',
   province VARCHAR(60) NULL,
   canton VARCHAR(80) NULL,
   district VARCHAR(80) NULL,
@@ -149,11 +216,31 @@ CREATE TABLE IF NOT EXISTS orders (
   notes TEXT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_orders_reference (order_reference),
+  UNIQUE KEY uq_orders_reference (order_reference),
+  UNIQUE KEY uq_orders_idempotency (idempotency_key),
   INDEX idx_orders_user (user_id),
-  INDEX idx_orders_idempotency (idempotency_key),
   INDEX idx_orders_status (payment_status, shipping_status),
+  INDEX idx_orders_order_status_created (order_status, created_at),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Historial inmutable de eventos de pedido
+CREATE TABLE IF NOT EXISTS order_events (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  order_id INT NOT NULL,
+  actor_user_id INT NULL,
+  event_type VARCHAR(50) NOT NULL,
+  from_status VARCHAR(40) NULL,
+  to_status VARCHAR(40) NULL,
+  metadata_json LONGTEXT NULL,
+  note VARCHAR(500) NULL,
+  migration_key VARCHAR(80) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_order_events_migration (order_id, migration_key),
+  INDEX idx_order_events_order_created (order_id, created_at),
+  INDEX idx_order_events_actor (actor_user_id),
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Tabla de Ítems de Orden ──
@@ -173,6 +260,74 @@ CREATE TABLE IF NOT EXISTS order_items (
   FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
   FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Tabla de Comprobantes de Pago ──
+CREATE TABLE IF NOT EXISTS payment_proofs (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  order_id INT NOT NULL,
+  submitted_by_user_id INT DEFAULT NULL,
+  submission_source VARCHAR(20) NOT NULL COMMENT 'account | guest | recent',
+  status VARCHAR(30) NOT NULL DEFAULT 'pending_review'
+    COMMENT 'pending_review | approved | rejected',
+  original_filename VARCHAR(255) DEFAULT NULL,
+  stored_filename VARCHAR(255) NOT NULL,
+  storage_path VARCHAR(500) NOT NULL,
+  mime_type VARCHAR(100) NOT NULL,
+  file_size_bytes INT NOT NULL,
+  image_width INT DEFAULT NULL,
+  image_height INT DEFAULT NULL,
+  submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at TIMESTAMP NULL DEFAULT NULL,
+  reviewed_by_user_id INT DEFAULT NULL,
+  rejection_reason VARCHAR(500) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_payment_proofs_order_created (order_id, created_at),
+  KEY idx_payment_proofs_status (status),
+  KEY idx_payment_proofs_submitter (submitted_by_user_id),
+  KEY idx_payment_proofs_reviewer (reviewed_by_user_id),
+  CONSTRAINT fk_payment_proofs_order
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_payment_proofs_submitter
+    FOREIGN KEY (submitted_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_payment_proofs_reviewer
+    FOREIGN KEY (reviewed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Tilopay Transactions ──
+-- One row per payment initiation attempt. New internal_reference on each retry.
+-- idempotency_key and provider_transaction_id are UNIQUE to prevent duplicates.
+CREATE TABLE IF NOT EXISTS tilopay_transactions (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  order_id INT NOT NULL,
+  internal_reference VARCHAR(36) NOT NULL COMMENT 'UUID v4 for this payment attempt',
+  idempotency_key VARCHAR(64) NOT NULL COMMENT 'SHA-256 of unique attempt payload',
+  provider_transaction_id VARCHAR(100) DEFAULT NULL COMMENT 'Tilopay transaction identifier from API',
+  provider_session_token VARCHAR(500) DEFAULT NULL COMMENT 'SDK token (ephemeral)',
+  status VARCHAR(20) NOT NULL DEFAULT 'creating'
+    COMMENT 'creating | pending | approved | declined | cancelled | expired | failed | unknown',
+  amount DECIMAL(10,2) NOT NULL COMMENT 'Server-authoritative amount at creation',
+  currency VARCHAR(3) NOT NULL DEFAULT 'CRC' COMMENT 'ISO 4217 currency code',
+  checkout_url VARCHAR(1000) DEFAULT NULL COMMENT 'Provider-hosted redirect URL',
+  provider_created_at TIMESTAMP NULL DEFAULT NULL,
+  confirmed_at TIMESTAMP NULL DEFAULT NULL,
+  failed_at TIMESTAMP NULL DEFAULT NULL,
+  failure_code VARCHAR(50) DEFAULT NULL COMMENT 'Sanitized failure category',
+  failure_message VARCHAR(500) DEFAULT NULL COMMENT 'Bounded sanitized description',
+  raw_status VARCHAR(100) DEFAULT NULL COMMENT 'Last known provider status string',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_tilopay_internal_ref (internal_reference),
+  UNIQUE KEY idx_tilopay_idempotency (idempotency_key),
+  UNIQUE KEY idx_tilopay_provider_id (provider_transaction_id),
+  KEY idx_tilopay_order_created (order_id, created_at),
+  KEY idx_tilopay_status (status),
+  CONSTRAINT fk_tilopay_order
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Tilopay payment transaction attempts';
 
 -- ── Crear administrador ──
 -- Usa: node create-admin.js

@@ -3,7 +3,10 @@
     <a href="/" class="navbar-brand"><%= site.name %></a>
     <ul class="navbar-nav">
       <li><a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">Inicio</a></li>
+      <li><a href="/galeria" class="<%= currentPath.startsWith('/galeria') ? 'active' : '' %>">Galería</a></li>
       <% if (user) { %>
+        <li><a href="/cuenta" class="<%= currentPath === '/cuenta' || currentPath.startsWith('/cuenta/perfil') || currentPath.startsWith('/cuenta/direcciones') || currentPath.startsWith('/cuenta/seguridad') ? 'active' : '' %>">Mi cuenta</a></li>
+        <li><a href="/cuenta/pedidos" class="<%= currentPath.startsWith('/cuenta/pedidos') ? 'active' : '' %>">Mis pedidos</a></li>
         <% if (Number(user.role_id) === 1) { %>
           <li><a href="/admin" class="<%= currentPath.startsWith('/admin') && currentPath !== '/admin/login' ? 'active' : '' %>">Panel Admin</a></li>
         <% } %>

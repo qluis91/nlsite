@@ -86,6 +86,15 @@
   font-weight: 600;
 }
 
+.checkout-error-summary {
+  margin: -1rem 0 1.5rem;
+  padding: .8rem 1rem;
+  border: 1px solid #fecaca;
+  border-radius: .6rem;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
 /* Delivery & Payment options */
 .checkout-option {
   display: block;
@@ -159,6 +168,58 @@
 /* Address section */
 .checkout-address {
   transition: opacity 0.2s;
+}
+
+.checkout-address-choices {
+  display: grid;
+  gap: .65rem;
+  margin-bottom: 1.2rem;
+}
+
+.checkout-address-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: .75rem;
+  align-items: start;
+  padding: .85rem;
+  border: 1px solid #d9dcd6;
+  border-radius: .65rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.checkout-address-choice:has(input:checked) {
+  border-color: #3f6805;
+  background: #f5faef;
+}
+
+.checkout-address-choice input {
+  margin-top: .25rem;
+  accent-color: #3f6805;
+}
+
+.checkout-address-choice span,
+.checkout-address-choice strong,
+.checkout-address-choice small {
+  display: block;
+}
+
+.checkout-address-choice strong { color: #111411; font-size: .88rem; }
+.checkout-address-choice small { margin-top: .2rem; color: #687067; line-height: 1.4; }
+
+.checkout-manual-address {
+  padding-top: .25rem;
+}
+
+.checkout-manual-address > h3 {
+  margin: 0 0 .2rem;
+  font-size: .92rem;
+}
+
+.checkout-manual-address > p {
+  margin: 0 0 1rem;
+  color: #687067;
+  font-size: .78rem;
 }
 
 /* Summary */

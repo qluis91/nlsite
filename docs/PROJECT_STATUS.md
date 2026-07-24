@@ -1,7 +1,7 @@
 # nlSite — Project Status
 
-**Last updated:** 2026-07-22  
-**Current phase:** Checkout & Manual Order Creation
+**Last updated:** 2026-07-23
+**Current phase:** Gallery Phase 4 — Infinite Menu
 
 ---
 
@@ -20,6 +20,51 @@
 | Config | dotenv (.env → config/site.js) |
 
 ## Working Features
+
+- [x] Public `/galeria` with server-rendered category/type filters, 24-item pagination, responsive fallback grid and empty states
+- [x] MySQL gallery categories/items with additive idempotent migration, synchronized schema, publication, featured state and deterministic ordering
+- [x] Admin gallery/category CRUD behind administrator authentication and centralized CSRF
+- [x] JPEG/PNG/WebP Sharp processing into bounded display WebP plus 512×512 renderer thumbnail
+- [x] Local MP4/WebM uploads with matching extension, basic signature check and mandatory processed poster
+- [x] Random filenames, allowlisted public roots, traversal-resistant resolution, compensation cleanup and post-commit old-file deletion
+- [x] One shared image/video modal with safe JSON, no untrusted `innerHTML`, keyboard navigation, focus restoration and video pause on close
+- [x] Optional `view=circular` native-WebGL renderer with `bend: 0`, thumbnail-only textures, infinite looping, inertia, drag/wheel/keyboard controls and active-item modal action
+- [x] Complete Circular Gallery lifecycle: idempotent destroy, RAF/observer/listener/resource cleanup, resize/DPR cap, visibility/intersection pause and context-loss fallback
+- [x] Optional `view=ring` native CSS 3D renderer with dynamic geometry, thumbnail-only cards, drag inertia, snapping, scoped wheel/keyboard controls, depth parallax and stable-ID modal reuse
+- [x] Single enhanced-renderer ownership with idempotent Ring teardown, idle-only RAF, visibility/intersection pause and responsive resize
+- [x] Optional `view=infinite` native WebGL 2 renderer with icosahedron sphere geometry, instanced disc rendering, texture atlas from thumbnails, arcball two-axis controls with inertia and snapping, keyboard/wheel input, and stable-ID modal reuse
+- [x] Complete Infinite Menu lifecycle: idempotent destroy clearing all GL resources, listeners, observers, and timers; visibility/intersection pause; context-loss fallback; reduced-motion Grid fallback
+- [x] Added `gl-matrix@3.4.3` vendor dependency for vector/quaternion/matrix operations; no React/OGL/GSAP/Three.js
+- [x] Explicit idempotent local Sharp demo seed with prefix-owned cleanup/reset, rollback compensation, media integrity checks and production execution blocked by default
+- [x] Reduced-motion, no-JavaScript, no-WebGL, low-capability, initialization-error and broken-thumbnail grid fallback behavior
+- [x] No OGL dependency added; native WebGL follows the ReactBits source behavior without exposing `node_modules` or expanding CSP
+- [ ] Real-browser gallery viewport validation pending
+- [x] Owner-scoped saved-address CRUD with labels and Costa Rican address validation
+- [x] Transactional single-default invariant, automatic first default and oldest-address promotion on deletion
+- [x] Maximum 20 addresses per customer with session-derived ownership and safe cross-user 404 responses
+- [x] Saved/default address selection for authenticated checkout and manual-only guest checkout
+- [x] Server-authoritative saved-address resolution with manual-field manipulation ignored
+- [x] Immutable order address snapshots after saved-address edit or deletion
+- [x] Local pickup ignores address selection and persists no delivery address
+- [x] Shared authenticated account shell with server-rendered active navigation
+- [x] `/cuenta` dashboard with bounded owner-scoped order aggregates and latest order
+- [x] Editable first/display name, optional surname and normalized phone; email remains read-only
+- [x] Safe avatar upload/replacement/removal using Multer memory storage and Sharp 512×512 WebP output
+- [x] Password change verifies the current hash, rotates the session, preserves only the cart and clears guest grants
+- [x] Additive idempotent user-profile migration for `last_name`, `phone`, `avatar_path` and `password_changed_at`
+- [x] Authenticated `/cuenta/pedidos` list with strict server-session ownership and pagination
+- [x] Customer-safe order detail with snapshots, address, totals, payment guidance and public timeline
+- [x] Guest lookup using strict reference plus normalized email for guest-owned orders only
+- [x] Session-bound guest grants capped at 5 and expiring after 30 minutes
+- [x] Generic lookup failures, CSRF enforcement and 7-attempt/15-minute rate limiting
+- [x] Login regeneration clears guest grants while preserving only the existing cart policy
+- [x] Controlled ephemeral authorization fixtures with no credential-dependent skips
+- [x] Admin order list/detail with search, filters, sorting and pagination
+- [x] Transactional shipping quotation and exact server-side final totals
+- [x] Manual payment confirmation for enabled manual payment methods
+- [x] Delivery-specific order lifecycle and guarded cancellation with one-time stock restoration
+- [x] Immutable `order_events` audit history and internal notes
+- [x] Database-enforced unique checkout idempotency with safe duplicate recovery
 
 - [x] Public pages: Home, Login, Register, Admin Login, Forgot Password
 - [x] Email verification flow: pending registration → email → verify → user created
@@ -44,7 +89,7 @@
 - [x] `create-admin.js` interactive script for safe admin creation
 - [x] Brand-white-label: colors/text from `.env` injected as CSS variables
 - [x] Responsive CSS (768px breakpoint)
-- [x] Modular EJS: 2 layouts, 4 components, 13 pages
+- [x] Modular EJS layouts and reusable components for public, admin and customer-account surfaces
 - [x] Parameterized SQL queries throughout
 - [x] Helmet security headers (CSP, HSTS, etc.)
 - [x] Per-request CSP nonce for inline import map and style blocks (no global unsafe-inline in script-src)
@@ -55,7 +100,7 @@
 - [x] Errors propagated via `next(error)` to 500 handler
 - [x] EJS layout middleware (`config/viewEngine.js`) — zero extra dependencies
 - [x] POST logout visible in both navbars after login
-- [x] `test-auth.js` integration tests: 40 assertions passing (non-credential)
+- [x] `test-auth.js` integration coverage for anonymous authentication and CSRF flows
 - [x] CSRF protection on all state-changing routes (csrf-sync, synchronizer-token)
 - [x] 403 error page for invalid/missing CSRF tokens
 - [x] Persistent MySQL session store (survives restarts, auto-cleanup every 15min)
@@ -72,6 +117,11 @@
 - [x] Reduced-motion accessibility (CSS media query + JS detection)
 - [x] No bundler — vendor aliases + import map for Three.js/GSAP/Lenis
 - [x] Homepage-specific CSS/JS scoped under `.home-page` / `body.page-home`
+- [x] Localized 3D model loading state: morphing SVG spinner (SpinnerMorph via native SMIL) inside `.hero-3d` only; page renders immediately without full-screen intro
+- [x] 3D model state machine: `loading → ready → error` with `data-model-state` attribute and canvas fade-in transitions
+- [x] Model error state with safe "Reintentar" button that disposes of failed renderer resources before retrying
+- [x] SpinnerMorph: exact original 3-state SVG path sequence via `<animate attributeName="d">` + `<animateTransform>` rotation; configurable via EJS partial and guarded by equality/hash regression coverage
+- [x] Full-page intro disabled via `ENABLE_PAGE_INTRO = false` server-side flag; legacy page-loader code preserved for future reactivation
 - [x] CSP updated for WebGL (`blob:`, `connect-src`, `worker-src`)
 - [x] Admin catalog: category CRUD (create, edit, delete with product-count guard)
 - [x] Admin catalog: product CRUD with multi-category checkbox selection
@@ -164,12 +214,34 @@
 | GET/POST | `/carrito` | Shopping cart: view, add, update, remove, clear |
 | GET/POST | `/checkout` | Checkout: form + order creation |
 | GET | `/checkout/confirmacion/:reference` | Order confirmation page |
+| POST | `/cuenta/pedidos/:ref/comprobante` | Authenticated payment-proof upload |
+| GET | `/cuenta/pedidos/:ref/comprobante/:id` | Authenticated proof preview |
+| POST | `/consultar-pedido/:ref/comprobante` | Guest payment-proof upload |
+| GET | `/consultar-pedido/:ref/comprobante/:id` | Guest proof preview |
+| POST | `/admin/orders/:ref/comprobante/:id/aprobar` | Admin approve payment proof |
+| POST | `/admin/orders/:ref/comprobante/:id/rechazar` | Admin reject payment proof |
+| GET | `/admin/orders/:ref/comprobante/:id` | Admin proof preview |
+| GET | `/cuenta` | Authenticated customer account summary |
+| GET/POST | `/cuenta/perfil` | View and update allowlisted profile fields |
+| POST | `/cuenta/avatar` | Upload and replace a safe account avatar |
+| POST | `/cuenta/avatar/eliminar` | Remove the current account avatar |
+| GET | `/cuenta/seguridad` | View account security |
+| POST | `/cuenta/seguridad/contrasena` | Change password and rotate the session |
+| GET | `/cuenta/pedidos*` | Owner-scoped order list and detail |
 | GET/POST | Admin catalog routes | `/admin/catalogo/categorias*`, `/admin/catalogo/productos*` |
+| POST | `/cuenta/pedidos/:ref/pagar/tilopay` | Authenticated Tilopay payment initiation |
+| POST | `/cuenta/pedidos/:ref/tilopay/verificar` | Customer payment verification (Verificar estado del pago) |
+| POST | `/consultar-pedido/:ref/pagar/tilopay` | Guest Tilopay payment initiation |
+| POST | `/consultar-pedido/:ref/tilopay/verificar` | Guest payment verification |
+| GET | `/pagos/tilopay/retorno` | Tilopay return/success page |
+| GET | `/pagos/tilopay/cancelado` | Tilopay cancellation page |
+| POST | `/webhooks/tilopay` | Tilopay webhook/callback (no session, provider auth) |
+| POST | `/admin/orders/:ref/tilopay/reconcile` | Admin Tilopay transaction reconciliation |
 
 ## Database
 
 - Connection: pool via `config/db.js`
-- Schema tables: `users`, `pending_registrations`, `password_reset_tokens`, `sessions`, `site_settings`, `categories`, `products`, `product_categories`, `product_images`, `orders`, `order_items`
+- Schema tables: `users`, `pending_registrations`, `password_reset_tokens`, `sessions`, `site_settings`, `categories`, `products`, `product_categories`, `product_images`, `orders`, `order_items`, `order_events`, `payment_proofs`, `tilopay_transactions`
 - `pending_registrations`: Stores unverified registration data with SHA-256 token hash, expires_at
 - `password_reset_tokens`: Single-use reset tokens with FK to `users(id)`, used_at tracking
 - `role_id`: 1 = admin, 2 = user — mapped via `config/roles.js`
@@ -195,6 +267,7 @@
 
 ## Known Limitations
 
+- Real-browser visual validation of the account dashboard viewport matrix is pending because no browser backend was available in the Codex session.
 - 15 `.ejs` templates not parsed by Graphify AST (no tree-sitter-ejs)
 - `schema.sql` now matches actual DB schema with all 4 catalog tables present (`categories`, `products`, `product_categories`, `product_images`)
 - No protection against deactivating the last administrator
@@ -221,14 +294,27 @@
 - Real-browser visual validation of store, product detail, cart at all viewports pending
 - Cart badge counts session quantities only (no DB hydration per request to avoid N+1); stale badges self-correct on next cart visit
 - Checkout and order creation implemented via HTTP; real-browser visual validation pending
-- Checkout confirmation is session-bound for guests (1h expiry); no persistent guest order lookup
-- No admin order management views yet (admin order list/detail pending)
+- Checkout confirmation remains session-bound for immediate guest access (1h); later lookup grants access for 30 minutes after reference-and-email verification.
+- Administrative order list/detail, shipping quotation, payment confirmation and lifecycle controls implemented; real-browser visual validation remains pending.
 - No email notifications on order creation
 - Cart does not survive logout (session destroyed per security policy)
 
 ## Next Recommended Phase
 
-Admin order management (list, details, shipping quotation) or Panel 2 design.
+1. **Tilopay sandbox access**: Register at https://web.tilopay.com/developers, obtain sandbox credentials, fill in actual API endpoint URLs from the Tilopay merchant portal or Postman collection, complete a real sandbox transaction.
+2. **Real-browser validation** of all payment flows (Tilopay form, return, cancel) across all viewports.
+3. **Webhook end-to-end** when callback URL is publicly reachable.
+
+## Current Limitations
+
+- Tilopay integration: all provider-neutral code is complete, but real API endpoints, webhook signatures, and sandbox credentials require merchant portal access. No invented behavior remains.
+- Administrative order list/detail, shipping quotation, payment confirmation and lifecycle controls implemented; real-browser visual validation remains pending.
+- No email notifications on order creation
+- Cart does not survive logout (session destroyed per security policy)
+- Payment-proof review has not been validated in a real browser; HTTP integration tests confirm all routes respond correctly.
+- Multipart CSRF middleware order documented: `multer` → `csrfSynchronisedProtection` → controller. Order-row locking serializes concurrent proof submissions with file cleanup compensation.
+- No database partial unique index used for active-proof invariant; row locking is the sole mechanism.
+- SDK V2 evaluation pending (guides behind merchant portal login).
 
 ## Completed Phases
 
@@ -255,3 +341,8 @@ Admin order management (list, details, shipping quotation) or Panel 2 design.
 | Product Detail | Gallery, breadcrumbs, quantity, cart prep, WhatsApp, related products | 2026-07-22 |
 | Cart | Shopping cart with session storage, server-authoritative prices, navbar badge | 2026-07-22 |
 | Checkout | Manual checkout, order creation, stock deduction, idempotency, confirmation | 2026-07-22 |
+| Payment Proofs | Upload, private storage, admin review, approve/reject, audit events | 2026-07-22 |
+| Payment-Proof CSRF | Centralized CSRF middleware for multipart routes, transactional order-row locking for concurrent uploads, file cleanup, concurrency tests | 2026-07-22 |
+| Tilopay v1 | Provider-neutral architecture with documentation audit. Config validator, multi-client deployment model (PUBLIC_BASE_URL), derived callback URLs. Invented HMAC/webhook logic removed. Server-to-server lookup for notification verification. MOCK_MODE gated from production. Client setup guide. | 2026-07-23 |
+| Tilopay v2 | **BLOCKED**: Real API endpoints, webhook signatures, sandbox credentials, live transactions pending. SDK V2 guides behind merchant portal login, Postman requires JS. See docs/TILOPAY_INTEGRATION.md for exact gaps. | 2026-07-23 |
+| 3D Loader | Localized 3D loading animation: full-page intro disabled, SpinnerMorph (native SVG/SMIL) inside hero-3d only, model state machine (loading/ready/error), retry button, reduced-motion support, zero new dependencies | 2026-07-23 |

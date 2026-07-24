@@ -1,0 +1,304 @@
+<%- include('../components/home-navbar') %>
+
+<div class="tilopay-container">
+  <div class="tilopay-card">
+    <header class="tilopay-header">
+      <h1 class="tilopay-title">Pago con Tarjeta</h1>
+      <p class="tilopay-reference">Pedido: <%= orderReference %></p>
+      <p class="tilopay-amount">
+        Total: <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(amount) %>
+      </p>
+    </header>
+
+    <div class="tilopay-payment-section">
+      <div class="payFormTilopay">
+        <!-- Payment method selector -->
+        <div class="tilopay-field">
+          <label for="method" class="tilopay-label">Método de pago</label>
+          <select id="method" name="method" class="tilopay-select" required>
+            <option value="">Seleccionar método de pago</option>
+          </select>
+        </div>
+
+        <!-- Saved cards selector (hidden when empty) -->
+        <div class="tilopay-field" id="saved-cards-section" style="display:none">
+          <label for="cards" class="tilopay-label">Tarjetas guardadas</label>
+          <select id="cards" name="cards" class="tilopay-select">
+            <option value="">Usar tarjeta nueva</option>
+          </select>
+        </div>
+
+        <!-- Card number -->
+        <div class="tilopay-field">
+          <label for="ccnumber" class="tilopay-label">Número de tarjeta</label>
+          <input type="text" id="ccnumber" name="ccnumber" class="tilopay-input"
+                 placeholder="0000 0000 0000 0000" maxlength="19" autocomplete="cc-number">
+        </div>
+
+        <!-- Card expiry -->
+        <div class="tilopay-row">
+          <div class="tilopay-field tilopay-field--half">
+            <label for="expdate" class="tilopay-label">Fecha de expiración</label>
+            <input type="text" id="expdate" name="expdate" class="tilopay-input"
+                   placeholder="MM / AA" maxlength="7" autocomplete="cc-exp">
+          </div>
+          <div class="tilopay-field tilopay-field--half">
+            <label for="cvv" class="tilopay-label">Código de seguridad</label>
+            <input type="text" id="cvv" name="cvv" class="tilopay-input"
+                   placeholder="CVV" maxlength="4" autocomplete="cc-csc">
+          </div>
+        </div>
+
+        <!-- 3DS result container -->
+        <div id="result"></div>
+      </div>
+
+      <div class="tilopay-actions">
+        <button type="button" id="tilopay-pay-btn" class="tilopay-btn tilopay-btn--primary">
+          <span class="tilopay-btn-text">Pagar ahora</span>
+          <span class="tilopay-btn-loader" style="display:none">Procesando...</span>
+        </button>
+      </div>
+    </div>
+
+    <footer class="tilopay-footer">
+      <p class="tilopay-security">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+        </svg>
+        Pago seguro procesado por Tilopay. Tus datos están protegidos.
+      </p>
+    </footer>
+  </div>
+</div>
+
+<!-- Tilopay SDK -->
+<script src="<%= tilopayScriptUrl %>"></script>
+
+<!-- jQuery (required by Tilopay SDK V1) -->
+<script src="<%= jqueryScriptUrl %>"></script>
+
+<script>
+  (function() {
+    var sdkToken = <%- JSON.stringify(sdkToken) %>;
+    var orderRef = <%- JSON.stringify(orderReference) %>;
+    var amount = <%- JSON.stringify(amount) %>;
+    var currency = <%- JSON.stringify(currency) %>;
+    var returnUrl = <%- JSON.stringify(returnUrl) %>;
+    var payBtn = document.getElementById('tilopay-pay-btn');
+    var btnText = payBtn.querySelector('.tilopay-btn-text');
+    var btnLoader = payBtn.querySelector('.tilopay-btn-loader');
+    var isProcessing = false;
+
+    function showLoading() {
+      isProcessing = true;
+      btnText.style.display = 'none';
+      btnLoader.style.display = 'inline';
+      payBtn.disabled = true;
+    }
+
+    function hideLoading() {
+      isProcessing = false;
+      btnText.style.display = 'inline';
+      btnLoader.style.display = 'none';
+      payBtn.disabled = false;
+    }
+
+    function showError(msg) {
+      var el = document.getElementById('result');
+      if (el) el.innerHTML = '<div class="tilopay-error">' + (msg || 'Ocurrió un error al procesar el pago.') + '</div>';
+      hideLoading();
+    }
+
+    // ── Initialize Tilopay SDK ──
+    if (typeof Tilopay === 'undefined') {
+      showError('No fue posible cargar el sistema de pago. Recarga la página.');
+    } else if (!sdkToken) {
+      showError('Token de pago no disponible. Intenta nuevamente.');
+    } else {
+      $(document).ready(function() {
+        try {
+          var init = Tilopay.Init({
+            token: sdkToken,
+            currency: currency,
+            language: 'es',
+            amount: amount,
+            orderNumber: orderRef,
+            capture: 1,
+            redirect: returnUrl,
+            subscription: 0
+          });
+
+          if (!init || !init.methods) {
+            showError('No fue posible conectar con Tilopay. Intenta nuevamente.');
+            return;
+          }
+
+          // Populate payment methods
+          if (init.methods && init.methods.length > 0) {
+            var methodSelect = document.getElementById('method');
+            init.methods.forEach(function(m) {
+              var opt = document.createElement('option');
+              opt.value = m.id;
+              opt.textContent = m.name;
+              methodSelect.appendChild(opt);
+            });
+          }
+
+          // Populate saved cards if available
+          if (init.cards && init.cards.length > 0) {
+            var cardsSection = document.getElementById('saved-cards-section');
+            var cardsSelect = document.getElementById('cards');
+            init.cards.forEach(function(c) {
+              var opt = document.createElement('option');
+              opt.value = c.id;
+              opt.textContent = c.name + ' (' + c.brand + ')';
+              cardsSelect.appendChild(opt);
+            });
+            cardsSection.style.display = 'block';
+          }
+        } catch (e) {
+          showError('Error al inicializar el pago.');
+        }
+      });
+    }
+
+    // ── Pay button handler ──
+    payBtn.addEventListener('click', function() {
+      if (isProcessing) return;
+      if (typeof Tilopay === 'undefined') {
+        showError('Sistema de pago no disponible.');
+        return;
+      }
+
+      var method = document.getElementById('method').value;
+      if (!method) {
+        showError('Selecciona un método de pago.');
+        return;
+      }
+
+      showLoading();
+      try {
+        var result = Tilopay.startPayment();
+        if (result && result.message) {
+          showError(result.message);
+        }
+        // On success, Tilopay handles redirect — no further action needed
+      } catch (e) {
+        showError('Error al procesar el pago.');
+      }
+    });
+  })();
+</script>
+
+<style>
+  .tilopay-container {
+    max-width: 520px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+  }
+  .tilopay-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.04);
+    padding: 2rem;
+  }
+  .tilopay-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+  .tilopay-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 .5rem;
+  }
+  .tilopay-reference {
+    font-size: .82rem;
+    color: #6b7280;
+    margin: 0 0 .25rem;
+  }
+  .tilopay-amount {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #059669;
+    margin: 0;
+  }
+  .tilopay-payment-section {
+    margin-bottom: 1.5rem;
+  }
+  .tilopay-field {
+    margin-bottom: 1rem;
+  }
+  .tilopay-label {
+    display: block;
+    font-size: .8rem;
+    font-weight: 650;
+    color: #374151;
+    margin-bottom: .3rem;
+  }
+  .tilopay-input, .tilopay-select {
+    width: 100%;
+    padding: .6rem .75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: .9rem;
+    background: #f9fafb;
+    box-sizing: border-box;
+  }
+  .tilopay-input:focus, .tilopay-select:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+  }
+  .tilopay-row {
+    display: flex;
+    gap: .75rem;
+  }
+  .tilopay-field--half { flex: 1; }
+  .tilopay-actions {
+    text-align: center;
+  }
+  .tilopay-btn {
+    padding: .75rem 2rem;
+    border: none;
+    border-radius: 10px;
+    font-size: .95rem;
+    font-weight: 650;
+    cursor: pointer;
+    width: 100%;
+    transition: background .15s;
+  }
+  .tilopay-btn--primary {
+    background: #2563eb;
+    color: #fff;
+  }
+  .tilopay-btn--primary:hover:not(:disabled) { background: #1d4ed8; }
+  .tilopay-btn--primary:disabled { opacity: .6; cursor: not-allowed; }
+  .tilopay-footer {
+    margin-top: 1.5rem;
+    text-align: center;
+  }
+  .tilopay-security {
+    font-size: .75rem;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+  }
+  .tilopay-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: .75rem;
+    border-radius: 8px;
+    font-size: .84rem;
+    margin-top: .75rem;
+    text-align: center;
+  }
+  @media (max-width: 600px) {
+    .tilopay-card { padding: 1.25rem; }
+    .tilopay-row { flex-direction: column; gap: 0; }
+  }
+</style>

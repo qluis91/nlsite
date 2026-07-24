@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const authController = require('../controllers/authController');
-const { isGuest } = require('../middlewares/authMiddleware');
+const { isGuest, safeAuthReturnPath } = require('../middlewares/authMiddleware');
 
 // ── Rate Limiter para Login ──
 const loginLimiter = rateLimit({
@@ -11,9 +11,15 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
+    const returnTo = safeAuthReturnPath(req.body.returnTo);
+    req.session.loginForm = {
+      email: (req.body.email || '').trim().toLowerCase(),
+    };
     req.session.error_msg =
       'Demasiados intentos de inicio de sesión. Inténtalo nuevamente en unos minutos.';
-    return res.redirect('/auth/login');
+    return res.redirect(
+      returnTo === '/' ? '/auth/login' : `/auth/login?returnTo=${encodeURIComponent(returnTo)}`
+    );
   },
 });
 

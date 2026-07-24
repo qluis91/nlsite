@@ -1,0 +1,49 @@
+<main class="account-dashboard">
+  <header class="account-header">
+    <p class="account-header__eyebrow">Resumen de cuenta</p>
+    <h1>Hola, <%= accountUser.name %></h1>
+    <p>Administra tu perfil, seguridad y pedidos desde un solo lugar.</p>
+  </header>
+
+  <section class="account-dashboard__stats" aria-label="Resumen de pedidos">
+    <article class="account-stat-card"><span>Total de pedidos</span><strong><%= summary.totalOrders %></strong></article>
+    <article class="account-stat-card"><span>Pendientes de pago</span><strong><%= summary.pendingPaymentOrders %></strong></article>
+    <article class="account-stat-card"><span>En preparación</span><strong><%= summary.activeOrders %></strong></article>
+    <article class="account-stat-card"><span>Completados</span><strong><%= summary.completedOrders %></strong></article>
+  </section>
+
+  <div class="account-dashboard__grid">
+    <section class="account-section" aria-labelledby="latest-order-title">
+      <div class="account-section__heading">
+        <div><p>Actividad reciente</p><h2 id="latest-order-title">Último pedido</h2></div>
+        <a href="/cuenta/pedidos">Ver todos</a>
+      </div>
+      <% if (summary.latestOrder) { %>
+        <article class="account-latest-order">
+          <div>
+            <span>Pedido</span>
+            <strong><%= summary.latestOrder.reference %></strong>
+            <time datetime="<%= new Date(summary.latestOrder.createdAt).toISOString() %>"><%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium' }).format(new Date(summary.latestOrder.createdAt)) %></time>
+          </div>
+          <span class="account-order-status"><%= summary.latestOrder.orderStatusLabel %></span>
+          <a class="account-button account-button--secondary" href="/cuenta/pedidos/<%= summary.latestOrder.reference %>">Ver detalle</a>
+        </article>
+      <% } else { %>
+        <div class="account-empty">
+          <h3>Aún no tienes pedidos</h3>
+          <p>Explora la tienda para encontrar tu próximo proyecto.</p>
+          <a class="account-button" href="/tienda">Ir a la tienda</a>
+        </div>
+      <% } %>
+    </section>
+
+    <section class="account-section" aria-labelledby="quick-actions-title">
+      <div class="account-section__heading"><div><p>Accesos</p><h2 id="quick-actions-title">Acciones rápidas</h2></div></div>
+      <div class="account-quick-links">
+        <a href="/cuenta/perfil"><strong>Editar perfil</strong><span>Actualiza tus datos personales.</span></a>
+        <a href="/cuenta/seguridad"><strong>Cambiar contraseña</strong><span>Protege el acceso a tu cuenta.</span></a>
+        <a href="/tienda"><strong>Explorar la tienda</strong><span>Descubre productos de NinjaLab.</span></a>
+      </div>
+    </section>
+  </div>
+</main>

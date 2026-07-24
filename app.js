@@ -16,10 +16,18 @@ const { csrfSynchronisedProtection, generateToken } = require('./config/csrf');
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const adminCatalogRoutes = require('./routes/adminCatalogRoutes');
+const adminGalleryRoutes = require('./routes/adminGalleryRoutes');
+const adminOrderRoutes = require('./routes/adminOrderRoutes');
+const accountRoutes = require('./routes/accountRoutes');
+const accountAvatarRoutes = require('./routes/accountAvatarRoutes');
+const guestOrderRoutes = require('./routes/guestOrderRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const storeRoutes = require('./routes/storeRoutes');
+const galleryRoutes = require('./routes/galleryRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const checkoutRoutes = require('./routes/checkoutRoutes');
+const { router: tilopayRoutes, guestRouter: tilopayGuestRoutes } = require('./routes/tilopayRoutes');
+const tilopayWebhookRoutes = require('./routes/tilopayWebhookRoutes');
 
 // ── Controllers ──
 const authController = require('./controllers/authController');
@@ -125,16 +133,40 @@ app.post('/admin/login', isAdminGuest, csrfSynchronisedProtection, adminLoginLim
 
 // ── Admin catalog: mounted BEFORE global CSRF so multipart routes handle CSRF after multer ──
 app.use('/admin', isAuthenticated, isAdmin, adminCatalogRoutes);
+// Admin gallery uses multipart uploads, so Multer must parse before route-level CSRF.
+app.use('/admin', isAuthenticated, isAdmin, adminGalleryRoutes);
+// Multipart avatar upload must parse the body before synchronized CSRF validation.
+app.use('/cuenta', isAuthenticated, accountAvatarRoutes);
+// Payment proof upload routes (multipart) must mount BEFORE global CSRF
+const paymentProofAccountRoutes = require('./routes/paymentProofAccountRoutes');
+const paymentProofGuestRoutes = require('./routes/paymentProofGuestRoutes');
+app.use('/cuenta', isAuthenticated, paymentProofAccountRoutes);
+app.use('/consultar-pedido', paymentProofGuestRoutes);
+
+// Tilopay payment initiation (customer + guest) — mounts BEFORE global CSRF
+app.use('/cuenta', isAuthenticated, tilopayRoutes);
+app.use('/consultar-pedido', tilopayGuestRoutes);
 
 // ── CSRF: validate state-changing requests (all non-catalog routes) ──
 app.use(csrfSynchronisedProtection);
+
+// ── Tilopay webhook (own authentication, no session, no CSRF) ──
+app.use('/webhooks', tilopayWebhookRoutes);
+
+// ── Tilopay return/cancel (GET, no CSRF needed — provider redirect) ──
+// Return routes are GET and handled by the router from tilopayRoutes
+app.use('/pagos', tilopayRoutes);
 
 // ── Rutas ──
 app.use('/auth', authRoutes);
 app.use('/buscar', searchRoutes);
 app.use('/tienda', storeRoutes);
+app.use('/galeria', galleryRoutes);
 app.use('/carrito', cartRoutes);
 app.use('/checkout', checkoutRoutes);
+app.use('/consultar-pedido', guestOrderRoutes);
+app.use('/cuenta', isAuthenticated, accountRoutes);
+app.use('/admin', isAuthenticated, isAdmin, adminOrderRoutes);
 // Admin routes: authentication + admin role enforced at both mount and router level
 app.use('/admin', isAuthenticated, isAdmin, adminRoutes);
 

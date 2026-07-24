@@ -44,7 +44,39 @@ const singleImageUpload = multer({
   },
 }).single('image');
 
+const AVATAR_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const avatarImageUpload = multer({
+  storage,
+  fileFilter(req, file, cb) {
+    if (AVATAR_MIME_TYPES.has(file.mimetype)) return cb(null, true);
+    return cb(new Error('El avatar debe ser una imagen JPG, PNG o WebP.'));
+  },
+  limits: {
+    fileSize: 2 * 1024 * 1024,
+    files: 1,
+    fields: 5,
+    fieldSize: 64 * 1024,
+  },
+}).single('avatar');
+
+const PROOF_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+const proofFileUpload = multer({
+  storage,
+  fileFilter(req, file, cb) {
+    if (PROOF_MIME_TYPES.has(file.mimetype)) return cb(null, true);
+    return cb(new Error('Solo se permiten archivos JPG, PNG, WebP o PDF.'));
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+    fields: 5,
+    fieldSize: 4 * 1024,
+  },
+}).single('proofFile');
+
 module.exports = {
   productImageUpload,
   singleImageUpload,
+  avatarImageUpload,
+  proofFileUpload,
 };

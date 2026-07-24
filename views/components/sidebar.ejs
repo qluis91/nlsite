@@ -14,6 +14,12 @@
     <a href="/admin/catalogo/productos" class="<%= (currentPath || '').startsWith('/admin/catalogo/productos') ? 'active' : '' %>">
       <span class="sidebar-icon">📦</span> Productos
     </a>
+    <a href="/admin/galeria" class="<%= (currentPath || '').startsWith('/admin/galeria') ? 'active' : '' %>">
+      <span class="sidebar-icon">🖼️</span> Galería
+    </a>
+    <a href="/admin/orders" class="<%= (currentPath || '').startsWith('/admin/orders') ? 'active' : '' %>">
+      <span class="sidebar-icon">🧾</span> Pedidos
+    </a>
     <a href="/admin/users" class="<%= (currentPath && currentPath.startsWith('/admin/users')) ? 'active' : '' %>">
       <span class="sidebar-icon">👥</span> Usuarios
     </a>

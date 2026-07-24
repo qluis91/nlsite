@@ -1,0 +1,37 @@
+<li class="gallery-grid__item">
+  <article class="gallery-card">
+    <button
+      class="gallery-card__open"
+      type="button"
+      data-gallery-open
+      data-gallery-id="<%= item.id %>"
+      aria-label="<%= item.media_type === 'video' ? 'Ver video: ' : 'Ampliar imagen: ' %><%= item.title %>"
+    >
+      <span class="gallery-card__media">
+        <img
+          src="<%= item.thumbnail_path %>"
+          alt="<%= item.alt_text %>"
+          width="512"
+          height="512"
+          loading="lazy"
+          decoding="async"
+          data-gallery-thumbnail
+        >
+        <span class="gallery-card__fallback" aria-hidden="true">NINJALAB</span>
+        <% if (item.media_type === 'video') { %>
+          <span class="gallery-card__play" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+          </span>
+          <span class="gallery-card__action">Ver video</span>
+        <% } else { %>
+          <span class="gallery-card__action">Ver imagen</span>
+        <% } %>
+      </span>
+      <span class="gallery-card__body">
+        <% if (item.category_name) { %><span class="gallery-card__category"><%= item.category_name %></span><% } %>
+        <strong class="gallery-card__title"><%= item.title %></strong>
+        <% if (item.description) { %><span class="gallery-card__description"><%= item.description %></span><% } %>
+      </span>
+    </button>
+  </article>
+</li>

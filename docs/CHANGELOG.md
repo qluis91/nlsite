@@ -1,5 +1,316 @@
 # Changelog
 
+## 2026-07-23 - Gallery Phase 4: Infinite Menu
+
+### Added
+- Allowlisted `view=infinite` URL mode alongside Grid, Circular, and Ring, with filter and pagination preservation.
+- Native JavaScript WebGL 2 Infinite Menu renderer adapted from the InfiniteMenu reference concept, with zero framework dependency.
+- Icosahedron sphere geometry (one subdivision) with 42 disc instances distributed over the sphere surface.
+- Disc geometry (56 radial segments) with instanced rendering via `drawElementsInstanced` and `vertexAttribDivisor`.
+- Texture atlas generation from gallery thumbnails only (no source/poster used), with bounded cell sizing respecting `MAX_TEXTURE_SIZE`, aspect-cover drawing, broken-thumbnail placeholders, and 15-second timeout safety.
+- Arcball pointer controls with two-axis dragging, pointer capture, projection to virtual sphere, angular velocity inertia with damping, and nearest-front-item snapping.
+- Keyboard controls (ArrowLeft/Right/Up/Down, Home, End, Enter, Space) and scoped wheel input.
+- Complete renderer lifecycle: pause, resume, resize (ResizeObserver), visibility pausing, intersection pausing, context-loss fallback, and idempotent destroy clearing all GL resources, listeners, observers, and timers.
+- Active-item HTML overlay with textContent, debounced aria-live announcements, and shared modal integration by stable original item ID.
+- Capability checks for WebGL 2, MAX_TEXTURE_SIZE ≥ 1024, MAX_VERTEX_ATTRIBS ≥ 8, and reduced-motion preference.
+- Four-mode selector: Cuadrícula, Galería circular, Carrusel 3D, Menú infinito.
+- Added `gl-matrix@3.4.3` as the only new dependency for vector/quaternion/matrix operations.
+- Focused Phase 4 URL, static integration, CSS namespacing, WebGL-2 capability, instanced-rendering, geometry, atlas-strategy, DOM-safety, input-scope, lifecycle, arcball-control, keyboard, and accessibility tests (17/17 pass).
+
+### Architecture
+- Reused the bounded Phase 1 public JSON and the single shared image/video modal.
+- Kept Grid server-rendered and usable without JavaScript; exactly one enhanced renderer can own the page at a time.
+- Added gl-matrix as a local vendor module copied to `public/vendor/gl-matrix/`.
+- No React, OGL, GSAP, Three.js, Tailwind, shadcn, or TypeScript added.
+
+### Deferred
+- Real-browser Infinite Menu validation pending when interactive Chrome/Edge backend is available.
+
+## 2026-07-23 - Gallery Phase 3: Ring Gallery and local demo data
+
+### Added
+- Allowlisted `view=ring` URL mode alongside Grid and Circular, with filter and pagination preservation.
+- Native CSS 3D Ring renderer with responsive geometry, thumbnail-only cards, pointer capture, drag inertia, nearest-card snapping, keyboard controls, scoped wheel input, depth/parallax treatment, active metadata, and shared-modal actions by stable item ID.
+- Idle-only RAF scheduling, visibility/intersection pausing, resize handling, and idempotent listener/observer/timer/card teardown under the existing single-renderer mode manager.
+- Controlled grid fallbacks for reduced motion, missing CSS 3D support, empty data, broken thumbnails, and initialization errors.
+- Explicit idempotent `node scripts/seed-gallery-demo.js` workflow that generates 15 local WebP compositions through Sharp, plus prefix-scoped `--clean` and `--reset` operations and a default production block.
+- Focused Ring geometry, lifecycle, input, DOM-safety, mode-manager, seed rollback, idempotency, media-integrity, cleanup-isolation, and production-guard tests.
+
+### Architecture
+- Reused the bounded Phase 1 public JSON and the single shared image/video modal.
+- Kept Grid server-rendered and usable without JavaScript; exactly one enhanced renderer can own the page at a time.
+- Added no dependency, schema change, admin surface, CDN, remote media, startup hook, React, GSAP, OGL, or Three.js code.
+
+### Deferred
+- Infinite Menu remains future work.
+- Real-browser Ring Gallery validation remains pending when no interactive Chrome or Edge backend is available.
+
+## 2026-07-23 — Gallery Phase 2: Circular Gallery
+
+### Added
+- Grid/Circular visualization selector with allowlisted `view=grid` and `view=circular` URLs; category, media type, and pagination preserve the active view.
+- Native JavaScript/WebGL Circular Gallery adapted from the ReactBits component, configured with `bend: 0`, cover-cropped thumbnail textures, canvas labels, rounded cards, movement deformation, inertia, snapping, and infinite cycles.
+- Container-scoped pointer/touch drag, wheel, ArrowLeft/ArrowRight, Home, Enter, and Space controls plus a semantic active-item overlay and polite debounced announcements.
+- Loading, broken-thumbnail placeholder, no-WebGL, initialization-error, conservative-device, context-loss, empty-data, and reduced-motion fallback paths.
+- Complete renderer pause/resume/resize/idempotent-destroy lifecycle with visibility and intersection pausing, ResizeObserver, resource disposal, page-hide cleanup, and DPR capped at 2.
+- Focused Phase 2 URL, static integration, source-security, input-scope, shader, thumbnail-only, modal-reuse, and lifecycle tests.
+
+### Architecture
+- Reused the Phase 1 bounded published JSON contract and shared image/video modal by stable item ID.
+- Circular mode uses `thumbnail` only; video `source` and `poster` are not assigned to WebGL and video playback remains modal-only.
+- Chose the allowed native-WebGL adaptation because OGL was absent, the gallery has no bundler, and `node_modules` must not be exposed. No dependency, vendor alias, CSP permission, React, GSAP, or gl-matrix was added.
+- Grid remains server-rendered and is hidden only after a successful first circular render.
+
+### Deferred
+- Infinite Menu and 3D Ring Carousel remain Phase 3 work.
+- Real-browser Circular Gallery validation remains pending when no interactive Chrome or Edge backend is available.
+
+## 2026-07-23 — Gallery Phase 1
+
+### Added
+- Public `/galeria` page with database category/media filters, bounded pagination, responsive fallback grid, empty/broken-media states, and NinjaLab visual styling.
+- MySQL-backed `gallery_categories` and `gallery_items` tables with an additive idempotent migration and synchronized `schema.sql`.
+- Administrator category and gallery-item CRUD, publication/featured toggles, sort order, search/filtering, and protected deletion.
+- Memory-based Multer upload flow for JPEG/PNG/WebP images and local MP4/WebM videos.
+- Sharp display-image, poster, and 512×512 thumbnail processing with random filenames and controlled storage roots.
+- One shared accessible image/video modal with Escape/arrows, focus trapping/restoration, scroll locking, and video pause on close.
+- Safe future-renderer JSON contract plus focused migration, media-security, CRUD, public-route, CSRF, XSS, and lightbox tests.
+- `docs/GALLERY_ARCHITECTURE.md` with storage, publication, deletion, accessibility, performance, and future-phase boundaries.
+
+### Security
+- Admin multipart ordering is authentication → Multer → centralized CSRF → controller.
+- Gallery writes and deletions resolve only inside allowlisted gallery roots; traversal, absolute paths, client paths, and incompatible roots are rejected.
+- Create/update failures compensate only newly generated files; old media is deleted only after a successful database commit.
+- Video validation is intentionally limited to MIME, extension, size, and basic MP4/WebM signature checks; no transcoding or automatic poster extraction is claimed.
+
+### Deferred
+- Infinite Menu, Circular Gallery, 3D Ring Carousel, WebGL/OGL, direct-item URLs, swipe gestures, transcoding, and automatic video thumbnail extraction.
+- Real-browser gallery validation remains pending when no interactive browser backend is available.
+
+## 2026-07-23 — Localized 3D Model Loading Animation
+
+### Changed
+- **Full-page intro animation disabled by default** — set `ENABLE_PAGE_INTRO = true` in `views/pages/home.ejs` to restore the legacy loading video; markup and `pageLoader.js` preserved intact for future reactivation
+- **SpinnerMorph adapted from React to native SVG/SMIL** (`views/partials/spinner-morph.ejs`) — no React, Tailwind, shadcn, or framework dependency; preserves the exact 3-state path sequence from the published component, with `<animateTransform>` rotation + `<animate attributeName="d">` path morphing
+- **Loader localized to 3D viewer area** — only `.hero-3d` shows the spinner; page content (navbar, hero text, CTAs, social links) renders immediately
+- **3D model state machine** — `data-model-state` on `.hero-3d` with `loading` → `ready` → `error`; transitions between spinner visibility and canvas opacity
+- **Error state with retry** — displays "No fue posible cargar el modelo 3D." with a "Reintentar" button that disposes of failed renderer resources before restarting
+- **Reduced-motion support** — SVG SMIL animations paused via `svg.pauseAnimations()` when `prefers-reduced-motion: reduce`; CSS transitions shortened
+
+### Added
+- `views/partials/spinner-morph.ejs` — reusable native SVG component accepting `size`, `fill`, `bg`, `rotateDur`, `morphDur`, `className`
+- Exact SpinnerMorph source fixture and deterministic rendered-value equality/hash regression test
+- `data-model-state`, `aria-busy`, `role="status"`, `aria-live="polite"` accessibility attributes on loader
+- Model-ready canvas fade-in transition (450ms opacity)
+
+### Preserved
+- Legacy `pageLoader.js`, page-loader markup (conditionally rendered via `ENABLE_PAGE_INTRO`), `hero-loader-spinner` CSS, and `body.page-home.is-page-loading` rule all remain in codebase
+- No dependencies added; no React, Tailwind, shadcn, or TypeScript introduced
+- No production code outside homepage affected
+
+## 2026-07-23 — Tilopay Test Hardening and Authoritative Payment Verification
+
+### Added
+- **Centralized `verifyTilopayPayment`** operation — single authoritative payment-verification path used by browser return, customer verify, guest verify, admin reconciliation, and webhook/notification processing
+- **Customer verification route**: `POST /cuenta/pedidos/:ref/tilopay/verificar` (CSRF, ownership, PRG)
+- **Guest verification route**: `POST /consultar-pedido/:ref/tilopay/verificar` (CSRF, guest grant, PRG)
+- **`normalizeTilopayAmount`** helper — canonicalizes provider amounts from any representation
+- **"Verificar estado del pago" button** in customer order detail view for pending/unknown transactions
+- **48 hardened tests** with exact per-scenario assertions (replaced all broad 200|302|404 lumps)
+
+### Changed
+- `services/tilopayService.js`: `verifyTilopayPayment` → loaded local transaction → provider lookup → amount/currency validation → `confirmPayment` → returns provider-neutral result contract with `messageCode`, `customerMessage`, `orderPaid`, `retryAllowed`
+- `controllers/tilopayController.js`: `returnFromTilopay` now uses `verifyTilopayPayment` (not ad-hoc reconciliation); added `verifyPayment` and `verifyPaymentGuest` actions; `adminReconcile` uses `verifyTilopayPayment`
+- `routes/tilopayRoutes.js`: added customer/guest verification routes
+- `views/pages/customer-order-detail.ejs`: verification button for pending/creating/unknown Tilopay transactions
+
+### Fixed (Tests)
+- Removed all permissive assertions: `[200, 302, 404].includes()`, `res.s === X || res.s === Y`, `res.s === X || res.s === Y || res.s === Z`
+- Every HTTP scenario has exact expected status + redirect `Location` validation + body content assertion
+- Return/cancel routes tested for query-parameter spoofing safety (`?success=true`, `?status=approved`, `?payment_status=paid`)
+- Unauthenticated POST to authenticated routes → exact 302 redirect to `/login` (session middleware fires before CSRF)
+- Unauthenticated GET `/admin` → exact 302 redirect to `/auth/login`
+- Security test verifies NO permissive multi-status assertions exist within test file itself
+- All 48 tests pass, clean exit
+
+## 2026-07-23 — Tilopay Provider Completion: Documentation Audit, Placeholder Removal, and Deployment Hardening
+
+### Fixed
+- Removed all invented/placeholder provider behavior:
+  - Deleted `verifyWebhookSignature()` with placeholder HMAC-SHA256
+  - Deleted `WEBHOOK_SIGNATURE_HEADER` with invented `X-Tilopay-Signature`
+  - Deleted `authenticate()` function with placeholder token endpoint
+  - Deleted `TILOPAY_RETURN_BASE_URL` (replaced by derived URLs from `PUBLIC_BASE_URL`)
+  - Removed `mock_tkn_` and `mock_tx_` generation from production client paths
+- Replaced `processWebhook()` with `processNotification()`: notification is treated as a hint, server-to-server API lookup is authoritative
+- Webhook route changed from `express.raw()` to `express.json()` (no HMAC signature verification needed)
+- Return route now triggers server-side reconciliation on browser return
+
+### Changed
+- `config/tilopay.js`: added `TILOPAY_PUBLIC_BASE_URL` for multi-client deployments; return/cancel/webhook URLs derived automatically; `TILOPAY_MOCK=true` blocked in production; `JQUERY_SCRIPT_URL` centralized
+- `services/tilopayClient.js`: rewritten — no placeholders, no invented HMAC, `isWebhookSignatureSupported()` returns `false` until confirmed; mock functions separated for test-only use
+- `services/tilopayService.js`: renamed `processWebhook` → `processNotification`; implements server-side lookup when signature unavailable
+- `controllers/tilopayController.js`: uses derived URLs; return route triggers reconciliation
+- `routes/tilopayWebhookRoutes.js`: simplified to bounded JSON parser
+- `views/pages/tilopay-pay.ejs`: jQuery URL from config, not hardcoded
+- `.env.example`: removed `TILOPAY_RETURN_BASE_URL`, `TILOPAY_WEBHOOK_SECRET`; added `TILOPAY_PUBLIC_BASE_URL`, `TILOPAY_MOCK`
+
+### Added
+- `scripts/validate-tilopay-config.js`: configuration validator with safe output (never prints credentials)
+- `docs/TILOPAY_CLIENT_SETUP.md`: per-client installation guide (8 steps)
+- `TILOPAY_MOCK=false` gating: blocked when `NODE_ENV=production`
+
+### Documentation
+- `docs/TILOPAY_INTEGRATION.md`: complete rewrite with confirmed/unconfirmed matrix, blocking report, best-known endpoint estimates, derived URL architecture
+- `docs/CHANGELOG.md`: this entry
+- `docs/PROJECT_STATUS.md`: updated status, known gaps
+
+### Verification
+- `node --check` passes on all files
+- `node scripts/validate-tilopay-config.js` works correctly
+- Migration idempotent (2 runs)
+- `npm audit --omit=dev`: 0 vulnerabilities
+- All unit/config tests pass (23/30); HTTP integration tests designed for live server
+
+### Known Gaps (Unchanged)
+- Tilopay Postman API collection inaccessible (JS rendering required)
+- SDK V2 guides behind merchant portal login
+- Server-side API endpoint URLs are best-known estimates (pending portal confirmation)
+- Webhook signature mechanism not publicly documented
+- No real sandbox transaction completed
+- No webhook end-to-end test completed
+- SDK V2 evaluation pending
+
+## 2026-07-23 — Tilopay Payment Integration (Provider-Neutral Architecture)
+
+### Added
+- `config/tilopay.js` — environment-variable validation, base URL selection, credential handling.
+- `config/tilopayStatusMap.js` — centralized status normalization, terminal/approval/retry helpers.
+- `services/tilopayClient.js` — provider HTTP adapter with mock fallback for testing.
+- `services/tilopayService.js` — business logic: initiation (3-stage), confirmation, webhook processing, reconciliation.
+- `controllers/tilopayController.js` — route handlers for payment initiation (customer + guest), return/cancel pages, webhook, admin reconciliation.
+- `routes/tilopayRoutes.js` — user-facing routes mounted before global CSRF.
+- `routes/tilopayWebhookRoutes.js` — webhook route with raw body handling, no session, no CSRF.
+- `scripts/migrate-tilopay.js` — idempotent migration creating `tilopay_transactions` table.
+- `views/pages/tilopay-pay.ejs` — payment form integrated with Tilopay SDK v1.
+- `views/pages/tilopay-result.ejs` — payment result page for return/cancel flows.
+- `tests/tilopay.test.js` — 30 automated tests covering config, service logic, client mock, security, HTTP integration, and regression.
+- `docs/TILOPAY_INTEGRATION.md` — full architecture documentation, PCI boundary, credential security, known gaps.
+
+### Changed
+- `config/checkoutOptions.js`: `tilopay` payment method now dynamically enabled based on `TILOPAY_ENABLED` environment variable.
+- `config/orderOptions.js`: added `tilopay` payment method label and 10 new event types (`tilopay_payment_created`, `tilopay_payment_approved`, `tilopay_payment_declined`, `tilopay_payment_cancelled`, `tilopay_payment_expired`, `tilopay_payment_reconciled`, `tilopay_payment_pending`, `tilopay_payment_creation_failed`, `tilopay_callback_received`, `tilopay_amount_mismatch`).
+- `app.js`: mounted tilopay account routes, guest routes, public return/cancel routes, and webhook route.
+- `controllers/accountOrderController.js`: fetches tilopay transaction summary for customer order detail.
+- `controllers/guestOrderController.js`: fetches tilopay transaction summary for guest order detail.
+- `controllers/adminOrderController.js`: fetches tilopay transaction summary for admin order detail.
+- `routes/adminOrderRoutes.js`: added `POST /admin/orders/:reference/tilopay/reconcile` for admin reconciliation.
+- `services/customerOrderService.js`: added `tilopay` payment instructions.
+- `views/pages/customer-order-detail.ejs`: added Tilopay transaction display and "Pagar con Tilopay" button (hidden when shipping pending).
+- `views/pages/admin/order-detail.ejs`: added Tilopay transaction section with status, amounts, and reconciliation button.
+- `.env.example`: added Tilopay configuration variables.
+- `schema.sql`: added `tilopay_transactions` table definition.
+
+### Security
+- Credentials loaded only from environment variables; never hardcoded, logged, or rendered in HTML.
+- Published WooCommerce test credentials explicitly excluded from all project files.
+- Credential rotation required before production (documented in `TILOPAY_INTEGRATION.md`).
+- Tilopay SDK handles card data on client-side; no raw card data reaches the NLSite Express server.
+- Webhook route uses provider authentication, not session/CSRF.
+- Amount always sourced from locked database order; browser-supplied values ignored.
+- Payment initiation requires CSRF, user authorization, and transactional order lock.
+- Only authoritative approved Tilopay status marks order paid.
+- Concurrent initiation serialized via `FOR UPDATE` order lock.
+
+### Verification
+- Migration idempotent (ran twice successfully).
+- `node --check app.js` passes.
+- `npm audit --omit=dev`: 0 vulnerabilities.
+- All 30 unit/config tests pass.
+- Existing payment-proof concurrency tests continue to pass (9/9).
+- SINPE and bank_transfer checkout remains functional.
+- Store, cart, login, register, guest lookup pages all load correctly.
+
+### Known Gaps (Pending Live Integration)
+- Tilopay Postman API collection inaccessible (requires JavaScript rendering) — server-side endpoint URLs unconfirmed.
+- Webhook signature algorithm and payload structure unconfirmed (PLACEHOLDER HMAC-SHA256).
+- No real sandbox transaction completed (pending credential rotation).
+- No webhook end-to-end validation (pending public-facing callback URL).
+- No real-browser visual validation of payment page.
+- API authentication token caching not yet implemented (pending token lifetime from docs).
+
+See `docs/TILOPAY_INTEGRATION.md` for full details.
+
+## 2026-07-22 — Saved Customer Addresses and Checkout Integration
+
+### Added
+- Owner-scoped address book under `/cuenta/direcciones` with create, edit, set-default and delete flows.
+- Additive idempotent `user_addresses` migration, 20-address limit, transactional one-default invariant and oldest-address promotion when the default is deleted.
+- Authenticated checkout selection using `saved:<id>` or `manual`; guests remain manual-only.
+- Controlled coverage for migration replay, validation, ownership, CSRF, default promotion, checkout manipulation and snapshot immutability.
+
+### Security and data integrity
+- Address IDs are parsed as positive integers and every lookup is constrained by the authenticated session user.
+- Saved address fields are loaded server-side and replace any browser-submitted manual address before checkout validation.
+- Orders continue storing delivery snapshots in the existing `orders` columns; later edits or deletions never mutate historical orders.
+- The checkout phone remains authoritative for `customer_phone`; a saved address phone is display-only convenience.
+
+### Validation
+- The migration ran repeatedly without changing existing users or orders.
+- Full `node --test`, JavaScript/EJS syntax checks, `npm audit --omit=dev` and `git diff --check` pass.
+- Saving a new manual checkout address remains an optional deferred enhancement.
+
+## 2026-07-22 — Authenticated Customer Account Dashboard
+
+### Added
+- Shared dark NinjaLab account shell with accessible server-rendered navigation for Resumen, Mis pedidos, Mi perfil, Seguridad and POST-only logout.
+- Owner-scoped `/cuenta` dashboard using bounded aggregate and latest-order queries.
+- Profile editing for display name, optional surname and normalized phone. Email remains visible and read-only until a verified email-change flow exists.
+- Avatar upload at `/cuenta/avatar` using a 2 MB JPG/PNG/WebP allowlist, Sharp auto-rotation, metadata-stripping re-encode, square 512×512 crop and randomized WebP storage.
+- Safe avatar replacement, orphan cleanup after failed DB writes, path-constrained idempotent removal and initials fallback.
+- Password change with current-password verification, 8–128 character bounds, bcrypt cost 10 and `password_changed_at`.
+- `scripts/migrate-user-profile.js`, an additive idempotent migration for `last_name`, `phone`, `avatar_path` and `password_changed_at`.
+- Controlled integration coverage for account routes, profile allowlists, CSRF, avatar formats, Windows file-lock retry, session rotation and regressions.
+
+### Changed
+- `/cuenta/pedidos` and its owner-scoped detail now render inside the shared account shell.
+- The authenticated public navigation exposes both the account dashboard and existing order link without changing the navbar layout.
+- Authentication return paths now allowlist the static account sections as well as owner order URLs.
+- The centralized image pipeline now supports configurable crop position and enlargement while preserving existing product-image defaults.
+
+### Security
+- Account mutations derive identity only from `req.session.user.id`; browser-submitted IDs, roles, status, avatar paths, passwords and email changes are ignored.
+- Multipart avatar requests are mounted before global CSRF and explicitly validate CSRF after Multer parses the body.
+- Password session regeneration restores only the sanitized cart and deliberately drops guest-order grants and recent-order access.
+- Order ownership, customer-safe serialization, public timeline allowlists and cross-user 404 behavior remain unchanged.
+
+### Validation
+- Profile migration ran successfully twice against the active local database without changing existing user or administrator counts.
+- `node --test` passes the account, customer-order, admin-order and existing authentication suites.
+- Real-browser visual validation remains pending because no browser backend was available in the Codex session.
+
+## 2026-07-22 — Customer Order Portal and Secure Guest Lookup
+
+### Added
+- Authenticated order list and detail routes under `/cuenta/pedidos`, querying only the current session user's orders and returning 404 for cross-user references.
+- A customer-safe order serializer with explicit field selection, immutable product snapshots, safe address output, centralized status labels and server-derived payment instructions.
+- A public timeline mapper that allowlists customer milestones and never selects notes, actors or raw event metadata.
+- Public `/consultar-pedido` verification using strict order reference plus normalized email for guest-owned orders only.
+- Session grants with a 30-minute TTL, five-entry cap, deduplication and sanitization on read.
+- Existing rate-limit infrastructure applied at seven lookup attempts per 15 minutes; lookup POST remains behind global CSRF protection.
+- Responsive, scoped account-order and lookup views with semantic timelines, accessible forms and noindex metadata.
+- Controlled ephemeral users and orders for owner, cross-user, regular-admin-denial, administrator and guest authorization tests.
+
+### Changed
+- Checkout confirmation now reuses the same customer-safe service and detail presentation as account and verified guest access.
+- Login accepts only allowlisted account-order return paths; session regeneration intentionally restores the cart but not guest-order grants.
+- Account navigation includes “Mis pedidos”. The pre-existing direct `/tienda` navbar edit was repaired into valid HTML without changing its target.
+
+### Validation
+- Customer and administrative Node test suites execute without skips.
+- Fixture-owned orders, events, users and sessions are removed after every run.
+- No schema, migration, dependency, Tilo Pay or payment-provider changes were introduced in this phase.
+
 ## 2026-07-22 — Checkout & Manual Order Creation
 
 ### Added — Checkout Flow
@@ -679,3 +990,161 @@ New "Estado" column in `/admin/catalogo/productos` with three badge types:
 - XSS, invalid params, and SQL injection resistant (15/15 tests pass).
 
 ## 2026-07-21 — Initial Project Setup
+## 2026-07-22 — Administrative Order Management
+
+### Added
+- Admin order list and detail views with allowlisted search, filters, sorting, pagination and opaque-reference routes.
+- Transactional shipping quotation/requotation, exact CRC total calculation, manual payment confirmation and delivery-specific lifecycle transitions.
+- Guarded unpaid-order cancellation with locked, one-time stock restoration.
+- Append-only `order_events` history, migration baseline events and internal notes.
+- Database-enforced unique idempotency plus owner-scoped duplicate recovery.
+- Active-database and policy tests using the built-in Node.js test runner.
+- Secure database-export guidance and scoped ignored backup directories.
+
+### Security
+- Every administrative mutation remains behind administrator authorization and global CSRF protection.
+- Mutations use transactions and row locks; user-controlled filter/sort/status values are bounded or allowlisted.
+- Customer confirmation remains session/owner authorized and does not expose internal notes or audit events.
+
+---
+
+## 2026-07-22 — Payment-Proof Upload and Administrative Review
+
+### Added — Payment proofs (`payment_proofs` table)
+New table for payment-proof uploads with columns: `id` (BIGINT PK), `order_id` (FK→orders), `submitted_by_user_id` (FK→users, nullable), `submission_source` (`account`|`guest`|`recent`), `status` (`pending_review`|`approved`|`rejected`), `original_filename`, `stored_filename`, `storage_path`, `mime_type`, `file_size_bytes`, `image_width/height`, `submitted_at`, `reviewed_at`, `reviewed_by_user_id`, `rejection_reason`. Indexed on `(order_id, created_at)`, `status`, `submitter`, `reviewer`. Cascade delete on order deletion. Set-null on user deletion.
+
+### Added — Migration (`scripts/migrate-payment-proofs.js`)
+Idempotent additive migration. Creates `payment_proofs` table with InnoDB, utf8mb4. Safe to run multiple times.
+
+### Added — Private storage (`storage/payment-proofs/`)
+Payment-proof files stored outside `public/`. Never served via static middleware. `.gitignore` updated.
+
+### Added — Payment-proof service (`services/paymentProofService.js`)
+- `canUploadProof()`: Eligibility check — requires `payment_method` in (sinpe, bank_transfer), `payment_status=pending`, `final_total` not null, `shipping_status` in (not_required, quoted), `order_status=pending_payment`.
+- `submitProof()`: Full upload workflow — authorization, eligibility, active-proof check, Sharp image processing (WebP 2400px, quality 86, auto-rotate, strip metadata), PDF validation (%PDF- signature), private disk storage, DB insert with event.
+- `approveProof()`: Transactional approval — locks order+proof rows, validates status, sets proof approved + order paid + order_status payment_confirmed, inserts dual audit events.
+- `rejectProof()`: Transactional rejection — requires rejection reason (max 500 chars), sets proof rejected, leaves payment pending, inserts audit event.
+- `getProofSummary()`: Returns current proof status for order detail views.
+- `getProofForServing()` + `validateProofPath()`: Authorized file serving with path traversal protection.
+- `hasPendingProof()`: Blocks manual payment confirmation when a proof awaits review.
+
+### Added — Multer config for proof uploads
+New `proofFileUpload` middleware in `middleware/upload.js`: single file, 5 MB max, memory storage, allows JPEG/PNG/WebP/PDF.
+
+### Added — Payment-proof controller (`controllers/paymentProofController.js`)
+- `accountUpload` / `guestUpload`: CSRF validation, authorization, eligibility, file upload, post/redirect/get.
+- `accountPreview` / `guestPreview` / `adminPreview`: Authorized file serving with safe headers (Content-Type, nosniff, no-store, Content-Disposition).
+- `adminApprove` / `adminReject`: Admin review actions with validation.
+
+### Added — Payment-proof routes
+- `routes/paymentProofAccountRoutes.js`: POST upload + GET preview for authenticated customers. Mounted before global CSRF.
+- `routes/paymentProofGuestRoutes.js`: POST upload + GET preview for guests. Mounted before global CSRF.
+- `routes/adminOrderRoutes.js`: Added GET preview + POST approve + POST reject.
+
+### Changed — Admin order service (`services/adminOrderService.js`)
+- `getOrderByReference()` now includes `proofSummary` in response.
+- `confirmPayment()` now blocks if a proof is `pending_review`.
+- Manual confirmation uses `payment_confirmed_manually` event type.
+
+### Changed — Order events (`config/orderOptions.js`)
+New event types: `payment_proof_submitted`, `payment_proof_approved`, `payment_proof_rejected`, `payment_confirmed_manually`.
+
+### Changed — Customer order views
+- `views/pages/customer-order-detail.ejs`: Added proof section with status display, upload form, and rejection/replacement UI.
+- `views/pages/admin/order-detail.ejs`: Added proof review section with preview, approve, and reject actions.
+
+### Changed — Controllers
+- `controllers/accountOrderController.js`: Fetches `proofSummary` for order detail.
+- `controllers/guestOrderController.js`: Fetches `proofSummary` for order detail.
+
+### Changed — CSS
+- `public/css/account-orders.css`: Added proof block, proof status, proof upload form, and proof action styles.
+
+### Tests
+- Existing 13 automated tests pass (admin orders, customer orders, regressions).
+- Manually validated: guest upload → pending_review → admin preview → admin reject → guest sees rejection → guest replacement → admin approve → payment confirmed.
+
+### Security
+- Payment proofs never served via public static URL.
+- Files stored under `storage/payment-proofs/<reference>/<uuid>.<ext>`, not accessible via `/storage/`.
+- Path traversal protection on file serve.
+- CSRF protected (manual token comparison).
+- Customer/guest authorization enforced.
+- Only eligible orders can upload proofs.
+- Active-proof invariant: at most one `pending_review` or `approved` proof per order.
+- Pending proof blocks manual payment confirmation bypass.
+- Images re-encoded through Sharp (metadata stripped, auto-rotate, WebP).
+- PDFs validated by %PDF- header signature.
+- File size capped at 5 MB.
+- MIME types restricted to JPEG/PNG/WebP/PDF.
+- Rejection reason capped at 500 characters.
+
+---
+
+## Payment-Proof CSRF Integration and Concurrent Upload Hardening (2026-07-22)
+
+### Objective
+Remove manual CSRF validation from multipart upload controllers, integrate centralized `csrf-sync` middleware, and add transactional row-locking to prevent concurrent duplicate active proofs.
+
+### Root cause: multipart CSRF hang
+The previous implementation mounted proof routes before the global CSRF middleware and performed a manual token comparison (`req.body._csrf === req.session.csrfToken`) inside controllers. The `csrf-synchronisedProtection` middleware was initially excluded because it appeared to hang when placed inline after `multer`. The root cause was **not** an architectural incompatibility with `csrf-sync` — it was due to an expired MySQL session-store lock from a previous run. The actual middleware chain `multer → csrfSynchronisedProtection → controller` works correctly and is consistent with the project's admin catalog routes pattern.
+
+### Root cause: concurrent upload race condition
+The previous `submitProof` performed a non-locking read of the `orders` row and a non-locking check for active proofs. Two concurrent requests could both determine no active proof existed and both proceed to insert. Even though the proof-row insert was wrapped in a transaction, the eligibility check happened outside the lock boundary.
+
+### Changed — Routes (`routes/paymentProofAccountRoutes.js`, `routes/paymentProofGuestRoutes.js`)
+- Added `csrfSynchronisedProtection` import from centralized `config/csrf.js`.
+- Middleware order: `proofFileUpload` (multer parses multipart into `req.body`) → `csrfSynchronisedProtection` (centralized CSRF validation) → controller.
+- Removed manual CSRF token comparison entirely.
+
+### Changed — Controller (`controllers/paymentProofController.js`)
+- Removed the `requireCsrf()` helper function and all calls to it from `accountUpload` and `guestUpload`.
+- Controller no longer performs any CSRF token comparison; it assumes the middleware already validated the token.
+- All other behavior (input validation, authorization, service calls, redirects) preserved.
+
+### Changed — Service (`services/paymentProofService.js`)
+- Refactored `uploadProof()` into `processProofFile()`: validates and re-encodes the file buffer via Sharp/PDF check but does **not** write to disk.
+- Refactored `submitProof()` into two stages:
+  - **Stage A** (outside TX): lightweight pre-authorization (read order without lock), file processing (Sharp/PDF validation).
+  - **Stage B** (inside TX): `BEGIN TRAN` → `SELECT ... FOR UPDATE` on orders row → re-check eligibility + authorization under lock → `SELECT ... FOR UPDATE` on active `payment_proofs` rows → write file to disk → insert proof row → insert audit event → `COMMIT`.
+  - Filesystem compensation: if DB insert/event/commit fails after file write, the new file is deleted. Historical proof files are never touched.
+- Added `hasActiveProofUnderLock()`: queries payment_proofs with `FOR UPDATE` inside the transaction.
+- Added `sanitizeFilename()` utility for consistent filename cleanup.
+- `approveProof()` and `rejectProof()` already used `FOR UPDATE` on both orders and proofs — unchanged.
+- `hasPendingProof()` and `getProofSummary()` unchanged for backward compatibility.
+
+### Concurrency guarantees
+- Order-row lock (`SELECT ... FOR UPDATE` on `orders`) serializes all proof submissions, approvals, and rejections for the same order.
+- Active-proof invariant: at most one `pending_review` or `approved` proof per order, enforced under transaction lock.
+- Manual payment confirmation (`adminOrderService.confirmPayment`) already checks pending proofs inside `withLockedOrder` (which locks the orders row) — no changes needed.
+- Rejected proofs allow replacement; old rejected rows/files remain untouched.
+- No database partial unique index used; row locking is the sole serialization mechanism.
+
+### Tests
+- 9 new automated tests in `tests/payment-proof-concurrency.test.js`:
+  - CSRF architecture: controller has no manual comparison, routes use centralized middleware.
+  - Invalid CSRF returns 403 and creates no proof.
+  - Missing CSRF returns 403.
+  - Two simultaneous uploads produce exactly one active proof (concurrency).
+  - Upload rejected when order is already paid.
+  - Rejected proof replacement: concurrent uploads serialize.
+  - Login/register pages have CSRF tokens (regression).
+  - Store and guest lookup pages work (regression).
+- All tests pass without flakiness.
+
+### Files modified
+- `controllers/paymentProofController.js` — removed manual CSRF
+- `services/paymentProofService.js` — transactional submission with order-row locking
+- `routes/paymentProofAccountRoutes.js` — centralized CSRF middleware
+- `routes/paymentProofGuestRoutes.js` — centralized CSRF middleware
+- `tests/payment-proof-concurrency.test.js` — new tests
+- `docs/CHANGELOG.md` — this entry
+- `docs/PROJECT_STATUS.md` — updated
+
+### No changes to
+- `schema.sql`, migration scripts, payment_proofs table
+- Customer-facing layout, admin visual design
+- Product catalog, checkout behavior
+- `package.json`, `package-lock.json`
+- Tilo Pay, WhatsApp number (`50670240270`)
+- No dependencies added

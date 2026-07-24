@@ -1,0 +1,56 @@
+<%- include('../components/home-navbar') %>
+
+<div class="tr-container">
+  <div class="tr-card">
+    <% if (status === 'approved') { %>
+      <div class="tr-icon tr-icon--success">
+        <svg viewBox="0 0 24 24" width="48" height="48"><circle cx="12" cy="12" r="10" fill="#22c55e"/><path fill="#fff" d="M9 12l2 2 4-4"/></svg>
+      </div>
+      <h1 class="tr-title tr-title--success">¡Pago confirmado!</h1>
+      <p class="tr-message">Tu pago fue procesado exitosamente.</p>
+    <% } else if (status === 'pending' || status === 'creating') { %>
+      <div class="tr-icon tr-icon--pending">
+        <svg viewBox="0 0 24 24" width="48" height="48"><circle cx="12" cy="12" r="10" fill="#f59e0b"/><path fill="#fff" d="M12 6v6l4 2"/></svg>
+      </div>
+      <h1 class="tr-title tr-title--pending">Pago en proceso</h1>
+    <% } else if (status === 'cancelled') { %>
+      <div class="tr-icon tr-icon--cancelled">
+        <svg viewBox="0 0 24 24" width="48" height="48"><circle cx="12" cy="12" r="10" fill="#6b7280"/><path fill="#fff" d="M15 9l-6 6M9 9l6 6"/></svg>
+      </div>
+      <h1 class="tr-title tr-title--cancelled">Pago cancelado</h1>
+    <% } else { %>
+      <div class="tr-icon tr-icon--failed">
+        <svg viewBox="0 0 24 24" width="48" height="48"><circle cx="12" cy="12" r="10" fill="#ef4444"/><path fill="#fff" d="M15 9l-6 6M9 9l6 6"/></svg>
+      </div>
+      <h1 class="tr-title tr-title--failed">Pago no completado</h1>
+    <% } %>
+
+    <p class="tr-message"><%= message %></p>
+
+    <div class="tr-actions">
+      <% if (status === 'approved') { %>
+        <!-- Redirect handled by controller -->
+      <% } else if (status === 'cancelled' || status === 'declined' || status === 'failed') { %>
+        <a href="/tienda" class="tr-btn tr-btn--secondary">Volver a la tienda</a>
+      <% } else { %>
+        <a href="/" class="tr-btn tr-btn--secondary">Volver al inicio</a>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<style>
+  .tr-container { max-width: 480px; margin: 3rem auto; padding: 0 1rem; }
+  .tr-card { background: #fff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.06); padding: 2.5rem 2rem; text-align: center; }
+  .tr-icon { margin-bottom: 1rem; }
+  .tr-title { font-size: 1.3rem; font-weight: 700; margin: 0 0 .75rem; }
+  .tr-title--success { color: #059669; }
+  .tr-title--pending { color: #92400e; }
+  .tr-title--cancelled { color: #4b5563; }
+  .tr-title--failed { color: #991b1b; }
+  .tr-message { font-size: .9rem; color: #6b7280; line-height: 1.6; margin: 0 0 1.5rem; }
+  .tr-actions { display: flex; gap: .75rem; justify-content: center; }
+  .tr-btn { display: inline-block; padding: .6rem 1.5rem; border-radius: 8px; font-size: .88rem; font-weight: 600; text-decoration: none; }
+  .tr-btn--secondary { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+  @media (max-width: 500px) { .tr-card { padding: 1.5rem 1rem; } }
+</style>

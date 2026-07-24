@@ -107,6 +107,7 @@ export function initNavbar() {
   }
 
   header.classList.add('is-enhanced');
+  setMenu(false);
   dropdowns.forEach((item) => setDropdown(item, false));
   updateScrollState();
 

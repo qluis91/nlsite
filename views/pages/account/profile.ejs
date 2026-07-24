@@ -1,0 +1,65 @@
+<main class="account-profile">
+  <header class="account-header">
+    <p class="account-header__eyebrow">Información personal</p>
+    <h1>Mi perfil</h1>
+    <p>Administra tu información personal y la imagen de tu cuenta.</p>
+  </header>
+
+  <section class="account-section account-profile__avatar-section" aria-labelledby="avatar-title">
+    <div class="account-section__heading"><div><p>Imagen de cuenta</p><h2 id="avatar-title">Avatar</h2></div></div>
+    <div class="account-avatar-editor">
+      <% if (accountUser.avatar_path) { %>
+        <img class="account-avatar account-avatar--profile" src="<%= accountUser.avatar_path %>" alt="Avatar de <%= accountUser.name %>">
+      <% } else { %>
+        <span class="account-avatar account-avatar--profile account-avatar--initials" aria-hidden="true"><%= accountInitials %></span>
+      <% } %>
+      <div class="account-avatar-editor__actions">
+        <form action="/cuenta/avatar" method="POST" enctype="multipart/form-data">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="account-file-field" for="avatar">
+            <span>Seleccionar imagen</span>
+            <input id="avatar" name="avatar" type="file" accept="image/jpeg,image/png,image/webp" required>
+          </label>
+          <p>JPG, PNG o WebP. Máximo 2 MB. Se recortará a formato cuadrado.</p>
+          <button class="account-button" type="submit">Actualizar avatar</button>
+        </form>
+        <% if (accountUser.avatar_path) { %>
+          <form action="/cuenta/avatar/eliminar" method="POST">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button class="account-button account-button--danger" type="submit">Eliminar avatar</button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+  </section>
+
+  <section class="account-section" aria-labelledby="profile-data-title">
+    <div class="account-section__heading"><div><p>Datos de contacto</p><h2 id="profile-data-title">Información personal</h2></div></div>
+    <form class="account-form" action="/cuenta/perfil" method="POST" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="account-form__grid">
+        <div class="account-field">
+          <label for="name">Nombre</label>
+          <input id="name" name="name" type="text" maxlength="100" autocomplete="given-name" required value="<%= form.name %>" aria-describedby="<%= fieldErrors.name ? 'name-error' : '' %>">
+          <% if (fieldErrors.name) { %><span class="account-field__error" id="name-error"><%= fieldErrors.name %></span><% } %>
+        </div>
+        <div class="account-field">
+          <label for="lastName">Apellidos</label>
+          <input id="lastName" name="lastName" type="text" maxlength="100" autocomplete="family-name" value="<%= form.lastName %>" aria-describedby="<%= fieldErrors.lastName ? 'last-name-error' : '' %>">
+          <% if (fieldErrors.lastName) { %><span class="account-field__error" id="last-name-error"><%= fieldErrors.lastName %></span><% } %>
+        </div>
+        <div class="account-field">
+          <label for="email">Correo electrónico</label>
+          <input id="email" type="email" value="<%= accountUser.email %>" autocomplete="email" readonly aria-describedby="email-help">
+          <span class="account-field__help" id="email-help">Para cambiar el correo de la cuenta, utiliza el proceso de soporte o una futura verificación.</span>
+        </div>
+        <div class="account-field">
+          <label for="phone">Teléfono</label>
+          <input id="phone" name="phone" type="tel" maxlength="30" autocomplete="tel" inputmode="tel" value="<%= form.phone %>" aria-describedby="<%= fieldErrors.phone ? 'phone-error' : 'phone-help' %>">
+          <% if (fieldErrors.phone) { %><span class="account-field__error" id="phone-error"><%= fieldErrors.phone %></span><% } else { %><span class="account-field__help" id="phone-help">Entre 8 y 15 dígitos; puedes usar espacios, guiones o prefijo internacional.</span><% } %>
+        </div>
+      </div>
+      <button class="account-button" type="submit">Guardar cambios</button>
+    </form>
+  </section>
+</main>

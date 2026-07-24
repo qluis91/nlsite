@@ -1,0 +1,38 @@
+<div class="gallery-modal" data-gallery-modal hidden>
+  <button class="gallery-modal__backdrop" type="button" aria-label="Cerrar visor" data-gallery-close></button>
+  <section
+    class="gallery-modal__panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="gallery-modal-title"
+    aria-describedby="gallery-modal-description"
+    tabindex="-1"
+    data-gallery-dialog
+  >
+    <button class="gallery-modal__close" type="button" aria-label="Cerrar visor" data-gallery-close>
+      <span aria-hidden="true">×</span>
+    </button>
+    <div class="gallery-modal__stage" data-gallery-stage>
+      <p class="gallery-modal__status" role="status" data-gallery-status>Cargando medio…</p>
+      <img class="gallery-modal__image" alt="" data-gallery-image hidden>
+      <video
+        class="gallery-modal__video"
+        controls
+        preload="metadata"
+        playsinline
+        data-gallery-video
+        hidden
+      ></video>
+    </div>
+    <div class="gallery-modal__details">
+      <p class="gallery-modal__category" data-gallery-category></p>
+      <h2 id="gallery-modal-title" data-gallery-title></h2>
+      <p id="gallery-modal-description" data-gallery-description></p>
+    </div>
+    <div class="gallery-modal__navigation" aria-label="Navegación del visor">
+      <button type="button" data-gallery-previous aria-label="Elemento anterior">Anterior</button>
+      <span data-gallery-position aria-live="polite"></span>
+      <button type="button" data-gallery-next aria-label="Elemento siguiente">Siguiente</button>
+    </div>
+  </section>
+</div>

@@ -1,0 +1,40 @@
+<div class="page-header">
+  <div><h1>Categorías de galería</h1><p>Desactiva categorías para ocultarlas sin perder sus medios.</p></div>
+  <a class="btn btn-outline" href="/admin/galeria">Volver a galería</a>
+</div>
+
+<div class="card">
+  <h2>Nueva categoría</h2>
+  <form class="gallery-category-form" action="/admin/galeria/categorias" method="POST">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input class="form-control" type="text" name="name" maxlength="120" required placeholder="Nombre">
+    <input class="form-control" type="text" name="description" maxlength="1000" placeholder="Descripción">
+    <input class="form-control" type="number" name="sortOrder" min="-100000" max="100000" value="0" aria-label="Orden">
+    <label class="checkbox-label"><input type="checkbox" name="isActive" value="1" checked> Activa</label>
+    <button class="btn btn-primary" type="submit">Crear categoría</button>
+  </form>
+</div>
+
+<div class="card">
+  <% if (!categories.length) { %>
+    <div class="empty-state"><p>No hay categorías de galería.</p></div>
+  <% } else { %>
+    <div class="gallery-category-list">
+      <% categories.forEach(function(category) { %>
+        <form class="gallery-category-form" action="/admin/galeria/categorias/<%= category.id %>" method="POST">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input class="form-control" type="text" name="name" maxlength="120" required value="<%= category.name %>" aria-label="Nombre">
+          <input class="form-control" type="text" name="description" maxlength="1000" value="<%= category.description || '' %>" aria-label="Descripción">
+          <input class="form-control" type="number" name="sortOrder" min="-100000" max="100000" value="<%= category.sort_order %>" aria-label="Orden">
+          <label class="checkbox-label"><input type="checkbox" name="isActive" value="1" <%= category.is_active ? 'checked' : '' %>> Activa</label>
+          <span><%= category.item_count %> elemento(s)</span>
+          <button class="btn btn-sm btn-outline" type="submit">Guardar</button>
+        </form>
+        <form action="/admin/galeria/categorias/<%= category.id %>/eliminar" method="POST" data-confirm="¿Eliminar esta categoría?">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="btn btn-sm btn-danger" type="submit" <%= Number(category.item_count) > 0 ? 'disabled title="Tiene elementos asociados"' : '' %>>Eliminar</button>
+        </form>
+      <% }); %>
+    </div>
+  <% } %>
+</div>

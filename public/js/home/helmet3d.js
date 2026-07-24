@@ -110,7 +110,6 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
   scene.add(modelGroup);
 
   let modelLoaded = false;
-  let loaderHidden = document.documentElement.dataset.pageLoaderHidden === 'true';
   let presentationStarted = false;
   let autoRotateEnabled = false;
   let autoRotateStartTimer = null;
@@ -158,7 +157,7 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
   }
 
   function tryStartHelmetPresentation() {
-    if (!modelLoaded || !loaderHidden || presentationStarted || destroyed) return;
+    if (!modelLoaded || presentationStarted || destroyed) return;
 
     presentationStarted = true;
     clearAutoRotateStartTimer();
@@ -172,13 +171,6 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
       autoRotateEnabled = true;
     }, AUTO_ROTATE_START_DELAY_MS);
   }
-
-  function handlePageLoaderHidden() {
-    loaderHidden = true;
-    tryStartHelmetPresentation();
-  }
-
-  window.addEventListener('page-loader:hidden', handlePageLoaderHidden, { once: true });
 
   try {
     const gltf = await new Promise((resolve, reject) => {
@@ -251,7 +243,6 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
     canvas.dispatchEvent(new CustomEvent('helmet-loaded', { bubbles: true }));
   } catch (err) {
     clearAutoRotateStartTimer();
-    window.removeEventListener('page-loader:hidden', handlePageLoaderHidden);
     signalHelmetError();
     // Show fallback, hide loader
     if (loaderEl) loaderEl.style.display = 'none';
@@ -393,7 +384,6 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
     autoRotateEnabled = false;
     idleResumeAt = 0;
     window.removeEventListener('pagehide', canvas._helmetCleanup);
-    window.removeEventListener('page-loader:hidden', handlePageLoaderHidden);
     document.removeEventListener('visibilitychange', onVisibilityChange);
     stage.removeEventListener('pointerdown', onPointerDown);
     stage.removeEventListener('pointermove', onPointerMove);

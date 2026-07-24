@@ -38,6 +38,35 @@ function reducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+/**
+ * Model state machine — sets data-model-state on the 3D viewer.
+ * loading → ready | error
+ */
+function setModelState(stage, state) {
+  if (!stage) return;
+  stage.dataset.modelState = state;
+
+  // Remove all state classes
+  stage.classList.remove('is-loading', 'is-ready', 'has-error');
+
+  switch (state) {
+    case 'loading':
+      stage.classList.add('is-loading');
+      stage.setAttribute('aria-busy', 'true');
+      break;
+    case 'ready':
+      stage.classList.add('is-ready');
+      stage.setAttribute('aria-busy', 'false');
+      break;
+    case 'error':
+      stage.classList.add('has-error');
+      stage.setAttribute('aria-busy', 'false');
+      break;
+    default:
+      break;
+  }
+}
+
 function initShowcase() {
   const logoLoopRoot = document.querySelector('[data-logo-loop]');
   const carouselRoot = document.querySelector('[data-project-carousel]');
@@ -73,17 +102,56 @@ function initShowcase() {
 async function init() {
   if (!homePage) return;
 
-  pageLoader = initPageLoader();
+  // ── Page-loader toggle ──
+  // When ENABLE_PAGE_INTRO is false the page renders immediately
+  // and only the 3D area shows the localized morphing spinner.
+  const ENABLE_PAGE_INTRO = document.querySelector('[data-page-loader]') !== null;
+
+  if (ENABLE_PAGE_INTRO) {
+    pageLoader = initPageLoader();
+  } else {
+    // Dispatch hidden immediately so helmet3d doesn't wait
+    const documentRoot = document.documentElement;
+    documentRoot.dataset.pageLoaderHidden = 'true';
+    window.dispatchEvent(new CustomEvent('page-loader:hidden'));
+  }
+
+  // ── 3D model state wiring ──
+  const stage = document.querySelector('.hero-3d');
+  const loaderEl = document.querySelector('[data-helmet-loader]');
+  const errorEl = document.querySelector('[data-helmet-error]');
+  const fallbackEl = document.querySelector('[data-helmet-fallback]');
+  const retryBtn = document.querySelector('[data-helmet-retry]');
+
+  let helmetInitError = false;
 
   const onHelmetProgress = (event) => {
     const percent = event.detail && event.detail.percent;
     if (!Number.isFinite(percent)) return;
-    pageLoader.setStatus(`Cargando modelo 3D… ${Math.round(percent)}%`);
+    const loaderText = loaderEl && loaderEl.querySelector('.hero-loader-text');
+    if (loaderText) {
+      loaderText.textContent = `Cargando modelo 3D… ${Math.round(percent)}%`;
+    }
+    if (ENABLE_PAGE_INTRO && pageLoader) {
+      pageLoader.setStatus(`Cargando modelo 3D… ${Math.round(percent)}%`);
+    }
   };
-  const onHelmetReady = () => pageLoader.hide();
+
+  const onHelmetReady = () => {
+    if (stage) setModelState(stage, 'ready');
+    if (ENABLE_PAGE_INTRO && pageLoader) pageLoader.hide();
+  };
+
   const onHelmetError = () => {
-    pageLoader.setStatus('El modelo 3D no está disponible. Mostrando la página…');
-    pageLoader.hide();
+    helmetInitError = true;
+    if (stage) setModelState(stage, 'error');
+    if (loaderEl) loaderEl.style.display = 'none';
+    if (errorEl) errorEl.hidden = false;
+    if (fallbackEl) fallbackEl.hidden = false;
+    if (ENABLE_PAGE_INTRO && pageLoader) {
+      pageLoader.setStatus('El modelo 3D no está disponible. Mostrando la página…');
+      pageLoader.hide();
+    }
   };
 
   window.addEventListener('helmet:progress', onHelmetProgress);
@@ -95,13 +163,57 @@ async function init() {
     window.removeEventListener('helmet:error', onHelmetError);
   };
 
+  // ── Retry button ──
+  if (retryBtn) {
+    retryBtn.addEventListener('click', async () => {
+      if (!stage) return;
+
+      // Reset to loading state
+      helmetInitError = false;
+      if (errorEl) errorEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+      if (loaderEl) loaderEl.style.display = '';
+      const loaderText = loaderEl && loaderEl.querySelector('.hero-loader-text');
+      if (loaderText) loaderText.textContent = 'Cargando modelo 3D…';
+      setModelState(stage, 'loading');
+
+      // Dispose prior failed renderer if any
+      const canvas = document.querySelector('[data-helmet-canvas]');
+      if (canvas && canvas._helmetCleanup) {
+        canvas._helmetCleanup();
+        canvas._helmetCleanup = null;
+      }
+
+      // Restart 3D
+      const canvasEl = document.querySelector('[data-helmet-canvas]');
+      if (canvasEl && supportsWebGL()) {
+        try {
+          await initHelmet3D(canvasEl, reducedMotion());
+        } catch (err) {
+          signalHelmetError();
+          console.error('[home] Helmet3D retry failed:', err);
+        }
+      } else {
+        signalHelmetError();
+      }
+    });
+  }
+
   if (document.documentElement.dataset.helmetReady === 'true') {
-    pageLoader.hide();
+    if (stage) setModelState(stage, 'ready');
   } else if (document.documentElement.dataset.helmetError === 'true') {
     onHelmetError();
   }
 
   const prefersReduced = reducedMotion();
+
+  // ── Reduced-motion: pause SVG SMIL animations ──
+  if (prefersReduced) {
+    const svgEl = document.querySelector('.hero-loader__spinner-svg');
+    if (svgEl && typeof svgEl.pauseAnimations === 'function') {
+      svgEl.pauseAnimations();
+    }
+  }
 
   // Homepage navigation remains independent from every visual renderer.
   try {
@@ -172,9 +284,6 @@ async function init() {
 
   // ── 3D Helmet ──
   const canvas = document.querySelector('[data-helmet-canvas]');
-  const loader = document.querySelector('[data-helmet-loader]');
-  const fallback = document.querySelector('[data-helmet-fallback]');
-  const stage = document.querySelector('.hero-3d');
 
   if (!canvas || !stage) {
     signalHelmetError();
@@ -184,22 +293,21 @@ async function init() {
   if (!supportsWebGL()) {
     signalHelmetError();
     // WebGL not available — show fallback
-    if (loader) loader.style.display = 'none';
-    if (fallback) fallback.hidden = false;
+    if (loaderEl) loaderEl.style.display = 'none';
+    if (fallbackEl) fallbackEl.hidden = false;
     if (stage) stage.classList.add('has-fallback');
     return;
   }
 
   try {
     await initHelmet3D(canvas, prefersReduced);
-    if (loader) loader.style.display = 'none';
-    if (stage) stage.classList.add('is-loaded');
+    if (stage && !helmetInitError) setModelState(stage, 'ready');
   } catch (err) {
     signalHelmetError();
     console.error('[home] Helmet3D init failed:', err);
-    if (loader) loader.style.display = 'none';
-    if (fallback) fallback.hidden = false;
-    if (stage) stage.classList.add('has-fallback');
+    if (loaderEl) loaderEl.style.display = 'none';
+    if (fallbackEl) fallbackEl.hidden = false;
+    if (stage) setModelState(stage, 'error');
   }
 }
 

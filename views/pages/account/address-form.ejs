@@ -1,0 +1,86 @@
+<header class="account-header">
+  <p class="account-header__eyebrow">Direcciones</p>
+  <h1><%= heading %></h1>
+  <p>Los campos marcados con * son obligatorios.</p>
+</header>
+
+<section class="account-section account-address-form">
+  <% if (Object.keys(fieldErrors).length) { %>
+    <div class="account-form-errors" role="alert" aria-labelledby="address-errors-title">
+      <strong id="address-errors-title">Revisa la información indicada.</strong>
+      <% if (fieldErrors.form) { %><p><%= fieldErrors.form %></p><% } %>
+    </div>
+  <% } %>
+
+  <form class="account-form" action="<%= action %>" method="POST" novalidate>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="account-form__grid">
+      <div class="account-field">
+        <label for="label">Etiqueta *</label>
+        <input id="label" name="label" value="<%= form.label %>" maxlength="60" required autocomplete="off"
+          <%- fieldErrors.label ? 'aria-invalid="true" aria-describedby="address-label-error"' : '' %>>
+        <% if (fieldErrors.label) { %><span id="address-label-error" class="account-field__error"><%= fieldErrors.label %></span><% } %>
+        <span class="account-field__help">Por ejemplo: Casa, Oficina o Taller.</span>
+      </div>
+
+      <div class="account-field">
+        <label for="province">Provincia *</label>
+        <select id="province" name="province" required
+          <%- fieldErrors.province ? 'aria-invalid="true" aria-describedby="address-province-error"' : '' %>>
+          <option value="">Selecciona una provincia</option>
+          <% provinces.forEach(function(province) { %>
+            <option value="<%= province %>" <%= form.province === province ? 'selected' : '' %>><%= province %></option>
+          <% }); %>
+        </select>
+        <% if (fieldErrors.province) { %><span id="address-province-error" class="account-field__error"><%= fieldErrors.province %></span><% } %>
+      </div>
+
+      <div class="account-field">
+        <label for="canton">Cantón *</label>
+        <input id="canton" name="canton" value="<%= form.canton %>" maxlength="80" required autocomplete="address-level2"
+          <%- fieldErrors.canton ? 'aria-invalid="true" aria-describedby="address-canton-error"' : '' %>>
+        <% if (fieldErrors.canton) { %><span id="address-canton-error" class="account-field__error"><%= fieldErrors.canton %></span><% } %>
+      </div>
+
+      <div class="account-field">
+        <label for="district">Distrito *</label>
+        <input id="district" name="district" value="<%= form.district %>" maxlength="80" required autocomplete="address-level3"
+          <%- fieldErrors.district ? 'aria-invalid="true" aria-describedby="address-district-error"' : '' %>>
+        <% if (fieldErrors.district) { %><span id="address-district-error" class="account-field__error"><%= fieldErrors.district %></span><% } %>
+      </div>
+    </div>
+
+    <div class="account-field">
+      <label for="addressLine">Dirección exacta *</label>
+      <textarea id="addressLine" name="addressLine" rows="4" maxlength="300" required autocomplete="street-address"
+        <%- fieldErrors.addressLine ? 'aria-invalid="true" aria-describedby="address-line-error"' : '' %>><%= form.addressLine %></textarea>
+      <% if (fieldErrors.addressLine) { %><span id="address-line-error" class="account-field__error"><%= fieldErrors.addressLine %></span><% } %>
+    </div>
+
+    <div class="account-field">
+      <label for="addressReference">Referencias</label>
+      <textarea id="addressReference" name="addressReference" rows="3" maxlength="200"
+        <%- fieldErrors.addressReference ? 'aria-invalid="true" aria-describedby="address-reference-error"' : '' %>><%= form.addressReference %></textarea>
+      <% if (fieldErrors.addressReference) { %><span id="address-reference-error" class="account-field__error"><%= fieldErrors.addressReference %></span><% } %>
+    </div>
+
+    <div class="account-field">
+      <label for="contactPhone">Teléfono de contacto</label>
+      <input id="contactPhone" name="contactPhone" type="tel" value="<%= form.contactPhone %>" maxlength="30" autocomplete="tel"
+        <%- fieldErrors.contactPhone ? 'aria-invalid="true" aria-describedby="address-phone-error"' : '' %>>
+      <% if (fieldErrors.contactPhone) { %><span id="address-phone-error" class="account-field__error"><%= fieldErrors.contactPhone %></span><% } %>
+      <span class="account-field__help">Es solo una referencia; el teléfono del checkout seguirá siendo el contacto del pedido.</span>
+    </div>
+
+    <label class="account-checkbox">
+      <input type="checkbox" name="isDefault" value="1" <%= form.isDefault ? 'checked' : '' %>>
+      <span>Usar como dirección predeterminada</span>
+    </label>
+    <% if (fieldErrors.isDefault) { %><span class="account-field__error"><%= fieldErrors.isDefault %></span><% } %>
+
+    <div class="account-form__actions">
+      <button class="account-button" type="submit">Guardar dirección</button>
+      <a class="account-button account-button--secondary" href="/cuenta/direcciones">Cancelar</a>
+    </div>
+  </form>
+</section>

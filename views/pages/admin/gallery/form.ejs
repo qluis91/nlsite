@@ -1,0 +1,83 @@
+<div class="page-header">
+  <div>
+    <h1><%= item ? 'Editar elemento' : 'Nuevo elemento' %></h1>
+    <p>Las imágenes se optimizan y los videos requieren un póster.</p>
+  </div>
+</div>
+
+<div class="card">
+  <form class="form gallery-admin-form" action="<%= action %>" method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="gallery-title">Título <span class="required">*</span></label>
+        <input id="gallery-title" class="form-control" type="text" name="title" maxlength="160" required value="<%= item ? item.title : '' %>">
+      </div>
+      <div class="form-group">
+        <label for="gallery-category">Categoría</label>
+        <select id="gallery-category" class="form-control" name="categoryId">
+          <option value="">Sin categoría</option>
+          <% categories.forEach(function(category) { %>
+            <option value="<%= category.id %>" <%= item && Number(item.category_id) === Number(category.id) ? 'selected' : '' %>><%= category.name %></option>
+          <% }); %>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="gallery-description">Descripción</label>
+      <textarea id="gallery-description" class="form-control" name="description" rows="5" maxlength="5000"><%= item && item.description ? item.description : '' %></textarea>
+    </div>
+    <div class="form-group">
+      <label for="gallery-alt">Texto alternativo <span class="required">*</span></label>
+      <input id="gallery-alt" class="form-control" type="text" name="altText" maxlength="300" required value="<%= item ? item.alt_text : '' %>">
+      <span class="form-hint">Describe el contenido visual, no repitas automáticamente el título.</span>
+    </div>
+
+    <fieldset class="form-section">
+      <legend>Medio</legend>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="gallery-media-type">Tipo <span class="required">*</span></label>
+          <select id="gallery-media-type" class="form-control" name="mediaType" required>
+            <option value="image" <%= !item || item.media_type === 'image' ? 'selected' : '' %>>Imagen</option>
+            <option value="video" <%= item && item.media_type === 'video' ? 'selected' : '' %>>Video</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="gallery-media"><%= item ? 'Reemplazar medio' : 'Archivo principal' %> <%= item ? '' : '*' %></label>
+          <input id="gallery-media" class="form-control" type="file" name="media" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" <%= item ? '' : 'required' %>>
+          <span class="form-hint">Imagen: JPG/PNG/WebP, 10 MB. Video: MP4/WebM, 100 MB.</span>
+        </div>
+        <div class="form-group">
+          <label for="gallery-poster">Póster de video <%= item ? '' : '(obligatorio para video)' %></label>
+          <input id="gallery-poster" class="form-control" type="file" name="poster" accept="image/jpeg,image/png,image/webp">
+          <span class="form-hint">JPG/PNG/WebP. Se genera también la miniatura cuadrada.</span>
+        </div>
+      </div>
+      <% if (item) { %>
+        <div class="gallery-admin-current-media">
+          <img src="<%= item.thumbnail_path %>" alt="" width="120" height="120">
+          <p>Si no cargas reemplazos, se conservan los archivos actuales. Cambiar el tipo exige archivos compatibles nuevos.</p>
+        </div>
+      <% } %>
+    </fieldset>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="gallery-order">Orden</label>
+        <input id="gallery-order" class="form-control" type="number" name="sortOrder" min="-100000" max="100000" value="<%= item ? item.sort_order : 0 %>">
+      </div>
+      <div class="form-group gallery-admin-checkboxes">
+        <label class="checkbox-label"><input type="checkbox" name="isFeatured" value="1" <%= item && item.is_featured ? 'checked' : '' %>> Destacado</label>
+        <label class="checkbox-label"><input type="checkbox" name="isPublished" value="1" <%= item && item.is_published ? 'checked' : '' %>> Publicado</label>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit"><%= item ? 'Guardar cambios' : 'Crear elemento' %></button>
+      <a class="btn btn-outline" href="/admin/galeria">Cancelar</a>
+    </div>
+  </form>
+</div>

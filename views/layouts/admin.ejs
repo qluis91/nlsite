@@ -6,6 +6,11 @@
   <meta name="description" content="<%= site.description %>">
   <title><%= typeof title !== 'undefined' ? title + ' | ' + site.name : site.name %></title>
   <link rel="stylesheet" href="/css/style.css">
+  <% if (typeof pageStyles !== 'undefined' && Array.isArray(pageStyles)) { %>
+    <% pageStyles.forEach(function(stylePath) { %>
+      <link rel="stylesheet" href="<%= stylePath %>">
+    <% }); %>
+  <% } %>
   <style>
     :root {
       --color-primary: <%= site.colors.primary %>;
@@ -41,5 +46,8 @@
   </div>
 
   <script src="/js/main.js"></script>
+  <% if (typeof pageModule !== 'undefined' && pageModule) { %>
+    <script type="module" src="<%= pageModule %>"></script>
+  <% } %>
 </body>
 </html>

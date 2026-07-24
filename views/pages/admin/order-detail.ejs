@@ -1,0 +1,67 @@
+<% const money = value => value === null ? 'Pendiente' : new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(value); %>
+<div class="admin-orders">
+  <a href="/admin/orders" class="back-link">← Volver a pedidos</a>
+  <div class="page-header"><div><h1><%= order.order_reference %></h1><p><%= order.orderStatusLabel %></p></div></div>
+  <div class="order-detail-grid">
+    <section class="order-card"><h2>Cliente y entrega</h2><dl class="order-data"><dt>Cliente</dt><dd><%= order.customer_name %></dd><dt>Correo</dt><dd><%= order.customer_email %></dd><dt>Teléfono</dt><dd><%= order.customer_phone %></dd><dt>Entrega</dt><dd><%= order.deliveryMethodLabel %></dd><dt>Dirección</dt><dd><%= [order.province, order.canton, order.district, order.address_line, order.address_reference].filter(Boolean).join(', ') || 'Retiro en local' %></dd></dl></section>
+    <section class="order-card"><h2>Totales</h2><dl class="order-data"><dt>Productos</dt><dd><%= money(order.product_subtotal) %></dd><dt>Envío</dt><dd><%= order.shipping_status === 'pending_quote' ? 'Por cotizar' : money(order.shipping_amount) %></dd><dt>Total final</dt><dd><strong><%= money(order.final_total) %></strong></dd><dt>Pago</dt><dd><%= order.paymentMethodLabel %> · <%= order.paymentStatusLabel %></dd></dl></section>
+  </div>
+  <section class="order-card"><h2>Productos</h2><div class="admin-table-wrap"><table class="table"><thead><tr><th>Producto</th><th>Cantidad</th><th>Unitario</th><th>Total</th></tr></thead><tbody><% items.forEach(function(item) { %><tr><td><%= item.product_name %></td><td><%= item.quantity %></td><td><%= money(item.unit_price) %></td><td><%= money(item.line_total) %></td></tr><% }) %></tbody></table></div></section>
+  <% if (proofSummary && proofSummary.status !== 'not_submitted') { %>
+    <section class="order-card"><h2>Comprobante de pago</h2>
+      <% if (proofSummary.status === 'pending_review') { %>
+        <div class="proof-status proof-status--pending">
+          <p><strong>Estado:</strong> En revisión</p>
+          <p>Enviado: <%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(proofSummary.proof.submittedAt)) %></p>
+          <p>Tipo: <%= proofSummary.proof.mimeType === 'application/pdf' ? 'PDF' : 'Imagen' %> · <%= Math.round(proofSummary.proof.fileSizeBytes / 1024) %> KB</p>
+          <div class="proof-actions">
+            <a href="/admin/orders/<%= order.order_reference %>/comprobante/<%= proofSummary.proof.id %>" class="btn btn-secondary" target="_blank">Ver comprobante</a>
+            <form method="post" action="/admin/orders/<%= order.order_reference %>/comprobante/<%= proofSummary.proof.id %>/aprobar" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="btn btn-primary">Aprobar pago</button></form>
+            <form method="post" action="/admin/orders/<%= order.order_reference %>/comprobante/<%= proofSummary.proof.id %>/rechazar" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input name="rejectionReason" placeholder="Motivo de rechazo" required maxlength="500" style="width:200px"><button type="submit" class="btn btn-danger">Rechazar</button></form>
+          </div>
+        </div>
+      <% } else if (proofSummary.status === 'approved') { %>
+        <div class="proof-status proof-status--approved">
+          <p><strong>Estado:</strong> Aprobado ✓</p>
+          <p>Revisado: <%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(proofSummary.proof.reviewedAt)) %></p>
+          <a href="/admin/orders/<%= order.order_reference %>/comprobante/<%= proofSummary.proof.id %>" class="btn btn-secondary" target="_blank">Ver comprobante</a>
+        </div>
+      <% } else { %>
+        <div class="proof-status proof-status--rejected">
+          <p><strong>Estado:</strong> Rechazado ✗</p>
+          <p>Motivo: <%= proofSummary.proof.rejectionReason %></p>
+          <p>Revisado: <%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(proofSummary.proof.reviewedAt)) %></p>
+          <a href="/admin/orders/<%= order.order_reference %>/comprobante/<%= proofSummary.proof.id %>" class="btn btn-secondary" target="_blank">Ver comprobante</a>
+        </div>
+      <% } %>
+    </section>
+  <% } %>
+  <% if (typeof tilopayTx !== 'undefined' && tilopayTx && tilopayTx.length > 0) { %>
+    <section class="order-card"><h2>Transacciones Tilopay</h2>
+      <% tilopayTx.forEach(function(tx) { %>
+        <div class="proof-status <% if (tx.status === 'approved') { %>proof-status--approved<% } else if (tx.status === 'declined' || tx.status === 'failed') { %>proof-status--rejected<% } else { %>proof-status--pending<% } %>">
+          <p><strong>Estado:</strong> <%= tx.status %></p>
+          <p><strong>Referencia interna:</strong> <%= tx.internalRef %></p>
+          <% if (tx.providerTransactionId) { %><p><strong>ID Tilopay:</strong> <%= tx.providerTransactionId %></p><% } %>
+          <p><strong>Monto:</strong> <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(tx.amount) %></p>
+          <% if (tx.failureCode) { %><p><strong>Código de fallo:</strong> <%= tx.failureCode %></p><% } %>
+          <p><strong>Iniciado:</strong> <%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(tx.createdAt)) %></p>
+          <% if (tx.confirmedAt) { %><p><strong>Confirmado:</strong> <%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(tx.confirmedAt)) %></p><% } %>
+          <form method="post" action="/admin/orders/<%= order.order_reference %>/tilopay/reconcile" style="margin-top:.5rem">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="internalRef" value="<%= tx.internalRef %>">
+            <button type="submit" class="btn btn-secondary btn-sm">Verificar con Tilopay</button>
+          </form>
+        </div>
+      <% }); %>
+    </section>
+  <% } %>
+  <div class="order-actions-grid">
+    <% if (order.canQuoteShipping) { %><form method="post" action="/admin/orders/<%= order.order_reference %>/quote-shipping" class="order-card"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><h2><%= order.shipping_status === 'quoted' ? 'Recotizar envío' : 'Cotizar envío' %></h2><label>Monto CRC<input name="shippingAmount" inputmode="decimal" required pattern="[0-9]+([.][0-9]{1,2})?" value="<%= order.shipping_amount || '' %>"></label><button class="btn btn-primary" type="submit">Guardar cotización</button></form><% } %>
+    <% if (order.canConfirmPayment) { %><form method="post" action="/admin/orders/<%= order.order_reference %>/confirm-payment" class="order-card"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><h2>Confirmar pago manual</h2><label>Referencia opcional<input name="paymentReference" maxlength="120"></label><button class="btn btn-primary" type="submit">Confirmar pago</button></form><% } %>
+    <% if (order.allowedNextStatuses.length) { %><form method="post" action="/admin/orders/<%= order.order_reference %>/status" class="order-card"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><h2>Avanzar pedido</h2><label>Nuevo estado<select name="orderStatus" required><% order.allowedNextStatuses.forEach(function(status) { %><option value="<%= status %>"><%= ORDER_STATUS_LABELS[status] %></option><% }) %></select></label><button class="btn btn-primary" type="submit">Actualizar estado</button></form><% } %>
+    <form method="post" action="/admin/orders/<%= order.order_reference %>/notes" class="order-card"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><h2>Nota interna</h2><label>Nota<textarea name="note" maxlength="500" required></textarea></label><button class="btn btn-secondary" type="submit">Agregar al historial</button></form>
+    <% if (order.canCancel) { %><form method="post" action="/admin/orders/<%= order.order_reference %>/cancel" class="order-card order-card--danger"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><h2>Cancelar pedido</h2><p>Esta acción restaura el inventario reservado.</p><button class="btn btn-danger" type="submit">Cancelar y restaurar stock</button></form><% } %>
+  </div>
+  <section class="order-card"><h2>Historial</h2><ol class="order-timeline"><% events.forEach(function(event) { %><li><div><strong><%= event.eventTypeLabel %></strong><span><%= new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(event.created_at)) %></span></div><p><%= event.actor_name ? `Por ${event.actor_name}` : 'Registro del sistema' %><% if (event.from_status || event.to_status) { %> · <%= event.from_status ? (ORDER_STATUS_LABELS[event.from_status] || event.from_status) : 'Inicio' %> → <%= event.to_status ? (ORDER_STATUS_LABELS[event.to_status] || event.to_status) : '' %><% } %></p><% if (event.note) { %><blockquote><%= event.note %></blockquote><% } %></li><% }) %></ol></section>
+</div>

@@ -13,7 +13,15 @@
      8. Social links: Instagram, Facebook, TikTok, WhatsApp (bottom right)
 */ -%>
 
+<%
+/* ── Page-loader toggle ──
+   Set ENABLE_PAGE_INTRO = true to restore the full-screen loading video.
+   When disabled the page renders immediately; the 3D model area shows
+   its own localized morphing spinner instead. */
+const ENABLE_PAGE_INTRO = false;
+%>
 <main class="home-page" data-home-page>
+  <% if (ENABLE_PAGE_INTRO) { %>
   <div class="page-loader" data-page-loader aria-hidden="true">
     <video
       class="page-loader__video"
@@ -28,6 +36,7 @@
     </video>
     <p class="page-loader__status" data-page-loader-status>Preparando experiencia 3D…</p>
   </div>
+  <% } %>
   <noscript><style nonce="<%= cspNonce %>">.page-loader{display:none!important}</style></noscript>
 
   <div class="grainient-background" aria-hidden="true">
@@ -74,12 +83,42 @@
       </div>
 
       <!-- 3D helmet stage -->
-      <div class="hero-3d" aria-label="Casco 3D interactivo" role="img">
+      <div
+        class="hero-3d is-loading"
+        data-model-state="loading"
+        aria-label="Casco 3D interactivo"
+        role="img"
+        aria-busy="true"
+      >
         <canvas class="hero-canvas" data-helmet-canvas></canvas>
-        <div class="hero-loader" data-helmet-loader>
-          <div class="hero-loader-spinner"></div>
-          <span class="hero-loader-text">Cargando modelo 3D…</span>
+
+        <!-- Model loading spinner -->
+        <div
+          class="hero-loader"
+          data-helmet-loader
+          role="status"
+          aria-live="polite"
+          aria-label="Cargando modelo 3D"
+        >
+          <div class="hero-loader__spinner">
+            <%- include('../partials/spinner-morph', {
+              size: 120,
+              fill: '#7CF03D',
+              rotateDur: '6s',
+              morphDur: '6s',
+              className: 'hero-loader__spinner-svg'
+            }) %>
+          </div>
+          <span class="hero-loader-text"></span>
         </div>
+
+        <!-- Error state -->
+        <div class="hero-error" data-helmet-error hidden>
+          <div class="hero-error__icon" aria-hidden="true">⚠</div>
+          <p class="hero-error__message">No fue posible cargar el modelo 3D.</p>
+          <button type="button" class="hero-error__retry" data-helmet-retry>Reintentar</button>
+        </div>
+
         <div class="hero-3d-fallback" data-helmet-fallback hidden>
           <div class="hero-3d-fallback-icon">🪖</div>
         </div>

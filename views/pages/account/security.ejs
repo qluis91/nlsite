@@ -1,0 +1,30 @@
+<main class="account-security">
+  <header class="account-header">
+    <p class="account-header__eyebrow">Protección de la cuenta</p>
+    <h1>Seguridad</h1>
+    <p>Actualiza tu contraseña sin cerrar la sesión actual.</p>
+  </header>
+
+  <section class="account-section account-security__password" aria-labelledby="password-title">
+    <div class="account-section__heading"><div><p>Credenciales</p><h2 id="password-title">Cambiar contraseña</h2></div></div>
+    <form class="account-form" action="/cuenta/seguridad/contrasena" method="POST" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="account-field">
+        <label for="currentPassword">Contraseña actual</label>
+        <input id="currentPassword" name="currentPassword" type="password" maxlength="128" autocomplete="current-password" required aria-describedby="<%= fieldErrors.currentPassword ? 'current-password-error' : '' %>">
+        <% if (fieldErrors.currentPassword) { %><span class="account-field__error" id="current-password-error"><%= fieldErrors.currentPassword %></span><% } %>
+      </div>
+      <div class="account-field">
+        <label for="newPassword">Nueva contraseña</label>
+        <input id="newPassword" name="newPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" required aria-describedby="<%= fieldErrors.newPassword ? 'new-password-error' : 'new-password-help' %>">
+        <% if (fieldErrors.newPassword) { %><span class="account-field__error" id="new-password-error"><%= fieldErrors.newPassword %></span><% } else { %><span class="account-field__help" id="new-password-help">Usa al menos 8 caracteres.</span><% } %>
+      </div>
+      <div class="account-field">
+        <label for="confirmPassword">Confirmar nueva contraseña</label>
+        <input id="confirmPassword" name="confirmPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" required aria-describedby="<%= fieldErrors.confirmPassword ? 'confirm-password-error' : '' %>">
+        <% if (fieldErrors.confirmPassword) { %><span class="account-field__error" id="confirm-password-error"><%= fieldErrors.confirmPassword %></span><% } %>
+      </div>
+      <button class="account-button" type="submit">Actualizar contraseña</button>
+    </form>
+  </section>
+</main>
