@@ -9,6 +9,7 @@ const root = path.join(__dirname, '..');
 const fixturePath = path.join(__dirname, 'fixtures', 'spinner-morph-original.txt');
 const partialPath = path.join(root, 'views', 'partials', 'spinner-morph.ejs');
 const homePath = path.join(root, 'views', 'pages', 'home.ejs');
+const layoutPath = path.join(root, 'views', 'layouts', 'main.ejs');
 const homeJsPath = path.join(root, 'public', 'js', 'home', 'home.js');
 const helmetJsPath = path.join(root, 'public', 'js', 'home', 'helmet3d.js');
 const EXPECTED_HASH = '1b6198d3e502c25b2b119e5258ebf6e9a079945ce6d607f7995a00b0e145b37c';
@@ -57,4 +58,27 @@ test('SpinnerMorph preserves rotation, timing, accessibility, and loader lifecyc
   assert.match(homeJs, /window\.addEventListener\('helmet:error'/);
   assert.match(helmetJs, /dispatchHelmetEvent\('helmet:ready'/);
   assert.match(helmetJs, /dispatchHelmetEvent\('helmet:error'/);
+});
+
+test('helmet preload and initialization start early without duplicate scenes', () => {
+  const layout = fs.readFileSync(layoutPath, 'utf8');
+  const homeJs = fs.readFileSync(homeJsPath, 'utf8');
+  const helmetJs = fs.readFileSync(helmetJsPath, 'utf8');
+  const modelUrl = helmetJs.match(/^const HELMET_MODEL_URL = '([^']+)'/m)?.[1];
+  const preloadUrl = layout.match(
+    /rel="preload"[\s\S]*?href="([^"]+)"[\s\S]*?as="fetch"[\s\S]*?type="model\/gltf-binary"[\s\S]*?crossorigin="anonymous"/
+  )?.[1];
+
+  assert.equal(preloadUrl, modelUrl, 'Homepage preload must exactly match the GLTFLoader URL.');
+  assert.ok(
+    homeJs.indexOf('void initHelmet3D(canvas, prefersReduced)') <
+      homeJs.indexOf('await initHomeAnimations()'),
+    'Helmet initialization must start before nonessential homepage animations.'
+  );
+  assert.match(helmetJs, /let helmetInitPromise = null;/);
+  assert.match(helmetJs, /if \(helmetInitPromise\) return helmetInitPromise;/);
+  assert.match(helmetJs, /helmetInitPromise = null;/);
+  assert.match(helmetJs, /loader\.setCrossOrigin\('anonymous'\)/);
+  assert.match(helmetJs, /logTiming\('GLB request started'\)/);
+  assert.match(helmetJs, /logTiming\('first render completed'\)/);
 });

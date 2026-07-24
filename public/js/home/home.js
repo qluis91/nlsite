@@ -217,6 +217,30 @@ async function init() {
     }
   }
 
+  // Start the independent GLB request before decorative modules and animations.
+  // GSAP still owns the visual reveal of the existing canvas.
+  const canvas = document.querySelector('[data-helmet-canvas]');
+  if (!canvas || !stage) {
+    signalHelmetError();
+  } else if (!supportsWebGL()) {
+    signalHelmetError();
+    if (loaderEl) loaderEl.style.display = 'none';
+    if (fallbackEl) fallbackEl.hidden = false;
+    stage.classList.add('has-fallback');
+  } else {
+    void initHelmet3D(canvas, prefersReduced)
+      .then(() => {
+        if (stage && !helmetInitError) setModelState(stage, 'ready');
+      })
+      .catch((err) => {
+        signalHelmetError();
+        console.error('[home] Helmet3D init failed:', err);
+        if (loaderEl) loaderEl.style.display = 'none';
+        if (fallbackEl) fallbackEl.hidden = false;
+        if (stage) setModelState(stage, 'error');
+      });
+  }
+
   // Homepage navigation remains independent from every visual renderer.
   try {
     initNavbar();
@@ -294,33 +318,6 @@ async function init() {
     homePage.classList.add('is-motion-ready');
   }
 
-  // ── 3D Helmet ──
-  const canvas = document.querySelector('[data-helmet-canvas]');
-
-  if (!canvas || !stage) {
-    signalHelmetError();
-    return;
-  }
-
-  if (!supportsWebGL()) {
-    signalHelmetError();
-    // WebGL not available — show fallback
-    if (loaderEl) loaderEl.style.display = 'none';
-    if (fallbackEl) fallbackEl.hidden = false;
-    if (stage) stage.classList.add('has-fallback');
-    return;
-  }
-
-  try {
-    await initHelmet3D(canvas, prefersReduced);
-    if (stage && !helmetInitError) setModelState(stage, 'ready');
-  } catch (err) {
-    signalHelmetError();
-    console.error('[home] Helmet3D init failed:', err);
-    if (loaderEl) loaderEl.style.display = 'none';
-    if (fallbackEl) fallbackEl.hidden = false;
-    if (stage) setModelState(stage, 'error');
-  }
 }
 
 window.addEventListener('pagehide', () => {

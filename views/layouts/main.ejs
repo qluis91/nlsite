@@ -32,6 +32,13 @@
   </style>
 
   <% if (typeof pageClass !== 'undefined' && pageClass === 'page-home') { %>
+  <link
+    rel="preload"
+    href="https://storage.googleapis.com/ninjalab3d/casco-optimized.glb"
+    as="fetch"
+    type="model/gltf-binary"
+    crossorigin="anonymous"
+  >
   <script type="importmap" nonce="<%= cspNonce %>">
   {
     "imports": {

@@ -15,11 +15,18 @@ const INTERACTION_DAMPING = 0.92;
 const MAX_PIXEL_RATIO = 2;
 const TARGET_MODEL_SIZE = 0.1;
 const AUTO_ROTATE_START_DELAY_MS = 500;
+const TIMING_DEBUG_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const FRONT_ROTATION = Object.freeze({
   x: 0,
   y: -2,
   z: 0,
 });
+let helmetInitPromise = null;
+
+function logTiming(label) {
+  if (!TIMING_DEBUG_HOSTS.has(window.location.hostname)) return;
+  console.debug(`[helmet3d] ${label}: ${Math.round(performance.now())} ms`);
+}
 
 function dispatchHelmetEvent(name, detail) {
   window.dispatchEvent(new CustomEvent(name, { detail }));
@@ -46,7 +53,19 @@ function signalHelmetReady() {
  * @param {HTMLCanvasElement} canvas — target canvas element
  * @param {boolean} prefersReduced — whether user prefers reduced motion
  */
-export async function initHelmet3D(canvas, prefersReduced = false) {
+export function initHelmet3D(canvas, prefersReduced = false) {
+  if (helmetInitPromise) return helmetInitPromise;
+
+  logTiming('init requested');
+  helmetInitPromise = initializeHelmet3D(canvas, prefersReduced).catch((error) => {
+    helmetInitPromise = null;
+    throw error;
+  });
+
+  return helmetInitPromise;
+}
+
+async function initializeHelmet3D(canvas, prefersReduced = false) {
   if (!canvas) {
     signalHelmetError();
     return;
@@ -106,6 +125,7 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
 
   const loader = new GLTFLoader();
   const modelGroup = new THREE.Group();
+  loader.setCrossOrigin('anonymous');
   loader.setMeshoptDecoder(MeshoptDecoder);
   scene.add(modelGroup);
 
@@ -123,6 +143,20 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
   let prevPointerX = 0;
   let prevPointerY = 0;
   let idleResumeAt = 0;
+
+  function disposeSceneResources() {
+    scene.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach((material) => material.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+    });
+    renderer.dispose();
+  }
 
   function clearAutoRotateStartTimer() {
     if (autoRotateStartTimer === null) return;
@@ -174,9 +208,13 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
 
   try {
     const gltf = await new Promise((resolve, reject) => {
+      logTiming('GLB request started');
       loader.load(
         HELMET_MODEL_URL,
-        (result) => resolve(result),
+        (result) => {
+          logTiming('GLB loaded/parsed');
+          resolve(result);
+        },
         (event) => {
           if (!Number.isFinite(event.total) || event.total <= 0) return;
           const loaded = Number.isFinite(event.loaded) ? Math.max(0, event.loaded) : 0;
@@ -223,6 +261,7 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
     model.scale.setScalar(scale);
 
     modelGroup.add(model);
+    logTiming('model added to scene');
 
     // ── Fit camera from final bounding box ──
     const finalBox = new THREE.Box3().setFromObject(modelGroup);
@@ -242,7 +281,9 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
     // Dispatch custom event
     canvas.dispatchEvent(new CustomEvent('helmet-loaded', { bubbles: true }));
   } catch (err) {
+    destroyed = true;
     clearAutoRotateStartTimer();
+    disposeSceneResources();
     signalHelmetError();
     // Show fallback, hide loader
     if (loaderEl) loaderEl.style.display = 'none';
@@ -341,13 +382,21 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
   let lastTime = performance.now();
   const idleSpeed = prefersReduced ? 0.05 : IDLE_ROTATION_SPEED;
   let animationFrameId = null;
+  let firstRenderCompleted = false;
+
+  function renderScene() {
+    renderer.render(scene, camera);
+    if (firstRenderCompleted) return;
+    firstRenderCompleted = true;
+    logTiming('first render completed');
+  }
 
   function animate(now) {
     if (destroyed) return;
     animationFrameId = requestAnimationFrame(animate);
 
     if (!isVisible || !modelLoaded) {
-      if (isVisible) renderer.render(scene, camera);
+      if (isVisible) renderScene();
       return;
     }
 
@@ -371,7 +420,7 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
     modelGroup.rotation.y = currentRotationY;
     modelGroup.rotation.x = currentRotationX;
 
-    renderer.render(scene, camera);
+    renderScene();
   }
 
   animationFrameId = requestAnimationFrame(animate);
@@ -396,17 +445,7 @@ export async function initHelmet3D(canvas, prefersReduced = false) {
       animationFrameId = null;
     }
     resizeObserver.disconnect();
-    scene.traverse((child) => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach((m) => m.dispose());
-        } else {
-          child.material.dispose();
-        }
-      }
-    });
-    renderer.dispose();
+    disposeSceneResources();
   };
   window.addEventListener('pagehide', canvas._helmetCleanup, { once: true });
 }
