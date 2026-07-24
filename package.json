@@ -19,6 +19,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": "22.x"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "csrf-sync": "^4.2.1",
