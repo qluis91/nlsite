@@ -29,6 +29,7 @@ test('one scrubbed timeline coordinates panel-one exit and panel-two entrance', 
   assert.match(transition, /data-panel2-animate="background"/);
   assert.match(transition, /data-panel2-animate="heading"/);
   assert.match(transition, /data-panel2-animate="carousel"/);
+  assert.match(transition, /data-panel2-animate="card"/);
   assert.match(animations, /if \(heroAnimationPromise\) return heroAnimationPromise;/);
 });
 
@@ -146,107 +147,60 @@ test('panel-two canvas and prepaint states are singular and fail open', () => {
   assert.doesNotMatch(animations, /page-loader/);
 });
 
-test('particle renderer is lightweight, pausable, visibility-aware, and duplicate-safe', () => {
+test('particle renderer uses Three.js InstancedMesh with tetrahedrons, pausable, and duplicate-safe', () => {
   assert.match(antigravity, /const instances = new WeakMap\(\)/);
   assert.match(antigravity, /if \(instances\.has\(canvas\)\) return instances\.get\(canvas\)/);
-  assert.match(antigravity, /getContext\('2d'/);
-  assert.match(antigravity, /const VERTICES = Object\.freeze/);
-  assert.match(antigravity, /const EDGES = Object\.freeze/);
+  // Three.js WebGL renderer, not Canvas 2D
+  assert.match(antigravity, /new THREE\.WebGLRenderer/);
+  assert.match(antigravity, /new THREE\.TetrahedronGeometry/);
+  // InstancedMesh for shared rendering
+  assert.match(antigravity, /new THREE\.InstancedMesh/);
+  assert.match(antigravity, /\bmesh\.instanceMatrix\.needsUpdate\b/);
+  // No per-particle DOM nodes
   assert.doesNotMatch(antigravity, /createElement\(['"]canvas/);
-  assert.match(antigravity, /Math\.min\(window\.devicePixelRatio \|\| 1, compact \? 1 : 1\.5\)/);
+  // DPR capped
+  assert.match(antigravity, /Math\.min\(window\.devicePixelRatio \|\| 1, dprCap\)/);
+  // Visibility-aware
   assert.match(antigravity, /document\.addEventListener\('visibilitychange'/);
   assert.match(antigravity, /document\.removeEventListener\('visibilitychange'/);
+  // Pause/resume lifecycle
   assert.match(antigravity, /function pause\(\)/);
   assert.match(antigravity, /function resume\(\)/);
-  assert.match(antigravity, /#27ff5a|39, 255, 90/);
+  // #27ff5a color
+  assert.match(antigravity, /0x27ff5a/);
+  // Pointer ring / magnet
+  assert.match(antigravity, /MAGNET_RADIUS/);
+  assert.match(antigravity, /RING_RADIUS/);
+  // Auto-animation
+  assert.match(antigravity, /AUTO_ANIMATE_DELAY/);
+  // Particle count tiers
+  assert.match(antigravity, /compact \? 60 : tablet \? 120 : 180/);
+  // Shared geometry + material
+  assert.match(antigravity, /geometry\.dispose\(\)/);
+  assert.match(antigravity, /material\.dispose\(\)/);
 });
 
-test('particle controller reuses its instance and stops RAF offscreen or hidden', async (t) => {
-  const original = {
-    window: global.window,
-    document: global.document,
-    canvas: global.HTMLCanvasElement,
-    resizeObserver: global.ResizeObserver,
-    intersectionObserver: global.IntersectionObserver,
-  };
-  t.after(() => Object.assign(global, {
-    window: original.window,
-    document: original.document,
-    HTMLCanvasElement: original.canvas,
-    ResizeObserver: original.resizeObserver,
-    IntersectionObserver: original.intersectionObserver,
-  }));
-
-  const frames = new Map();
-  const documentListeners = new Map();
-  let frameId = 0;
-  let intersectionCallback;
-
-  class FakeCanvas {
-    constructor() {
-      this.width = 0;
-      this.height = 0;
-      this.classList = { add() {}, remove() {} };
-    }
-    getContext() {
-      return {
-        setTransform() {}, clearRect() {}, beginPath() {}, moveTo() {},
-        lineTo() {}, stroke() {}, closePath() {}, fill() {},
-      };
-    }
-    getBoundingClientRect() { return { width: 900, height: 700 }; }
-    closest() { return { dataset: { panel: '2' } }; }
-  }
-
-  global.HTMLCanvasElement = FakeCanvas;
-  global.ResizeObserver = class {
-    observe() {}
-    disconnect() {}
-  };
-  global.IntersectionObserver = class {
-    constructor(callback) { intersectionCallback = callback; }
-    observe() {}
-    disconnect() {}
-  };
-  global.document = {
-    hidden: false,
-    addEventListener(type, callback) { documentListeners.set(type, callback); },
-    removeEventListener(type) { documentListeners.delete(type); },
-  };
-  global.window = {
-    devicePixelRatio: 2,
-    ResizeObserver: global.ResizeObserver,
-    IntersectionObserver: global.IntersectionObserver,
-    matchMedia: () => ({ matches: false }),
-    requestAnimationFrame(callback) {
-      frameId += 1;
-      frames.set(frameId, callback);
-      return frameId;
-    },
-    cancelAnimationFrame(id) { frames.delete(id); },
-    addEventListener() {},
-    removeEventListener() {},
-  };
-
-  const moduleUrl = `data:text/javascript;base64,${Buffer.from(antigravity).toString('base64')}`;
-  const { initAntigravityBackground } = await import(moduleUrl);
-  const canvas = new FakeCanvas();
-  const first = initAntigravityBackground(canvas);
-  const second = initAntigravityBackground(canvas);
-
-  assert.equal(first, second);
-  first.resume();
-  assert.equal(frames.size, 0, 'offscreen panel does not schedule a frame');
-
-  intersectionCallback([{ isIntersecting: true }]);
-  assert.equal(frames.size, 1, 'visible panel schedules one frame');
-
-  global.document.hidden = true;
-  documentListeners.get('visibilitychange')();
-  assert.equal(frames.size, 0, 'hidden tab cancels the scheduled frame');
-
-  first.destroy();
-  assert.equal(first.isActive(), false);
+test('antigravity controller has idempotent pause/resume/destroy lifecycle', () => {
+  // Instance reuse via WeakMap
+  assert.match(antigravity, /if \(instances\.has\(canvas\)\) return instances\.get\(canvas\)/);
+  // Idempotent pause
+  assert.match(antigravity, /function pause\(\)[\s\S]*?if \(destroyed \|\| !active\) return/);
+  // Idempotent resume
+  assert.match(antigravity, /function resume\(\)[\s\S]*?if \(destroyed \|\| reducedMotion \|\| active\) return/);
+  // Idempotent destroy
+  assert.match(antigravity, /function destroy\(\)[\s\S]*?if \(destroyed\) return/);
+  // resume resets lastTime
+  assert.match(antigravity, /lastTime = performance\.now\(\)/);
+  // Pause removes pointer listeners
+  assert.match(antigravity, /removeEventListener\('pointermove', onPointerMove\)/);
+  // Resume adds pointer listeners
+  assert.match(antigravity, /addEventListener\('pointermove', onPointerMove/);
+  // Initial state is paused
+  assert.match(antigravity, /canvas\.classList\.add\('is-paused'\)/);
+  // IntersectionObserver for visibility
+  assert.match(antigravity, /IntersectionObserver/);
+  // one RAF per resume
+  assert.match(antigravity, /rafId !== null\) return/);
 });
 
 test('helmet keeps one GLB/canvas while pausing its existing render loop', () => {

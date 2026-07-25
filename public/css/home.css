@@ -1784,10 +1784,8 @@ body.page-home.is-page-loading {
   min-height: 100vh;
   overflow: clip;
   padding: clamp(4rem, 8vw, 8rem) 0 clamp(4rem, 7vw, 7rem);
-  color: #f5f7f5;
-  background:
-    radial-gradient(circle at 82% 18%, rgba(39, 255, 90, 0.09), transparent 31%),
-    linear-gradient(180deg, #08100b 0%, #050806 52%, #090d0a 100%);
+  color: #111;
+  background: #ffffff;
   isolation: isolate;
 }
 
@@ -1795,9 +1793,10 @@ body.page-home.is-page-loading {
   content: '';
   position: absolute;
   inset: 0 0 auto;
-  height: 3px;
+  height: 1px;
   z-index: 4;
   background: var(--home-accent);
+  opacity: 0.35;
 }
 
 .home-panel--showcase::after {
@@ -1806,9 +1805,7 @@ body.page-home.is-page-loading {
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background:
-    linear-gradient(90deg, rgba(5, 8, 6, 0.94) 0%, rgba(5, 8, 6, 0.68) 42%, rgba(5, 8, 6, 0.22) 72%),
-    linear-gradient(180deg, rgba(5, 8, 6, 0.12), rgba(5, 8, 6, 0.64));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(245, 247, 245, 0.12));
 }
 
 .showcase-antigravity {
@@ -1855,7 +1852,7 @@ body.page-home.is-page-loading {
 
 .showcase-trust__label {
   margin: 0;
-  color: #3f4549;
+  color: #555;
   font-size: clamp(0.78rem, 1vw, 0.96rem);
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -1865,7 +1862,7 @@ body.page-home.is-page-loading {
 .logo-loop {
   --logo-loop-gap: 72px;
   --logo-loop-height: 56px;
-  --logo-loop-fade-color: #08100b;
+  --logo-loop-fade-color: #ffffff;
   position: relative;
   width: 100%;
   margin-top: clamp(1.5rem, 3vw, 2.5rem);
@@ -1936,7 +1933,7 @@ body.page-home.is-page-loading {
   align-items: center;
   min-height: var(--logo-loop-height);
   padding-inline: 0.2rem;
-  color: rgba(245, 247, 245, 0.72);
+  color: rgba(17, 17, 17, 0.72);
   font-size: clamp(1rem, 1.55vw, 1.45rem);
   font-weight: 800;
   letter-spacing: -0.025em;
@@ -1974,7 +1971,7 @@ body.page-home.is-page-loading {
 .showcase-heading {
   max-width: 13ch;
   margin: 0;
-  color: #f5f7f5;
+  color: #111;
   font-size: clamp(2.2rem, 4vw, 4.4rem);
   font-weight: 800;
   line-height: 0.96;
@@ -2174,6 +2171,18 @@ body.page-home.is-page-loading {
 .project-carousel__control:focus-visible {
   outline: 3px solid var(--home-accent);
   outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .project-carousel__slide.is-preview:hover {
+    transform: translateY(calc(-50% - 6px));
+    box-shadow: 0 28px 55px rgba(0, 0, 0, 0.4), 0 0 0 2px rgba(39, 255, 90, 0.18);
+  }
+
+  .project-carousel__slide.is-preview:hover .project-carousel__image {
+    filter: saturate(1.05) contrast(1.1);
+    transform: scale(1.02);
+  }
 }
 
 .project-carousel__controls {
@@ -3310,6 +3319,13 @@ html.panel-transition-ready body.page-home [data-panel2-animate="carousel"] {
   opacity: 0;
   transform: translate3d(0, 42px, 0) scale(0.97);
   will-change: opacity, transform;
+}
+
+html.panel-transition-pending body.page-home [data-panel2-animate="card"],
+html.panel-transition-ready body.page-home [data-panel2-animate="card"] {
+  opacity: 0;
+  filter: blur(6px);
+  will-change: opacity, filter;
 }
 
 @media (pointer: coarse) {

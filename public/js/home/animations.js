@@ -200,9 +200,9 @@ async function runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange
       scrollTrigger: {
         id: 'home-panel-1-to-2',
         trigger: panelTwo,
-        start: 'top 92%',
-        end: compact ? 'top 16%' : 'top 8%',
-        scrub: compact ? 0.35 : 0.65,
+        start: 'top bottom',
+        end: compact ? 'top 22%' : 'top 30%',
+        scrub: compact ? 0.2 : 0.3,
         invalidateOnRefresh: true,
         onUpdate: syncPanelState,
         onRefresh: syncPanelState,
@@ -225,31 +225,38 @@ async function runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange
         rotation: compact ? 0 : 2.5,
         opacity: compact ? 0.36 : 0.16,
         duration: 0.82,
-      }, 0.03)
+      }, 0.02)
       .to('.hero-bg-grid', { y: compact ? 24 : 68, opacity: 0.08, duration: 0.74 }, 0)
       .to('.hero-bg-glow', { x: '12%', y: '8%', scale: 0.72, opacity: 0.16, duration: 0.76 }, 0)
       .to('.grainient-background', { opacity: 0.16, duration: 0.78 }, 0)
-      .to('[data-panel2-animate="background"]', { opacity: 1, scale: 1, duration: 0.82 }, 0.04)
-      .to('[data-panel2-animate="bridge"]', { opacity: 1, scaleX: 1, duration: 0.62 }, 0.12)
+      .to('[data-panel2-animate="background"]', { opacity: 1, scale: 1, duration: 0.82 }, 0.02)
+      .to('[data-panel2-animate="bridge"]', { opacity: 1, scaleX: 1, duration: 0.62 }, 0.06)
       .to('[data-panel2-animate="trust"]', {
         opacity: 1, y: 0, duration: 0.42,
-      }, 0.24)
+      }, 0.1)
       .to('[data-panel2-animate="kicker"]', {
         opacity: 1, y: 0, duration: 0.34,
-      }, 0.34)
+      }, 0.16)
       .to('[data-panel2-animate="heading"]', {
         opacity: 1,
         y: 0,
         scale: 1,
         filter: 'blur(0px)',
         duration: 0.5,
-      }, 0.4)
+      }, 0.2)
       .to('[data-panel2-animate="carousel"]', {
         opacity: 1,
         y: 0,
         scale: 1,
         duration: 0.52,
-      }, 0.5);
+      }, 0.26)
+      .to('[data-panel2-animate="card"]', {
+        opacity: 1,
+        y: 0,
+        filter: 'blur(0px)',
+        duration: 0.48,
+        stagger: 0.09,
+      }, 0.3);
 
     return () => transition.kill();
   });
