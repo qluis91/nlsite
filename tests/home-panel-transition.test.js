@@ -14,6 +14,7 @@ const blurText = read('public/js/home/blurText.js');
 const cursor = read('public/js/home/splashCursor.js');
 const helmet = read('public/js/home/helmet3d.js');
 const home = read('public/js/home/home.js');
+const projectCarousel = read('public/js/home/projectCarousel.js');
 const css = read('public/css/home.css');
 const layout = read('views/layouts/main.ejs');
 const page = read('views/pages/home.ejs');
@@ -359,6 +360,43 @@ test('panel-two text and carousel use visible scroll-owned animation layers', ()
   assert.match(animations, /rotationX: 0/);
   assert.match(css, /\[data-blur-text-split="true"\]/);
   assert.match(css, /\.blur-text__char/);
+  assert.equal((page.match(/data-carousel-(?:prev|next)/g) || []).length, 2);
+});
+
+test('project carousel hierarchy favors a clearer active slide over softer previews', () => {
+  assert.match(css, /--preview-width: clamp\(160px, 13vw, 205px\)/);
+  assert.match(css, /--preview-height: clamp\(225px, 22vw, 305px\)/);
+  assert.match(css, /rgba\(0, 0, 0, 0\.58\)/);
+  assert.doesNotMatch(css, /rgba\(0, 0, 0, 0\.84\)/);
+  assert.match(
+    css,
+    /\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*brightness\(1\.08\)/,
+  );
+  assert.match(css, /\.is-preview-near\s*\{[\s\S]*opacity: 0\.82/);
+  assert.match(css, /\.is-preview-rear\s*\{[\s\S]*opacity: 0\.6/);
+  assert.match(css, /\.is-preview-near \.project-carousel__card\s*\{[\s\S]*scale\(0\.94\)/);
+  assert.match(css, /\.is-preview-rear \.project-carousel__card\s*\{[\s\S]*scale\(0\.87\)/);
+  assert.match(css, /rgba\(48, 56, 60, 0\.72\)/);
+  assert.match(css, /backdrop-filter: blur\(8px\)/);
+  assert.match(
+    css,
+    /\.is-preview-near \.project-carousel__image\s*\{[\s\S]*opacity: 0\.84[\s\S]*brightness\(0\.96\)/,
+  );
+  assert.match(
+    css,
+    /\.is-preview-rear \.project-carousel__image\s*\{[\s\S]*opacity: 0\.78[\s\S]*brightness\(0\.94\)/,
+  );
+  assert.match(css, /@media \(hover: hover\) and \(pointer: fine\)/);
+  assert.doesNotMatch(
+    css,
+    /\.project-carousel__slide\.is-preview:hover\s*\{[\s\S]*transform: translateY\(calc\(-50%/,
+  );
+  assert.match(projectCarousel, /is-preview-near/);
+  assert.match(projectCarousel, /is-preview-rear/);
+  assert.match(projectCarousel, /index === 2/);
+  assert.match(projectCarousel, /index > 2/);
+  assert.match(animations, /data-panel2-animate="carousel"/);
+  assert.match(animations, /data-panel2-animate="card"/);
   assert.equal((page.match(/data-carousel-(?:prev|next)/g) || []).length, 2);
 });
 

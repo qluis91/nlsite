@@ -50,10 +50,13 @@ export function initProjectCarousel(root, options = {}) {
     currentSlides.forEach((slide, index) => {
       const isActive = slide === activeSlide;
       const isUnderlay = index === 0 && !isActive;
+      const isPreview = index >= 2;
       const previewIndex = Math.max(0, index - 2);
       slide.classList.toggle('is-active', isActive);
       slide.classList.toggle('is-underlay', isUnderlay);
-      slide.classList.toggle('is-preview', index >= 2);
+      slide.classList.toggle('is-preview', isPreview);
+      slide.classList.toggle('is-preview-near', index === 2);
+      slide.classList.toggle('is-preview-rear', index > 2);
       slide.style.setProperty('--preview-index', previewIndex);
       slide.setAttribute('aria-hidden', String(!isActive));
       slide.setAttribute('aria-label', `${index + 1} de ${currentSlides.length}`);
@@ -150,7 +153,13 @@ export function initProjectCarousel(root, options = {}) {
     if (transitionTimer !== null) clearTimeout(transitionTimer);
     removers.splice(0).forEach((remove) => remove());
     slides().forEach((slide) => {
-      slide.classList.remove('is-active', 'is-underlay', 'is-preview');
+      slide.classList.remove(
+        'is-active',
+        'is-underlay',
+        'is-preview',
+        'is-preview-near',
+        'is-preview-rear',
+      );
       slide.style.removeProperty('--preview-index');
       slide.removeAttribute('aria-hidden');
       slide.removeAttribute('inert');
