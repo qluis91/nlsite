@@ -1,7 +1,7 @@
 # nlSite — Project Status
 
-**Last updated:** 2026-07-23
-**Current phase:** Gallery Phase 4 — Infinite Menu
+**Last updated:** 2026-07-24
+**Current phase:** Homepage Panel 2 — Project Showcase
 
 ---
 
@@ -136,6 +136,7 @@
 - [x] Homepage responsive structure preserves the desktop header/two-column composition through tablet widths
 - [x] Mobile homepage uses a two-row header, single-column content flow, bounded 3D canvas, full-width CTAs, and in-flow social links
 - [x] Homepage scroll animations use breakpoint-specific GSAP movement and refresh after the 3D model loads
+- [x] Homepage Panel 2 uses a gray showcase surface, camera-correct Antigravity soft repulsion field, scroll-scrubbed word reveals, and transform-safe carousel entrance layers
 - [x] Admin layout repaired: flex-direction row prevents sidebar from pushing content below the fold
 - [x] Product deletion hardened: FK check, falls back to archive (`is_active=0, is_published=0`) if referenced
 - [x] schema.sql fully synchronized with migrate-catalog.js (categories, products, product_categories, product_images)
@@ -346,3 +347,4 @@
 | Tilopay v1 | Provider-neutral architecture with documentation audit. Config validator, multi-client deployment model (PUBLIC_BASE_URL), derived callback URLs. Invented HMAC/webhook logic removed. Server-to-server lookup for notification verification. MOCK_MODE gated from production. Client setup guide. | 2026-07-23 |
 | Tilopay v2 | **BLOCKED**: Real API endpoints, webhook signatures, sandbox credentials, live transactions pending. SDK V2 guides behind merchant portal login, Postman requires JS. See docs/TILOPAY_INTEGRATION.md for exact gaps. | 2026-07-23 |
 | 3D Loader | Localized 3D loading animation: full-page intro disabled, SpinnerMorph (native SVG/SMIL) inside hero-3d only, model state machine (loading/ready/error), retry button, reduced-motion support, zero new dependencies | 2026-07-23 |
+| Homepage Panel 2 | Gray project showcase, camera-space Antigravity soft repulsion, scroll-driven Blur Text, carousel wrapper/card entrance, and preserved Panel 1 lifecycle | 2026-07-24 |

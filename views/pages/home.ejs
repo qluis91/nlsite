@@ -212,6 +212,9 @@ const ENABLE_PAGE_INTRO = false;
         <h2 id="showcase-title" class="showcase-heading" data-panel2-animate="heading">
           Convertimos ideas en piezas que destacan.
         </h2>
+        <p class="showcase-support" data-panel2-animate="support">
+          Diseño, prototipado y producción para convertir conceptos en piezas listas para destacar.
+        </p>
       </div>
 
       <div
@@ -227,11 +230,11 @@ const ENABLE_PAGE_INTRO = false;
           <li
             class="project-carousel__slide"
             data-project-slide
-            data-panel2-animate="card"
             data-project-title="Diseño desde cero"
             data-project-theme="graphite"
             aria-label="1 de 4"
           >
+            <div class="project-carousel__card" data-panel2-animate="card">
             <img
               class="project-carousel__image"
               src="/images/logo.png"
@@ -250,16 +253,17 @@ const ENABLE_PAGE_INTRO = false;
               </p>
               <a class="project-carousel__cta" href="#showcase-title">Conocer el enfoque</a>
             </div>
+            </div>
           </li>
 
           <li
             class="project-carousel__slide"
             data-project-slide
-            data-panel2-animate="card"
             data-project-title="Piezas personalizadas"
             data-project-theme="lime"
             aria-label="2 de 4"
           >
+            <div class="project-carousel__card" data-panel2-animate="card">
             <img
               class="project-carousel__image"
               src="/images/LogoCompleto.png"
@@ -279,16 +283,17 @@ const ENABLE_PAGE_INTRO = false;
               </p>
               <a class="project-carousel__cta" href="#showcase-title">Ver la propuesta</a>
             </div>
+            </div>
           </li>
 
           <li
             class="project-carousel__slide"
             data-project-slide
-            data-panel2-animate="card"
             data-project-title="Acabados profesionales"
             data-project-theme="silver"
             aria-label="3 de 4"
           >
+            <div class="project-carousel__card" data-panel2-animate="card">
             <img
               class="project-carousel__image"
               src="/images/logoletras.png"
@@ -307,16 +312,17 @@ const ENABLE_PAGE_INTRO = false;
               </p>
               <a class="project-carousel__cta" href="#showcase-title">Explorar posibilidades</a>
             </div>
+            </div>
           </li>
 
           <li
             class="project-carousel__slide"
             data-project-slide
-            data-panel2-animate="card"
             data-project-title="Prototipos funcionales"
             data-project-theme="ink"
             aria-label="4 de 4"
           >
+            <div class="project-carousel__card" data-panel2-animate="card">
             <img
               class="project-carousel__image"
               src="/images/logo.png"
@@ -335,10 +341,15 @@ const ENABLE_PAGE_INTRO = false;
               </p>
               <a class="project-carousel__cta" href="#showcase-title">Conocer el proceso</a>
             </div>
+            </div>
           </li>
         </ul>
 
-        <div class="project-carousel__controls" aria-label="Controles del carrusel">
+        <div
+          class="project-carousel__controls"
+          data-panel2-animate="controls"
+          aria-label="Controles del carrusel"
+        >
           <button type="button" class="project-carousel__control" data-carousel-prev aria-label="Proyecto anterior">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"/></svg>
           </button>

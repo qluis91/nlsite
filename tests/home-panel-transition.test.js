@@ -2,18 +2,22 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
 const root = path.join(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
 const animations = read('public/js/home/animations.js');
 const antigravity = read('public/js/home/antigravityBackground.js');
+const antigravityForces = read('public/js/home/antigravityForces.mjs');
+const blurText = read('public/js/home/blurText.js');
 const cursor = read('public/js/home/splashCursor.js');
 const helmet = read('public/js/home/helmet3d.js');
 const home = read('public/js/home/home.js');
 const css = read('public/css/home.css');
 const layout = read('views/layouts/main.ejs');
 const page = read('views/pages/home.ejs');
+const forcesUrl = pathToFileURL(path.join(root, 'public/js/home/antigravityForces.mjs')).href;
 
 test('one scrubbed timeline coordinates panel-one exit and panel-two entrance', () => {
   const transition = animations.slice(
@@ -27,9 +31,12 @@ test('one scrubbed timeline coordinates panel-one exit and panel-two entrance', 
   assert.doesNotMatch(transition, /pin:/);
   assert.match(transition, /\.to\(\['\.hero-text', '\.hero-ctas'\]/);
   assert.match(transition, /data-panel2-animate="background"/);
-  assert.match(transition, /data-panel2-animate="heading"/);
+  assert.match(transition, /headingSplit \? headingSplit\.words : headingEl/);
   assert.match(transition, /data-panel2-animate="carousel"/);
   assert.match(transition, /data-panel2-animate="card"/);
+  assert.match(transition, /supportSplit \? supportSplit\.words : supportEl/);
+  assert.match(transition, /data-panel2-animate="controls"/);
+  assert.match(transition, /end: 'top top'/);
   assert.match(animations, /if \(heroAnimationPromise\) return heroAnimationPromise;/);
 });
 
@@ -152,7 +159,7 @@ test('particle renderer uses Three.js InstancedMesh with tetrahedrons, pausable,
   assert.match(antigravity, /if \(instances\.has\(canvas\)\) return instances\.get\(canvas\)/);
   // Three.js WebGL renderer, not Canvas 2D
   assert.match(antigravity, /new THREE\.WebGLRenderer/);
-  assert.match(antigravity, /new THREE\.TetrahedronGeometry/);
+  assert.match(antigravity, /new THREE\.TetrahedronGeometry\(0\.42, 0\)/);
   // InstancedMesh for shared rendering
   assert.match(antigravity, /new THREE\.InstancedMesh/);
   assert.match(antigravity, /\bmesh\.instanceMatrix\.needsUpdate\b/);
@@ -168,25 +175,163 @@ test('particle renderer uses Three.js InstancedMesh with tetrahedrons, pausable,
   assert.match(antigravity, /function resume\(\)/);
   // #27ff5a color
   assert.match(antigravity, /0x27ff5a/);
-  // Pointer ring / magnet
-  assert.match(antigravity, /MAGNET_RADIUS/);
-  assert.match(antigravity, /RING_RADIUS/);
-  // Auto-animation
-  assert.match(antigravity, /AUTO_ANIMATE_DELAY/);
+  // Attraction / ring targeting removed
+  assert.doesNotMatch(antigravity, /MAGNET_RADIUS|RING_RADIUS|AUTO_ANIMATE_DELAY/);
+  assert.doesNotMatch(antigravityForces, /MAGNET_RADIUS|RING_RADIUS|ringR\b|targetX = magnet/);
+  // Soft repulsion + suspended drift
+  assert.match(antigravity, /REPEL_RADIUS/);
+  assert.match(antigravity, /RETURN_LERP/);
+  assert.match(antigravity, /pointerActive/);
+  assert.match(antigravity, /from '\.\/antigravityForces\.mjs'/);
+  assert.match(antigravity, /driftRadius/);
+  assert.match(antigravity, /composeParticleTarget\(/);
+  assert.match(antigravity, /computeRepulsion\(/);
   // Particle count tiers
   assert.match(antigravity, /compact \? 60 : tablet \? 120 : 180/);
+  assert.match(antigravity, /Math\.min\(0\.56, p\.scale \* pulse\)/);
   // Shared geometry + material
   assert.match(antigravity, /geometry\.dispose\(\)/);
   assert.match(antigravity, /material\.dispose\(\)/);
 });
 
+test('antigravity maps panel CSS pixels through camera world space and scopes pointer input', () => {
+  assert.match(antigravity, /const ndcX = \(\(e\.clientX - panelRect\.left\) \/ panelRect\.width\) \* 2 - 1/);
+  assert.match(antigravity, /const ndcY = -\(\(\(e\.clientY - panelRect\.top\) \/ panelRect\.height\) \* 2 - 1\)/);
+  assert.match(antigravity, /\.unproject\(camera\)/);
+  assert.match(antigravity, /distanceToPlane = -camera\.position\.z \/ pointerRay\.z/);
+  assert.match(antigravity, /panel\.addEventListener\('pointermove'/);
+  assert.match(antigravity, /e\.clientX < panelRect\.left[\s\S]*e\.clientY > panelRect\.bottom/);
+  assert.match(antigravity, /pointerActive = false/);
+  assert.match(antigravity, /function onPointerLeave\(\)[\s\S]*pointerActive = false/);
+  assert.match(antigravity, /if \(pointersBound \|\| coarsePointer\) return/);
+  assert.doesNotMatch(antigravity, /window\.addEventListener\('pointermove'/);
+});
+
+test('repulsion force points away from the cursor and fades with distance', async () => {
+  const { computeRepulsion, composeParticleTarget } = await import(forcesUrl);
+
+  const near = computeRepulsion(1, 0, { repelRadius: 7.5, repelForce: 4.2, maxRepel: 3.6 });
+  const mid = computeRepulsion(3.5, 0, { repelRadius: 7.5, repelForce: 4.2, maxRepel: 3.6 });
+  const far = computeRepulsion(8, 0, { repelRadius: 7.5, repelForce: 4.2, maxRepel: 3.6 });
+  const left = computeRepulsion(-2, 0, { repelRadius: 7.5, repelForce: 4.2, maxRepel: 3.6 });
+
+  assert.ok(near.x > 0, 'repulsion pushes particle away along +x when dx > 0');
+  assert.ok(left.x < 0, 'repulsion pushes particle away along -x when dx < 0');
+  assert.ok(near.strength > mid.strength, 'strength decreases with distance');
+  assert.equal(far.x, 0);
+  assert.equal(far.y, 0);
+  assert.equal(far.strength, 0);
+
+  const clamped = computeRepulsion(0.05, 0, {
+    repelRadius: 7.5, repelForce: 40, maxRepel: 3.6, maxZOffset: 1.8,
+  });
+  assert.ok(Math.hypot(clamped.x, clamped.y) <= 3.6 + 1e-9);
+  assert.ok(clamped.z <= 1.8 + 1e-9);
+
+  const driftOnly = composeParticleTarget(10, 4, -1, Math.PI / 2, 2, null);
+  assert.ok(Math.abs(driftOnly.suspendedX - 10) < 1e-9);
+  assert.ok(Math.abs(driftOnly.suspendedY - (4 + 2 * 0.6)) < 1e-9);
+  assert.equal(driftOnly.targetX, driftOnly.suspendedX);
+  assert.equal(driftOnly.targetY, driftOnly.suspendedY);
+
+  const withRepel = composeParticleTarget(10, 4, -1, 0, 2, { x: 1.5, y: -0.5, z: 0.8 });
+  assert.equal(withRepel.targetX, withRepel.suspendedX + 1.5);
+  assert.equal(withRepel.targetY, withRepel.suspendedY - 0.5);
+  assert.equal(withRepel.targetZ, -1 + 0.8);
+  assert.ok(withRepel.suspendedX !== withRepel.targetX, 'repulsion is additive, not a substitute');
+});
+
+test('blur text splits words once, preserves one accessible label, and restores text', async (t) => {
+  const originalHTMLElement = global.HTMLElement;
+  const originalDocument = global.document;
+
+  class FakeElement {
+    constructor() {
+      this.dataset = {};
+      this.children = [];
+      this.attributes = new Map();
+      this.style = {};
+      this.className = '';
+      this._text = '';
+    }
+
+    get textContent() {
+      return this.children.length
+        ? this.children.map((child) => child.textContent).join('')
+        : this._text;
+    }
+
+    set textContent(value) {
+      this.children = [];
+      this._text = String(value);
+    }
+
+    setAttribute(name, value) { this.attributes.set(name, String(value)); }
+    getAttribute(name) { return this.attributes.get(name) ?? null; }
+    removeAttribute(name) { this.attributes.delete(name); }
+    appendChild(child) { this.children.push(child); return child; }
+
+    querySelectorAll(selector) {
+      if (selector !== '.blur-text__word') return [];
+      return this.children.filter((child) => (
+        child instanceof FakeElement && child.className === 'blur-text__word'
+      ));
+    }
+  }
+
+  global.HTMLElement = FakeElement;
+  global.document = {
+    createElement: () => new FakeElement(),
+    createTextNode: (text) => ({ textContent: text }),
+  };
+  t.after(() => {
+    global.HTMLElement = originalHTMLElement;
+    global.document = originalDocument;
+  });
+
+  const moduleUrl = `data:text/javascript;base64,${Buffer.from(blurText).toString('base64')}`;
+  const { splitBlurText } = await import(moduleUrl);
+  const element = new FakeElement();
+  element.textContent = 'Texto accesible completo';
+
+  const first = splitBlurText(element);
+  const second = splitBlurText(element);
+
+  assert.equal(first.words.length, 3);
+  assert.equal(second.words.length, 3, 'second split reuses existing spans');
+  assert.equal(element.getAttribute('aria-label'), 'Texto accesible completo');
+  first.words.forEach((word) => assert.equal(word.getAttribute('aria-hidden'), 'true'));
+
+  first.destroy();
+  assert.equal(element.textContent, 'Texto accesible completo');
+  assert.equal(element.getAttribute('aria-label'), null);
+});
+
+test('panel-two text and carousel use visible scroll-owned animation layers', () => {
+  assert.match(css, /\.home-panel--showcase\s*\{[\s\S]*#cfd2d0/);
+  assert.match(css, /\.showcase-heading\s*\{[\s\S]*color: #151817/);
+  assert.match(page, /class="showcase-support" data-panel2-animate="support"/);
+  assert.equal((page.match(/class="project-carousel__card" data-panel2-animate="card"/g) || []).length, 4);
+  assert.doesNotMatch(
+    page,
+    /<li(?:(?!>).)*class="project-carousel__slide"(?:(?!>).)*data-panel2-animate="card"/s,
+  );
+  assert.match(animations, /gsap\.set\(\[kickerEl, headingEl, supportEl\]/);
+  assert.match(animations, /keyframes:[\s\S]*opacity: 0\.5[\s\S]*filter: 'blur\(5px\)'/);
+  assert.match(animations, /supportSplit \? supportSplit\.words : supportEl/);
+  assert.match(animations, /rotationX: 0/);
+  assert.equal((page.match(/data-carousel-(?:prev|next)/g) || []).length, 2);
+});
+
 test('antigravity controller has idempotent pause/resume/destroy lifecycle', () => {
   // Instance reuse via WeakMap
   assert.match(antigravity, /if \(instances\.has\(canvas\)\) return instances\.get\(canvas\)/);
-  // Idempotent pause
-  assert.match(antigravity, /function pause\(\)[\s\S]*?if \(destroyed \|\| !active\) return/);
-  // Idempotent resume
-  assert.match(antigravity, /function resume\(\)[\s\S]*?if \(destroyed \|\| reducedMotion \|\| active\) return/);
+  // Idempotent pause (uses `paused` guard)
+  assert.match(antigravity, /function pause\(\)[\s\S]*?if \(destroyed \|\| paused\) return/);
+  // Idempotent resume (only blocked by destroyed/reducedMotion, not active)
+  assert.match(antigravity, /function resume\(\)[\s\S]*?if \(destroyed \|\| reducedMotion\) return/);
+  // resume always kicks a fresh RAF (stale-state recovery)
+  assert.match(antigravity, /rafId = null;[ \t\n}]*schedule\(\)/);
   // Idempotent destroy
   assert.match(antigravity, /function destroy\(\)[\s\S]*?if \(destroyed\) return/);
   // resume resets lastTime
@@ -199,8 +344,8 @@ test('antigravity controller has idempotent pause/resume/destroy lifecycle', () 
   assert.match(antigravity, /canvas\.classList\.add\('is-paused'\)/);
   // IntersectionObserver for visibility
   assert.match(antigravity, /IntersectionObserver/);
-  // one RAF per resume
-  assert.match(antigravity, /rafId !== null\) return/);
+  // schedule guards: no double RAF
+  assert.match(antigravity, /\|\| rafId !== null\s*\n\s*\) return/);
 });
 
 test('helmet keeps one GLB/canvas while pausing its existing render loop', () => {
@@ -218,7 +363,10 @@ test('reduced motion and coarse pointers expose content without nonessential loo
     css,
     /@media \(prefers-reduced-motion: reduce\)[\s\S]*html\.panel-transition-pending body\.page-home \[data-panel2-animate\][\s\S]*opacity: 1/,
   );
-  assert.match(antigravity, /destroyed \|\| !active \|\| !sectionVisible \|\| reducedMotion/);
+  assert.match(
+    antigravity,
+    /destroyed \|\| reducedMotion \|\| document\.hidden \|\| !sectionVisible[\s\S]*rafId !== null/,
+  );
   assert.match(home, /if \(!prefersReduced\) \{[\s\S]*splashCursorController = initSplashCursor/);
   assert.match(home, /revealPanelTransitionImmediately\(\)/);
 });

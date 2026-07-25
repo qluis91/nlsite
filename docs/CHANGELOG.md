@@ -1148,3 +1148,23 @@ The previous `submitProof` performed a non-locking read of the `orders` row and 
 - `package.json`, `package-lock.json`
 - Tilo Pay, WhatsApp number (`50670240270`)
 - No dependencies added
+
+## 2026-07-24 — Homepage Panel 2 soft repulsion
+
+- Replaced Antigravity cursor-ring attraction with soft quadratic repulsion (`particle − cursor`).
+- Suspended home/drift remains the base target; repulsion is an additive temporary offset with clamped displacement/Z.
+- Removed idle auto-pointer orbit grouping; pointer leave clears `pointerActive` immediately.
+- Extracted pure force helpers to `antigravityForces.mjs` for behavioral tests.
+- Validation: run `npm test` after change; production audit remains at known EJS-chain advisories.
+
+## 2026-07-24 — Homepage Panel 2 interaction correction
+
+- Changed the showcase surface to an accessible gray gradient with dark text.
+- Converted panel-relative pointer coordinates through the Three.js camera onto the particle plane.
+- Reduced tetrahedron geometry and instance scale while preserving one shared `InstancedMesh`.
+- Added panel-scoped pointer input, coarse-pointer fallback, cursor-ring attraction, and idle auto-motion.
+- Added scroll-scrubbed word reveals for the kicker, heading, and supporting copy.
+- Moved carousel card entrance transforms onto inner wrappers so carousel slide positioning remains owned by the carousel.
+- Ended the transition at `top top` so Panel 2 settles naturally without snap or pinning.
+- Preserved the logo loop and the existing cursor/helmet pause-resume lifecycle.
+- Validation: 371 tests passed; production audit remains at 5 known high-severity advisories in the EJS dependency chain.

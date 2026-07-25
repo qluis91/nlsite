@@ -2,6 +2,8 @@
  * Página de Inicio — GSAP + ScrollTrigger + Lenis
  * Panel 1 entrance animations and scroll behavior.
  */
+import { splitBlurText } from './blurText.js';
+
 const HERO_ANIMATED_SELECTOR = [
   '[data-hero-animate]',
   '.hero-word',
@@ -40,6 +42,11 @@ export function revealPanelTransitionImmediately() {
   document.querySelectorAll(PANEL_TWO_ANIMATED_SELECTOR).forEach((element) => {
     ['opacity', 'visibility', 'transform', 'filter', 'will-change']
       .forEach((property) => element.style.removeProperty(property));
+  });
+  // Clear blur-text word styles too
+  document.querySelectorAll('.blur-text__word').forEach((word) => {
+    ['filter', 'opacity', 'transform', 'will-change']
+      .forEach((property) => word.style.removeProperty(property));
   });
 }
 
@@ -183,6 +190,23 @@ async function runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange
     mobile: '(max-width: 768px)',
   }, (context) => {
     const compact = context.conditions.mobile;
+
+    // Split panel-2 text into Blur Text word spans (idempotent)
+    const kickerEl = panelTwo.querySelector('.showcase-kicker');
+    const headingEl = panelTwo.querySelector('.showcase-heading');
+    const supportEl = panelTwo.querySelector('.showcase-support');
+    const kickerSplit = splitBlurText(kickerEl, { direction: 'down', blur: compact ? 6 : 10 });
+    const headingSplit = splitBlurText(headingEl, { direction: 'down', blur: compact ? 6 : 10 });
+    const supportSplit = splitBlurText(supportEl, { direction: 'down', blur: compact ? 4 : 7 });
+
+    // Word spans own opacity/blur. Keep their semantic parents visible so parent
+    // opacity cannot mask child animation.
+    gsap.set([kickerEl, headingEl, supportEl].filter(Boolean), {
+      opacity: 1,
+      filter: 'none',
+      y: 0,
+    });
+
     const syncPanelState = (trigger) => {
       if (trigger.progress <= 0.01) {
         onPanelStateChange('panel1-active');
@@ -200,8 +224,8 @@ async function runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange
       scrollTrigger: {
         id: 'home-panel-1-to-2',
         trigger: panelTwo,
-        start: 'top bottom',
-        end: compact ? 'top 22%' : 'top 30%',
+        start: 'top 92%',
+        end: 'top top',
         scrub: compact ? 0.2 : 0.3,
         invalidateOnRefresh: true,
         onUpdate: syncPanelState,
@@ -233,32 +257,55 @@ async function runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange
       .to('[data-panel2-animate="bridge"]', { opacity: 1, scaleX: 1, duration: 0.62 }, 0.06)
       .to('[data-panel2-animate="trust"]', {
         opacity: 1, y: 0, duration: 0.42,
-      }, 0.1)
-      .to('[data-panel2-animate="kicker"]', {
-        opacity: 1, y: 0, duration: 0.34,
-      }, 0.16)
-      .to('[data-panel2-animate="heading"]', {
+      }, 0.12)
+      .to(kickerSplit ? kickerSplit.words : kickerEl, {
+        keyframes: [
+          { opacity: 0.55, filter: 'blur(4px)', y: compact ? -2 : -4, duration: 0.16 },
+          { opacity: 1, filter: 'blur(0px)', y: 0, duration: 0.2 },
+        ],
+        stagger: compact ? 0.035 : 0.05,
+      }, 0.3)
+      .to(headingSplit ? headingSplit.words : headingEl, {
+        keyframes: [
+          { opacity: 0.5, filter: 'blur(5px)', y: compact ? 2 : 4, duration: 0.2 },
+          { opacity: 1, filter: 'blur(0px)', y: 0, duration: 0.26 },
+        ],
+        stagger: compact ? 0.045 : 0.065,
+      }, 0.38)
+      .to(supportSplit ? supportSplit.words : supportEl, {
+        keyframes: [
+          { opacity: 0.55, filter: 'blur(3px)', y: 2, duration: 0.15 },
+          { opacity: 1, filter: 'blur(0px)', y: 0, duration: 0.2 },
+        ],
+        stagger: compact ? 0.025 : 0.035,
+      }, 0.5)
+      .to('[data-panel2-animate="carousel"]', {
         opacity: 1,
         y: 0,
         scale: 1,
         filter: 'blur(0px)',
         duration: 0.5,
-      }, 0.2)
-      .to('[data-panel2-animate="carousel"]', {
-        opacity: 1,
-        y: 0,
-        scale: 1,
-        duration: 0.52,
-      }, 0.26)
+      }, 0.56)
       .to('[data-panel2-animate="card"]', {
         opacity: 1,
         y: 0,
+        scale: 1,
+        rotationX: 0,
         filter: 'blur(0px)',
-        duration: 0.48,
-        stagger: 0.09,
-      }, 0.3);
+        duration: 0.44,
+        stagger: compact ? 0.05 : 0.08,
+      }, 0.63)
+      .to('[data-panel2-animate="controls"]', {
+        opacity: 1,
+        duration: 0.28,
+      }, 0.76);
 
-    return () => transition.kill();
+    return () => {
+      if (kickerSplit) kickerSplit.destroy();
+      if (headingSplit) headingSplit.destroy();
+      if (supportSplit) supportSplit.destroy();
+      transition.kill();
+    };
   });
 
   return media;
