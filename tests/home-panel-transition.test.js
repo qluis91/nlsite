@@ -31,10 +31,14 @@ test('one scrubbed timeline coordinates panel-one exit and panel-two entrance', 
   assert.doesNotMatch(transition, /pin:/);
   assert.match(transition, /\.to\(\['\.hero-text', '\.hero-ctas'\]/);
   assert.match(transition, /data-panel2-animate="background"/);
-  assert.match(transition, /headingSplit \? headingSplit\.words : headingEl/);
+  assert.match(transition, /headingTargets/);
+  assert.match(transition, /animateBy: 'chars'/);
+  assert.match(transition, /animateBy: 'words'/);
+  assert.match(transition, /addLabel\('kickerIn', 0\.72\)/);
+  assert.match(transition, /addLabel\('headingIn', 0\.78\)/);
+  assert.match(transition, /fromTo\(headingTargets/);
   assert.match(transition, /data-panel2-animate="carousel"/);
   assert.match(transition, /data-panel2-animate="card"/);
-  assert.match(transition, /supportSplit \? supportSplit\.words : supportEl/);
   assert.match(transition, /data-panel2-animate="controls"/);
   assert.match(transition, /end: 'top top'/);
   assert.match(animations, /if \(heroAnimationPromise\) return heroAnimationPromise;/);
@@ -241,7 +245,7 @@ test('repulsion force points away from the cursor and fades with distance', asyn
   assert.ok(withRepel.suspendedX !== withRepel.targetX, 'repulsion is additive, not a substitute');
 });
 
-test('blur text splits words once, preserves one accessible label, and restores text', async (t) => {
+test('blur text splits words/chars, preserves accessibility, and restores text', async (t) => {
   const originalHTMLElement = global.HTMLElement;
   const originalDocument = global.document;
 
@@ -250,7 +254,9 @@ test('blur text splits words once, preserves one accessible label, and restores 
       this.dataset = {};
       this.children = [];
       this.attributes = new Map();
-      this.style = {};
+      this.style = {
+        removeProperty(name) { delete this[name]; },
+      };
       this.className = '';
       this._text = '';
     }
@@ -272,10 +278,19 @@ test('blur text splits words once, preserves one accessible label, and restores 
     appendChild(child) { this.children.push(child); return child; }
 
     querySelectorAll(selector) {
-      if (selector !== '.blur-text__word') return [];
-      return this.children.filter((child) => (
-        child instanceof FakeElement && child.className === 'blur-text__word'
-      ));
+      const all = [];
+      const visit = (node) => {
+        if (!(node instanceof FakeElement)) return;
+        if (
+          selector.includes('.blur-text__word') && node.className === 'blur-text__word'
+        ) all.push(node);
+        if (
+          selector.includes('.blur-text__char') && node.className === 'blur-text__char'
+        ) all.push(node);
+        node.children.forEach(visit);
+      };
+      this.children.forEach(visit);
+      return all;
     }
   }
 
@@ -291,20 +306,40 @@ test('blur text splits words once, preserves one accessible label, and restores 
 
   const moduleUrl = `data:text/javascript;base64,${Buffer.from(blurText).toString('base64')}`;
   const { splitBlurText } = await import(moduleUrl);
-  const element = new FakeElement();
-  element.textContent = 'Texto accesible completo';
 
-  const first = splitBlurText(element);
-  const second = splitBlurText(element);
+  const wordsEl = new FakeElement();
+  wordsEl.textContent = 'Texto accesible completo';
+  const wordsSplit = splitBlurText(wordsEl, { animateBy: 'words', direction: 'top', blur: 12, y: -40 });
+  assert.equal(wordsSplit.words.length, 3);
+  assert.equal(wordsSplit.targets.length, 3);
+  assert.equal(wordsEl.getAttribute('aria-label'), 'Texto accesible completo');
+  wordsSplit.words.forEach((word) => {
+    assert.equal(word.getAttribute('aria-hidden'), 'true');
+    assert.match(word.style.filter, /blur\(12px\)/);
+    assert.equal(word.style.opacity, '0');
+    assert.match(word.style.transform, /translate3d\(0, -40px/);
+  });
+  assert.equal(splitBlurText(wordsEl).words.length, 3, 'idempotent word split');
+  wordsSplit.destroy();
+  assert.equal(wordsEl.textContent, 'Texto accesible completo');
+  assert.equal(wordsEl.getAttribute('aria-label'), null);
 
-  assert.equal(first.words.length, 3);
-  assert.equal(second.words.length, 3, 'second split reuses existing spans');
-  assert.equal(element.getAttribute('aria-label'), 'Texto accesible completo');
-  first.words.forEach((word) => assert.equal(word.getAttribute('aria-hidden'), 'true'));
-
-  first.destroy();
-  assert.equal(element.textContent, 'Texto accesible completo');
-  assert.equal(element.getAttribute('aria-label'), null);
+  const charsEl = new FakeElement();
+  charsEl.textContent = 'Hola mundo';
+  const charsSplit = splitBlurText(charsEl, { animateBy: 'chars', direction: 'top', blur: 13, y: -48 });
+  assert.equal(charsSplit.words.length, 2);
+  assert.equal(charsSplit.chars.length, 9);
+  assert.equal(charsSplit.targets.length, 9);
+  assert.ok(charsSplit.words[0].children.every((child) => child.className === 'blur-text__char'));
+  assert.equal(charsEl.getAttribute('aria-label'), 'Hola mundo');
+  charsSplit.chars.forEach((char) => {
+    assert.equal(char.getAttribute('aria-hidden'), 'true');
+    assert.match(char.style.filter, /blur\(13px\)/);
+    assert.equal(char.style.opacity, '0');
+    assert.match(char.style.transform, /translate3d\(0, -48px/);
+  });
+  charsSplit.destroy();
+  assert.equal(charsEl.textContent, 'Hola mundo');
 });
 
 test('panel-two text and carousel use visible scroll-owned animation layers', () => {
@@ -317,9 +352,13 @@ test('panel-two text and carousel use visible scroll-owned animation layers', ()
     /<li(?:(?!>).)*class="project-carousel__slide"(?:(?!>).)*data-panel2-animate="card"/s,
   );
   assert.match(animations, /gsap\.set\(\[kickerEl, headingEl, supportEl\]/);
-  assert.match(animations, /keyframes:[\s\S]*opacity: 0\.5[\s\S]*filter: 'blur\(5px\)'/);
-  assert.match(animations, /supportSplit \? supportSplit\.words : supportEl/);
+  assert.match(animations, /fromTo\(headingTargets[\s\S]*y: fallY/);
+  assert.match(animations, /settle\.heading/);
+  assert.match(animations, /filter: 'blur\(0px\)'/);
+  assert.match(animations, /addLabel\('carouselIn', 0\.9\)/);
   assert.match(animations, /rotationX: 0/);
+  assert.match(css, /\[data-blur-text-split="true"\]/);
+  assert.match(css, /\.blur-text__char/);
   assert.equal((page.match(/data-carousel-(?:prev|next)/g) || []).length, 2);
 });
 

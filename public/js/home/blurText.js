@@ -1,41 +1,57 @@
 /**
- * Blur Text — word-level blur entrance animation.
+ * BlurText — word/character split for GSAP ScrollTrigger blur entrances.
  *
- * Splits an element's text into <span> words, sets initial blur/opacity/translateY
- * state in CSS, then exposes selectors for GSAP/ScrollTrigger to animate.
+ * Inspired by React Bits BlurText (no React / Motion).
  *
- * Inspired by React Bits Blur Text behaviour without React or Motion.
+ * Structure for characters:
+ *   <span class="blur-text__word" aria-hidden="true">
+ *     <span class="blur-text__char">C</span>...
+ *   </span>
+ *   [space text node]
  *
- * Usage:
- *   const split = splitBlurText(document.querySelector('.showcase-heading'), {
- *     direction: 'down',   // 'up' or 'down' — initial Y offset direction
- *     blur: 10,            // initial blur in px
- *   });
- *   // Then animate: gsap.to(split.words, { filter: 'blur(0px)', opacity: 1, y: 0, stagger: 0.06 });
- *   // Or destroy: split.destroy();
+ * Parent keeps aria-label with the full original sentence.
  */
 
+function clearSegmentStyles(node) {
+  ['filter', 'opacity', 'transform', 'will-change', 'display'].forEach((property) => {
+    node.style.removeProperty(property);
+  });
+}
+
+function applyInitialState(node, { blur, translateY, scale }) {
+  node.style.display = 'inline-block';
+  node.style.filter = `blur(${blur}px)`;
+  node.style.opacity = '0';
+  node.style.transform = `translate3d(0, ${translateY}px, 0) scale(${scale})`;
+  node.style.willChange = 'filter, opacity, transform';
+}
+
 /**
- * Splits text content into word-level <span> elements.
- *
- * @param {HTMLElement} element - The text element to split
+ * @param {HTMLElement} element
  * @param {object} [options]
- * @param {'up'|'down'} [options.direction='down'] - Direction words appear from
- * @param {number} [options.blur=10] - Initial blur amount in px
- * @param {boolean} [options.preserveWhitespace=true] - Keep space nodes between words
- * @returns {{ words: HTMLCollection, element: HTMLElement, destroy: Function } | null}
+ * @param {'words'|'chars'} [options.animateBy='words']
+ * @param {'top'|'bottom'} [options.direction='top'] - 'top' = fall from above (negative Y)
+ * @param {number} [options.blur=12]
+ * @param {number} [options.y]
+ * @param {number} [options.scale=0.98]
+ * @returns {{ words: NodeListOf<Element>, chars: NodeListOf<Element>, targets: NodeListOf<Element>, element: HTMLElement, destroy: Function } | null}
  */
 export function splitBlurText(element, options = {}) {
   if (!element || !(element instanceof HTMLElement)) return null;
 
-  const direction = options.direction || 'down';
-  const blur = options.blur ?? 10;
-  const translateY = direction === 'down' ? 40 : -40;
+  const animateBy = options.animateBy === 'chars' ? 'chars' : 'words';
+  const direction = options.direction === 'bottom' ? 'bottom' : 'top';
+  const blur = options.blur ?? 12;
+  const scale = options.scale ?? 0.98;
+  const translateY = options.y ?? (direction === 'top' ? -48 : 48);
 
-  // Already split? Return existing
   if (element.dataset.blurTextSplit === 'true') {
+    const words = element.querySelectorAll('.blur-text__word');
+    const chars = element.querySelectorAll('.blur-text__char');
     return {
-      words: element.querySelectorAll('.blur-text__word'),
+      words,
+      chars,
+      targets: animateBy === 'chars' ? chars : words,
       element,
       destroy: () => _destroy(element),
     };
@@ -44,45 +60,56 @@ export function splitBlurText(element, options = {}) {
   const text = element.textContent || '';
   if (!text.trim()) return null;
 
-  // Save original text for screen readers
   element.setAttribute('aria-label', text.trim());
 
-  // Build word spans
   const fragments = [];
-  const trimmed = text.trim();
-  const words = trimmed.split(/\s+/);
+  const words = text.trim().split(/\s+/);
 
   for (let i = 0; i < words.length; i += 1) {
-    const span = document.createElement('span');
-    span.className = 'blur-text__word';
-    span.textContent = words[i];
-    span.setAttribute('aria-hidden', 'true');
-    span.style.display = 'inline-block';
-    span.style.filter = `blur(${blur}px)`;
-    span.style.opacity = '0';
-    span.style.transform = `translate3d(0, ${translateY}px, 0)`;
-    span.style.willChange = 'filter, opacity, transform';
-    fragments.push(span);
+    const wordSpan = document.createElement('span');
+    wordSpan.className = 'blur-text__word';
+    wordSpan.setAttribute('aria-hidden', 'true');
+    wordSpan.style.display = 'inline-block';
+    wordSpan.style.whiteSpace = 'nowrap';
 
-    // Add space between words (preserves wrapping)
+    if (animateBy === 'chars') {
+      const chars = Array.from(words[i]);
+      chars.forEach((char) => {
+        const charSpan = document.createElement('span');
+        charSpan.className = 'blur-text__char';
+        charSpan.textContent = char;
+        charSpan.setAttribute('aria-hidden', 'true');
+        applyInitialState(charSpan, { blur, translateY, scale });
+        wordSpan.appendChild(charSpan);
+      });
+    } else {
+      wordSpan.textContent = words[i];
+      applyInitialState(wordSpan, { blur, translateY, scale });
+    }
+
+    fragments.push(wordSpan);
+
     if (i < words.length - 1) {
-      const space = document.createTextNode(' ');
-      fragments.push(space);
+      fragments.push(document.createTextNode(' '));
     }
   }
 
-  // Replace content
   element.textContent = '';
   fragments.forEach((node) => element.appendChild(node));
 
   element.dataset.blurTextSplit = 'true';
-  element.dataset.blurTextInitialBlur = String(blur);
+  element.dataset.blurTextAnimateBy = animateBy;
   element.dataset.blurTextDirection = direction;
+  element.dataset.blurTextInitialBlur = String(blur);
+  element.dataset.blurTextInitialY = String(translateY);
 
   const wordElements = element.querySelectorAll('.blur-text__word');
+  const charElements = element.querySelectorAll('.blur-text__char');
 
   return {
     words: wordElements,
+    chars: charElements,
+    targets: animateBy === 'chars' ? charElements : wordElements,
     element,
     destroy: () => _destroy(element),
   };
@@ -91,16 +118,22 @@ export function splitBlurText(element, options = {}) {
 function _destroy(element) {
   if (!element || !element.dataset.blurTextSplit) return;
   const text = (element.getAttribute('aria-label') || element.textContent || '').trim();
-  const words = element.querySelectorAll('.blur-text__word');
-  words.forEach((w) => {
-    w.style.filter = '';
-    w.style.opacity = '';
-    w.style.transform = '';
-    w.style.willChange = '';
-  });
+  element.querySelectorAll('.blur-text__word, .blur-text__char').forEach(clearSegmentStyles);
   element.textContent = text;
   element.removeAttribute('aria-label');
   delete element.dataset.blurTextSplit;
-  delete element.dataset.blurTextInitialBlur;
+  delete element.dataset.blurTextAnimateBy;
   delete element.dataset.blurTextDirection;
+  delete element.dataset.blurTextInitialBlur;
+  delete element.dataset.blurTextInitialY;
+}
+
+/** Force all generated segments into the final readable state. */
+export function revealBlurTextSegments(root = document) {
+  root.querySelectorAll('.blur-text__word, .blur-text__char').forEach((node) => {
+    node.style.filter = 'blur(0px)';
+    node.style.opacity = '1';
+    node.style.transform = 'translate3d(0, 0, 0) scale(1)';
+    node.style.willChange = 'auto';
+  });
 }

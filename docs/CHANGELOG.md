@@ -1149,6 +1149,14 @@ The previous `submitProof` performed a non-locking read of the `orders` row and 
 - Tilo Pay, WhatsApp number (`50670240270`)
 - No dependencies added
 
+## 2026-07-24 — Panel 2 BlurText forward-scroll fix
+
+- Heading/kicker now split into character spans inside word wrappers; support stays word-level.
+- Fall-from-above motion: negative Y → soft settle overshoot → sharp final state via scrubbed `fromTo`/`to`.
+- Text timeline labels moved later (`kickerIn` 0.48+) so downward scroll reveals text on-screen.
+- Parent text nodes stay opacity 1 after split; CSS no longer masks split children.
+- Validation: run `npm test` after change.
+
 ## 2026-07-24 — Homepage Panel 2 soft repulsion
 
 - Replaced Antigravity cursor-ring attraction with soft quadratic repulsion (`particle − cursor`).

@@ -2,7 +2,7 @@
  * Página de Inicio — GSAP + ScrollTrigger + Lenis
  * Panel 1 entrance animations and scroll behavior.
  */
-import { splitBlurText } from './blurText.js';
+import { revealBlurTextSegments, splitBlurText } from './blurText.js';
 
 const HERO_ANIMATED_SELECTOR = [
   '[data-hero-animate]',
@@ -43,11 +43,7 @@ export function revealPanelTransitionImmediately() {
     ['opacity', 'visibility', 'transform', 'filter', 'will-change']
       .forEach((property) => element.style.removeProperty(property));
   });
-  // Clear blur-text word styles too
-  document.querySelectorAll('.blur-text__word').forEach((word) => {
-    ['filter', 'opacity', 'transform', 'will-change']
-      .forEach((property) => word.style.removeProperty(property));
-  });
+  revealBlurTextSegments(document);
 }
 
 function preparePanelTransition() {
@@ -191,18 +187,37 @@ async function runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange
   }, (context) => {
     const compact = context.conditions.mobile;
 
-    // Split panel-2 text into Blur Text word spans (idempotent)
+    // Split Panel 2 copy before it enters: chars for heading/kicker, words for support.
     const kickerEl = panelTwo.querySelector('.showcase-kicker');
     const headingEl = panelTwo.querySelector('.showcase-heading');
     const supportEl = panelTwo.querySelector('.showcase-support');
-    const kickerSplit = splitBlurText(kickerEl, { direction: 'down', blur: compact ? 6 : 10 });
-    const headingSplit = splitBlurText(headingEl, { direction: 'down', blur: compact ? 6 : 10 });
-    const supportSplit = splitBlurText(supportEl, { direction: 'down', blur: compact ? 4 : 7 });
+    const fallY = compact ? -28 : -46;
+    const kickerSplit = splitBlurText(kickerEl, {
+      animateBy: 'chars',
+      direction: 'top',
+      blur: compact ? 8 : 11,
+      y: fallY,
+      scale: 0.98,
+    });
+    const headingSplit = splitBlurText(headingEl, {
+      animateBy: 'chars',
+      direction: 'top',
+      blur: compact ? 9 : 13,
+      y: fallY,
+      scale: 0.97,
+    });
+    const supportSplit = splitBlurText(supportEl, {
+      animateBy: 'words',
+      direction: 'top',
+      blur: compact ? 5 : 8,
+      y: compact ? -18 : -28,
+      scale: 0.99,
+    });
 
-    // Word spans own opacity/blur. Keep their semantic parents visible so parent
-    // opacity cannot mask child animation.
+    // Child spans own opacity/blur/Y. Parents must stay fully visible.
     gsap.set([kickerEl, headingEl, supportEl].filter(Boolean), {
       opacity: 1,
+      visibility: 'visible',
       filter: 'none',
       y: 0,
     });
@@ -226,22 +241,54 @@ async function runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange
         trigger: panelTwo,
         start: 'top 92%',
         end: 'top top',
-        scrub: compact ? 0.2 : 0.3,
+        scrub: compact ? 0.22 : 0.32,
         invalidateOnRefresh: true,
         onUpdate: syncPanelState,
         onRefresh: syncPanelState,
       },
     });
 
+    const kickerTargets = kickerSplit?.targets?.length ? kickerSplit.targets : kickerEl;
+    const headingTargets = headingSplit?.targets?.length ? headingSplit.targets : headingEl;
+    const supportTargets = supportSplit?.targets?.length ? supportSplit.targets : supportEl;
+
+    const settle = {
+      kicker: {
+        opacity: 0.6,
+        filter: compact ? 'blur(4px)' : 'blur(5px)',
+        y: compact ? 4 : 6,
+        scale: 1,
+      },
+      heading: {
+        opacity: 0.55,
+        filter: compact ? 'blur(5px)' : 'blur(6px)',
+        y: compact ? 5 : 7,
+        scale: 0.995,
+      },
+      support: {
+        opacity: 0.6,
+        filter: compact ? 'blur(3px)' : 'blur(4px)',
+        y: compact ? 3 : 5,
+        scale: 1,
+      },
+    };
+    const finalState = {
+      opacity: 1,
+      filter: 'blur(0px)',
+      y: 0,
+      scale: 1,
+    };
+
     transition
+      .addLabel('panelExit', 0)
       .to(['.hero-text', '.hero-ctas'], {
         y: compact ? -18 : -48,
         scale: compact ? 0.99 : 0.965,
         opacity: compact ? 0.38 : 0.12,
         filter: compact ? 'none' : 'blur(2px)',
         duration: 0.72,
-      }, 0)
-      .to('.hero-social', { y: -12, opacity: 0, duration: 0.38 }, 0)
+      }, 'panelExit')
+      .to('.hero-social', { y: -12, opacity: 0, duration: 0.38 }, 'panelExit')
       .to('.hero-3d', {
         x: compact ? 18 : '8vw',
         y: compact ? 14 : 34,
@@ -250,55 +297,90 @@ async function runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange
         opacity: compact ? 0.36 : 0.16,
         duration: 0.82,
       }, 0.02)
-      .to('.hero-bg-grid', { y: compact ? 24 : 68, opacity: 0.08, duration: 0.74 }, 0)
-      .to('.hero-bg-glow', { x: '12%', y: '8%', scale: 0.72, opacity: 0.16, duration: 0.76 }, 0)
-      .to('.grainient-background', { opacity: 0.16, duration: 0.78 }, 0)
+      .to('.hero-bg-grid', { y: compact ? 24 : 68, opacity: 0.08, duration: 0.74 }, 'panelExit')
+      .to('.hero-bg-glow', { x: '12%', y: '8%', scale: 0.72, opacity: 0.16, duration: 0.76 }, 'panelExit')
+      .to('.grainient-background', { opacity: 0.16, duration: 0.78 }, 'panelExit')
       .to('[data-panel2-animate="background"]', { opacity: 1, scale: 1, duration: 0.82 }, 0.02)
       .to('[data-panel2-animate="bridge"]', { opacity: 1, scaleX: 1, duration: 0.62 }, 0.06)
       .to('[data-panel2-animate="trust"]', {
         opacity: 1, y: 0, duration: 0.42,
       }, 0.12)
-      .to(kickerSplit ? kickerSplit.words : kickerEl, {
-        keyframes: [
-          { opacity: 0.55, filter: 'blur(4px)', y: compact ? -2 : -4, duration: 0.16 },
-          { opacity: 1, filter: 'blur(0px)', y: 0, duration: 0.2 },
-        ],
-        stagger: compact ? 0.035 : 0.05,
-      }, 0.3)
-      .to(headingSplit ? headingSplit.words : headingEl, {
-        keyframes: [
-          { opacity: 0.5, filter: 'blur(5px)', y: compact ? 2 : 4, duration: 0.2 },
-          { opacity: 1, filter: 'blur(0px)', y: 0, duration: 0.26 },
-        ],
-        stagger: compact ? 0.045 : 0.065,
-      }, 0.38)
-      .to(supportSplit ? supportSplit.words : supportEl, {
-        keyframes: [
-          { opacity: 0.55, filter: 'blur(3px)', y: 2, duration: 0.15 },
-          { opacity: 1, filter: 'blur(0px)', y: 0, duration: 0.2 },
-        ],
-        stagger: compact ? 0.025 : 0.035,
-      }, 0.5)
+      // Text starts late: trust strip is on-screen first; copy animates while clearly visible.
+      .addLabel('kickerIn', 0.72)
+      .fromTo(kickerTargets, {
+        opacity: 0,
+        filter: compact ? 'blur(8px)' : 'blur(11px)',
+        y: fallY,
+        scale: 0.98,
+      }, {
+        ...settle.kicker,
+        duration: 0.12,
+        stagger: compact ? 0.005 : 0.007,
+        ease: 'power2.out',
+      }, 'kickerIn')
+      .to(kickerTargets, {
+        ...finalState,
+        duration: 0.1,
+        stagger: compact ? 0.005 : 0.007,
+        ease: 'power2.out',
+      }, 'kickerIn+=0.1')
+      .addLabel('headingIn', 0.78)
+      .fromTo(headingTargets, {
+        opacity: 0,
+        filter: compact ? 'blur(9px)' : 'blur(13px)',
+        y: fallY,
+        scale: 0.97,
+      }, {
+        ...settle.heading,
+        duration: 0.14,
+        stagger: compact ? 0.006 : 0.009,
+        ease: 'power2.out',
+      }, 'headingIn')
+      .to(headingTargets, {
+        ...finalState,
+        duration: 0.12,
+        stagger: compact ? 0.006 : 0.009,
+        ease: 'power3.out',
+      }, 'headingIn+=0.12')
+      .addLabel('supportIn', 0.86)
+      .fromTo(supportTargets, {
+        opacity: 0,
+        filter: compact ? 'blur(5px)' : 'blur(8px)',
+        y: compact ? -18 : -28,
+        scale: 0.99,
+      }, {
+        ...settle.support,
+        duration: 0.12,
+        stagger: compact ? 0.01 : 0.014,
+        ease: 'power2.out',
+      }, 'supportIn')
+      .to(supportTargets, {
+        ...finalState,
+        duration: 0.1,
+        stagger: compact ? 0.01 : 0.014,
+        ease: 'power2.out',
+      }, 'supportIn+=0.1')
+      .addLabel('carouselIn', 0.9)
       .to('[data-panel2-animate="carousel"]', {
         opacity: 1,
         y: 0,
         scale: 1,
         filter: 'blur(0px)',
-        duration: 0.5,
-      }, 0.56)
+        duration: 0.28,
+      }, 'carouselIn')
       .to('[data-panel2-animate="card"]', {
         opacity: 1,
         y: 0,
         scale: 1,
         rotationX: 0,
         filter: 'blur(0px)',
-        duration: 0.44,
-        stagger: compact ? 0.05 : 0.08,
-      }, 0.63)
+        duration: 0.24,
+        stagger: compact ? 0.03 : 0.045,
+      }, 'carouselIn+=0.04')
       .to('[data-panel2-animate="controls"]', {
         opacity: 1,
-        duration: 0.28,
-      }, 0.76);
+        duration: 0.16,
+      }, 0.96);
 
     return () => {
       if (kickerSplit) kickerSplit.destroy();

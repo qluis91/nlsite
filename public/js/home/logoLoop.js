@@ -8,7 +8,7 @@ const DEFAULT_OPTIONS = {
   hoverSpeed: 0,
   scaleOnHover: true,
   fadeOut: true,
-  fadeOutColor: '#f7f7f4',
+  fadeOutColor: 'rgba(92, 100, 96, 0.35)',
   smoothTau: 0.22,
 };
 
