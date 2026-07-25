@@ -372,21 +372,26 @@ test('project carousel hierarchy favors a clearer active slide over softer previ
     css,
     /\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*brightness\(1\.08\)/,
   );
-  assert.match(css, /\.is-preview-near\s*\{[\s\S]*opacity: 0\.82/);
-  assert.match(css, /\.is-preview-rear\s*\{[\s\S]*opacity: 0\.6/);
-  assert.match(css, /\.is-preview-near \.project-carousel__card\s*\{[\s\S]*scale\(0\.94\)/);
-  assert.match(css, /\.is-preview-rear \.project-carousel__card\s*\{[\s\S]*scale\(0\.87\)/);
-  assert.match(css, /rgba\(48, 56, 60, 0\.72\)/);
-  assert.match(css, /backdrop-filter: blur\(8px\)/);
+  assert.match(css, /\.is-preview-near\s*\{[\s\S]*top: calc\(50% \+ 32px\)[\s\S]*opacity: 0\.94/);
+  assert.match(css, /\.is-preview-rear\s*\{[\s\S]*top: calc\(50% \+ 48px\)[\s\S]*opacity: 0\.82/);
+  assert.match(css, /\.is-preview-near \.project-carousel__card\s*\{[\s\S]*scale\(0\.96\)/);
+  assert.match(css, /\.is-preview-rear \.project-carousel__card\s*\{[\s\S]*scale\(0\.9\)/);
+  assert.match(css, /rgba\(42, 50, 54, 0\.42\)/);
+  assert.match(css, /backdrop-filter: blur\(4px\)/);
   assert.match(
     css,
-    /\.is-preview-near \.project-carousel__image\s*\{[\s\S]*opacity: 0\.84[\s\S]*brightness\(0\.96\)/,
+    /\.is-preview-near \.project-carousel__image\s*\{[\s\S]*opacity: 0\.96[\s\S]*brightness\(1\.02\)/,
   );
   assert.match(
     css,
-    /\.is-preview-rear \.project-carousel__image\s*\{[\s\S]*opacity: 0\.78[\s\S]*brightness\(0\.94\)/,
+    /\.is-preview-rear \.project-carousel__image\s*\{[\s\S]*opacity: 0\.9[\s\S]*brightness\(0\.99\)/,
   );
+  assert.match(css, /@keyframes project-carousel-kenburns/);
+  assert.match(css, /animation: project-carousel-kenburns 32s/);
   assert.match(css, /@media \(hover: hover\) and \(pointer: fine\)/);
+  assert.match(css, /is-preview-near:hover[\s\S]*rgba\(39, 255, 90, 0\.55\)/);
+  assert.match(css, /is-preview-rear:hover[\s\S]*scale\(0\.97\)/);
+  assert.match(css, /prefers-reduced-motion: reduce[\s\S]*animation: none !important/);
   assert.doesNotMatch(
     css,
     /\.project-carousel__slide\.is-preview:hover\s*\{[\s\S]*transform: translateY\(calc\(-50%/,

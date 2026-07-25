@@ -2099,27 +2099,30 @@ body.page-home.is-page-loading {
   opacity: 1;
 }
 
+/* Preview cards: clearer secondary stack, lowered for composition */
 .project-carousel__slide.is-preview {
   z-index: 4;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 
 .project-carousel__slide.is-preview-near {
-  opacity: 0.82;
+  top: calc(50% + 32px);
+  opacity: 0.94;
 }
 
 .project-carousel__slide.is-preview-rear {
-  opacity: 0.6;
-  top: calc(50% + 10px);
+  top: calc(50% + 48px);
+  opacity: 0.82;
 }
 
 .project-carousel__slide.is-preview-near .project-carousel__card {
-  transform: scale(0.94);
+  transform: scale(0.96);
 }
 
 .project-carousel__slide.is-preview-rear .project-carousel__card {
-  transform: scale(0.87);
+  transform: scale(0.9);
 }
 
 .project-carousel__slide[data-project-theme="graphite"] { background: #181b20; }
@@ -2131,7 +2134,7 @@ body.page-home.is-page-loading {
 .project-carousel__slide.is-preview[data-project-theme="lime"],
 .project-carousel__slide.is-preview[data-project-theme="silver"],
 .project-carousel__slide.is-preview[data-project-theme="ink"] {
-  background: rgba(48, 56, 60, 0.72);
+  background: rgba(42, 50, 54, 0.42);
 }
 
 .project-carousel__image {
@@ -2145,23 +2148,35 @@ body.page-home.is-page-loading {
   object-position: center;
   filter: saturate(0.92) contrast(1.05);
   user-select: none;
-  transition: filter 320ms ease, opacity 320ms ease, transform 420ms ease;
+  transition: filter 320ms ease, opacity 320ms ease;
+  will-change: transform;
+}
+
+@keyframes project-carousel-kenburns {
+  0% {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  100% {
+    transform: scale(1.07) translate3d(-1.2%, -0.6%, 0);
+  }
 }
 
 .project-carousel__slide.is-active .project-carousel__image,
 .project-carousel:not(.is-enhanced) .project-carousel__slide:nth-child(2) .project-carousel__image {
   opacity: 1;
   filter: brightness(1.08) contrast(1.03) saturate(0.97);
+  transform-origin: 58% 40%;
+  animation: project-carousel-kenburns 32s ease-in-out infinite alternate;
 }
 
 .project-carousel__slide.is-preview-near .project-carousel__image {
-  opacity: 0.84;
-  filter: brightness(0.96) contrast(1.02) saturate(0.92);
+  opacity: 0.96;
+  filter: brightness(1.02) contrast(1.03) saturate(0.98);
 }
 
 .project-carousel__slide.is-preview-rear .project-carousel__image {
-  opacity: 0.78;
-  filter: brightness(0.94) contrast(1.01) saturate(0.88);
+  opacity: 0.9;
+  filter: brightness(0.99) contrast(1.02) saturate(0.95);
 }
 
 .project-carousel__slide.is-active::after,
@@ -2265,34 +2280,39 @@ body.page-home.is-page-loading {
 
 @media (hover: hover) and (pointer: fine) {
   .project-carousel__slide.is-preview-near:hover {
-    opacity: 0.92;
-    border-color: rgba(39, 255, 90, 0.28);
+    opacity: 1;
+    border-color: rgba(39, 255, 90, 0.55);
     box-shadow:
-      0 22px 42px rgba(0, 0, 0, 0.34),
-      0 0 0 1px rgba(39, 255, 90, 0.2);
+      0 24px 44px rgba(0, 0, 0, 0.36),
+      0 0 0 1px rgba(39, 255, 90, 0.35),
+      0 0 22px rgba(39, 255, 90, 0.22);
   }
 
   .project-carousel__slide.is-preview-near:hover .project-carousel__card {
-    transform: scale(0.96) translateY(-5px);
+    transform: scale(1.03) translateY(-4px);
   }
 
   .project-carousel__slide.is-preview-near:hover .project-carousel__image {
-    opacity: 0.92;
-    filter: brightness(1.02) contrast(1.04) saturate(0.98);
+    opacity: 1;
+    filter: brightness(1.06) contrast(1.04) saturate(1);
   }
 
   .project-carousel__slide.is-preview-rear:hover {
-    opacity: 0.74;
-    border-color: rgba(255, 255, 255, 0.22);
+    opacity: 0.94;
+    border-color: rgba(39, 255, 90, 0.4);
+    box-shadow:
+      0 20px 38px rgba(0, 0, 0, 0.32),
+      0 0 0 1px rgba(39, 255, 90, 0.28),
+      0 0 16px rgba(39, 255, 90, 0.16);
   }
 
   .project-carousel__slide.is-preview-rear:hover .project-carousel__card {
-    transform: scale(0.9) translateY(-3px);
+    transform: scale(0.97) translateY(-3px);
   }
 
   .project-carousel__slide.is-preview-rear:hover .project-carousel__image {
-    opacity: 0.86;
-    filter: brightness(0.98) contrast(1.02) saturate(0.92);
+    opacity: 0.96;
+    filter: brightness(1.03) contrast(1.03) saturate(0.98);
   }
 }
 
@@ -2535,6 +2555,17 @@ body.page-home.is-page-loading {
     flex-wrap: wrap;
     justify-content: center;
     padding-block: 1.5rem;
+  }
+
+  .project-carousel__slide.is-active .project-carousel__image,
+  .project-carousel:not(.is-enhanced) .project-carousel__slide:nth-child(2) .project-carousel__image {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .project-carousel__slide.is-preview-near:hover .project-carousel__card,
+  .project-carousel__slide.is-preview-rear:hover .project-carousel__card {
+    transform: none !important;
   }
 
   .logo-loop__wordmark,
