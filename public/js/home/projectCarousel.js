@@ -60,7 +60,8 @@ export function initProjectCarousel(root, options = {}) {
       slide.style.setProperty('--preview-index', previewIndex);
       slide.setAttribute('aria-hidden', String(!isActive));
       slide.setAttribute('aria-label', `${index + 1} de ${currentSlides.length}`);
-      slide.toggleAttribute('inert', !isActive);
+      // Keep previews interactive for hover; only underlay/off-stack stay inert.
+      slide.toggleAttribute('inert', !(isActive || isPreview));
 
       const image = slide.querySelector('img');
       if (image && (isActive || index === 2)) image.loading = 'eager';

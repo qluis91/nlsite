@@ -372,12 +372,17 @@ test('project carousel hierarchy favors a clearer active slide over softer previ
     css,
     /\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*brightness\(1\.08\)/,
   );
-  assert.match(css, /\.is-preview-near\s*\{[\s\S]*top: calc\(50% \+ 32px\)[\s\S]*opacity: 0\.94/);
-  assert.match(css, /\.is-preview-rear\s*\{[\s\S]*top: calc\(50% \+ 48px\)[\s\S]*opacity: 0\.82/);
-  assert.match(css, /\.is-preview-near \.project-carousel__card\s*\{[\s\S]*scale\(0\.96\)/);
-  assert.match(css, /\.is-preview-rear \.project-carousel__card\s*\{[\s\S]*scale\(0\.9\)/);
+  assert.match(css, /\.is-preview-near\s*\{[\s\S]*top: calc\(50% \+ 52px\)[\s\S]*opacity: 0\.94/);
+  assert.match(css, /\.is-preview-rear\s*\{[\s\S]*top: calc\(50% \+ 72px\)[\s\S]*opacity: 0\.82/);
+  assert.match(css, /\.project-carousel__face\s*\{[\s\S]*--preview-scale/);
+  assert.match(css, /\.is-preview-near \.project-carousel__face\s*\{[\s\S]*--preview-scale: 0\.96/);
+  assert.match(css, /\.is-preview-rear \.project-carousel__face\s*\{[\s\S]*--preview-scale: 0\.9/);
+  assert.match(css, /\.is-preview\s*\{[\s\S]*overflow: visible/);
+  assert.match(css, /\.is-preview\s*\{[\s\S]*pointer-events: auto/);
   assert.match(css, /rgba\(42, 50, 54, 0\.42\)/);
   assert.match(css, /backdrop-filter: blur\(4px\)/);
+  assert.match(css, /\.project-carousel__image\s*\{[\s\S]*pointer-events: none/);
+  assert.match(css, /is-active::after[\s\S]*pointer-events: none/);
   assert.match(
     css,
     /\.is-preview-near \.project-carousel__image\s*\{[\s\S]*opacity: 0\.96[\s\S]*brightness\(1\.02\)/,
@@ -389,17 +394,23 @@ test('project carousel hierarchy favors a clearer active slide over softer previ
   assert.match(css, /@keyframes project-carousel-kenburns/);
   assert.match(css, /animation: project-carousel-kenburns 32s/);
   assert.match(css, /@media \(hover: hover\) and \(pointer: fine\)/);
-  assert.match(css, /is-preview-near:hover[\s\S]*rgba\(39, 255, 90, 0\.55\)/);
-  assert.match(css, /is-preview-rear:hover[\s\S]*scale\(0\.97\)/);
-  assert.match(css, /prefers-reduced-motion: reduce[\s\S]*animation: none !important/);
+  assert.match(
+    css,
+    /is-preview-near:hover \.project-carousel__face[\s\S]*--preview-hover-scale: 1\.035/,
+  );
+  assert.match(
+    css,
+    /is-preview-rear:hover \.project-carousel__face[\s\S]*--preview-hover-scale: 1\.025/,
+  );
   assert.doesNotMatch(
     css,
-    /\.project-carousel__slide\.is-preview:hover\s*\{[\s\S]*transform: translateY\(calc\(-50%/,
+    /is-preview-near:hover \.project-carousel__card\s*\{[\s\S]*transform:/,
   );
+  assert.match(css, /prefers-reduced-motion: reduce[\s\S]*animation: none !important/);
+  assert.match(projectCarousel, /inert', !\(isActive \|\| isPreview\)/);
   assert.match(projectCarousel, /is-preview-near/);
   assert.match(projectCarousel, /is-preview-rear/);
-  assert.match(projectCarousel, /index === 2/);
-  assert.match(projectCarousel, /index > 2/);
+  assert.match(page, /project-carousel__face/);
   assert.match(animations, /data-panel2-animate="carousel"/);
   assert.match(animations, /data-panel2-animate="card"/);
   assert.equal((page.match(/data-carousel-(?:prev|next)/g) || []).length, 2);
