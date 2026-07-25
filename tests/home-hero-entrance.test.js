@@ -15,7 +15,7 @@ const page = read('views/pages/home.ejs');
 const navbar = read('views/components/home-navbar.ejs');
 
 test('hero entrance establishes its hidden state before styles and runs once', () => {
-  const pendingIndex = layout.indexOf("classList.add('hero-entrance-pending')");
+  const pendingIndex = layout.indexOf("classList.add('hero-entrance-pending'");
   const stylesheetIndex = layout.indexOf('<link rel="stylesheet" href="/css/style.css">');
 
   assert.ok(pendingIndex >= 0 && pendingIndex < stylesheetIndex);
@@ -47,7 +47,7 @@ test('master timeline reveals stable server-rendered hero elements without fromT
 test('helmet loading remains early, single, and independent from the entrance timeline', () => {
   assert.ok(
     home.indexOf('void initHelmet3D(canvas, prefersReduced)') <
-      home.indexOf('await initHomeAnimations()')
+      home.indexOf('await initHomeAnimations({ onPanelStateChange: setActivePanelState })')
   );
   assert.equal((helmet.match(/^const HELMET_MODEL_URL = /gm) || []).length, 1);
   assert.equal((helmet.match(/\bloader\.load\(/g) || []).length, 1);

@@ -76,7 +76,7 @@ test('helmet preconnect and initialization start early without duplicate scenes'
 
   assert.ok(
     homeJs.indexOf('void initHelmet3D(canvas, prefersReduced)') <
-      homeJs.indexOf('await initHomeAnimations()'),
+      homeJs.indexOf('await initHomeAnimations({ onPanelStateChange: setActivePanelState })'),
     'Helmet initialization must start before nonessential homepage animations.'
   );
   assert.match(helmetJs, /let helmetInitPromise = null;/);

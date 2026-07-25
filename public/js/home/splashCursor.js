@@ -10,6 +10,12 @@ const defaults = {
   TRANSPARENT: true, RAINBOW_MODE: false, COLOR: '#93eb0d',
 };
 
+function inactiveController() {
+  return Object.freeze({
+    pause() {}, resume() {}, destroy() {}, isActive: () => false,
+  });
+}
+
 const vertex = `precision highp float;attribute vec2 aPosition;varying vec2 vUv,vL,vR,vT,vB;uniform vec2 texelSize;void main(){vUv=aPosition*.5+.5;vL=vUv-vec2(texelSize.x,0);vR=vUv+vec2(texelSize.x,0);vT=vUv+vec2(0,texelSize.y);vB=vUv-vec2(0,texelSize.y);gl_Position=vec4(aPosition,0,1);}`;
 const copy = `precision mediump float;varying highp vec2 vUv;uniform sampler2D uTexture;void main(){gl_FragColor=texture2D(uTexture,vUv);}`;
 const clear = `precision mediump float;varying highp vec2 vUv;uniform sampler2D uTexture;uniform float value;void main(){gl_FragColor=value*texture2D(uTexture,vUv);}`;
@@ -44,23 +50,44 @@ function colorFromHex(hex) {
 }
 
 export function initSplashCursor(options = {}) {
-  const { canvas: requested, ...overrides } = options;
+  const { canvas: requested, startPaused = false, ...overrides } = options;
+  const touchOnly = window.matchMedia('(pointer: coarse)').matches
+    || (navigator.maxTouchPoints || 0) > 0;
+  if (touchOnly) return inactiveController();
+
   const config = { ...defaults, ...overrides };
   const resolved = resolveCanvas(requested);
   const canvas = resolved.canvas;
-  if (!canvas) return () => {};
+  if (!canvas) return inactiveController();
   if (active.has(canvas)) return active.get(canvas);
 
   let gl = null, raf = null, resizeTimer = null, dead = false;
+  let paused = Boolean(startPaused), pointerListenersBound = false;
+  let last = performance.now();
+  let schedule = () => {}; let frame = () => {};
+  let visibility = () => {}; let queueResize = () => {};
+  let pointerDown = () => {}, pointerMove = () => {}, pointerEnd = () => {};
   let velocity, dye, divergence, curl, pressure;
   const pointers = new Map();
   const resources = { buffers: new Set(), fbos: new Set(), programs: new Set(), shaders: new Set(), textures: new Set() };
 
+  function bindPointerListeners() {
+    if (pointerListenersBound || dead) return;
+    pointerListenersBound = true;
+    window.addEventListener('pointerdown',pointerDown,{passive:true});window.addEventListener('pointermove',pointerMove,{passive:true});
+    window.addEventListener('pointerup',pointerEnd,{passive:true});window.addEventListener('pointercancel',pointerEnd,{passive:true});
+  }
+  function unbindPointerListeners() {
+    if (!pointerListenersBound) return;
+    pointerListenersBound = false;
+    window.removeEventListener('pointerdown',pointerDown);window.removeEventListener('pointermove',pointerMove);
+    window.removeEventListener('pointerup',pointerEnd);window.removeEventListener('pointercancel',pointerEnd);
+  }
+
   function destroy() {
     if (dead) return; dead = true;
     if (raf !== null) cancelAnimationFrame(raf); clearTimeout(resizeTimer);
-    window.removeEventListener('pointerdown', pointerDown); window.removeEventListener('pointermove', pointerMove);
-    window.removeEventListener('pointerup', pointerEnd); window.removeEventListener('pointercancel', pointerEnd);
+    unbindPointerListeners();
     window.removeEventListener('resize', queueResize); window.removeEventListener('pagehide', destroy);
     document.removeEventListener('visibilitychange', visibility); canvas.removeEventListener('webglcontextlost', contextLost);
     if (gl) {
@@ -68,9 +95,29 @@ export function initSplashCursor(options = {}) {
       resources.programs.forEach((x) => gl.deleteProgram(x)); resources.shaders.forEach((x) => gl.deleteShader(x));
       resources.buffers.forEach((x) => gl.deleteBuffer(x));
     }
-    pointers.clear(); resolved.owner?.remove(); if (active.get(canvas) === destroy) active.delete(canvas);
+    pointers.clear(); resolved.owner?.remove(); if (active.get(canvas) === controller) active.delete(canvas);
   }
-  active.set(canvas, destroy);
+  function pause() {
+    if (dead || paused) return;
+    paused = true;
+    canvas.classList.add('is-paused');
+    unbindPointerListeners();
+    pointers.clear();
+    if (raf !== null) cancelAnimationFrame(raf);
+    raf = null;
+  }
+  function resume() {
+    if (dead || !paused) return;
+    paused = false;
+    canvas.classList.remove('is-paused');
+    bindPointerListeners();
+    last = performance.now();
+    schedule();
+  }
+  const controller = Object.freeze({
+    pause, resume, destroy, isActive: () => !dead && !paused,
+  });
+  active.set(canvas, controller);
   function contextLost() { console.warn('[splash-cursor] WebGL context lost; effect stopped.'); destroy(); }
 
   try {
@@ -160,7 +207,7 @@ export function initSplashCursor(options = {}) {
     }
     function getPointer(e) { if(!pointers.has(e.pointerId)) pointers.set(e.pointerId,{init:false,moved:false,x:0,y:0,dx:0,dy:0,color:colorFromHex(config.COLOR)}); return pointers.get(e.pointerId); }
     function update(p,e) { const rect=canvas.getBoundingClientRect(),x=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width)),y=Math.max(0,Math.min(1,1-(e.clientY-rect.top)/rect.height)); if(!p.init){p.init=true;p.x=x;p.y=y;return false;}p.dx=x-p.x;p.dy=y-p.y;p.x=x;p.y=y;p.moved=Math.abs(p.dx)+Math.abs(p.dy)>0;return p.moved; }
-    function pointerDown(e){const p=getPointer(e);update(p,e);splat(p.x,p.y,0,0,p.color);} function pointerMove(e){update(getPointer(e),e);} function pointerEnd(e){if(e.pointerType!=='mouse')pointers.delete(e.pointerId);}
+    pointerDown=(e)=>{const p=getPointer(e);update(p,e);splat(p.x,p.y,0,0,p.color);}; pointerMove=(e)=>{update(getPointer(e),e);}; pointerEnd=(e)=>{if(e.pointerType!=='mouse')pointers.delete(e.pointerId);};
     function inputs(){pointers.forEach((p)=>{if(p.moved){p.moved=false;splat(p.x,p.y,p.dx*config.SPLAT_FORCE,p.dy*config.SPLAT_FORCE,p.color);}});}
     function step(dt) {
       gl.disable(gl.BLEND); let u=use(P.curl);gl.uniform2f(u.texelSize,velocity.read.tx,velocity.read.ty);gl.uniform1i(u.uVelocity,velocity.read.attach(0));blit(curl);
@@ -173,10 +220,14 @@ export function initSplashCursor(options = {}) {
       gl.uniform2f(u.dyeTexelSize,dye.read.tx,dye.read.ty);gl.uniform1i(u.uVelocity,velocity.read.attach(0));gl.uniform1i(u.uSource,dye.read.attach(1));gl.uniform1f(u.dissipation,1/(1+config.DENSITY_DISSIPATION*dt));blit(dye.write);dye.swap();
     }
     function render(){const u=use(P.display);gl.uniform2f(u.texelSize,dye.read.tx,dye.read.ty);gl.uniform1i(u.uTexture,dye.read.attach(0));gl.uniform3f(u.backColor,config.BACK_COLOR.r,config.BACK_COLOR.g,config.BACK_COLOR.b);gl.uniform1f(u.transparent,config.TRANSPARENT?1:0);gl.uniform1f(u.shading,config.SHADING?1:0);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);blit(null,true);}
-    let last=performance.now(); function schedule(){if(!dead&&!document.hidden&&raf===null)raf=requestAnimationFrame(frame);} function frame(now){raf=null;if(dead||document.hidden)return;const dt=Math.min((now-last)/1000,1/30);last=now;inputs();step(dt);render();schedule();}
-    function visibility(){if(document.hidden){if(raf!==null)cancelAnimationFrame(raf);raf=null;}else{last=performance.now();schedule();}}
-    function queueResize(){clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(!dead){resizeCanvas();initFbos();}},140);}
-    window.addEventListener('pointerdown',pointerDown,{passive:true});window.addEventListener('pointermove',pointerMove,{passive:true});window.addEventListener('pointerup',pointerEnd,{passive:true});window.addEventListener('pointercancel',pointerEnd,{passive:true});window.addEventListener('resize',queueResize,{passive:true});window.addEventListener('pagehide',destroy,{once:true});document.addEventListener('visibilitychange',visibility);canvas.addEventListener('webglcontextlost',contextLost,{once:true});schedule();
+    last=performance.now();
+    schedule=function schedule(){if(!dead&&!paused&&!document.hidden&&raf===null)raf=requestAnimationFrame(frame);};
+    frame=function frame(now){raf=null;if(dead||paused||document.hidden)return;const dt=Math.min((now-last)/1000,1/30);last=now;inputs();step(dt);render();schedule();};
+    visibility=function visibility(){if(document.hidden){if(raf!==null)cancelAnimationFrame(raf);raf=null;}else{last=performance.now();schedule();}};
+    queueResize=function queueResize(){clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(!dead){resizeCanvas();initFbos();}},140);};
+    if (!paused) bindPointerListeners();
+    canvas.classList.toggle('is-paused', paused);
+    window.addEventListener('resize',queueResize,{passive:true});window.addEventListener('pagehide',destroy,{once:true});document.addEventListener('visibilitychange',visibility);canvas.addEventListener('webglcontextlost',contextLost,{once:true});schedule();
   } catch (error) { console.warn('[splash-cursor] Effect unavailable:', error); destroy(); }
-  return destroy;
+  return controller;
 }

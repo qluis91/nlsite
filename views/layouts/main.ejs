@@ -12,9 +12,13 @@
   <script nonce="<%= cspNonce %>">
     document.documentElement.classList.add('js');
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      document.documentElement.classList.add('hero-entrance-pending');
+      document.documentElement.classList.add('hero-entrance-pending', 'panel-transition-pending');
       window.__heroEntranceSafetyTimer = window.setTimeout(function () {
-        document.documentElement.classList.remove('hero-entrance-pending');
+        document.documentElement.classList.remove(
+          'hero-entrance-pending',
+          'panel-transition-pending',
+          'panel-transition-ready'
+        );
       }, 3500);
     }
   </script>

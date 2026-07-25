@@ -12,6 +12,7 @@ const HERO_ANIMATED_SELECTOR = [
   '.hero-nav-account',
   '.hero-nav-toggle',
 ].join(',');
+const PANEL_TWO_ANIMATED_SELECTOR = '[data-panel2-animate]';
 
 let heroAnimationPromise = null;
 let heroAnimationCompleted = false;
@@ -31,6 +32,21 @@ export function revealHeroImmediately() {
   });
   document.querySelector('[data-home-page]')?.classList.add('is-motion-ready');
   heroAnimationCompleted = true;
+}
+
+export function revealPanelTransitionImmediately() {
+  const root = document.documentElement;
+  root.classList.remove('panel-transition-pending', 'panel-transition-ready');
+  document.querySelectorAll(PANEL_TWO_ANIMATED_SELECTOR).forEach((element) => {
+    ['opacity', 'visibility', 'transform', 'filter', 'will-change']
+      .forEach((property) => element.style.removeProperty(property));
+  });
+}
+
+function preparePanelTransition() {
+  const root = document.documentElement;
+  root.classList.add('panel-transition-ready');
+  root.classList.remove('panel-transition-pending');
 }
 
 // ── Lenis smooth scrolling ──
@@ -159,7 +175,7 @@ function runEntrance(gsap) {
 /**
  * Scroll behavior — Panel 1 → Panel 2 transition
  */
-async function runScrollAnimations(gsap, lenis, heroPanel) {
+async function runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange) {
   const media = gsap.matchMedia();
 
   media.add({
@@ -167,59 +183,75 @@ async function runScrollAnimations(gsap, lenis, heroPanel) {
     mobile: '(max-width: 768px)',
   }, (context) => {
     const compact = context.conditions.mobile;
+    const syncPanelState = (trigger) => {
+      if (trigger.progress <= 0.01) {
+        onPanelStateChange('panel1-active');
+      } else if (trigger.progress >= 0.99) {
+        onPanelStateChange('panel2-active');
+      } else {
+        onPanelStateChange(
+          trigger.direction < 0 ? 'transitioning-to-panel1' : 'transitioning-to-panel2',
+        );
+      }
+    };
 
-    // Hero copy and CTAs shift upward together on scroll
-    gsap.to(['.hero-text', '.hero-ctas'], {
+    const transition = gsap.timeline({
+      defaults: { ease: 'none' },
       scrollTrigger: {
-        trigger: heroPanel,
-        start: 'top top',
-        end: 'bottom top',
-        scrub: 0.8,
+        id: 'home-panel-1-to-2',
+        trigger: panelTwo,
+        start: 'top 92%',
+        end: compact ? 'top 16%' : 'top 8%',
+        scrub: compact ? 0.35 : 0.65,
+        invalidateOnRefresh: true,
+        onUpdate: syncPanelState,
+        onRefresh: syncPanelState,
       },
-      y: compact ? -16 : -40,
-      opacity: compact ? 0.65 : 0.45,
-      ease: 'none',
     });
 
-    // Helmet shifts and scales subtly
-    if (document.querySelector('[data-helmet-canvas]')) {
-      gsap.to('.hero-3d', {
-        scrollTrigger: {
-          trigger: heroPanel,
-          start: 'top top',
-          end: 'bottom top',
-          scrub: 0.8,
-        },
-        y: compact ? 10 : 20,
-        scale: compact ? 0.97 : 0.92,
-        opacity: compact ? 0.7 : 0.5,
-        ease: 'none',
-      });
-    }
+    transition
+      .to(['.hero-text', '.hero-ctas'], {
+        y: compact ? -18 : -48,
+        scale: compact ? 0.99 : 0.965,
+        opacity: compact ? 0.38 : 0.12,
+        filter: compact ? 'none' : 'blur(2px)',
+        duration: 0.72,
+      }, 0)
+      .to('.hero-social', { y: -12, opacity: 0, duration: 0.38 }, 0)
+      .to('.hero-3d', {
+        x: compact ? 18 : '8vw',
+        y: compact ? 14 : 34,
+        scale: compact ? 0.94 : 0.84,
+        rotation: compact ? 0 : 2.5,
+        opacity: compact ? 0.36 : 0.16,
+        duration: 0.82,
+      }, 0.03)
+      .to('.hero-bg-grid', { y: compact ? 24 : 68, opacity: 0.08, duration: 0.74 }, 0)
+      .to('.hero-bg-glow', { x: '12%', y: '8%', scale: 0.72, opacity: 0.16, duration: 0.76 }, 0)
+      .to('.grainient-background', { opacity: 0.16, duration: 0.78 }, 0)
+      .to('[data-panel2-animate="background"]', { opacity: 1, scale: 1, duration: 0.82 }, 0.04)
+      .to('[data-panel2-animate="bridge"]', { opacity: 1, scaleX: 1, duration: 0.62 }, 0.12)
+      .to('[data-panel2-animate="trust"]', {
+        opacity: 1, y: 0, duration: 0.42,
+      }, 0.24)
+      .to('[data-panel2-animate="kicker"]', {
+        opacity: 1, y: 0, duration: 0.34,
+      }, 0.34)
+      .to('[data-panel2-animate="heading"]', {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        filter: 'blur(0px)',
+        duration: 0.5,
+      }, 0.4)
+      .to('[data-panel2-animate="carousel"]', {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.52,
+      }, 0.5);
 
-    // Social links fade
-    gsap.to('.hero-social', {
-      scrollTrigger: {
-        trigger: heroPanel,
-        start: 'top top',
-        end: compact ? 'bottom-=80 top' : 'bottom-=200 top',
-        scrub: 0.6,
-      },
-      opacity: 0,
-      ease: 'none',
-    });
-
-    // Grid parallax
-    gsap.to('.hero-bg-grid', {
-      scrollTrigger: {
-        trigger: heroPanel,
-        start: 'top top',
-        end: 'bottom top',
-        scrub: 0.5,
-      },
-      y: compact ? 24 : 60,
-      ease: 'none',
-    });
+    return () => transition.kill();
   });
 
   return media;
@@ -228,10 +260,15 @@ async function runScrollAnimations(gsap, lenis, heroPanel) {
 /**
  * Public initializer
  */
-async function initializeHomeAnimations() {
+async function initializeHomeAnimations(options = {}) {
   const heroPanel = document.querySelector('[data-panel="1"]');
-  if (!heroPanel) {
+  const panelTwo = document.querySelector('[data-panel="2"]');
+  const onPanelStateChange = typeof options.onPanelStateChange === 'function'
+    ? options.onPanelStateChange
+    : () => {};
+  if (!heroPanel || !panelTwo) {
     revealHeroImmediately();
+    revealPanelTransitionImmediately();
     return;
   }
 
@@ -240,6 +277,7 @@ async function initializeHomeAnimations() {
       initLenis(),
       initGSAP(),
     ]);
+    preparePanelTransition();
 
     // Sync Lenis with ScrollTrigger
     if (ScrollTrigger?.scrollerProxy) {
@@ -265,7 +303,7 @@ async function initializeHomeAnimations() {
     await runEntrance(gsap);
 
     // Run scroll animations
-    await runScrollAnimations(gsap, lenis, heroPanel);
+    await runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange);
 
     // Refresh ScrollTrigger after layout settles
     if (ScrollTrigger) {
@@ -294,13 +332,15 @@ async function initializeHomeAnimations() {
   } catch (err) {
     console.error('[animations] Initialization error:', err);
     revealHeroImmediately();
+    revealPanelTransitionImmediately();
+    onPanelStateChange('panel1-active');
   }
 }
 
-export function initHomeAnimations() {
+export function initHomeAnimations(options = {}) {
   if (heroAnimationPromise) return heroAnimationPromise;
   if (heroAnimationCompleted) return Promise.resolve();
 
-  heroAnimationPromise = initializeHomeAnimations();
+  heroAnimationPromise = initializeHomeAnimations(options);
   return heroAnimationPromise;
 }

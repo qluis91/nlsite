@@ -3,7 +3,12 @@
  * Coordinates animation and 3D modules.
  * Only initializes when [data-home-page] is present.
  */
-import { initHomeAnimations, revealHeroImmediately } from './animations.js';
+import {
+  initHomeAnimations,
+  revealHeroImmediately,
+  revealPanelTransitionImmediately,
+} from './animations.js';
+import { initAntigravityBackground } from './antigravityBackground.js';
 import { initGrainientBackground } from './grainientBackground.js';
 import { initHelmet3D, signalHelmetError } from './helmet3d.js';
 import { initLogoLoop } from './logoLoop.js';
@@ -17,6 +22,9 @@ const homePage = document.querySelector('[data-home-page]');
 let destroyLogoLoop = () => {};
 let destroyProjectCarousel = () => {};
 let destroyServicesCarousel = () => {};
+let splashCursorController = null;
+let antigravityController = null;
+let activePanelState = '';
 let pageLoader = null;
 let removeLoaderListeners = () => {};
 if (!homePage) {
@@ -38,6 +46,39 @@ function supportsWebGL() {
 
 function reducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function safeLifecycleCall(controller, method, label) {
+  if (!controller) return;
+  try {
+    controller[method]();
+  } catch (err) {
+    console.warn(`[home] ${label} ${method}() failed:`, err);
+  }
+}
+
+function setActivePanelState(nextState) {
+  if (!homePage || nextState === activePanelState) return;
+  activePanelState = nextState;
+  homePage.dataset.activePanelState = nextState;
+  const panelOneActive = nextState === 'panel1-active';
+
+  if (panelOneActive) {
+    safeLifecycleCall(splashCursorController, 'resume', 'cursor');
+    safeLifecycleCall(antigravityController, 'pause', 'antigravity');
+  } else {
+    safeLifecycleCall(splashCursorController, 'pause', 'cursor');
+    safeLifecycleCall(antigravityController, 'resume', 'antigravity');
+  }
+
+  const helmetCanvas = document.querySelector('[data-helmet-canvas]');
+  if (typeof helmetCanvas?._helmetSetActive === 'function') {
+    try {
+      helmetCanvas._helmetSetActive(panelOneActive);
+    } catch (err) {
+      console.warn('[home] helmet setActive failed:', err);
+    }
+  }
 }
 
 /**
@@ -231,6 +272,9 @@ async function init() {
     void initHelmet3D(canvas, prefersReduced)
       .then(() => {
         if (stage && !helmetInitError) setModelState(stage, 'ready');
+        if (typeof canvas._helmetSetActive === 'function') {
+          canvas._helmetSetActive(activePanelState === 'panel1-active');
+        }
       })
       .catch((err) => {
         signalHelmetError();
@@ -250,6 +294,14 @@ async function init() {
 
   // Panel 2 modules are isolated from the hero renderers.
   initShowcase();
+  try {
+    antigravityController = initAntigravityBackground(
+      document.querySelector('[data-antigravity-canvas]'),
+      { reducedMotion: prefersReduced },
+    );
+  } catch (error) {
+    console.warn('[Antigravity] Background initialization failed.', error);
+  }
 
   // Panel 3 — Services circular carousel
   const servicesRoot = document.querySelector('[data-services-carousel]');
@@ -282,7 +334,7 @@ async function init() {
   // Decorative fluid cursor. Failure is isolated from animations and Helmet3D.
   if (!prefersReduced) {
     try {
-      initSplashCursor({
+      splashCursorController = initSplashCursor({
         canvas: document.querySelector('[data-splash-cursor]'),
         SIM_RESOLUTION: 128,
         DYE_RESOLUTION: 1440,
@@ -305,17 +357,20 @@ async function init() {
       console.warn('[home] Splash cursor init failed:', err);
     }
   }
+  setActivePanelState('panel1-active');
 
   // ── Animation system ──
   if (!prefersReduced) {
     try {
-      await initHomeAnimations();
+      await initHomeAnimations({ onPanelStateChange: setActivePanelState });
     } catch (err) {
       console.error('[home] Animation init failed:', err);
     }
   } else {
     // Show everything immediately when reduced motion is preferred
     revealHeroImmediately();
+    revealPanelTransitionImmediately();
+    antigravityController?.pause();
   }
 
 }
@@ -326,6 +381,8 @@ window.addEventListener('pagehide', () => {
   destroyLogoLoop();
   destroyProjectCarousel();
   destroyServicesCarousel();
+  splashCursorController?.destroy();
+  antigravityController?.destroy();
 }, { once: true });
 
 // Auto-initialize

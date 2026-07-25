@@ -115,6 +115,8 @@ body.page-home.is-page-loading {
   z-index: 3;
   overflow: hidden;
   pointer-events: none;
+  opacity: 1;
+  transition: opacity 240ms ease;
 }
 
 .splash-cursor-canvas {
@@ -122,6 +124,11 @@ body.page-home.is-page-loading {
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+.splash-cursor-canvas.is-paused,
+.home-page:not([data-active-panel-state="panel1-active"]) .splash-cursor-layer {
+  opacity: 0;
 }
 
 .home-panel {
@@ -1777,8 +1784,11 @@ body.page-home.is-page-loading {
   min-height: 100vh;
   overflow: clip;
   padding: clamp(4rem, 8vw, 8rem) 0 clamp(4rem, 7vw, 7rem);
-  color: #0b0d0f;
-  background: #f7f7f4;
+  color: #f5f7f5;
+  background:
+    radial-gradient(circle at 82% 18%, rgba(39, 255, 90, 0.09), transparent 31%),
+    linear-gradient(180deg, #08100b 0%, #050806 52%, #090d0a 100%);
+  isolation: isolate;
 }
 
 .home-panel--showcase::before {
@@ -1786,11 +1796,59 @@ body.page-home.is-page-loading {
   position: absolute;
   inset: 0 0 auto;
   height: 3px;
+  z-index: 4;
   background: var(--home-accent);
+}
+
+.home-panel--showcase::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(5, 8, 6, 0.94) 0%, rgba(5, 8, 6, 0.68) 42%, rgba(5, 8, 6, 0.22) 72%),
+    linear-gradient(180deg, rgba(5, 8, 6, 0.12), rgba(5, 8, 6, 0.64));
+}
+
+.showcase-antigravity {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform-origin: 50% 0;
+}
+
+.showcase-antigravity__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0.82;
+  transition: opacity 220ms ease;
+}
+
+.showcase-antigravity__canvas.is-paused {
+  opacity: 0.58;
+}
+
+.showcase-bridge {
+  position: absolute;
+  top: 0;
+  left: 8%;
+  right: 8%;
+  z-index: 3;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, #27ff5a 28%, #27ff5a 72%, transparent);
+  box-shadow: 0 0 28px rgba(39, 255, 90, 0.62);
+  transform-origin: 50% 50%;
 }
 
 .showcase-trust,
 .showcase-container {
+  position: relative;
+  z-index: 2;
   width: min(calc(100% - var(--home-panel-padding) - var(--home-panel-padding)), var(--home-content-width));
   margin-inline: auto;
 }
@@ -1807,7 +1865,7 @@ body.page-home.is-page-loading {
 .logo-loop {
   --logo-loop-gap: 72px;
   --logo-loop-height: 56px;
-  --logo-loop-fade-color: #f7f7f4;
+  --logo-loop-fade-color: #08100b;
   position: relative;
   width: 100%;
   margin-top: clamp(1.5rem, 3vw, 2.5rem);
@@ -1878,7 +1936,7 @@ body.page-home.is-page-loading {
   align-items: center;
   min-height: var(--logo-loop-height);
   padding-inline: 0.2rem;
-  color: #24282b;
+  color: rgba(245, 247, 245, 0.72);
   font-size: clamp(1rem, 1.55vw, 1.45rem);
   font-weight: 800;
   letter-spacing: -0.025em;
@@ -1897,7 +1955,7 @@ body.page-home.is-page-loading {
 }
 
 .logo-loop--scale-on-hover .logo-loop__item:hover .logo-loop__wordmark {
-  color: #050706;
+  color: #27ff5a;
   transform: scale(1.055);
 }
 
@@ -1907,7 +1965,7 @@ body.page-home.is-page-loading {
 
 .showcase-kicker {
   margin: 0 0 1rem;
-  color: #5d6468;
+  color: #27ff5a;
   font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0.18em;
@@ -1916,7 +1974,7 @@ body.page-home.is-page-loading {
 .showcase-heading {
   max-width: 13ch;
   margin: 0;
-  color: #0b0d0f;
+  color: #f5f7f5;
   font-size: clamp(2.2rem, 4vw, 4.4rem);
   font-weight: 800;
   line-height: 0.96;
@@ -3211,5 +3269,79 @@ html.hero-entrance-pending body.page-home [data-hero-animate="helmet"] {
     transform: none;
     filter: none;
     will-change: auto;
+  }
+}
+
+/* Panel 1 → 2 states are present before first paint. GSAP replaces
+   pending with ready only after the single scrubbed timeline exists. */
+html.panel-transition-pending body.page-home [data-panel2-animate="background"],
+html.panel-transition-ready body.page-home [data-panel2-animate="background"] {
+  opacity: 0;
+  transform: scale(1.045);
+  will-change: opacity, transform;
+}
+
+html.panel-transition-pending body.page-home [data-panel2-animate="bridge"],
+html.panel-transition-ready body.page-home [data-panel2-animate="bridge"] {
+  opacity: 0;
+  transform: scaleX(0.2);
+  will-change: opacity, transform;
+}
+
+html.panel-transition-pending body.page-home [data-panel2-animate="trust"],
+html.panel-transition-ready body.page-home [data-panel2-animate="trust"],
+html.panel-transition-pending body.page-home [data-panel2-animate="kicker"],
+html.panel-transition-ready body.page-home [data-panel2-animate="kicker"] {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  will-change: opacity, transform;
+}
+
+html.panel-transition-pending body.page-home [data-panel2-animate="heading"],
+html.panel-transition-ready body.page-home [data-panel2-animate="heading"] {
+  opacity: 0;
+  filter: blur(8px);
+  transform: translate3d(0, 30px, 0) scale(0.975);
+  will-change: opacity, transform, filter;
+}
+
+html.panel-transition-pending body.page-home [data-panel2-animate="carousel"],
+html.panel-transition-ready body.page-home [data-panel2-animate="carousel"] {
+  opacity: 0;
+  transform: translate3d(0, 42px, 0) scale(0.97);
+  will-change: opacity, transform;
+}
+
+@media (pointer: coarse) {
+  .splash-cursor-layer {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  html.panel-transition-pending body.page-home [data-panel2-animate="heading"],
+  html.panel-transition-ready body.page-home [data-panel2-animate="heading"] {
+    filter: none;
+    transform: translate3d(0, 18px, 0) scale(0.99);
+  }
+
+  html.panel-transition-pending body.page-home [data-panel2-animate="carousel"],
+  html.panel-transition-ready body.page-home [data-panel2-animate="carousel"] {
+    transform: translate3d(0, 24px, 0) scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.panel-transition-pending body.page-home [data-panel2-animate],
+  html.panel-transition-ready body.page-home [data-panel2-animate] {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    will-change: auto;
+  }
+
+  .showcase-antigravity__canvas {
+    opacity: 0.42;
+    transition: none;
   }
 }

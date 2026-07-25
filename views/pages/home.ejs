@@ -179,7 +179,12 @@ const ENABLE_PAGE_INTRO = false;
     data-panel="2"
     aria-labelledby="showcase-title"
   >
-    <div class="showcase-trust">
+    <div class="showcase-antigravity" aria-hidden="true" data-panel2-animate="background">
+      <canvas class="showcase-antigravity__canvas" data-antigravity-canvas></canvas>
+    </div>
+    <div class="showcase-bridge" aria-hidden="true" data-panel2-animate="bridge"></div>
+
+    <div class="showcase-trust" data-panel2-animate="trust">
       <div
         class="logo-loop"
         data-logo-loop
@@ -203,8 +208,8 @@ const ENABLE_PAGE_INTRO = false;
 
     <div class="showcase-container">
       <div class="showcase-heading-wrap">
-        <p class="showcase-kicker">PROYECTOS NINJALAB</p>
-        <h2 id="showcase-title" class="showcase-heading">
+        <p class="showcase-kicker" data-panel2-animate="kicker">PROYECTOS NINJALAB</p>
+        <h2 id="showcase-title" class="showcase-heading" data-panel2-animate="heading">
           Convertimos ideas en piezas que destacan.
         </h2>
       </div>
@@ -212,6 +217,7 @@ const ENABLE_PAGE_INTRO = false;
       <div
         class="project-carousel"
         data-project-carousel
+        data-panel2-animate="carousel"
         tabindex="0"
         role="region"
         aria-roledescription="carrusel"

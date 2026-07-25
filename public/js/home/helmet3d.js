@@ -373,8 +373,15 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
 
   // ── Visibility pause ──
   let isVisible = true;
+  let isPanelActive = true;
   function onVisibilityChange() {
     isVisible = !document.hidden;
+    if (!isVisible && animationFrameId !== null) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    } else {
+      scheduleRender();
+    }
   }
   document.addEventListener('visibilitychange', onVisibilityChange);
 
@@ -384,6 +391,11 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
   let animationFrameId = null;
   let firstRenderCompleted = false;
 
+  function scheduleRender() {
+    if (destroyed || !isVisible || !isPanelActive || animationFrameId !== null) return;
+    animationFrameId = requestAnimationFrame(animate);
+  }
+
   function renderScene() {
     renderer.render(scene, camera);
     if (firstRenderCompleted) return;
@@ -392,11 +404,12 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
   }
 
   function animate(now) {
-    if (destroyed) return;
-    animationFrameId = requestAnimationFrame(animate);
+    animationFrameId = null;
+    if (destroyed || !isVisible || !isPanelActive) return;
 
-    if (!isVisible || !modelLoaded) {
-      if (isVisible) renderScene();
+    if (!modelLoaded) {
+      renderScene();
+      scheduleRender();
       return;
     }
 
@@ -421,9 +434,21 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
     modelGroup.rotation.x = currentRotationX;
 
     renderScene();
+    scheduleRender();
   }
 
-  animationFrameId = requestAnimationFrame(animate);
+  canvas._helmetSetActive = (active) => {
+    if (destroyed || isPanelActive === Boolean(active)) return;
+    isPanelActive = Boolean(active);
+    if (!isPanelActive && animationFrameId !== null) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    } else {
+      lastTime = performance.now();
+      scheduleRender();
+    }
+  };
+  scheduleRender();
 
   // ── Cleanup ──
   canvas._helmetCleanup = () => {
@@ -445,6 +470,7 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
       animationFrameId = null;
     }
     resizeObserver.disconnect();
+    canvas._helmetSetActive = null;
     disposeSceneResources();
   };
   window.addEventListener('pagehide', canvas._helmetCleanup, { once: true });
