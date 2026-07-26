@@ -27,8 +27,14 @@ async function migrate() {
     console.log('Tracking migration complete.');
   } finally {
     conn.release();
-    await pool.end();
   }
 }
 
-migrate().catch(err => { console.error(err); process.exit(1); });
+if (require.main === module) {
+  const pool = require('../config/db');
+  migrate()
+    .then(() => { pool.end().catch(() => {}); process.exit(0); })
+    .catch(err => { console.error(err); pool.end().catch(() => {}); process.exit(1); });
+}
+
+module.exports = { migrate };

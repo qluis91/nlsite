@@ -67,18 +67,19 @@ const MIGRATIONS = [
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 ];
 
-(async () => {
+async function migrateCatalog() {
   console.log('Applying catalog migrations…');
   for (const sql of MIGRATIONS) {
-    try {
-      await pool.query(sql);
-      const name = sql.match(/CREATE TABLE IF NOT EXISTS (\w+)/)?.[1] || 'unknown';
-      console.log('  ✅', name);
-    } catch (err) {
-      console.error('  ❌ Failed:', err.message);
-      process.exit(1);
-    }
+    await pool.query(sql);
   }
   console.log('✅ Catalog tables ready.');
-  process.exit(0);
-})();
+}
+
+if (require.main === module) {
+  const MysqlPool = require('../config/db');
+  migrateCatalog()
+    .then(() => { MysqlPool.end().catch(() => {}); process.exit(0); })
+    .catch(err => { console.error('❌ Failed:', err.message); MysqlPool.end().catch(() => {}); process.exit(1); });
+}
+
+module.exports = { MIGRATIONS, migrateCatalog };

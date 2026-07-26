@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-07-26 — Phase 13: Safe automatic database migrations
+
+### Added
+- `scripts/migrationTracker.js`: migration registry, schema_migrations table management, SHA-256 checksum computation, MySQL advisory lock (GET_LOCK/RELEASE_LOCK), `runPendingMigrations()` with checksum verification
+- `scripts/migrate-deploy.js`: production migration deployer with advisory lock, checksum detection, execution recording
+- `scripts/prestart.js`: pre-start hook that auto-migrates in production, no-op in development
+- `schema_migrations` table (id INT PK, name, checksum SHA-256, executed_at, duration_ms, status ok/failed, error)
+- `npm run migrate:deploy` script for production-safe deployments
+- `package.json` prestart hook wires migration before `npm start`
+- Migration registry covering all 14 migration scripts
+
+### Changed
+- `scripts/migrate-catalog.js`: refactored from self-executing IIFE to exported `migrateCatalog()` function
+- `scripts/migrate-tracking.js`: removed pool.end() inside function, added `require.main === module` guard, exported `migrate`
+- `schema.sql`: added schema_migrations table definition
+- `docs/PRODUCTION.md`: updated deployment sequence (auto-migrate on start), added migration safety section (lock, checksum, failure, rollback)
+- `package.json`: added prestart + migrate:deploy scripts
+
+### Fixed
+- Production deployments no longer need manual `npm run migrate` step
+- Concurrent Railway instances serialised via MySQL advisory lock
+- Changed migration files detected and blocked with clear error
+
 ## 2026-07-26 — Phase 12D: Technical SEO & Structured Data
 
 ### Added

@@ -222,6 +222,15 @@ function validateGlobalSettings(body) {
   if (body.indexing_mode && !INDEXING_MODES.has(String(body.indexing_mode).trim())) {
     e('Modo de indexación no permitido.');
   }
+  if (body.ga_measurement_id && String(body.ga_measurement_id).trim()) {
+    const gaId = String(body.ga_measurement_id).trim();
+    if (!/^G-[A-Z0-9]{6,}$/.test(gaId) && !/^UA-\d+-\d+$/.test(gaId)) {
+      e('ID de medición de Google Analytics no válido. Use G-XXXXXXXX o UA-XXXXX-X.');
+    }
+  }
+  if (body.google_verification && String(body.google_verification).trim().length > 128) {
+    e('Código de verificación de Google Search Console demasiado largo.');
+  }
 
   return errors;
 }

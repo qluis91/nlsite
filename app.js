@@ -97,12 +97,18 @@ app.use(helmet({
       scriptSrc: [
         "'self'","'wasm-unsafe-eval'",
         (req, res) => "'nonce-" + res.locals.cspNonce + "'",
+        'https://www.googletagmanager.com',
+        'https://www.google-analytics.com',
       ],
-      imgSrc: ["'self'", 'data:'],
+      imgSrc: ["'self'", 'data:', 'https://www.google-analytics.com', 'https://www.googletagmanager.com'],
       connectSrc: [
         "'self'",
         'blob:',
         'https://storage.googleapis.com',
+        'https://www.google-analytics.com',
+        'https://*.google-analytics.com',
+        'https://*.analytics.google.com',
+        'https://*.googletagmanager.com',
       ],
       workerSrc: ["'self'", 'blob:'],
       frameAncestors: ["'self'"],
@@ -208,6 +214,8 @@ app.use(async (req, res, next) => {
     const globalKeys = [
       'global.seo_title', 'global.seo_description', 'global.og_image',
       'global.canonical_url', 'global.indexing_mode', 'site.favicon',
+      'global.ga_measurement_id', 'global.ga_consent_enabled', 'global.ga_enabled',
+      'global.google_verification',
     ];
     const pageKeys = pageKey ? [
       `seo.${pageKey}.title`, `seo.${pageKey}.description`, `seo.${pageKey}.og_image`,
@@ -238,6 +246,20 @@ app.use(async (req, res, next) => {
     if (settings['site.favicon']) {
       const fav = await cmsContent.resolveMediaReference(settings['site.favicon'], null);
       if (fav && fav.url) res.locals.globalFavicon = fav.url;
+    }
+
+    // Phase 14: Analytics & Consent
+    if (settings['global.ga_enabled'] === '1') {
+      const gaId = settings['global.ga_measurement_id'];
+      if (gaId && /^G-[A-Z0-9]{6,}$/.test(String(gaId))) {
+        res.locals.gaMeasurementId = String(gaId);
+      }
+    }
+    if (settings['global.ga_consent_enabled'] === '1') {
+      res.locals.gaConsentEnabled = true;
+    }
+    if (settings['global.google_verification']) {
+      res.locals.googleVerification = String(settings['global.google_verification']).slice(0, 128);
     }
 
     // Page-specific SEO (Phase 12B)

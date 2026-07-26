@@ -98,6 +98,38 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2>Analytics y consentimiento</h2>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="ga_enabled" value="1" <%= settings['global.ga_enabled'] === '1' ? 'checked' : '' %>>
+        Activar Google Analytics
+      </label>
+      <small>Cuando está activado, se carga GA4 únicamente después de que el visitante acepte las cookies de análisis.</small>
+    </div>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="ga_consent_enabled" value="1" <%= settings['global.ga_consent_enabled'] === '1' ? 'checked' : '' %>>
+        Mostrar banner de consentimiento de cookies
+      </label>
+      <small>Muestra un pequeño banner al pie de la página para aceptar o rechazar cookies de análisis.</small>
+    </div>
+    <div class="form-group">
+      <label for="ga_measurement_id">ID de medición de GA4</label>
+      <input type="text" id="ga_measurement_id" name="ga_measurement_id"
+             value="<%= (settings['global.ga_measurement_id'] || '') %>" maxlength="30"
+             placeholder="G-XXXXXXXXXX">
+      <small>Identificador de medición de Google Analytics 4. Formato: G- seguido de 6–10 caracteres.</small>
+    </div>
+    <div class="form-group">
+      <label for="google_verification">Código de verificación de Search Console</label>
+      <input type="text" id="google_verification" name="google_verification"
+             value="<%= (settings['global.google_verification'] || '') %>" maxlength="128"
+             placeholder="google-site-verification=...">
+      <small>El valor completo de la metaetiqueta de verificación de Google Search Console.</small>
+    </div>
+  </div>
+
   <div class="form-group">
     <button type="submit" class="btn btn-primary">Guardar como borrador</button>
     <a href="/admin/page" class="btn btn-outline">Cancelar</a>

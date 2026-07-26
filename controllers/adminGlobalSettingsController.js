@@ -13,6 +13,10 @@ const GLOBAL_SETTING_KEYS = [
   'global.canonical_url',
   'global.indexing_mode',
   'site.favicon',
+  'global.ga_measurement_id',
+  'global.ga_enabled',
+  'global.ga_consent_enabled',
+  'global.google_verification',
 ];
 
 async function showGlobalSettings(req, res, next) {
@@ -82,6 +86,10 @@ async function saveGlobalSettings(req, res, next) {
       ['global.canonical_url', vals.canonical_url || '', 'string', 'seo'],
       ['global.indexing_mode', vals.indexing_mode || '', 'string', 'seo'],
       ['site.favicon', vals.favicon || '', 'media', 'navbar'],
+      ['global.ga_measurement_id', (vals.ga_measurement_id || '').trim().toUpperCase().slice(0, 30), 'string', 'analytics'],
+      ['global.ga_enabled', vals.ga_enabled === '1' ? '1' : '0', 'flag', 'analytics'],
+      ['global.ga_consent_enabled', vals.ga_consent_enabled === '1' ? '1' : '0', 'flag', 'analytics'],
+      ['global.google_verification', (vals.google_verification || '').trim().slice(0, 128), 'string', 'analytics'],
     ];
 
     for (const [key, value, type, group] of entries) {

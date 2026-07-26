@@ -9,6 +9,19 @@ CREATE DATABASE IF NOT EXISTS nlsite_db
 
 USE nlsite_db;
 
+-- ── Migration tracking (Phase 13) ──
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(128) NOT NULL,
+  checksum VARCHAR(64) NOT NULL,
+  executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  duration_ms INT NOT NULL DEFAULT 0,
+  status ENUM('ok','failed') NOT NULL DEFAULT 'ok',
+  error VARCHAR(500) NULL,
+  INDEX idx_migrations_name (name),
+  INDEX idx_migrations_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── Tabla de Usuarios ──
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,

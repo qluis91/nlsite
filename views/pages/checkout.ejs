@@ -6,7 +6,7 @@
 <% var selPayment = (typeof formData !== 'undefined' && formData.paymentMethod) || ''; %>
 <% var isDeliveryWithAddress = deliveryMethods[selDelivery] && deliveryMethods[selDelivery].requiresAddress; %>
 
-<main class="st-layout">
+<main class="st-layout" data-analytics-page-event="begin_checkout">
   <%- include('../components/store-sidebar') %>
 
   <div class="st-main">
@@ -77,7 +77,8 @@
                   <input type="radio" name="deliveryMethod" value="<%= dlv.key %>"
                     <%= selDelivery === dlv.key ? 'checked' : '' %>
                     data-delivery-option
-                    data-requires-address="<%= dlv.requiresAddress ? 'true' : 'false' %>">
+                    data-requires-address="<%= dlv.requiresAddress ? 'true' : 'false' %>"
+                    <% if (dlv.shippingStatus === 'pending_quote') { %>data-analytics-event="quote_start" data-analytics-once<% } %>>
                   <span class="st-checkout-option__content">
                     <span class="st-checkout-option__label"><%= dlv.label %></span>
                     <span class="st-checkout-option__desc"><%= dlv.description %></span>

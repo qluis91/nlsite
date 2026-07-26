@@ -1,8 +1,9 @@
 # nlSite — Project Status
 
 **Last updated:** 2026-07-26
-**Current phase:** CMS Phase 12D — Technical SEO & Structured Data (Jul 2026)
-**Next:** CSS variable homogenization or Phase 13
+**Current phase:** CMS Phase 13 — Safe automatic DB migrations (Jul 2026)
+**Next:** CSS variable homogenization or feature expansion
+- [x] **Phase 13**: Automatic production migrations via prestart hook. MySQL advisory lock serialises concurrent instances. SHA-256 checksum verification detects stale migrations. 14-migration registry tracked in schema_migrations table. App does not start if migration fails. 899 tests, 0 failures.
 - [x] **Phase 12D**: Technical SEO & structured data. JSON-LD Organization + WebSite on all public pages. JSON-LD Product + BreadcrumbList on product/category pages. Absolute canonicals. Sitemap with products, categories, gallery. robots.txt with sitemap URL. No unsafe-inline. 878 tests, 0 failures.
 
 ---

@@ -10,14 +10,71 @@
 # 1. Install production dependencies
 npm ci
 
-# 2. Run idempotent migrations (safe to repeat)
-npm run migrate
-
-# 3. Start the server
+# 2. Start the server (migrations run automatically in production)
 npm start
 ```
 
-On Railway, set the start command to `npm start` and run `npm run migrate` once before the first deploy (or via Railway's CLI/Run Command).
+The `npm start` command now automatically runs `npm run migrate:deploy` before starting the HTTP server in production (`NODE_ENV=production`). In development, migrations are skipped and must be run manually via `npm run migrate`.
+
+**How it works:**
+- `package.json` prestart hook (`node scripts/prestart.js`) runs before `node app.js`.
+- In production: calls `migrate-deploy.js` which acquires a MySQL advisory lock, runs pending migrations, records them in `schema_migrations`, and releases the lock.
+- If any migration fails, the process exits non-zero, preventing the app from starting.
+- In development: prestart exits immediately (no-op).
+
+### Railway Start Command
+
+On Railway, the start command remains:
+```
+npm start
+```
+
+No Railway-specific configuration changes are needed. The `prestart` script handles everything.
+
+### Manual Migration (development)
+
+```bash
+# Run all idempotent migrations (local dev)
+npm run migrate
+
+# Run production-safe deploy migrations
+npm run migrate:deploy
+```
+
+## Migration Safety
+
+### Advisory Lock
+- MySQL advisory lock (`GET_LOCK('migrate_deploy', 30)`) serialises concurrent instances.
+- If another instance is already migrating, the second one exits with code 2 (LOCKED).
+- The lock is always released in a `finally` block.
+
+### Checksum Verification
+- Each migration's SHA-256 checksum is recorded in `schema_migrations` on first execution.
+- If a previously-executed migration's source file changes, the deployment fails with a clear error and the old/new checksums.
+- This prevents silently applying modified migrations to production.
+
+### Migration Tracking
+- The `schema_migrations` table records: name, checksum, executed_at, duration_ms, status (ok/failed), error message.
+- Each migration runs only once. Already-executed migrations are skipped.
+- Failed migrations are recorded with error details.
+
+### Failure Behavior
+- If any migration fails, the entire deployment aborts.
+- The application WILL NOT start until the migration is fixed and deployment is retried.
+- No partial state: previously-succeeded migrations are NOT rolled back. Fix the failing migration and re-deploy.
+
+### Rollback / Recovery
+- Migrations are additive (ALTER TABLE ADD COLUMN, CREATE TABLE IF NOT EXISTS). No automatic rollback.
+- Recovery options:
+  1. Fix the failing migration and re-deploy.
+  2. Restore from MySQL backup (`PRODUCTION.md` backup section).
+  3. Manually remove the failed migration's record from `schema_migrations` if it was a false alarm.
+- To skip a checksum change intentionally, delete the matching row from `schema_migrations` so the migration re-runs. All migrations are idempotent.
+
+### Concurrency
+- Two Railway instances starting simultaneously cannot both run migrations.
+- The advisory lock serialises them: one wins, the other waits (up to 30s) or skips gracefully.
+- Survives process crashes: MySQL releases the lock when the session ends.
 
 ## Railway Configuration
 
@@ -84,7 +141,8 @@ Both directories are created automatically at startup. The volume must be mounte
 
 ### Database
 Use Railway MySQL plugin or external MySQL/MariaDB.
-Run `npm run migrate` after initial database creation.
+Migrations run automatically on every deploy in production. No manual step required.
+The `schema_migrations` table tracks which migrations have been applied.
 All migrations are idempotent (safe to run multiple times). Each migration creates tables with `IF NOT EXISTS`, seeds data only when tables are empty, and never overwrites existing CMS content.
 
 ### CMS Publication & Cache

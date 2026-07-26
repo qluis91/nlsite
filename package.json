@@ -4,10 +4,12 @@
   "description": "Plantilla Web Modular - Node.js + Express + EJS + MySQL (Marca Blanca)",
   "main": "app.js",
   "scripts": {
+    "prestart": "node scripts/prestart.js",
     "start": "node app.js",
     "dev": "nodemon app.js",
     "test": "node --test",
     "migrate": "node scripts/migrate-all.js",
+    "migrate:deploy": "node scripts/migrate-deploy.js",
     "check": "node --test && npm audit --omit=dev"
   },
   "keywords": [

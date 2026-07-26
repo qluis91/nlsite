@@ -2,7 +2,7 @@
 <% const isPaid = order.paymentStatus === 'paid'; %>
 <% const isPendingShipping = order.shippingStatus === 'pending_quote'; %>
 
-<main class="st-layout">
+<main class="st-layout"<% if (isPendingShipping) { %> data-analytics-page-event="quote_submit"<% } %>>
   <%- include('../components/store-sidebar') %>
 
   <div class="st-main">

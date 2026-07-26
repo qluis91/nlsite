@@ -56,6 +56,14 @@
   <% if (typeof jsonLdWeb !== 'undefined' && jsonLdWeb) { %><%- jsonLdWeb %><% } %>
   <% if (typeof jsonLdProduct !== 'undefined' && jsonLdProduct) { %><%- jsonLdProduct %><% } %>
   <% if (typeof jsonLdBreadcrumb !== 'undefined' && jsonLdBreadcrumb) { %><%- jsonLdBreadcrumb %><% } %>
+  <% /* Phase 14: Google Search Console verification */ %>
+  <% if (typeof googleVerification !== 'undefined' && googleVerification) { %>
+    <meta name="google-site-verification" content="<%= googleVerification %>">
+  <% } %>
+  <% /* Phase 14: Analytics consent banner CSS */ %>
+  <% if (typeof gaConsentEnabled !== 'undefined' && gaConsentEnabled) { %>
+    <link rel="stylesheet" href="/css/consent-banner.css">
+  <% } %>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/footer.css">
   <% if (typeof pageStyles !== 'undefined' && Array.isArray(pageStyles)) { %>
@@ -93,5 +101,14 @@
   <% if (typeof pageModule !== 'undefined' && pageModule) { %>
     <script type="module" src="<%= pageModule %>"></script>
   <% } %>
+  <% /* Phase 14: Analytics config + script */ %>
+  <% if (typeof gaConsentEnabled !== 'undefined' && gaConsentEnabled || typeof gaMeasurementId !== 'undefined' && gaMeasurementId) { %>
+  <script nonce="<%= cspNonce %>">
+    window.__GA_MEASUREMENT_ID = '<%= typeof gaMeasurementId !== 'undefined' && gaMeasurementId ? gaMeasurementId : '' %>';
+    window.__GA_ENABLED = <%= typeof gaMeasurementId !== 'undefined' && gaMeasurementId ? 'true' : 'false' %>;
+    window.__CONSENT_ENABLED = <%= typeof gaConsentEnabled !== 'undefined' && gaConsentEnabled ? 'true' : 'false' %>;
+  </script>
+  <% } %>
+  <script src="/js/analytics.js"></script>
 </body>
 </html>
