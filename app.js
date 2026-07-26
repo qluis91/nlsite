@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
+const compression = require('compression');
 
 // ── Environment validation (fail-fast) ──
 const { validateEnv } = require('./config/envValidator');
@@ -126,30 +127,77 @@ const layoutMiddleware = require('./config/viewEngine');
 app.use(layoutMiddleware);
 
 // ── Middlewares Globales ──
-app.use(express.static(path.join(__dirname, 'public')));
+const oneYearSec = 365 * 24 * 60 * 60;
+const shortCacheSec = 3600; // 1 hour for non-hashed CSS/JS
+
+// Versioned vendor assets — safe to cache aggressively
+const vendorCacheOpts = {
+  maxAge: process.env.NODE_ENV === 'production' ? oneYearSec : 0,
+  immutable: process.env.NODE_ENV === 'production',
+};
+
+// Non-hashed CSS/JS — short cache with revalidation
+const textCacheOpts = {
+  maxAge: process.env.NODE_ENV === 'production' ? shortCacheSec : 0,
+  immutable: false,
+};
+
+// Immutable media and uploaded files
+const mediaCacheOpts = {
+  maxAge: process.env.NODE_ENV === 'production' ? oneYearSec : 0,
+  immutable: process.env.NODE_ENV === 'production',
+};
+
+// ── Compression: gzip/Brotli for text responses (before static to compress CSS/JS) ──
+app.use(compression({
+  filter: (req, res) => {
+    // Skip binary static paths — no benefit from double-compressing
+    if (req.path.startsWith('/images/') || req.path.startsWith('/Video/') ||
+        req.path.startsWith('/uploads/') || req.path.startsWith('/fonts/')) {
+      return false;
+    }
+    const ct = res.getHeader('Content-Type');
+    if (!ct) return compression.filter(req, res);
+    const type = String(ct).split(';')[0].trim();
+    // Skip already-compressed binary formats
+    if (/application\/(octet-stream|zip|gzip|x-gzip|model|gltf|vnd)/.test(type)) return false;
+    if (/image\//.test(type)) return false;
+    if (/video\//.test(type)) return false;
+    if (/audio\//.test(type)) return false;
+    return compression.filter(req, res);
+  },
+}));
+
+app.use('/css', express.static(path.join(__dirname, 'public', 'css'), textCacheOpts));
+app.use('/js', express.static(path.join(__dirname, 'public', 'js'), textCacheOpts));
+app.use('/images', express.static(path.join(__dirname, 'public', 'images'), mediaCacheOpts));
+app.use('/Video', express.static(path.join(__dirname, 'public', 'Video'), mediaCacheOpts));
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads'), mediaCacheOpts));
+app.use('/fonts', express.static(path.join(__dirname, 'public', 'fonts'), mediaCacheOpts));
+app.use(express.static(path.join(__dirname, 'public'), textCacheOpts));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 // ── Vendor aliases for homepage modules (scoped, no bundler) ──
 app.use(
   '/vendor/three/build',
-  express.static(path.join(__dirname, 'node_modules/three/build'))
+  express.static(path.join(__dirname, 'node_modules/three/build'), vendorCacheOpts)
 );
 app.use(
   '/vendor/three/examples/jsm',
-  express.static(path.join(__dirname, 'node_modules/three/examples/jsm'))
+  express.static(path.join(__dirname, 'node_modules/three/examples/jsm'), vendorCacheOpts)
 );
 app.use(
   '/vendor/three',
-  express.static(path.join(__dirname, 'node_modules/three'))
+  express.static(path.join(__dirname, 'node_modules/three'), vendorCacheOpts)
 );
 app.use(
   '/vendor/gsap',
-  express.static(path.join(__dirname, 'node_modules/gsap'))
+  express.static(path.join(__dirname, 'node_modules/gsap'), vendorCacheOpts)
 );
 app.use(
   '/vendor/lenis',
-  express.static(path.join(__dirname, 'node_modules/lenis/dist'))
+  express.static(path.join(__dirname, 'node_modules/lenis/dist'), vendorCacheOpts)
 );
 
 // ── Configuración de Sesiones (MySQL store) ──
@@ -574,6 +622,11 @@ app.get('/', async (req, res) => {
       modelFallback,
       backgroundMedia: bgMedia,
     };
+
+    // Phase 15B: Hero GLB preload hint
+    if (modelMedia && modelMedia.url) {
+      res.locals.heroGlbUrl = modelMedia.url;
+    }
 
     res.render('pages/home', {
       title: 'Inicio',

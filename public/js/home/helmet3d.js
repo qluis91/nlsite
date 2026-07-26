@@ -464,6 +464,8 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
     if (firstRenderCompleted) return;
     firstRenderCompleted = true;
     logTiming('first render completed');
+    // Phase 15B: Signal first frame so poster can be hidden
+    try { stage.dispatchEvent(new CustomEvent('helmet:firstframe', { bubbles: true })); } catch (_) {}
   }
 
   function animate(now) {

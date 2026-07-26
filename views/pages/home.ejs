@@ -191,9 +191,17 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
           <button type="button" class="hero-error__retry" data-helmet-retry>Reintentar</button>
         </div>
 
+        <div class="hero-3d-poster" data-helmet-poster>
+          <% if (modelFallbackUrl) { %>
+            <img src="<%= modelFallbackUrl %>" alt="Casco 3D NinjaLab" class="hero-3d-poster-img" width="1200" height="1200" fetchpriority="high" decoding="sync">
+          <% } else { %>
+            <div class="hero-3d-poster-icon">🪖</div>
+          <% } %>
+        </div>
+
         <div class="hero-3d-fallback" data-helmet-fallback hidden>
           <% if (modelFallbackUrl) { %>
-            <img src="<%= modelFallbackUrl %>" alt="Modelo 3D no disponible" class="hero-3d-fallback-img" style="max-width:100%;height:auto">
+            <img src="<%= modelFallbackUrl %>" alt="Modelo 3D no disponible" class="hero-3d-fallback-img" width="1200" height="1200" loading="lazy" decoding="async">
           <% } else { %>
             <div class="hero-3d-fallback-icon">🪖</div>
           <% } %>
@@ -285,7 +293,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
                       <% if (imgSrc) { %>
                         <span class="logo-loop__media">
                           <% if (item.url) { %><a href="<%= item.url %>" <%= item.target === '_blank' ? 'target="_blank" rel="noopener noreferrer"' : '' %> aria-label="<%= item.alt_text || item.text_content || '' %>"><% } %>
-                          <img src="<%= imgSrc %>" alt="<%= item.alt_text || '' %>" class="logo-loop__image" loading="lazy" decoding="async">
+                          <img src="<%= imgSrc %>" alt="<%= item.alt_text || '' %>" class="logo-loop__image" loading="lazy" decoding="async" width="180" height="56">
                           <% if (item.url) { %></a><% } %>
                         </span>
                       <% } else { %>
@@ -350,7 +358,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
               alt="<%= item.title %>"
               width="5333"
               height="3000"
-              loading="<%= idx === 1 ? 'eager' : 'lazy' %>"
+              loading="<%= idx === 0 ? 'eager' : 'lazy' %>"
               decoding="async"
               draggable="false"
             >

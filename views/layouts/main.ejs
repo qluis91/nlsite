@@ -249,6 +249,16 @@
     }
   }
   </script>
+  <link rel="preload" href="/css/home.css" as="style">
+  <% /* Phase 15B: Preload hero GLB when available */ %>
+  <% if (typeof heroGlbUrl !== 'undefined' && heroGlbUrl) { %>
+  <link rel="preload" href="<%= heroGlbUrl %>" as="fetch" crossorigin="anonymous">
+  <% } %>
+  <% } %>
+  <% /* Phase 14: DNS-prefetch for analytics */ %>
+  <% if (typeof gaMeasurementId !== 'undefined' && gaMeasurementId) { %>
+  <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+  <link rel="dns-prefetch" href="https://www.google-analytics.com">
   <% } %>
 </head>
 <body class="<%= layoutPageClass %>">
@@ -278,7 +288,9 @@
     }) %>
   <% } %>
 
+  <% if (!layoutHideFooter) { %>
   <script type="module" src="/js/footerMagicRings.mjs"></script>
+  <% } %>
 
   <% if (layoutPageClass === 'page-home') { %>
     <script type="module" src="/js/home/home.js"></script>

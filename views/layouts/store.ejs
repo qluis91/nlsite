@@ -64,6 +64,11 @@
   <% if (typeof gaConsentEnabled !== 'undefined' && gaConsentEnabled) { %>
     <link rel="stylesheet" href="/css/consent-banner.css">
   <% } %>
+  <% /* Phase 15: DNS-prefetch for analytics */ %>
+  <% if (typeof gaMeasurementId !== 'undefined' && gaMeasurementId) { %>
+  <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+  <link rel="dns-prefetch" href="https://www.google-analytics.com">
+  <% } %>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/footer.css">
   <% if (typeof pageStyles !== 'undefined' && Array.isArray(pageStyles)) { %>

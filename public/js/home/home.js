@@ -269,6 +269,15 @@ async function init() {
     if (fallbackEl) fallbackEl.hidden = false;
     stage.classList.add('has-fallback');
   } else {
+    // Phase 15B: Hide poster after first successful 3D frame
+    if (stage) {
+      stage.addEventListener('helmet:firstframe', function hidePoster() {
+        const poster = stage.querySelector('[data-helmet-poster]');
+        if (poster) poster.style.display = 'none';
+        setModelState(stage, 'ready');
+      }, { once: true });
+    }
+
     void initHelmet3D(canvas, prefersReduced)
       .then(() => {
         if (stage && !helmetInitError) setModelState(stage, 'ready');
