@@ -34,8 +34,9 @@ async function createCategory(name, slug, hero = {}) {
   const s = slug || slugify(name);
   const [result] = await pool.query(
     `INSERT INTO categories
-      (name, slug, description, hero_title, hero_description, hero_image, hero_alt, hero_position)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (name, slug, description, hero_title, hero_description, hero_image, hero_alt, hero_position,
+       seo_title, seo_description, og_image)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       name,
       s,
@@ -45,6 +46,9 @@ async function createCategory(name, slug, hero = {}) {
       hero.hero_image || null,
       hero.hero_alt || null,
       hero.hero_position || 'center',
+      hero.seo_title || null,
+      hero.seo_description || null,
+      hero.og_image || null,
     ]
   );
   return { id: result.insertId, name, slug: s };
@@ -61,7 +65,10 @@ async function updateCategory(id, name, slug, hero = {}) {
       hero_description = ?,
       hero_image = ?,
       hero_alt = ?,
-      hero_position = ?
+      hero_position = ?,
+      seo_title = ?,
+      seo_description = ?,
+      og_image = ?
      WHERE id = ?`,
     [
       name,
@@ -72,6 +79,9 @@ async function updateCategory(id, name, slug, hero = {}) {
       hero.hero_image || null,
       hero.hero_alt || null,
       hero.hero_position || 'center',
+      hero.seo_title || null,
+      hero.seo_description || null,
+      hero.og_image || null,
       id,
     ]
   );
@@ -212,11 +222,12 @@ async function createProduct(data) {
     // Insert product
     const [result] = await conn.query(
       `INSERT INTO products (name, slug, regular_price, promotional_price, web_price,
-        weight, stock_quantity, description, tags, is_active, is_published)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        weight, stock_quantity, description, seo_title, seo_description, og_image, tags, is_active, is_published)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.name, data.slug, data.regularPrice, data.promotionalPrice, data.webPrice,
-        data.weight, data.stockQuantity, data.description, data.tags, data.isActive ? 1 : 0, data.isPublished ? 1 : 0,
+        data.weight, data.stockQuantity, data.description, data.seoTitle || '', data.seoDescription || '', data.ogImage || '',
+        data.tags, data.isActive ? 1 : 0, data.isPublished ? 1 : 0,
       ]
     );
     const productId = result.insertId;
@@ -244,12 +255,15 @@ async function updateProduct(id, data) {
 
     await conn.query(
       `UPDATE products SET name = ?, slug = ?, regular_price = ?, promotional_price = ?,
-        web_price = ?, weight = ?, stock_quantity = ?, description = ?, tags = ?,
+        web_price = ?, weight = ?, stock_quantity = ?, description = ?,
+        seo_title = ?, seo_description = ?, og_image = ?, tags = ?,
         is_active = ?, is_published = ?
        WHERE id = ?`,
       [
         data.name, data.slug, data.regularPrice, data.promotionalPrice, data.webPrice,
-        data.weight, data.stockQuantity, data.description, data.tags,
+        data.weight, data.stockQuantity, data.description,
+        data.seoTitle || '', data.seoDescription || '', data.ogImage || '',
+        data.tags,
         data.isActive ? 1 : 0, data.isPublished ? 1 : 0, id,
       ]
     );

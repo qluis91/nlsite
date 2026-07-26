@@ -1,8 +1,9 @@
 # nlSite — Project Status
 
 **Last updated:** 2026-07-26
-**Current phase:** CMS Phase 12A — Global Settings & Basic SEO (Jul 2026)
-**Next:** Tilopay sandbox integration or feature expansion
+**Current phase:** CMS Phase 12D — Technical SEO & Structured Data (Jul 2026)
+**Next:** CSS variable homogenization or Phase 13
+- [x] **Phase 12D**: Technical SEO & structured data. JSON-LD Organization + WebSite on all public pages. JSON-LD Product + BreadcrumbList on product/category pages. Absolute canonicals. Sitemap with products, categories, gallery. robots.txt with sitemap URL. No unsafe-inline. 878 tests, 0 failures.
 
 ---
 
@@ -22,7 +23,9 @@
 
 ## Working Features
 
-- [x] **Phase 12A**: Global settings & SEO. Admin editor for site name, SEO title/description, OG image, favicon, canonical URL, and index mode. Admin sidebar/header uses dynamic site name from global settings. Public layout renders OG tags, Twitter cards, favicon, and canonical URL with page-specific → global fallback chain. 821 tests, 0 failures.
+- [x] **Phase 12C**: Dynamic product & category SEO. 6 SEO columns on products + categories. SEO fieldset in product/category admin forms. Product pages: metaTitle, ogImage (primary image fallback), canonical URL. Category pages: metaTitle, ogImage (hero image fallback), canonical URL. Fallback chain: explicit SEO → generated from catalog data → store-level CMS → global. 853 tests, 0 failures.
+- [x] **Phase 12B**: Page-specific SEO with page tabs.
+- [x] **Phase 12A**: Global settings & SEO with OG/Twitter/favicon tags.
 - [x] **Phase 11E**: Full CMS stabilization with 798 passing tests.
 - [x] **Phase 11D**: Centralized publishing dashboard, publication batches, atomic multi-section publication, revision history browser, version comparison, and safe restoration with audit trail.
 - [x] Unificada la experiencia de subida directa para todos los selectores de imágenes CMS: pestañas "Seleccionar de la biblioteca" + "Subir desde mi dispositivo"

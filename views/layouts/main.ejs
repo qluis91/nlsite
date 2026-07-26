@@ -38,36 +38,58 @@
     typeof title !== 'undefined' && title
       ? String(title)
       : '';
+  const layoutMetaTitleRaw =
+    typeof metaTitle !== 'undefined' && metaTitle
+      ? String(metaTitle)
+      : (typeof pageSeoTitle !== 'undefined' && pageSeoTitle)
+        ? String(pageSeoTitle)
+        : '';
   const layoutDocumentTitle =
-    layoutPageTitle
-      ? `${layoutPageTitle} | ${layoutSiteName}`
-      : (typeof globalSeoTitle !== 'undefined' && globalSeoTitle)
-        ? globalSeoTitle
-        : layoutSiteName;
+    layoutMetaTitleRaw
+      ? layoutMetaTitleRaw
+      : layoutPageTitle
+        ? `${layoutPageTitle} | ${layoutSiteName}`
+        : (typeof globalSeoTitle !== 'undefined' && globalSeoTitle)
+          ? globalSeoTitle
+          : layoutSiteName;
   const layoutDescription =
     typeof metaDescription !== 'undefined' && metaDescription
       ? String(metaDescription)
-      : (typeof globalSeoDescription !== 'undefined' && globalSeoDescription)
-        ? globalSeoDescription
-        : layoutSiteDescription;
+      : (typeof pageSeoDescription !== 'undefined' && pageSeoDescription)
+        ? String(pageSeoDescription)
+        : (typeof globalSeoDescription !== 'undefined' && globalSeoDescription)
+          ? globalSeoDescription
+          : layoutSiteDescription;
   const layoutRobots =
     typeof robots !== 'undefined' && robots
       ? String(robots)
-      : (typeof globalRobots !== 'undefined' && globalRobots)
-        ? String(globalRobots)
-        : '';
+      : (typeof pageSeoRobots !== 'undefined' && pageSeoRobots)
+        ? String(pageSeoRobots)
+        : (typeof globalRobots !== 'undefined' && globalRobots)
+          ? String(globalRobots)
+          : '';
   const layoutCanonical =
     typeof canonical !== 'undefined' && canonical
       ? String(canonical)
-      : (typeof globalCanonical !== 'undefined' && globalCanonical)
-        ? String(globalCanonical)
-        : '';
+      : (typeof pageSeoCanonical !== 'undefined' && pageSeoCanonical)
+        ? String(pageSeoCanonical)
+        : (typeof globalCanonical !== 'undefined' && globalCanonical)
+          ? String(globalCanonical)
+          : '';
+  const layoutCanonicalAbs =
+    layoutCanonical
+    && (typeof baseUrl !== 'undefined' && baseUrl)
+    && !/^https?:\/\//i.test(layoutCanonical)
+      ? String(baseUrl).replace(/\/+$/, '') + (layoutCanonical.startsWith('/') ? layoutCanonical : '/' + layoutCanonical)
+      : layoutCanonical;
   const layoutOgImage =
     typeof ogImage !== 'undefined' && ogImage
       ? String(ogImage)
-      : (typeof globalOgImage !== 'undefined' && globalOgImage)
-        ? String(globalOgImage)
-        : '';
+      : (typeof pageSeoOgImage !== 'undefined' && pageSeoOgImage)
+        ? String(pageSeoOgImage)
+        : (typeof globalOgImage !== 'undefined' && globalOgImage)
+          ? String(globalOgImage)
+          : '';
   const layoutFavicon =
     typeof favicon !== 'undefined' && favicon
       ? String(favicon)
@@ -77,9 +99,7 @@
   const layoutOgUrl =
     typeof ogUrl !== 'undefined' && ogUrl
       ? String(ogUrl)
-      : (typeof globalCanonical !== 'undefined' && globalCanonical)
-        ? String(globalCanonical)
-        : '';
+      : layoutCanonicalAbs;
   const layoutPageClass =
     typeof pageClass !== 'undefined' && pageClass
       ? String(pageClass)
@@ -142,8 +162,8 @@
   <% if (layoutRobots) { %>
     <meta name="robots" content="<%= layoutRobots %>">
   <% } %>
-  <% if (layoutCanonical) { %>
-    <link rel="canonical" href="<%= layoutCanonical %>">
+  <% if (layoutCanonicalAbs) { %>
+    <link rel="canonical" href="<%= layoutCanonicalAbs %>">
   <% } %>
   <title><%= layoutDocumentTitle %></title>
   <% if (layoutFavicon) { %>
@@ -168,6 +188,11 @@
   <% if (layoutOgImage) { %>
     <meta name="twitter:image" content="<%= layoutOgImage %>">
   <% } %>
+  <% /* Phase 12D: JSON-LD Structured Data */ %>
+  <% if (typeof jsonLdOrg !== 'undefined' && jsonLdOrg) { %><%- jsonLdOrg %><% } %>
+  <% if (typeof jsonLdWeb !== 'undefined' && jsonLdWeb) { %><%- jsonLdWeb %><% } %>
+  <% if (typeof jsonLdProduct !== 'undefined' && jsonLdProduct) { %><%- jsonLdProduct %><% } %>
+  <% if (typeof jsonLdBreadcrumb !== 'undefined' && jsonLdBreadcrumb) { %><%- jsonLdBreadcrumb %><% } %>
   <% if (layoutPageClass === 'page-home') { %>
   <script nonce="<%= layoutNonce %>">
     document.documentElement.classList.add('js');

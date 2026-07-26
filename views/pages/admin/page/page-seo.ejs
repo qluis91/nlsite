@@ -1,0 +1,97 @@
+<div class="page-header">
+  <div>
+    <h1>SEO por página</h1>
+    <p>Configura el título SEO, descripción, imagen Open Graph, URL canónica y modo de indexación para cada página pública.</p>
+  </div>
+  <div class="cms-actions">
+    <a href="/admin/page" class="btn btn-outline">Administrar página</a>
+    <form action="/admin/page/page-seo/publish" method="POST" style="display:inline">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-primary">Publicar SEO</button>
+    </form>
+  </div>
+</div>
+
+<!-- Page tabs -->
+<nav class="cms-tabs" role="tablist">
+  <% pages.forEach(function (page) { %>
+    <a href="?page=<%= page.key %>"
+       class="cms-tab <%= page.key === activePage ? 'is-active' : '' %>"
+       role="tab"
+       aria-selected="<%= page.key === activePage ? 'true' : 'false' %>"><%= page.label %></a>
+  <% }); %>
+</nav>
+
+<form action="/admin/page/page-seo/save" method="POST" class="cms-form">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="page_key" value="<%= activePage %>">
+
+  <% var pageTitleKey = 'seo.' + activePage + '.title';
+     var pageDescKey = 'seo.' + activePage + '.description';
+     var pageOgKey = 'seo.' + activePage + '.og_image';
+     var pageCanonicalKey = 'seo.' + activePage + '.canonical';
+     var pageRobotsKey = 'seo.' + activePage + '.robots';
+     var activeOg = ogMedia[activePage];
+  %>
+
+  <div class="card">
+    <h2>SEO para <%= (pages.find(function(p) { return p.key === activePage; }) || {}).label || activePage %></h2>
+
+    <div class="form-group">
+      <label for="title_field">Título SEO</label>
+      <input type="text" id="title_field" name="title"
+             value="<%= (settings[pageTitleKey] || '') %>" maxlength="120"
+             placeholder="Título para buscadores y redes sociales">
+      <small>Si se deja vacío, usa el título SEO global o el nombre del sitio.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="description_field">Descripción meta</label>
+      <textarea id="description_field" name="description" maxlength="300" rows="3"
+                placeholder="Descripción para buscadores y redes sociales"><%= settings[pageDescKey] || '' %></textarea>
+      <small>Si se deja vacía, usa la descripción SEO global.</small>
+    </div>
+
+    <div class="form-group">
+      <%- include('../../../components/media-selector', {
+        fieldName: 'og_image',
+        currentValue: settings[pageOgKey] || '',
+        allowedTypes: ['image/png','image/jpeg','image/webp'],
+        allowedCategories: ['logo','image','banner'],
+        uploadProfile: 'hero-background',
+        label: 'Imagen Open Graph',
+        kindLabel: 'Imagen OG',
+        thumbnailUrl: activeOg ? activeOg.thumbnail_url : null,
+        selectedTitle: activeOg ? (activeOg.title || activeOg.original_filename) : null,
+        selectedCategory: activeOg ? activeOg.category : null,
+        selectedMime: activeOg ? activeOg.mime_type : null,
+        selectedDimensions: activeOg ? activeOg.dimensions : null,
+      }) %>
+      <small>Imagen al compartir esta página en redes. Si se deja vacía, usa la imagen OG global.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="canonical_field">URL canónica</label>
+      <input type="text" id="canonical_field" name="canonical"
+             value="<%= (settings[pageCanonicalKey] || '') %>" maxlength="500"
+             placeholder="https://ejemplo.com<%= (pages.find(function(p) { return p.key === activePage; }) || {}).path || '' %>">
+      <small>URL canónica de esta página. Si se deja vacía, no se renderiza la etiqueta canónica.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="robots_field">Modo de indexación</label>
+      <select id="robots_field" name="robots">
+        <option value="">-- Usar modo global --</option>
+        <% indexingModes.forEach(function (mode) { %>
+          <option value="<%= mode.value %>" <%= (settings[pageRobotsKey] || '') === mode.value ? 'selected' : '' %>><%= mode.label %></option>
+        <% }); %>
+      </select>
+      <small>Define la directiva <code>robots</code> solo para esta página. Si se elige "Usar modo global", hereda el valor configurado en SEO global.</small>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <button type="submit" class="btn btn-primary">Guardar como borrador</button>
+    <a href="/admin/page" class="btn btn-outline">Cancelar</a>
+  </div>
+</form>

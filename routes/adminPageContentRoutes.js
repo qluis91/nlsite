@@ -32,6 +32,12 @@ router.get('/page/global-settings', requireCapability(CAPABILITIES.GLOBAL_SETTIN
 router.post('/page/global-settings/save', requireCapability(CAPABILITIES.GLOBAL_SETTINGS_EDIT), csrfSynchronisedProtection, globalSettingsController.saveGlobalSettings);
 router.post('/page/global-settings/publish', requireCapability(CAPABILITIES.GLOBAL_SETTINGS_PUBLISH), csrfSynchronisedProtection, globalSettingsController.publishGlobalSettings);
 
+// ── Page-specific SEO (Phase 12B) ──
+const pageSeoController = require('../controllers/adminPageSeoController');
+router.get('/page/page-seo', requireCapability(CAPABILITIES.GLOBAL_SETTINGS_VIEW), pageSeoController.showPageSeo);
+router.post('/page/page-seo/save', requireCapability(CAPABILITIES.GLOBAL_SETTINGS_EDIT), csrfSynchronisedProtection, pageSeoController.savePageSeo);
+router.post('/page/page-seo/publish', requireCapability(CAPABILITIES.GLOBAL_SETTINGS_PUBLISH), csrfSynchronisedProtection, pageSeoController.publishPageSeo);
+
 // ── Preview ──
 router.get('/page/preview', requireCapability(CAPABILITIES.PAGE_MANAGE), controller.preview);
 

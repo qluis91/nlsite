@@ -123,6 +123,31 @@
       </div>
     </fieldset>
 
+    <!-- ══ SEO (opcional) ══ -->
+    <fieldset class="form-fieldset">
+      <legend>SEO (opcional)</legend>
+      <p class="form-hint">Anula el título, la descripción y la imagen social generados automáticamente para esta categoría.</p>
+
+      <div class="form-group">
+        <label for="seo_title">Título SEO</label>
+        <input type="text" id="seo_title" name="seo_title"
+               value="<%= category && category.seo_title ? category.seo_title : '' %>" maxlength="160"
+               class="form-control" placeholder="Ej: Figuras coleccionables 3D — NinjaLab CR">
+      </div>
+      <div class="form-group">
+        <label for="seo_description">Descripción meta</label>
+        <textarea id="seo_description" name="seo_description" maxlength="300" rows="3"
+                  class="form-control" placeholder="Descripción para buscadores y redes sociales"><%= category && category.seo_description ? category.seo_description : '' %></textarea>
+      </div>
+      <div class="form-group">
+        <label for="og_image">Imagen Open Graph (ruta absoluta)</label>
+        <input type="text" id="og_image" name="og_image"
+               value="<%= category && category.og_image ? category.og_image : '' %>" maxlength="500"
+               class="form-control" placeholder="Ej: /uploads/products/1/imagen.webp">
+        <span class="form-hint">Opcional. Si se deja vacío, se usa la imagen del hero de la categoría. Ruta absoluta desde la raíz del sitio.</span>
+      </div>
+    </fieldset>
+
     <div class="form-actions">
       <button type="submit" class="btn btn-primary"><%= category ? 'Guardar cambios' : 'Guardar categoría' %></button>
       <a href="/admin/catalogo/categorias" class="btn btn-outline">Cancelar</a>

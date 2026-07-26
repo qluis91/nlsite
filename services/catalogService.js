@@ -225,7 +225,8 @@ async function getPublicCategories() {
   try {
     const [rows] = await pool.query(
       `SELECT slug, name, description, hero_title, hero_description,
-              hero_image, hero_alt, hero_position
+              hero_image, hero_alt, hero_position,
+              seo_title, seo_description, og_image
        FROM categories
        ORDER BY name ASC`
     );
@@ -267,6 +268,9 @@ function mapPublicCategory(cat) {
     hero_image: typeof cat.hero_image === 'string' ? cat.hero_image : '',
     hero_alt: typeof cat.hero_alt === 'string' ? cat.hero_alt : '',
     hero_position: typeof cat.hero_position === 'string' ? cat.hero_position : 'center',
+    seo_title: typeof cat.seo_title === 'string' ? cat.seo_title : '',
+    seo_description: typeof cat.seo_description === 'string' ? cat.seo_description : '',
+    og_image: typeof cat.og_image === 'string' ? cat.og_image : '',
   };
 }
 
@@ -532,6 +536,9 @@ async function getProductBySlug(slug) {
       title: p.name,
       slug: p.slug,
       description: p.description || '',
+      seoTitle: p.seo_title || '',
+      seoDescription: p.seo_description || '',
+      ogImage: p.og_image || '',
       url: `/tienda/${p.slug}`,
       categories: cats,
       primaryImage: primaryImage ? primaryImage.filePath : '',

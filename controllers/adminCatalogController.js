@@ -64,6 +64,9 @@ exports.createCategory = async (req, res, next) => {
       hero_image: null,
       hero_alt: heroAlt.value,
       hero_position: heroPos.value,
+      seo_title: (req.body.seo_title || '').slice(0, 160),
+      seo_description: (req.body.seo_description || '').slice(0, 300),
+      og_image: (req.body.og_image || '').slice(0, 500),
     });
 
     if (req.file) {
@@ -78,6 +81,9 @@ exports.createCategory = async (req, res, next) => {
           hero_image: heroImage,
           hero_alt: heroAlt.value,
           hero_position: heroPos.value,
+          seo_title: (req.body.seo_title || '').slice(0, 160),
+          seo_description: (req.body.seo_description || '').slice(0, 300),
+          og_image: (req.body.og_image || '').slice(0, 500),
         });
       } catch (imgErr) {
         req.session.error_msg = imgErr.message || 'No se pudo procesar la imagen del hero.';
@@ -168,6 +174,9 @@ exports.updateCategory = async (req, res, next) => {
       hero_image: heroImage,
       hero_alt: heroAlt.value,
       hero_position: heroPos.value,
+      seo_title: (req.body.seo_title || '').slice(0, 160),
+      seo_description: (req.body.seo_description || '').slice(0, 300),
+      og_image: (req.body.og_image || '').slice(0, 500),
     });
     req.session.success_msg = 'Categoría actualizada exitosamente.';
     res.redirect('/admin/catalogo/categorias');
@@ -278,6 +287,9 @@ exports.createProduct = async (req, res, next) => {
       weight: weightResult.value,
       stockQuantity: stockResult.value,
       description: descResult.value,
+      seoTitle: (req.body.seo_title || '').slice(0, 160),
+      seoDescription: (req.body.seo_description || '').slice(0, 300),
+      ogImage: (req.body.og_image || '').slice(0, 500),
       tags: tagsResult.value,
       isActive: true,
       isPublished: req.body.isPublished === '1',
@@ -412,6 +424,9 @@ exports.updateProduct = async (req, res, next) => {
       weight: weightResult.value,
       stockQuantity: stockResult.value,
       description: descResult.value,
+      seoTitle: (req.body.seo_title || '').slice(0, 160),
+      seoDescription: (req.body.seo_description || '').slice(0, 300),
+      ogImage: (req.body.og_image || '').slice(0, 500),
       tags: tagsResult.value,
       isActive: req.body.isActive === '1',
       isPublished: req.body.isPublished === '1',

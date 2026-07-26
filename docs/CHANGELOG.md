@@ -1,5 +1,69 @@
 # Changelog
 
+## 2026-07-26 — Phase 12D: Technical SEO & Structured Data
+
+### Added
+- `config/jsonLdHelper.js`: safe JSON-LD serialization, `buildOrganizationLd()`, `buildWebSiteLd()`, `buildProductLd()`, `buildBreadcrumbLd()`, `jsonLdScript()`, `makeAbsolute()` helpers
+- JSON-LD `Organization` + `WebSite` (with SearchAction) on all public pages via SEO middleware + layouts
+- JSON-LD `Product` on product detail pages: name, description, image, SKU, price/currency, availability
+- JSON-LD `BreadcrumbList` on product detail pages (Tienda > Category > Product) and category pages (Tienda > Category)
+- Category URLs added to `/sitemap.xml`
+- Gallery item URLs added to `/sitemap.xml` (graceful fallback if table missing)
+- `res.locals.baseUrl` injected in SEO middleware for absolute URL construction
+
+### Changed
+- All canonical URLs now absolute: `main.ejs` and `store.ejs` prepend `baseUrl` to relative canonicals
+- `controllers/storeController.js`: passes `jsonLdProduct`, `jsonLdBreadcrumb`, absolute `canonical`/`ogUrl` in `showProduct` and `showStore`
+- `app.js`: SEO middleware injects `res.locals.jsonLdOrg`, `res.locals.jsonLdWeb`, `res.locals.baseUrl`; sitemap includes categories + gallery; removed duplicate `BASE_URL` declaration
+- `views/layouts/main.ejs`: added `layoutCanonicalAbs` for absolute canonicals; added JSON-LD injection block in `<head>`
+- `views/layouts/store.ejs`: absolute canonical logic; added JSON-LD injection block in `<head>`
+
+### Fixed
+- Duplicate `BASE_URL` declaration removed (was at line 359, now consolidated at line 183)
+- Store filtered/paginated views properly use `noindex,follow` via existing logic
+- JSON-LD safely serialized — no `unsafe-inline` needed; `</script`, `\u2028`, `\u2029` escaped
+
+## 2026-07-26 — Phase 12C: Dynamic product & category SEO
+
+### Added
+- 6 new columns on `products`: `seo_title` VARCHAR(160), `seo_description` VARCHAR(300), `og_image` VARCHAR(500) — optional SEO overrides
+- 6 new columns on `categories`: `seo_title` VARCHAR(160), `seo_description` VARCHAR(300), `og_image` VARCHAR(500) — optional SEO overrides
+- `scripts/migrate-catalog-seo.js`: idempotent migration (SafeADD with information_schema column check)
+- SEO fieldset in `views/pages/admin/product-form.ejs`: Título SEO, Descripción meta, Imagen Open Graph (optional, between Description and Images sections)
+- SEO fieldset in `views/pages/admin/category-form.ejs`: same fields (optional), after Hero section
+- `adminCatalogService.createProduct`, `updateProduct`: handle `seoTitle`/`seoDescription`/`ogImage` in INSERT/UPDATE
+- `adminCatalogService.createCategory`, `updateCategory`: handle `seo_title`/`seo_description`/`og_image` from hero param
+- `adminCatalogController.createProduct`, `updateProduct`, `createCategory`, `updateCategory`: pass SEO fields from `req.body` to service
+- Catalog SEO fallback chain for product pages: explicit SEO override → generated from name/description/primary image → store-level CMS SEO → global SEO → static
+- Catalog SEO fallback chain for category pages: explicit SEO override → generated from name/description/hero image → store-level CMS SEO → global SEO → static
+- `catalogService.getPublicCategories`: includes `seo_title`, `seo_description`, `og_image` in category objects
+- `catalogService.getProductBySlug`: returns `seoTitle`, `seoDescription`, `ogImage` in product object
+- `storeController.showProduct`: passes `metaTitle`, `ogImage` (primary image fallback), `canonical` (product URL)
+- `storeController.showStore`: passes `metaTitle`, `ogImage` (category hero fallback), `canonical` (`/tienda?category=...`) when category filter is active
+- `tests/catalog-seo.test.js`: 16 tests covering migration, column existence, idempotency, live HTTP rendering, admin form fields, and schema.sql
+
+### Changed
+- `schema.sql`: added `seo_title`, `seo_description`, `og_image` to both `categories` and `products` CREATE TABLE statements
+- `services/catalogService.js`: `mapPublicCategory` includes seo fields; `getPublicCategories` selects seo columns; `getProductBySlug` returns seo fields
+
+## 2026-07-26 — Phase 12B: Page-specific SEO
+
+### Added
+- New admin card "SEO por página" in `/admin/page` overview
+- `controllers/adminPageSeoController.js`: show/save/publish for 15 page-specific SEO keys (`seo.{page}.{field}` format across home, store, gallery)
+- `views/pages/admin/page/page-seo.ejs`: admin editor with page tabs (Inicio, Tienda, Galería), full field set per page, media selector reuse for OG image
+- Page-specific SEO keys in `site_settings`: `seo.home.title`, `seo.home.description`, `seo.home.og_image`, `seo.home.canonical`, `seo.home.robots` (and same for store, gallery)
+- Reuses existing `GLOBAL_SETTINGS_VIEW/EDIT/PUBLISH` capabilities — no new capabilities needed
+- `layoutOgUrl` in `main.ejs` now uses `layoutCanonical` (which includes page-specific canonical) instead of hardcoding global
+
+### Changed
+- `views/layouts/store.ejs`: upgraded from basic meta+title to full OG/Twitter/favicon/canonical/robots with page-specific fallback chain matching `main.ejs`
+- `views/layouts/main.ejs`: inserted page-specific SEO layer in title/description/robots/canonical/og_image fallback chain
+- `app.js` public SEO middleware: now detects page from `req.path` (home=/, store=/tienda, gallery=/galeria) and loads page-specific + global SEO keys in one `getPublishedSettings` call
+- `controllers/adminPageController.js`: added `{ key: 'page-seo', ... }` card to `CMS_MODULES`
+- `routes/adminPageContentRoutes.js`: added GET/POST routes for page-seo
+- `tests/page-seo.test.js`: 16 tests covering card registration, controller structure, persistence, live HTTP rendering, and view compilation
+
 ## 2026-07-26 — Phase 12A: Global Settings & Basic SEO
 
 ### Added

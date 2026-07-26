@@ -1,5 +1,8 @@
 const { DEFAULT_LIMIT, getPublicCatalog, getPublicCatalogAsync, getPublicCategories, getProductBySlug, getRelatedProducts, formatWeight, normalizeStoreQuery, resolveStoreHero } = require('../services/catalogService');
 const { buildWhatsAppUrl } = require('../config/publicContact');
+const { buildProductLd, buildBreadcrumbLd, jsonLdScript, makeAbsolute } = require('../config/jsonLdHelper');
+
+const BASE_URL = process.env.APP_URL || 'http://localhost:' + (process.env.PORT || 3000);
 
 function buildStoreUrl(filters, overrides = {}) {
   const next = { ...filters, ...overrides };
@@ -94,9 +97,38 @@ async function showStore(req, res) {
     search: filters.search,
   });
 
+  // Category-specific SEO
+  let catMetaTitle = '';
+  let catMetaDescription = '';
+  let catOgImage = '';
+  let catCanonical = '';
+  if (activeCategory && activeCategory.name) {
+    catMetaTitle = activeCategory.seo_title || activeCategory.name;
+    catMetaDescription = activeCategory.seo_description || activeCategory.description?.slice(0, 160) || '';
+    catOgImage = activeCategory.og_image || activeCategory.hero_image || '';
+    catCanonical = makeAbsolute(`/tienda?category=${activeCategory.slug}`, BASE_URL);
+  }
+
+  // Breadcrumb JSON-LD for category pages
+  let jsonLdBreadcrumb = '';
+  if (activeCategory) {
+    const storeUrl = makeAbsolute('/tienda', BASE_URL);
+    const catUrl = makeAbsolute(`/tienda?category=${activeCategory.slug}`, BASE_URL);
+    jsonLdBreadcrumb = jsonLdScript(buildBreadcrumbLd([
+      { name: 'Tienda', item: storeUrl },
+      { name: activeCategory.name, item: catUrl },
+    ]));
+  }
+
+  // Build store canonical: no duplicate indexing for filtered views (Phase 12D)
+  let storeCanonical = catCanonical || makeAbsolute('/tienda', BASE_URL);
+
   res.render('pages/tienda', {
-    title: 'Tienda de impresión 3D',
-    metaDescription: 'Explora productos, figuras y piezas personalizadas impresas en 3D por NinjaLab CR.',
+    title: activeCategory ? `${activeCategory.name} | Tienda` : 'Tienda de impresión 3D',
+    metaTitle: catMetaTitle || undefined,
+    metaDescription: catMetaDescription || 'Explora productos, figuras y piezas personalizadas impresas en 3D por NinjaLab CR.',
+    ogImage: catOgImage || undefined,
+    canonical: storeCanonical,
     robots: activeFilters.length ? 'noindex,follow' : 'index,follow',
     layout: 'layouts/store',
     pageClass: 'page-store',
@@ -111,6 +143,7 @@ async function showStore(req, res) {
     storeHero,
     buildStoreUrl: (overrides) => buildStoreUrl(filters, overrides),
     paginationPages: paginationWindow(filters.page, catalog.totalPages),
+    jsonLdBreadcrumb,
   });
 }
 
@@ -153,9 +186,26 @@ async function showProduct(req, res, next) {
       ? (categories.find((c) => c.slug === primaryCategory.slug) || primaryCategory)
       : null;
 
+    // Phase 12D: Product JSON-LD
+    const jsonLdProduct = jsonLdScript(buildProductLd(product, BASE_URL));
+
+    // Phase 12D: Breadcrumb JSON-LD
+    const productUrl = makeAbsolute(product.url, BASE_URL);
+    const storeUrl = makeAbsolute('/tienda', BASE_URL);
+    const breadcrumbItems = [{ name: 'Tienda', item: storeUrl }];
+    if (activeCategory) {
+      breadcrumbItems.push({ name: activeCategory.name, item: makeAbsolute(`/tienda?category=${activeCategory.slug}`, BASE_URL) });
+    }
+    breadcrumbItems.push({ name: product.title, item: productUrl });
+    const jsonLdBreadcrumb = jsonLdScript(buildBreadcrumbLd(breadcrumbItems));
+
     res.render('pages/tienda-producto', {
       title: `${product.title} | Tienda`,
-      metaDescription: product.description?.slice(0, 160) || product.title,
+      metaTitle: product.seoTitle || product.title,
+      metaDescription: product.seoDescription || product.description?.slice(0, 160) || product.title,
+      ogImage: product.ogImage || product.primaryImage || '',
+      canonical: productUrl,
+      ogUrl: productUrl,
       robots: 'index,follow',
       layout: 'layouts/store',
       pageClass: 'page-store',
@@ -168,6 +218,8 @@ async function showProduct(req, res, next) {
       relatedProducts,
       whatsappUrl,
       weightLabel,
+      jsonLdProduct,
+      jsonLdBreadcrumb,
     });
   } catch (err) { next(err); }
 }

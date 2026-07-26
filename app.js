@@ -179,19 +179,45 @@ app.use(async (req, res, next) => {
   next();
 });
 
-// ── Public SEO defaults from global settings (Phase 12A) ──
+// ── Base URL for absolute canonicals / JSON-LD / sitemap (Phase 12D) ──
+const BASE_URL = process.env.APP_URL || `http://localhost:${PORT}`;
+
+// ── Public SEO defaults from global + page-specific settings (Phase 12A + 12B + 12D) ──
 app.use(async (req, res, next) => {
   // Skip admin, auth, API, and static paths
   if (req.path.startsWith('/admin') || req.path.startsWith('/auth') || req.path.startsWith('/api') ||
       req.path.startsWith('/health') || req.path.startsWith('/ready')) return next();
+
+  // Inject base URL for absolute canonical URLs and JSON-LD
+  res.locals.baseUrl = BASE_URL;
   try {
     const cms = require('./services/cmsPublishingService');
     const cmsContent = require('./services/cmsContentService');
-    const settings = await cms.getPublishedSettings([
+
+    // Determine page key from request path
+    let pageKey = null;
+    if (req.path === '/' || req.path === '') {
+      pageKey = 'home';
+    } else if (req.path.startsWith('/tienda')) {
+      pageKey = 'store';
+    } else if (req.path.startsWith('/galeria')) {
+      pageKey = 'gallery';
+    }
+
+    // Build list of all keys to load: global + page-specific
+    const globalKeys = [
       'global.seo_title', 'global.seo_description', 'global.og_image',
       'global.canonical_url', 'global.indexing_mode', 'site.favicon',
-    ]);
+    ];
+    const pageKeys = pageKey ? [
+      `seo.${pageKey}.title`, `seo.${pageKey}.description`, `seo.${pageKey}.og_image`,
+      `seo.${pageKey}.canonical`, `seo.${pageKey}.robots`,
+    ] : [];
+    const allKeys = [...globalKeys, ...pageKeys];
 
+    const settings = await cms.getPublishedSettings(allKeys);
+
+    // Global defaults
     if (settings['global.seo_title']) {
       res.locals.globalSeoTitle = settings['global.seo_title'];
     }
@@ -213,6 +239,44 @@ app.use(async (req, res, next) => {
       const fav = await cmsContent.resolveMediaReference(settings['site.favicon'], null);
       if (fav && fav.url) res.locals.globalFavicon = fav.url;
     }
+
+    // Page-specific SEO (Phase 12B)
+    if (pageKey) {
+      if (settings[`seo.${pageKey}.title`]) {
+        res.locals.pageSeoTitle = settings[`seo.${pageKey}.title`];
+      }
+      if (settings[`seo.${pageKey}.description`]) {
+        res.locals.pageSeoDescription = settings[`seo.${pageKey}.description`];
+      }
+      if (settings[`seo.${pageKey}.canonical`]) {
+        res.locals.pageSeoCanonical = settings[`seo.${pageKey}.canonical`];
+      }
+      if (settings[`seo.${pageKey}.robots`]) {
+        res.locals.pageSeoRobots = settings[`seo.${pageKey}.robots`];
+      }
+      if (settings[`seo.${pageKey}.og_image`]) {
+        const pageOg = await cmsContent.resolveMediaReference(settings[`seo.${pageKey}.og_image`], null);
+        if (pageOg && pageOg.url) res.locals.pageSeoOgImage = pageOg.url;
+      }
+    }
+    // Phase 12D: inject common JSON-LD (Organization + WebSite)
+    const { buildOrganizationLd, buildWebSiteLd, jsonLdScript } = require('./config/jsonLdHelper');
+    const hasSettings = settings && typeof settings === 'object';
+    const siteName = hasSettings && settings['global.seo_title']
+      ? settings['global.seo_title']
+      : (res.locals.globalSeoTitle || require('./config/site').name);
+    const siteDescription = hasSettings && settings['global.seo_description']
+      ? settings['global.seo_description']
+      : (res.locals.globalSeoDescription || require('./config/site').description);
+    const orgLd = buildOrganizationLd({
+      siteName,
+      siteDescription,
+      baseUrl: BASE_URL,
+      logo: res.locals.globalFavicon || null,
+    });
+    const webLd = buildWebSiteLd({ siteName, baseUrl: BASE_URL });
+    res.locals.jsonLdOrg = jsonLdScript(orgLd);
+    res.locals.jsonLdWeb = jsonLdScript(webLd);
   } catch (_) {
     // Graceful fallback
   }
@@ -291,8 +355,7 @@ app.use('/cuenta', isAuthenticated, accountRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminOrderRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminRoutes);
 
-// ── SEO: robots.txt ──
-const BASE_URL = process.env.APP_URL || 'http://localhost:' + PORT;
+// ── SEO: robots.txt (Phase 12D — uses BASE_URL from above) ──
 app.get('/robots.txt', (_req, res) => {
   res.type('text/plain');
   res.send(
@@ -308,17 +371,42 @@ app.get('/robots.txt', (_req, res) => {
   );
 });
 
-// ── SEO: sitemap.xml ──
+// ── SEO: sitemap.xml (Phase 12D — includes products, categories, gallery) ──
 app.get('/sitemap.xml', async (_req, res) => {
   try {
     const pool = require('./config/db');
-    const urls = [{ loc: '/', priority: '1.0' }, { loc: '/tienda', priority: '0.9' }, { loc: '/galeria', priority: '0.8' }];
+    const urls = [
+      { loc: '/', priority: '1.0' },
+      { loc: '/tienda', priority: '0.9' },
+      { loc: '/galeria', priority: '0.8' },
+    ];
+
+    // Published products
     const [products] = await pool.query(
       "SELECT slug, updated_at FROM products WHERE is_active = 1 AND is_published = 1 ORDER BY updated_at DESC LIMIT 500"
     );
     for (const p of products) {
       urls.push({ loc: '/tienda/' + p.slug, priority: '0.7', lastmod: p.updated_at ? new Date(p.updated_at).toISOString().slice(0, 10) : null });
     }
+
+    // Active categories
+    const [cats] = await pool.query(
+      "SELECT slug, updated_at FROM categories ORDER BY name ASC LIMIT 100"
+    );
+    for (const c of cats) {
+      urls.push({ loc: '/tienda?category=' + c.slug, priority: '0.6', lastmod: c.updated_at ? new Date(c.updated_at).toISOString().slice(0, 10) : null });
+    }
+
+    // Gallery items (if gallery_items table exists)
+    try {
+      const [gallery] = await pool.query(
+        "SELECT slug, updated_at FROM gallery_items WHERE status = 'published' ORDER BY updated_at DESC LIMIT 500"
+      );
+      for (const g of gallery) {
+        urls.push({ loc: '/galeria/' + g.slug, priority: '0.65', lastmod: g.updated_at ? new Date(g.updated_at).toISOString().slice(0, 10) : null });
+      }
+    } catch (_) { /* gallery_items may not exist yet */ }
+
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
     for (const u of urls) {
       xml += '  <url>\n';

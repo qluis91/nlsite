@@ -14,6 +14,13 @@ const CMS_MODULES = Object.freeze([
     status: 'active',
   },
   {
+    key: 'page-seo',
+    title: 'SEO por página',
+    description: 'Título, descripción, Open Graph, canonical y robots para cada página pública.',
+    href: '/admin/page/page-seo',
+    status: 'active',
+  },
+  {
     key: 'media',
     title: 'Biblioteca multimedia',
     description: 'Carga, edita, reemplaza y archiva imágenes, logos, iconos y modelos 3D.',

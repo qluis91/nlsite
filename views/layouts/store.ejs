@@ -3,11 +3,59 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="<%= typeof metaDescription !== 'undefined' ? metaDescription : site.description %>">
+  <meta name="description" content="<%= typeof metaDescription !== 'undefined' && metaDescription ? metaDescription : (typeof pageSeoDescription !== 'undefined' && pageSeoDescription ? pageSeoDescription : (typeof globalSeoDescription !== 'undefined' && globalSeoDescription ? globalSeoDescription : site.description)) %>">
   <% if (typeof robots !== 'undefined' && robots) { %>
     <meta name="robots" content="<%= robots %>">
+  <% } else if (typeof pageSeoRobots !== 'undefined' && pageSeoRobots) { %>
+    <meta name="robots" content="<%= pageSeoRobots %>">
+  <% } else if (typeof globalRobots !== 'undefined' && globalRobots) { %>
+    <meta name="robots" content="<%= globalRobots %>">
   <% } %>
-  <title><%= typeof title !== 'undefined' ? title + ' | ' + site.name : site.name %></title>
+  <%
+    // Phase 12D: make canonical absolute
+    var _baseUrl = typeof baseUrl !== 'undefined' && baseUrl ? baseUrl.replace(/\/+$/, '') : '';
+    var _canonical = typeof canonical !== 'undefined' && canonical ? String(canonical) : '';
+    if (_baseUrl && _canonical && !_canonical.startsWith('http')) {
+      _canonical = _baseUrl + (_canonical.startsWith('/') ? _canonical : '/' + _canonical);
+    }
+    if (!_canonical) {
+      if (typeof pageSeoCanonical !== 'undefined' && pageSeoCanonical) _canonical = _baseUrl ? _baseUrl + (String(pageSeoCanonical).startsWith('/') ? String(pageSeoCanonical) : '/' + String(pageSeoCanonical)) : String(pageSeoCanonical);
+      else if (typeof globalCanonical !== 'undefined' && globalCanonical) _canonical = _baseUrl ? _baseUrl + (String(globalCanonical).startsWith('/') ? String(globalCanonical) : '/' + String(globalCanonical)) : String(globalCanonical);
+    }
+  %>
+  <% if (_canonical) { %>
+    <link rel="canonical" href="<%= _canonical %>">
+  <% } %>
+  <title><%= typeof metaTitle !== 'undefined' && metaTitle ? metaTitle : (typeof pageSeoTitle !== 'undefined' && pageSeoTitle ? pageSeoTitle : (typeof title !== 'undefined' ? title + ' | ' + site.name : site.name)) %></title>
+  <% if (typeof globalFavicon !== 'undefined' && globalFavicon) { %>
+    <link rel="icon" type="image/x-icon" href="<%= globalFavicon %>">
+    <link rel="shortcut icon" href="<%= globalFavicon %>">
+  <% } %>
+  <% /* Open Graph */ %>
+  <meta property="og:title" content="<%= typeof metaTitle !== 'undefined' && metaTitle ? metaTitle : (typeof pageSeoTitle !== 'undefined' && pageSeoTitle ? pageSeoTitle : (typeof title !== 'undefined' ? title + ' | ' + site.name : site.name)) %>">
+  <meta property="og:description" content="<%= typeof metaDescription !== 'undefined' && metaDescription ? metaDescription : (typeof pageSeoDescription !== 'undefined' && pageSeoDescription ? pageSeoDescription : (typeof globalSeoDescription !== 'undefined' && globalSeoDescription ? globalSeoDescription : site.description)) %>">
+  <% var _storeOg = typeof ogImage !== 'undefined' && ogImage ? ogImage : (typeof pageSeoOgImage !== 'undefined' && pageSeoOgImage ? pageSeoOgImage : (typeof globalOgImage !== 'undefined' && globalOgImage ? globalOgImage : '')); %>
+  <% if (_storeOg) { %>
+    <meta property="og:image" content="<%= _storeOg %>">
+  <% } %>
+  <% var _storeOgUrl = typeof ogUrl !== 'undefined' && ogUrl ? ogUrl : (typeof canonical !== 'undefined' && canonical ? canonical : (typeof pageSeoCanonical !== 'undefined' && pageSeoCanonical ? pageSeoCanonical : (typeof globalCanonical !== 'undefined' && globalCanonical ? globalCanonical : ''))); %>
+  <% if (_storeOgUrl) { %>
+    <meta property="og:url" content="<%= _storeOgUrl %>">
+  <% } %>
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_CR">
+  <% /* Twitter Card */ %>
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="<%= typeof metaTitle !== 'undefined' && metaTitle ? metaTitle : (typeof pageSeoTitle !== 'undefined' && pageSeoTitle ? pageSeoTitle : (typeof title !== 'undefined' ? title + ' | ' + site.name : site.name)) %>">
+  <meta name="twitter:description" content="<%= typeof metaDescription !== 'undefined' && metaDescription ? metaDescription : (typeof pageSeoDescription !== 'undefined' && pageSeoDescription ? pageSeoDescription : (typeof globalSeoDescription !== 'undefined' && globalSeoDescription ? globalSeoDescription : site.description)) %>">
+  <% if (_storeOg) { %>
+    <meta name="twitter:image" content="<%= _storeOg %>">
+  <% } %>
+  <% /* Phase 12D: JSON-LD Structured Data */ %>
+  <% if (typeof jsonLdOrg !== 'undefined' && jsonLdOrg) { %><%- jsonLdOrg %><% } %>
+  <% if (typeof jsonLdWeb !== 'undefined' && jsonLdWeb) { %><%- jsonLdWeb %><% } %>
+  <% if (typeof jsonLdProduct !== 'undefined' && jsonLdProduct) { %><%- jsonLdProduct %><% } %>
+  <% if (typeof jsonLdBreadcrumb !== 'undefined' && jsonLdBreadcrumb) { %><%- jsonLdBreadcrumb %><% } %>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/footer.css">
   <% if (typeof pageStyles !== 'undefined' && Array.isArray(pageStyles)) { %>
