@@ -1,0 +1,256 @@
+<div class="page-header">
+  <div>
+    <h1>Navbar y branding</h1>
+    <p>Logotipo, colores, favicon y enlaces de navegación de la página de inicio.</p>
+  </div>
+  <div class="cms-actions">
+    <a href="/admin/page" class="btn btn-outline">Administrar página</a>
+    <a href="/admin/page/preview" target="_blank" class="btn btn-outline">Vista previa</a>
+    <form action="/admin/page/navbar/publish" method="POST" style="display:inline">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-primary">Publicar navbar</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Logotipos, favicon y colores</h2>
+  <form action="/admin/page/navbar/save" method="POST" class="cms-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="form-group">
+      <%- include('../../../components/media-selector', {
+        fieldName: 'logo_primary',
+        currentValue: settings['site.logo_primary'] || '',
+        allowedTypes: ['image/png','image/jpeg','image/webp'],
+        allowedCategories: ['logo'],
+        uploadProfile: 'navbar-logo',
+        label: 'Logo principal',
+        kindLabel: 'Logo',
+        thumbnailUrl: logoPrimary ? logoPrimary.thumbnail_url : null,
+        selectedTitle: logoPrimary ? (logoPrimary.title || logoPrimary.original_filename) : null,
+        selectedCategory: logoPrimary ? logoPrimary.category : null,
+        selectedMime: logoPrimary ? logoPrimary.mime_type : null,
+        selectedDimensions: logoPrimary ? logoPrimary.dimensions : null,
+      }) %>
+      <small>Logotipo para fondo claro.</small>
+    </div>
+
+    <div class="form-group">
+      <%- include('../../../components/media-selector', {
+        fieldName: 'logo_light',
+        currentValue: settings['site.logo_light'] || '',
+        allowedTypes: ['image/png','image/jpeg','image/webp'],
+        allowedCategories: ['logo'],
+        uploadProfile: 'navbar-light',
+        label: 'Logo claro',
+        kindLabel: 'Logo',
+        thumbnailUrl: logoLight ? logoLight.thumbnail_url : null,
+        selectedTitle: logoLight ? (logoLight.title || logoLight.original_filename) : null,
+        selectedCategory: logoLight ? logoLight.category : null,
+        selectedMime: logoLight ? logoLight.mime_type : null,
+        selectedDimensions: logoLight ? logoLight.dimensions : null,
+      }) %>
+      <small>Variante para fondos claros.</small>
+    </div>
+
+    <div class="form-group">
+      <%- include('../../../components/media-selector', {
+        fieldName: 'logo_dark',
+        currentValue: settings['site.logo_dark'] || '',
+        allowedTypes: ['image/png','image/jpeg','image/webp'],
+        allowedCategories: ['logo'],
+        uploadProfile: 'navbar-dark',
+        label: 'Logo oscuro',
+        kindLabel: 'Logo',
+        thumbnailUrl: logoDark ? logoDark.thumbnail_url : null,
+        selectedTitle: logoDark ? (logoDark.title || logoDark.original_filename) : null,
+        selectedCategory: logoDark ? logoDark.category : null,
+        selectedMime: logoDark ? logoDark.mime_type : null,
+        selectedDimensions: logoDark ? logoDark.dimensions : null,
+      }) %>
+      <small>Variante para fondos oscuros.</small>
+    </div>
+
+    <div class="form-group">
+      <%- include('../../../components/media-selector', {
+        fieldName: 'favicon',
+        currentValue: settings['site.favicon'] || '',
+        allowedTypes: ['image/png','image/jpeg','image/webp'],
+        allowedCategories: ['logo'],
+        uploadProfile: 'favicon',
+        label: 'Favicon',
+        kindLabel: 'Favicon',
+        thumbnailUrl: favicon ? favicon.thumbnail_url : null,
+        selectedTitle: favicon ? (favicon.title || favicon.original_filename) : null,
+        selectedCategory: favicon ? favicon.category : null,
+        selectedMime: favicon ? favicon.mime_type : null,
+        selectedDimensions: favicon ? favicon.dimensions : null,
+      }) %>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="bg_color">Color de fondo</label>
+        <input class="form-control" id="bg_color" name="bg_color" type="text"
+               maxlength="9" placeholder="#RRGGBB"
+               value="<%= settings['navbar.bg_color'] || '' %>">
+      </div>
+      <div class="form-group">
+        <label for="text_color">Color de texto</label>
+        <input class="form-control" id="text_color" name="text_color" type="text"
+               maxlength="9" placeholder="#RRGGBB"
+               value="<%= settings['navbar.text_color'] || '' %>">
+      </div>
+      <div class="form-group">
+        <label for="accent_color">Color de acento</label>
+        <input class="form-control" id="accent_color" name="accent_color" type="text"
+               maxlength="9" placeholder="#RRGGBB"
+               value="<%= settings['navbar.accent_color'] || '' %>">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="border_color">Color del borde</label>
+        <input class="form-control" id="border_color" name="border_color" type="text"
+               maxlength="9" placeholder="#RRGGBB"
+               value="<%= settings['navbar.border_color'] || '' %>">
+      </div>
+      <div class="form-group">
+        <label for="opacity">Opacidad (0–1)</label>
+        <input class="form-control" id="opacity" name="opacity" type="number"
+               min="0" max="1" step="0.1"
+               value="<%= settings['navbar.opacity'] || '' %>">
+      </div>
+      <div class="form-group">
+        <label for="logo_width">Ancho del logo (px)</label>
+        <input class="form-control" id="logo_width" name="logo_width" type="number"
+               min="40" max="500" step="1"
+               value="<%= settings['navbar.logo_width'] || '' %>">
+      </div>
+    </div>
+
+    <div class="cms-actions">
+      <button class="btn btn-primary" type="submit">Guardar borrador</button>
+    </div>
+  </form>
+</div>
+
+<section class="card">
+  <header class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+    <h2>Enlaces de navegación</h2>
+    <button class="btn btn-outline" type="button" data-toggle="nav-item-form" aria-expanded="false">Agregar enlace</button>
+  </header>
+
+  <form id="nav-item-form" class="cms-form cms-form--inline" action="/admin/page/navbar/items" method="POST" style="display:none;margin-bottom:1rem">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="location" value="home">
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label for="nav-label">Etiqueta</label>
+        <input class="form-control" id="nav-label" name="label" type="text" maxlength="100" required placeholder="Tienda">
+      </div>
+      <div class="form-group" style="flex:2">
+        <label for="nav-url">URL</label>
+        <input class="form-control" id="nav-url" name="url" type="text" maxlength="500" required placeholder="/tienda o #servicios">
+      </div>
+      <div class="form-group">
+        <label for="nav-sort">Orden</label>
+        <input class="form-control" id="nav-sort" name="sort_order" type="number" min="0" max="100000" value="<%= (navItems || []).length %>">
+      </div>
+    </div>
+    <div class="cms-actions">
+      <button class="btn btn-primary" type="submit">Crear enlace</button>
+    </div>
+  </form>
+
+  <% if (!navItems.length) { %>
+    <div class="empty-state">
+      <p>No hay enlaces de navegación configurados. Se usará la navegación fija por defecto.</p>
+    </div>
+  <% } else { %>
+    <form action="/admin/page/navbar/items/reorder" method="POST" data-nav-reorder>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="ordered" id="nav-ordered" value="">
+    </form>
+    <table class="table">
+      <thead><tr><th>#</th><th>Etiqueta</th><th>URL</th><th>Tipo</th><th>Visible</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody>
+        <% navItems.forEach(function (item) { %>
+          <tr>
+            <td><%= item.sort_order %></td>
+            <td><strong><%= item.label %></strong></td>
+            <td><code style="font-size:0.82rem"><%= item.url.slice(0, 60) %><%= item.url.length > 60 ? '…' : '' %></code></td>
+            <td><%= item.link_type === 'external' ? 'Externo' : 'Interno' %></td>
+            <td><%= item.is_visible ? 'Sí' : 'No' %></td>
+            <td><span class="badge <%= item.status === 'published' ? 'badge-published' : 'badge-hidden' %>"><%= item.status %></span></td>
+            <td class="cms-actions">
+              <button class="btn btn-sm btn-outline" type="button" data-toggle="nav-edit-<%= item.public_id %>">Editar</button>
+              <form action="/admin/page/navbar/items/archive" method="POST" style="display:inline" data-confirm="¿Archivar este enlace?">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="public_id" value="<%= item.public_id %>">
+                <button class="btn btn-sm btn-danger" type="submit">Archivar</button>
+              </form>
+            </td>
+          </tr>
+          <tr id="nav-edit-<%= item.public_id %>" style="display:none">
+            <td colspan="7">
+              <form action="/admin/page/navbar/items/save" method="POST" class="cms-form cms-form--inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="public_id" value="<%= item.public_id %>">
+                <div class="form-row">
+                  <div class="form-group" style="flex:1">
+                    <label>Etiqueta</label>
+                    <input class="form-control" name="label" type="text" maxlength="100" required value="<%= item.label %>">
+                  </div>
+                  <div class="form-group" style="flex:2">
+                    <label>URL</label>
+                    <input class="form-control" name="url" type="text" maxlength="500" required value="<%= item.url %>">
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Orden</label>
+                    <input class="form-control" name="sort_order" type="number" min="0" value="<%= item.sort_order %>">
+                  </div>
+                  <div class="form-group">
+                    <label>Visible</label>
+                    <select class="form-control" name="is_visible">
+                      <option value="1" <%= item.is_visible ? 'selected' : '' %>>Sí</option>
+                      <option value="0" <%= !item.is_visible ? 'selected' : '' %>>No</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Destino</label>
+                    <select class="form-control" name="target">
+                      <option value="_self" <%= item.target === '_self' ? 'selected' : '' %>>Misma pestaña</option>
+                      <option value="_blank" <%= item.target === '_blank' ? 'selected' : '' %>>Nueva pestaña</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="cms-actions">
+                  <button class="btn btn-primary" type="submit">Guardar</button>
+                  <button class="btn btn-outline" type="button" data-toggle="nav-edit-<%= item.public_id %>">Cancelar</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</section>
+
+<section class="card">
+  <h2>Biblioteca multimedia (referencia rápida)</h2>
+  <p style="color:#64748b;margin-bottom:0.75rem">Usa el ID público de un archivo como <code>media://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee</code> para referenciarlo en los campos de logo.</p>
+  <ul style="list-style:none;padding:0;display:grid;gap:0.5rem">
+    <% (mediaList.items || []).slice(0, 8).forEach(function (asset) { %>
+      <li style="display:flex;align-items:center;gap:0.75rem">
+        <% if (asset.thumbnail_path) { %><img src="<%= asset.thumbnail_path %>" alt="" width="40" height="40" style="border-radius:0.35rem;object-fit:cover"><% } %>
+        <span><code><%= asset.public_id %></code> — <%= asset.title || asset.filename %></span>
+      </li>
+    <% }); %>
+  </ul>
+</section>

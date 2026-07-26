@@ -1,0 +1,109 @@
+<div class="page-header">
+  <div>
+    <h1><%= asset.title || asset.original_name || asset.filename %></h1>
+    <p>
+      <span class="badge <%= asset.status === 'active' ? 'badge-published' : 'badge-hidden' %>">
+        <%= constants.statusLabels[asset.status] || asset.status %>
+      </span>
+      <span class="badge badge-published"><%= constants.categoryLabels[asset.category] || asset.category %></span>
+    </p>
+  </div>
+  <div class="cms-actions">
+    <a class="btn btn-outline" href="/admin/page/media">Volver</a>
+    <a class="btn btn-primary" href="/admin/page/media/<%= asset.public_id %>/edit">Editar</a>
+  </div>
+</div>
+
+<div class="cms-detail">
+  <section class="card cms-detail-preview">
+    <% if (asset.kind === 'model') { %>
+      <div class="cms-model-preview">
+        <span class="cms-thumb-model" aria-hidden="true">GLB</span>
+        <dl class="cms-meta-list">
+          <dt>Generador</dt><dd><%= asset.model_metadata.generator || 'No disponible' %></dd>
+          <dt>Versión glTF</dt><dd><%= asset.model_metadata.version || 'No disponible' %></dd>
+          <dt>Mallas</dt><dd><%= asset.model_metadata.meshCount === null || asset.model_metadata.meshCount === undefined ? 'No disponible' : asset.model_metadata.meshCount %></dd>
+          <dt>Nodos</dt><dd><%= asset.model_metadata.nodeCount === null || asset.model_metadata.nodeCount === undefined ? 'No disponible' : asset.model_metadata.nodeCount %></dd>
+        </dl>
+      </div>
+    <% } else { %>
+      <img class="cms-detail-image" src="<%= asset.public_url %>" alt="<%= asset.alt_text || '' %>" loading="lazy">
+    <% } %>
+  </section>
+
+  <section class="card">
+    <h2>Detalles</h2>
+    <dl class="cms-meta-list">
+      <dt>Nombre original</dt><dd><%= asset.original_name || 'No disponible' %></dd>
+      <dt>Tipo</dt><dd><%= asset.mime_type %></dd>
+      <dt>Tamaño</dt><dd><%= formatFileSize(asset.file_size) %></dd>
+      <% if (asset.width && asset.height) { %>
+        <dt>Dimensiones</dt><dd><%= asset.width %> × <%= asset.height %> px</dd>
+      <% } %>
+      <dt>Texto alternativo</dt><dd><%= asset.alt_text || 'Sin texto alternativo (decorativa)' %></dd>
+      <dt>Descripción</dt><dd><%= asset.description || '—' %></dd>
+      <dt>Cargado por</dt><dd><%= asset.uploader_name || 'Sistema' %></dd>
+      <dt>Fecha de carga</dt><dd><%= new Date(asset.created_at).toLocaleString('es-CR') %></dd>
+      <dt>Referencia CMS</dt><dd><code><%= asset.reference %></code></dd>
+    </dl>
+
+    <div class="form-group">
+      <label for="publicUrl">URL pública</label>
+      <div class="cms-url-row">
+        <input class="form-control" id="publicUrl" type="text" value="<%= asset.public_url %>" readonly>
+        <button class="btn btn-outline" type="button" data-copy-url="<%= asset.public_url %>">Copiar</button>
+      </div>
+    </div>
+
+    <div class="cms-actions">
+      <% if (asset.is_archived) { %>
+        <form action="/admin/page/media/<%= asset.public_id %>/restore" method="POST">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="btn btn-primary" type="submit">Restaurar</button>
+        </form>
+      <% } else { %>
+        <form action="/admin/page/media/<%= asset.public_id %>/archive" method="POST"
+              data-confirm="¿Archivar este archivo? Podrás restaurarlo después.">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="btn btn-danger" type="submit">Archivar</button>
+        </form>
+      <% } %>
+    </div>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Uso en el sitio</h2>
+  <% if (!usages.length) { %>
+    <p>Este archivo no está referenciado por ninguna sección ni configuración. Puede archivarse con seguridad.</p>
+  <% } else { %>
+    <p>Este archivo está en uso y no puede archivarse hasta que se retiren las referencias.</p>
+    <ul class="cms-usage-list">
+      <% usages.forEach(function (item) { %>
+        <li><strong><%= item.label %>:</strong> <%= item.location %></li>
+      <% }); %>
+    </ul>
+  <% } %>
+</section>
+
+<section class="card">
+  <h2>Historial</h2>
+  <% if (!history.length) { %>
+    <p>Sin revisiones registradas.</p>
+  <% } else { %>
+    <table class="table">
+      <thead><tr><th>#</th><th>Acción</th><th>Resumen</th><th>Responsable</th><th>Fecha</th></tr></thead>
+      <tbody>
+        <% history.forEach(function (revision) { %>
+          <tr>
+            <td><%= revision.revision_number %></td>
+            <td><%= revision.action %></td>
+            <td><%= revision.change_summary || '—' %></td>
+            <td><%= revision.actor_name || 'Sistema' %></td>
+            <td><%= new Date(revision.created_at).toLocaleString('es-CR') %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</section>

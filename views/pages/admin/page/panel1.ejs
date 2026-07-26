@@ -1,0 +1,246 @@
+<div class="page-header">
+  <div>
+    <h1>Panel 1 — Hero</h1>
+    <p>Textos, botones, modelo 3D y contenido de presentación de la portada.</p>
+    <p>
+      <span class="badge <%= (section && section.status === 'published') ? 'badge-published' : 'badge-hidden' %>">
+        <%= section ? section.status : 'sin guardar' %>
+      </span>
+    </p>
+  </div>
+  <div class="cms-actions">
+    <a href="/admin/page" class="btn btn-outline">Administrar página</a>
+    <a href="/admin/page/preview" target="_blank" class="btn btn-outline">Vista previa</a>
+    <form action="/admin/page/home/panel-1/publish" method="POST" style="display:inline" data-confirm="¿Publicar el Panel 1? Los cambios serán visibles en el sitio.">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-primary">Publicar panel</button>
+    </form>
+  </div>
+</div>
+
+<%
+  const heroContent = section ? section.content : {};
+  const heroStyle = (section && section.style) ? section.style : {};
+  const modelStyle = (heroStyle && heroStyle.model) ? heroStyle.model : {};
+%>
+
+<form action="/admin/page/home/panel-1/save" method="POST" class="cms-form">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+  <div class="card">
+    <h2>Textos</h2>
+    <div class="form-group">
+      <label for="eyebrow">Texto destacado (eyebrow)</label>
+      <input class="form-control" id="eyebrow" name="eyebrow" type="text" maxlength="120"
+             value="<%= heroContent.eyebrow || '' %>" placeholder="IMPRESIÓN 3D EN COSTA RICA">
+      <small class="char-counter"><span id="eyebrow-count">0</span>/120</small>
+    </div>
+    <div class="form-group">
+      <label for="heading">Título principal</label>
+      <input class="form-control" id="heading" name="heading" type="text" maxlength="180" required
+             value="<%= heroContent.heading || '' %>" placeholder="Fabricamos tus ideas con precisión milimétrica">
+      <small class="char-counter"><span id="heading-count">0</span>/180</small>
+    </div>
+    <div class="form-group">
+      <label for="description">Descripción</label>
+      <textarea class="form-control" id="description" name="description" rows="3" maxlength="1000"
+                placeholder="Diseño, prototipado y fabricación con precisión para convertir ideas en piezas reales."><%= heroContent.description || '' %></textarea>
+      <small class="char-counter"><span id="description-count">0</span>/1000</small>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Botones CTA</h2>
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label for="primary_label">Botón principal — Etiqueta</label>
+        <input class="form-control" id="primary_label" name="primary_label" type="text" maxlength="80"
+               value="<%= (heroContent.primaryButton && heroContent.primaryButton.label) || '' %>" placeholder="Explorar productos">
+      </div>
+      <div class="form-group" style="flex:2">
+        <label for="primary_url">Botón principal — URL</label>
+        <input class="form-control" id="primary_url" name="primary_url" type="text" maxlength="500"
+               value="<%= (heroContent.primaryButton && heroContent.primaryButton.url) || '' %>" placeholder="#productos">
+      </div>
+    </div>
+    <div class="form-group form-check">
+      <label>
+        <input type="checkbox" name="primary_visible" value="1"
+               <%= (!heroContent.primaryButton || heroContent.primaryButton.visible) ? 'checked' : '' %>>
+        Visible
+      </label>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label for="secondary_label">Botón secundario — Etiqueta</label>
+        <input class="form-control" id="secondary_label" name="secondary_label" type="text" maxlength="80"
+               value="<%= (heroContent.secondaryButton && heroContent.secondaryButton.label) || '' %>" placeholder="Cómo trabajamos">
+      </div>
+      <div class="form-group" style="flex:2">
+        <label for="secondary_url">Botón secundario — URL</label>
+        <input class="form-control" id="secondary_url" name="secondary_url" type="text" maxlength="500"
+               value="<%= (heroContent.secondaryButton && heroContent.secondaryButton.url) || '' %>" placeholder="#como-trabajamos">
+      </div>
+    </div>
+    <div class="form-group form-check">
+      <label>
+        <input type="checkbox" name="secondary_visible" value="1"
+               <%= (!heroContent.secondaryButton || heroContent.secondaryButton.visible) ? 'checked' : '' %>>
+        Visible
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Medios</h2>
+    <div class="form-group">
+      <%- include('../../../components/media-selector', {
+        fieldName: 'background_media',
+        currentValue: heroContent.backgroundMedia || '',
+        allowedTypes: ['image/png','image/jpeg','image/webp'],
+        allowedCategories: ['site'],
+        uploadProfile: 'hero-background',
+        label: 'Imagen de fondo',
+        kindLabel: 'Imagen',
+        thumbnailUrl: bgMedia ? bgMedia.thumbnail_url : null,
+        selectedTitle: bgMedia ? (bgMedia.title || bgMedia.original_filename) : null,
+        selectedCategory: bgMedia ? bgMedia.category : null,
+        selectedMime: bgMedia ? bgMedia.mime_type : null,
+        selectedDimensions: bgMedia ? bgMedia.dimensions : null,
+      }) %>
+      <small>Imagen que se usará como fondo del Panel 1.</small>
+    </div>
+    <div class="form-group">
+      <%- include('../../../components/media-selector', {
+        fieldName: 'model_media',
+        currentValue: heroContent.modelMedia || '',
+        allowedTypes: ['model/gltf-binary'],
+        allowedCategories: ['model'],
+        uploadProfile: 'hero-model',
+        label: 'Modelo 3D (GLB)',
+        kindLabel: 'Modelo 3D',
+        thumbnailUrl: modelMedia ? modelMedia.thumbnail_url : null,
+        selectedTitle: modelMedia ? (modelMedia.title || modelMedia.original_filename) : null,
+        selectedCategory: modelMedia ? modelMedia.category : null,
+        selectedMime: modelMedia ? modelMedia.mime_type : null,
+        selectedDimensions: modelMedia ? modelMedia.dimensions : null,
+      }) %>
+      <small>Solo se aceptan modelos GLB de la categoría "Modelo 3D".</small>
+    </div>
+    <div class="form-group">
+      <%- include('../../../components/media-selector', {
+        fieldName: 'model_fallback',
+        currentValue: heroContent.modelFallbackMedia || '',
+        allowedTypes: ['image/png','image/jpeg','image/webp'],
+        allowedCategories: ['site'],
+        uploadProfile: 'hero-fallback',
+        label: 'Imagen de respaldo del modelo',
+        kindLabel: 'Imagen',
+        thumbnailUrl: fallbackMedia ? fallbackMedia.thumbnail_url : null,
+        selectedTitle: fallbackMedia ? (fallbackMedia.title || fallbackMedia.original_filename) : null,
+        selectedCategory: fallbackMedia ? fallbackMedia.category : null,
+        selectedMime: fallbackMedia ? fallbackMedia.mime_type : null,
+        selectedDimensions: fallbackMedia ? fallbackMedia.dimensions : null,
+      }) %>
+      <small>Se muestra si el modelo 3D no carga.</small>
+    </div>
+    <div class="form-group form-check">
+      <label>
+        <input type="checkbox" name="model_enabled" value="1"
+               <%= heroContent.modelEnabled !== false ? 'checked' : '' %>>
+        Modelo 3D habilitado
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Configuración del modelo 3D</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="model_scale">Escala</label>
+        <input class="form-control" id="model_scale" name="model_scale" type="number"
+               min="0.1" max="5" step="0.01"
+               value="<%= modelStyle.scale || 1 %>">
+      </div>
+      <div class="form-group">
+        <label for="auto_rotate_speed">Velocidad rotación automática</label>
+        <input class="form-control" id="auto_rotate_speed" name="auto_rotate_speed" type="number"
+               min="0" max="5" step="0.01"
+               value="<%= modelStyle.autoRotateSpeed || 1 %>">
+      </div>
+    </div>
+
+    <h3 style="font-size:0.95rem;margin:0.75rem 0 0.5rem">Posición</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="model_pos_x">X</label>
+        <input class="form-control" id="model_pos_x" name="model_pos_x" type="number"
+               min="-10" max="10" step="0.1"
+               value="<%= (modelStyle.position && modelStyle.position.x) || 0 %>">
+      </div>
+      <div class="form-group">
+        <label for="model_pos_y">Y</label>
+        <input class="form-control" id="model_pos_y" name="model_pos_y" type="number"
+               min="-10" max="10" step="0.1"
+               value="<%= (modelStyle.position && modelStyle.position.y) || 0 %>">
+      </div>
+      <div class="form-group">
+        <label for="model_pos_z">Z</label>
+        <input class="form-control" id="model_pos_z" name="model_pos_z" type="number"
+               min="-10" max="10" step="0.1"
+               value="<%= (modelStyle.position && modelStyle.position.z) || 0 %>">
+      </div>
+    </div>
+
+    <h3 style="font-size:0.95rem;margin:0.75rem 0 0.5rem">Rotación inicial</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="model_rot_x">X</label>
+        <input class="form-control" id="model_rot_x" name="model_rot_x" type="number"
+               min="-6.283" max="6.283" step="0.1"
+               value="<%= (modelStyle.rotation && modelStyle.rotation.x) || 0 %>">
+      </div>
+      <div class="form-group">
+        <label for="model_rot_y">Y</label>
+        <input class="form-control" id="model_rot_y" name="model_rot_y" type="number"
+               min="-6.283" max="6.283" step="0.1"
+               value="<%= (modelStyle.rotation && modelStyle.rotation.y) || 0 %>">
+      </div>
+      <div class="form-group">
+        <label for="model_rot_z">Z</label>
+        <input class="form-control" id="model_rot_z" name="model_rot_z" type="number"
+               min="-6.283" max="6.283" step="0.1"
+               value="<%= (modelStyle.rotation && modelStyle.rotation.z) || 0 %>">
+      </div>
+    </div>
+
+    <div class="form-group form-check">
+      <label>
+        <input type="checkbox" name="auto_rotate" value="1"
+               <%= modelStyle.autoRotate !== false ? 'checked' : '' %>>
+        Rotación automática habilitada
+      </label>
+    </div>
+  </div>
+
+  <div class="cms-actions">
+    <button class="btn btn-primary" type="submit">Guardar borrador</button>
+  </div>
+</form>
+
+<section class="card">
+  <h2>Biblioteca multimedia</h2>
+  <p style="color:#64748b">Modelos 3D disponibles:</p>
+  <ul style="list-style:none;padding:0;display:grid;gap:0.5rem">
+    <% (modelList.items || []).slice(0, 4).forEach(function (asset) { %>
+      <li><code><%= asset.public_id %></code> — <%= asset.title || asset.filename %> (GLB)</li>
+    <% }); %>
+  </ul>
+  <p style="color:#64748b;margin-top:0.75rem">Imágenes disponibles:</p>
+  <ul style="list-style:none;padding:0;display:grid;gap:0.5rem">
+    <% (mediaList.items || []).filter(function(a) { return a.kind !== 'model'; }).slice(0, 4).forEach(function (asset) { %>
+      <li><code><%= asset.public_id %></code> — <%= asset.title || asset.filename %> (<%= asset.mime_type %>)</li>
+    <% }); %>
+  </ul>
+</section>

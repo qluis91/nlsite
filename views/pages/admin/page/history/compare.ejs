@@ -1,0 +1,60 @@
+<div class="page-header">
+  <h1>Comparar revisiones</h1>
+  <div class="cms-actions">
+    <a href="/admin/page/history" class="btn btn-outline">Volver al historial</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1.5rem">
+  <h2>Revisiones comparadas</h2>
+  <table class="cms-table" style="width:auto">
+    <thead><tr><th></th><th>Desde (Revisión #<%= fromRev.revision_number %>)</th><th>Hasta (Revisión #<%= toRev.revision_number %>)</th></tr></thead>
+    <tbody>
+      <tr><th>ID</th><td><code><%= fromRev.id %></code></td><td><code><%= toRev.id %></code></td></tr>
+      <tr><th>Entidad</th><td><%= fromRev.entity_type %></td><td><%= toRev.entity_type %></td></tr>
+      <tr><th>Acción</th><td><span class="badge"><%= fromRev.action %></span></td><td><span class="badge"><%= toRev.action %></span></td></tr>
+      <tr><th>Fecha</th><td><%= new Date(fromRev.created_at).toLocaleString('es-CR') %></td><td><%= new Date(toRev.created_at).toLocaleString('es-CR') %></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<% if (differences.length) { %>
+<div class="card">
+  <h2>Diferencias detectadas</h2>
+  <table class="cms-table">
+    <thead><tr><th>Campo</th><th>Desde</th><th>Hasta</th><th>Tipo</th></tr></thead>
+    <tbody>
+      <% differences.forEach(function(d) { %>
+        <tr>
+          <td><strong><%= d.field %></strong></td>
+          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code><%= d.fromValue.slice(0, 150) %></code></td>
+          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code><%= d.toValue.slice(0, 150) %></code></td>
+          <td><span class="badge <%= d.type === 'agregado' ? 'badge-published' : d.type === 'eliminado' ? 'badge-error' : 'badge-warning' %>"><%= d.type %></span></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<% } else { %>
+  <div class="empty-state">No se detectaron diferencias entre estas revisiones.</div>
+<% } %>
+
+<% if (fromData || toData) { %>
+<div class="card" style="margin-top:1.5rem">
+  <h2>Datos completos</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+    <div>
+      <h3>Desde</h3>
+      <details><summary>Ver JSON</summary>
+        <pre style="background:#f8fafc;padding:0.75rem;overflow:auto;max-height:300px;font-size:0.75rem"><code><%= JSON.stringify(fromData || {}, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;') %></code></pre>
+      </details>
+    </div>
+    <div>
+      <h3>Hasta</h3>
+      <details><summary>Ver JSON</summary>
+        <pre style="background:#f8fafc;padding:0.75rem;overflow:auto;max-height:300px;font-size:0.75rem"><code><%= JSON.stringify(toData || {}, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;') %></code></pre>
+      </details>
+    </div>
+  </div>
+</div>
+<% } %>

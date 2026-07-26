@@ -1,0 +1,442 @@
+<% const c = content || {}; const s = style || {}; %>
+<div class="page-header">
+  <div>
+    <h1>Panel 2 — Showcase de proyectos</h1>
+    <p>LogoLoop, carrusel de proyectos y contenido del showcase.</p>
+  </div>
+</div>
+
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<% if (saved) { %><div class="alert alert-success"><%= saved %></div><% } %>
+
+<!-- ── Tabs ── -->
+<nav class="cms-tabs" role="tablist" aria-label="Secciones del Panel 2">
+  <button class="cms-tab is-active" role="tab" aria-selected="true" data-tab="general">Contenido general</button>
+  <button class="cms-tab" role="tab" aria-selected="false" data-tab="logoloop">LogoLoop</button>
+  <button class="cms-tab" role="tab" aria-selected="false" data-tab="carousel">Carrusel de proyectos</button>
+  <button class="cms-tab" role="tab" aria-selected="false" data-tab="style">Apariencia</button>
+</nav>
+
+<!-- ═══ General content tab ═══ -->
+<div class="cms-tab-panel is-active" role="tabpanel" data-panel="general">
+  <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="form-group">
+      <label class="field-label" for="p2-eyebrow">Kicker / Etiqueta superior</label>
+      <input type="text" id="p2-eyebrow" name="eyebrow" class="form-input" maxlength="120" value="<%= c.eyebrow || '' %>">
+      <span class="char-counter"><%= (c.eyebrow || '').length %>/120</span>
+    </div>
+
+    <div class="form-group">
+      <label class="field-label" for="p2-heading">Encabezado principal <span class="required">*</span></label>
+      <input type="text" id="p2-heading" name="heading" class="form-input" maxlength="220" required value="<%= c.heading || '' %>">
+      <span class="char-counter"><%= (c.heading || '').length %>/220</span>
+    </div>
+
+    <div class="form-group">
+      <label class="field-label" for="p2-support">Texto de apoyo</label>
+      <textarea id="p2-support" name="supportText" class="form-input" rows="3" maxlength="1200"><%= c.supportText || '' %></textarea>
+      <span class="char-counter"><%= (c.supportText || '').length %>/1200</span>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label" for="p2-carousel-label">Etiqueta del carrusel</label>
+        <input type="text" id="p2-carousel-label" name="carouselLabel" class="form-input" maxlength="120" value="<%= c.carouselLabel || '' %>">
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="p2-loopl-aria">Etiqueta ARIA del LogoLoop</label>
+        <input type="text" id="p2-loopl-aria" name="logoLoopAriaLabel" class="form-input" maxlength="160" value="<%= c.logoLoopAriaLabel || '' %>">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar borrador</button>
+    </div>
+  </form>
+</div>
+
+<!-- ═══ LogoLoop tab ═══ -->
+<div class="cms-tab-panel" role="tabpanel" data-panel="logoloop" hidden>
+  <div class="cms-section-header">
+    <h3>Elementos del LogoLoop</h3>
+    <span class="badge"><%= logoItems.filter(i => i.status === 'published').length %> publicados · <%= logoItems.filter(i => i.status === 'draft').length %> borradores · <%= logoItems.length %> total</span>
+  </div>
+
+  <table class="cms-table">
+    <thead>
+      <tr><th>Tipo</th><th>Contenido / URL</th><th>Visible</th><th>Estado</th><th>Orden</th><th>Acciones</th></tr>
+    </thead>
+    <tbody>
+      <% logoItems.forEach(function(item) { %>
+        <tr>
+          <td><span class="badge badge-<%= item.item_type %>"><%= item.item_type %></span></td>
+          <td>
+            <% if (item.item_type === 'text') { %><%= item.text_content %><% } %>
+            <% if (item.item_type === 'image' || item.item_type === 'logo') { %>
+              <% if (item.media_public_id_resolved) { %>
+                <img src="<%= item.media_public_id_resolved.thumbnail_url || item.media_public_id_resolved.url %>" style="max-width:40px;max-height:40px;vertical-align:middle" alt=""> <%= item.media_public_id_resolved.title %>
+              <% } else { %> <em>Sin imagen</em> <% } %>
+            <% } %>
+            <% if (item.url) { %><br><small><a href="<%= item.url %>" target="_blank"><%= item.url %></a></small><% } %>
+          </td>
+          <td><%= item.is_visible ? 'Sí' : 'No' %></td>
+          <td><span class="badge badge-<%= item.status === 'published' ? 'published' : 'draft' %>"><%= item.status %></span></td>
+          <td><%= item.sort_order %></td>
+          <td class="cms-actions-cell">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="editLogoItem('<%= item.public_id %>', '<%= item.item_type %>', '<%= (item.text_content || '').replace(/'/g, "\\'") %>', '<%= item.media_public_id ? 'media://' + item.media_public_id : '' %>', '<%= item.url || '' %>', '<%= item.link_type %>', '<%= item.target %>', '<%= item.alt_text || '' %>', <%= item.is_visible %>, '<%= item.status %>')">Editar</button>
+            <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/archive" class="cms-form--inline">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="public_id" value="<%= item.public_id %>">
+              <button type="submit" class="btn btn-sm btn-danger">Archivar</button>
+            </form>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+
+  <details class="cms-card">
+    <summary class="cms-card-title">Agregar / Editar elemento</summary>
+    <form method="POST" action="/admin/page/home/panel-2/logo-loop/items" class="cms-form" id="logo-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="public_id" id="logo-edit-id" value="">
+      <input type="hidden" name="action" id="logo-action" value="create">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label">Tipo</label>
+          <select name="item_type" id="logo-type" class="form-input">
+            <option value="text">Texto</option>
+            <option value="image">Imagen</option>
+            <option value="logo">Logo</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="field-label">Visible</label>
+          <select name="is_visible" id="logo-visible" class="form-input">
+            <option value="1">Sí</option>
+            <option value="0">No</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group" id="logo-text-group">
+        <label class="field-label" for="logo-text-content">Contenido de texto</label>
+        <input type="text" id="logo-text-content" name="text_content" class="form-input" maxlength="160">
+      </div>
+
+      <div class="form-group" id="logo-media-group" hidden>
+        <%- include('../../../components/media-selector', {
+          fieldName: 'media_public_id',
+          currentValue: '',
+          label: 'Imagen/Logo',
+          kindLabel: 'Imagen',
+          allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
+          allowedCategories: ['logo'],
+          uploadProfile: 'logo-loop',
+        }) %>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label" for="logo-url">URL (opcional)</label>
+          <input type="text" id="logo-url" name="url" class="form-input" maxlength="500" placeholder="/pagina o #seccion o https://...">
+        </div>
+        <div class="form-group">
+          <label class="field-label">Target</label>
+          <select name="target" id="logo-target" class="form-input">
+            <option value="_self">Misma pestaña</option>
+            <option value="_blank">Nueva pestaña</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group" id="logo-alt-group" hidden>
+        <label class="field-label" for="logo-alt">Texto alternativo</label>
+        <input type="text" id="logo-alt" name="alt_text" class="form-input" maxlength="250">
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="logo-submit-btn">Agregar elemento</button>
+        <button type="button" class="btn btn-secondary" id="logo-cancel-btn" hidden onclick="resetLogoForm()">Cancelar</button>
+      </div>
+    </form>
+
+    <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/reorder" class="cms-form cms-form--inline" style="margin-top:1rem">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field-label">Reordenar (IDs separados por coma)</label>
+      <input type="text" name="ids" class="form-input" value="<%= logoItems.map(i => i.public_id).join(',') %>" style="width:100%">
+      <button type="submit" class="btn btn-secondary btn-sm">Actualizar orden</button>
+    </form>
+  </details>
+
+  <div class="cms-section-footer">
+    <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/publish" class="cms-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-success">Publicar LogoLoop</button>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ Carousel tab ═══ -->
+<div class="cms-tab-panel" role="tabpanel" data-panel="carousel" hidden>
+  <div class="cms-section-header">
+    <h3>Proyectos del carrusel</h3>
+    <span class="badge"><%= carouselItems.filter(i => i.status === 'published').length %> publicados · <%= carouselItems.filter(i => i.status === 'draft').length %> borradores</span>
+  </div>
+
+  <% carouselItems.forEach(function(item) { %>
+    <article class="cms-card carousel-preview-card">
+      <div class="carousel-preview-card__inner">
+        <div class="carousel-preview-card__image">
+          <% if (item.media_public_id_resolved) { %>
+            <img src="<%= item.media_public_id_resolved.thumbnail_url || item.media_public_id_resolved.url %>" alt="" style="width:100%;height:auto;border-radius:6px">
+          <% } else { %>
+            <div class="empty-state" style="padding:2rem;text-align:center">Sin imagen</div>
+          <% } %>
+        </div>
+        <div class="carousel-preview-card__body">
+          <p class="carousel-preview-card__eyebrow"><%= item.eyebrow || '' %></p>
+          <h4><%= item.title %></h4>
+          <p><%= item.description || '' %></p>
+          <% if (item.button_label) { %><p><span class="badge"><%= item.button_label %></span> → <%= item.button_url %></p><% } %>
+          <p>
+            <small>Tema: <%= item.theme_key || '-' %> · Visible: <%= item.is_visible ? 'Sí' : 'No' %> · <%= item.status %></small>
+          </p>
+          <div class="cms-actions-cell">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="editCarouselItem('<%= item.public_id %>', '<%= (item.eyebrow || '').replace(/'/g, "\\'") %>', '<%= (item.title || '').replace(/'/g, "\\'") %>', '<%= (item.description || '').replace(/'/g, "\\'") %>', '<%= item.button_label || '' %>', '<%= item.button_url || '' %>', '<%= item.button_target %>', '<%= item.media_public_id ? 'media://' + item.media_public_id : '' %>', '<%= item.preview_media_public_id ? 'media://' + item.preview_media_public_id : '' %>', '<%= item.theme_key || '' %>', <%= item.is_visible %>, '<%= item.status %>')">Editar</button>
+            <form method="POST" action="/admin/page/home/panel-2/carousel/items/archive" class="cms-form--inline">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="public_id" value="<%= item.public_id %>">
+              <button type="submit" class="btn btn-sm btn-danger">Archivar</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </article>
+  <% }); %>
+
+  <details class="cms-card">
+    <summary class="cms-card-title">Agregar / Editar proyecto</summary>
+    <form method="POST" action="/admin/page/home/panel-2/carousel/items" class="cms-form" id="carousel-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="public_id" id="carousel-edit-id" value="">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label" for="carousel-eyebrow">Eyebrow</label>
+          <input type="text" id="carousel-eyebrow" name="eyebrow" class="form-input" maxlength="120">
+        </div>
+        <div class="form-group">
+          <label class="field-label" for="carousel-theme">Tema</label>
+          <select name="theme_key" id="carousel-theme" class="form-input">
+            <option value="graphite">Graphite</option>
+            <option value="lime">Lime</option>
+            <option value="silver">Silver</option>
+            <option value="ink">Ink</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="field-label" for="carousel-title">Título <span class="required">*</span></label>
+        <input type="text" id="carousel-title" name="title" class="form-input" maxlength="180" required>
+      </div>
+
+      <div class="form-group">
+        <label class="field-label" for="carousel-desc">Descripción</label>
+        <textarea id="carousel-desc" name="description" class="form-input" rows="3" maxlength="1200"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label" for="carousel-btn-label">Etiqueta del botón</label>
+          <input type="text" id="carousel-btn-label" name="button_label" class="form-input" maxlength="80">
+        </div>
+        <div class="form-group">
+          <label class="field-label" for="carousel-btn-url">URL del botón</label>
+          <input type="text" id="carousel-btn-url" name="button_url" class="form-input" maxlength="500">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="field-label">Target del botón</label>
+        <select name="button_target" id="carousel-btn-target" class="form-input">
+          <option value="_self">Misma pestaña</option>
+          <option value="_blank">Nueva pestaña</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <%- include('../../../components/media-selector', {
+          fieldName: 'media_public_id',
+          currentValue: '',
+          label: 'Imagen principal / fondo',
+          kindLabel: 'Imagen de proyecto',
+          allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
+          allowedCategories: ['carousel'],
+          uploadProfile: 'carousel-main',
+        }) %>
+      </div>
+
+      <div class="form-group">
+        <%- include('../../../components/media-selector', {
+          fieldName: 'preview_media_public_id',
+          currentValue: '',
+          label: 'Imagen de preview (opcional)',
+          kindLabel: 'Imagen preview',
+          allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
+          allowedCategories: ['carousel'],
+          uploadProfile: 'carousel-preview',
+        }) %>
+      </div>
+
+      <div class="form-group">
+        <label class="field-label">Visible</label>
+        <select name="is_visible" id="carousel-visible" class="form-input">
+          <option value="1">Sí</option>
+          <option value="0">No</option>
+        </select>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="carousel-submit-btn">Agregar proyecto</button>
+        <button type="button" class="btn btn-secondary" id="carousel-cancel-btn" hidden onclick="resetCarouselForm()">Cancelar</button>
+      </div>
+    </form>
+
+    <form method="POST" action="/admin/page/home/panel-2/carousel/items/reorder" class="cms-form cms-form--inline" style="margin-top:1rem">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field-label">Reordenar (IDs separados por coma)</label>
+      <input type="text" name="ids" class="form-input" value="<%= carouselItems.map(i => i.public_id).join(',') %>" style="width:100%">
+      <button type="submit" class="btn btn-secondary btn-sm">Actualizar orden</button>
+    </form>
+  </details>
+
+  <div class="cms-section-footer">
+    <form method="POST" action="/admin/page/home/panel-2/carousel/items/publish" class="cms-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-success">Publicar carrusel</button>
+    </form>
+  </div>
+</form> <!-- Carousel tab -->
+</div>
+
+<!-- ═══ Style tab ═══ -->
+<div class="cms-tab-panel" role="tabpanel" data-panel="style" hidden>
+  <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label" for="p2-bg-color">Color de fondo</label>
+        <input type="text" id="p2-bg-color" name="backgroundColor" class="form-input" placeholder="#RRGGBB" pattern="#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?" value="<%= s.backgroundColor || '' %>">
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="p2-text-color">Color de texto</label>
+        <input type="text" id="p2-text-color" name="textColor" class="form-input" placeholder="#RRGGBB" pattern="#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?" value="<%= s.textColor || '' %>">
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="p2-accent-color">Color de acento</label>
+        <input type="text" id="p2-accent-color" name="accentColor" class="form-input" placeholder="#RRGGBB" pattern="#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?" value="<%= s.accentColor || '' %>">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar borrador</button>
+    </div>
+  </form>
+
+  <div class="cms-section-footer">
+    <form method="POST" action="/admin/page/home/panel-2/publish" class="cms-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <p style="margin-bottom:0.5rem">Publica el contenido general, LogoLoop y carrusel.</p>
+      <button type="submit" class="btn btn-success">Publicar Panel 2</button>
+    </form>
+  </div>
+</div>
+
+<script>
+// ── Tab switching ──
+document.querySelectorAll('.cms-tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.cms-tab').forEach(function(t) { t.classList.remove('is-active'); t.setAttribute('aria-selected','false'); });
+    document.querySelectorAll('.cms-tab-panel').forEach(function(p) { p.classList.remove('is-active'); p.hidden = true; });
+    this.classList.add('is-active');
+    this.setAttribute('aria-selected','true');
+    var panel = document.querySelector('[data-panel="'+this.dataset.tab+'"]');
+    if (panel) { panel.classList.add('is-active'); panel.hidden = false; }
+  });
+});
+
+// ── LogoLoop type switching ──
+var logoType = document.getElementById('logo-type');
+var logoTextGroup = document.getElementById('logo-text-group');
+var logoMediaGroup = document.getElementById('logo-media-group');
+var logoAltGroup = document.getElementById('logo-alt-group');
+
+function updateLogoFields() {
+  var t = logoType.value;
+  logoTextGroup.hidden = t !== 'text';
+  logoMediaGroup.hidden = t === 'text';
+  logoAltGroup.hidden = t === 'text';
+}
+logoType.addEventListener('change', updateLogoFields);
+updateLogoFields();
+
+function editLogoItem(id, type, text, media, url, linkType, target, alt, visible, status) {
+  document.getElementById('logo-edit-id').value = id;
+  document.getElementById('logo-type').value = type;
+  document.getElementById('logo-text-content').value = text || '';
+  document.querySelector('[name="media_public_id"]').value = media || '';
+  document.getElementById('logo-url').value = url || '';
+  document.getElementById('logo-target').value = target || '_self';
+  document.getElementById('logo-alt').value = alt || '';
+  document.getElementById('logo-visible').value = visible ? '1' : '0';
+  document.getElementById('logo-submit-btn').textContent = 'Guardar cambios';
+  document.getElementById('logo-cancel-btn').hidden = false;
+  document.getElementById('logo-form').action = '/admin/page/home/panel-2/logo-loop/items/save';
+  updateLogoFields();
+  document.querySelector('[data-tab="logoloop"]').click();
+  document.querySelector('.cms-card summary').click();
+}
+
+function resetLogoForm() {
+  document.getElementById('logo-edit-id').value = '';
+  document.getElementById('logo-submit-btn').textContent = 'Agregar elemento';
+  document.getElementById('logo-cancel-btn').hidden = true;
+  document.getElementById('logo-form').action = '/admin/page/home/panel-2/logo-loop/items';
+  document.getElementById('logo-form').reset();
+  updateLogoFields();
+}
+
+// ── Carousel edit helper ──
+function editCarouselItem(id, eyebrow, title, desc, btnLabel, btnUrl, btnTarget, media, preview, theme, visible, status) {
+  document.getElementById('carousel-edit-id').value = id;
+  document.getElementById('carousel-eyebrow').value = eyebrow || '';
+  document.getElementById('carousel-title').value = title || '';
+  document.getElementById('carousel-desc').value = desc || '';
+  document.getElementById('carousel-btn-label').value = btnLabel || '';
+  document.getElementById('carousel-btn-url').value = btnUrl || '';
+  document.getElementById('carousel-btn-target').value = btnTarget || '_self';
+  document.querySelector('[name="media_public_id"]').value = media || '';
+  document.querySelector('[name="preview_media_public_id"]').value = preview || '';
+  document.getElementById('carousel-theme').value = theme || 'graphite';
+  document.getElementById('carousel-visible').value = visible ? '1' : '0';
+  document.getElementById('carousel-submit-btn').textContent = 'Guardar cambios';
+  document.getElementById('carousel-cancel-btn').hidden = false;
+  document.getElementById('carousel-form').action = '/admin/page/home/panel-2/carousel/items/save';
+  document.querySelector('[data-tab="carousel"]').click();
+  document.querySelectorAll('.cms-card summary')[document.querySelectorAll('.cms-card').length - 1]?.click();
+}
+
+function resetCarouselForm() {
+  document.getElementById('carousel-edit-id').value = '';
+  document.getElementById('carousel-submit-btn').textContent = 'Agregar proyecto';
+  document.getElementById('carousel-cancel-btn').hidden = true;
+  document.getElementById('carousel-form').action = '/admin/page/home/panel-2/carousel/items';
+  document.getElementById('carousel-form').reset();
+}
+</script>

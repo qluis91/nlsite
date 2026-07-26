@@ -347,7 +347,7 @@ test('panel-two text and carousel use visible scroll-owned animation layers', ()
   assert.match(css, /\.home-panel--showcase\s*\{[\s\S]*#cfd2d0/);
   assert.match(css, /\.showcase-heading\s*\{[\s\S]*color: #151817/);
   assert.match(page, /class="showcase-support" data-panel2-animate="support"/);
-  assert.equal((page.match(/class="project-carousel__card" data-panel2-animate="card"/g) || []).length, 4);
+  assert.equal((page.match(/class="project-carousel__card" data-panel2-animate="card"/g) || []).length, 5);
   assert.doesNotMatch(
     page,
     /<li(?:(?!>).)*class="project-carousel__slide"(?:(?!>).)*data-panel2-animate="card"/s,

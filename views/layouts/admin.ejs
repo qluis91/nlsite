@@ -49,5 +49,10 @@
   <% if (typeof pageModule !== 'undefined' && pageModule) { %>
     <script type="module" src="<%= pageModule %>"></script>
   <% } %>
+  <% if (typeof pageScripts !== 'undefined' && Array.isArray(pageScripts)) { %>
+    <% pageScripts.forEach(function(s) { %>
+      <script src="<%= s %>"></script>
+    <% }); %>
+  <% } %>
 </body>
 </html>

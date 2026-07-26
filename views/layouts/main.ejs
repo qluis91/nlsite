@@ -1,15 +1,127 @@
+<%
+  const layoutSiteInput =
+    typeof site !== 'undefined' && site && typeof site === 'object'
+      ? site
+      : {};
+  const layoutDefaultColors = {
+    primary: '#2563eb',
+    primaryHover: '#1d4ed8',
+    secondary: '#64748b',
+    accent: '#f59e0b',
+    bg: '#f8fafc',
+    success: '#22c55e',
+    danger: '#ef4444',
+    warning: '#f59e0b',
+  };
+  const layoutColorsInput =
+    layoutSiteInput.colors && typeof layoutSiteInput.colors === 'object'
+      ? layoutSiteInput.colors
+      : {};
+  const layoutSiteName =
+    layoutSiteInput.name
+      ? String(layoutSiteInput.name)
+      : 'NinjaLab CR';
+  const layoutSiteDescription =
+    layoutSiteInput.description
+      ? String(layoutSiteInput.description)
+      : 'NinjaLab CR';
+  const layoutSite = {
+    ...layoutSiteInput,
+    name: layoutSiteName,
+    description: layoutSiteDescription,
+    colors: {
+      ...layoutDefaultColors,
+      ...layoutColorsInput,
+    },
+  };
+  const layoutPageTitle =
+    typeof title !== 'undefined' && title
+      ? String(title)
+      : '';
+  const layoutDocumentTitle =
+    layoutPageTitle
+      ? `${layoutPageTitle} | ${layoutSiteName}`
+      : layoutSiteName;
+  const layoutDescription =
+    typeof metaDescription !== 'undefined' && metaDescription
+      ? String(metaDescription)
+      : layoutSiteDescription;
+  const layoutRobots =
+    typeof robots !== 'undefined' && robots
+      ? String(robots)
+      : '';
+  const layoutCanonical =
+    typeof canonical !== 'undefined' && canonical
+      ? String(canonical)
+      : '';
+  const layoutPageClass =
+    typeof pageClass !== 'undefined' && pageClass
+      ? String(pageClass)
+      : '';
+  const layoutPageStyles =
+    typeof pageStyles !== 'undefined' && Array.isArray(pageStyles)
+      ? pageStyles.map(String)
+      : [];
+  const layoutPageModule =
+    typeof pageModule !== 'undefined' && pageModule
+      ? String(pageModule)
+      : '';
+  const layoutNonce =
+    typeof cspNonce !== 'undefined' && cspNonce
+      ? String(cspNonce)
+      : '';
+  const layoutHideFooter =
+    typeof hideFooter !== 'undefined'
+      ? Boolean(hideFooter)
+      : false;
+  const layoutUsesHeroNavbar =
+    typeof usesHeroNavbar !== 'undefined'
+      ? Boolean(usesHeroNavbar)
+      : false;
+  const layoutSuccessMessage =
+    typeof success_msg !== 'undefined' && success_msg
+      ? String(success_msg)
+      : '';
+  const layoutErrorMessage =
+    typeof error_msg !== 'undefined' && error_msg
+      ? String(error_msg)
+      : '';
+  const layoutUser =
+    typeof user !== 'undefined' && user && typeof user === 'object'
+      ? user
+      : null;
+  const layoutCurrentPath =
+    typeof currentPath !== 'undefined' && currentPath
+      ? String(currentPath)
+      : '';
+  const layoutCsrfToken =
+    typeof csrfToken !== 'undefined' && csrfToken
+      ? String(csrfToken)
+      : '';
+  const layoutCartItemCount =
+    typeof cartItemCount !== 'undefined' && Number.isFinite(Number(cartItemCount))
+      ? Number(cartItemCount)
+      : 0;
+  const layoutContent =
+    typeof body !== 'undefined'
+      ? body
+      : '';
+%>
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="<%= typeof metaDescription !== 'undefined' ? metaDescription : site.description %>">
-  <% if (typeof robots !== 'undefined' && robots) { %>
-    <meta name="robots" content="<%= robots %>">
+  <meta name="description" content="<%= layoutDescription %>">
+  <% if (layoutRobots) { %>
+    <meta name="robots" content="<%= layoutRobots %>">
   <% } %>
-  <title><%= typeof title !== 'undefined' ? title + ' | ' + site.name : site.name %></title>
-  <% if (typeof pageClass !== 'undefined' && pageClass === 'page-home') { %>
-  <script nonce="<%= cspNonce %>">
+  <% if (layoutCanonical) { %>
+    <link rel="canonical" href="<%= layoutCanonical %>">
+  <% } %>
+  <title><%= layoutDocumentTitle %></title>
+  <% if (layoutPageClass === 'page-home') { %>
+  <script nonce="<%= layoutNonce %>">
     document.documentElement.classList.add('js');
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       document.documentElement.classList.add('hero-entrance-pending', 'panel-transition-pending');
@@ -24,31 +136,31 @@
   </script>
   <% } %>
   <link rel="stylesheet" href="/css/style.css">
-  <% if (typeof hideFooter === 'undefined' || hideFooter !== true) { %>
+  <% if (!layoutHideFooter) { %>
     <link rel="stylesheet" href="/css/footer.css">
   <% } %>
-  <% if (typeof pageStyles !== 'undefined' && Array.isArray(pageStyles)) { %>
-    <% pageStyles.forEach(function(s) { %>
+  <% if (layoutPageStyles.length) { %>
+    <% layoutPageStyles.forEach(function(s) { %>
       <link rel="stylesheet" href="<%= s %>">
     <% }); %>
   <% } %>
   <!-- Variables CSS inyectadas desde config/site.js -->
-  <style nonce="<%= cspNonce %>">
+  <style nonce="<%= layoutNonce %>">
     :root {
-      --color-primary: <%= site.colors.primary %>;
-      --color-primary-hover: <%= site.colors.primaryHover %>;
-      --color-secondary: <%= site.colors.secondary %>;
-      --color-accent: <%= site.colors.accent %>;
-      --color-bg: <%= site.colors.bg %>;
-      --color-success: <%= site.colors.success %>;
-      --color-danger: <%= site.colors.danger %>;
-      --color-warning: <%= site.colors.warning %>;
+      --color-primary: <%= layoutSite.colors.primary %>;
+      --color-primary-hover: <%= layoutSite.colors.primaryHover %>;
+      --color-secondary: <%= layoutSite.colors.secondary %>;
+      --color-accent: <%= layoutSite.colors.accent %>;
+      --color-bg: <%= layoutSite.colors.bg %>;
+      --color-success: <%= layoutSite.colors.success %>;
+      --color-danger: <%= layoutSite.colors.danger %>;
+      --color-warning: <%= layoutSite.colors.warning %>;
     }
   </style>
 
-  <% if (typeof pageClass !== 'undefined' && pageClass === 'page-home') { %>
+  <% if (layoutPageClass === 'page-home') { %>
   <link rel="preconnect" href="https://storage.googleapis.com" crossorigin>
-  <script type="importmap" nonce="<%= cspNonce %>">
+  <script type="importmap" nonce="<%= layoutNonce %>">
   {
     "imports": {
       "three": "/vendor/three/build/three.module.js",
@@ -58,33 +170,42 @@
   </script>
   <% } %>
 </head>
-<body class="<%= typeof pageClass !== 'undefined' ? pageClass : '' %>">
-  <% if ((typeof pageClass === 'undefined' || pageClass !== 'page-home') && (typeof usesHeroNavbar === 'undefined' || !usesHeroNavbar)) { %>
-    <%- include('../components/navbar') %>
+<body class="<%= layoutPageClass %>">
+  <% if (layoutPageClass !== 'page-home' && !layoutUsesHeroNavbar) { %>
+    <%- include('../components/navbar', {
+      site: layoutSite,
+      user: layoutUser,
+      currentPath: layoutCurrentPath,
+      csrfToken: layoutCsrfToken,
+      cartItemCount: layoutCartItemCount
+    }) %>
   <% } %>
 
-  <% if (success_msg) { %>
-    <div class="alert alert-success"><%= success_msg %></div>
+  <% if (layoutSuccessMessage) { %>
+    <div class="alert alert-success"><%= layoutSuccessMessage %></div>
   <% } %>
-  <% if (error_msg) { %>
-    <div class="alert alert-danger"><%= error_msg %></div>
+  <% if (layoutErrorMessage) { %>
+    <div class="alert alert-danger"><%= layoutErrorMessage %></div>
   <% } %>
 
-  <%- body || '' %>
+  <%- layoutContent %>
 
-  <% if (typeof hideFooter === 'undefined' || hideFooter !== true) { %>
-    <%- include('../components/footer') %>
+  <% if (!layoutHideFooter) { %>
+    <%- include('../components/footer', {
+      site: layoutSite,
+      pageClass: layoutPageClass
+    }) %>
   <% } %>
 
   <script type="module" src="/js/footerMagicRings.mjs"></script>
 
-  <% if (typeof pageClass !== 'undefined' && pageClass === 'page-home') { %>
+  <% if (layoutPageClass === 'page-home') { %>
     <script type="module" src="/js/home/home.js"></script>
   <% } else { %>
     <script src="/js/main.js"></script>
   <% } %>
-  <% if (typeof pageModule !== 'undefined' && pageModule) { %>
-    <script type="module" src="<%= pageModule %>"></script>
+  <% if (layoutPageModule) { %>
+    <script type="module" src="<%= layoutPageModule %>"></script>
   <% } %>
 </body>
 </html>

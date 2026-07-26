@@ -1,0 +1,285 @@
+<% const c = content || {}; const s = style || {}; %>
+<div class="page-header">
+  <div>
+    <h1>Panel 3 — Servicios</h1>
+    <p>Contenido general y tarjetas de servicios del panel de cierre.</p>
+  </div>
+</div>
+
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<% if (saved) { %><div class="alert alert-success"><%= saved %></div><% } %>
+
+<!-- ── Tabs ── -->
+<nav class="cms-tabs" role="tablist" aria-label="Secciones del Panel 3">
+  <button class="cms-tab is-active" role="tab" aria-selected="true" data-tab="general">Contenido general</button>
+  <button class="cms-tab" role="tab" aria-selected="false" data-tab="cards">Tarjetas / Características</button>
+  <button class="cms-tab" role="tab" aria-selected="false" data-tab="style">Apariencia</button>
+</nav>
+
+<!-- ═══ General content tab ═══ -->
+<div class="cms-tab-panel is-active" role="tabpanel" data-panel="general">
+  <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="form-group">
+      <label class="field-label" for="p3-eyebrow">Kicker / Etiqueta superior</label>
+      <input type="text" id="p3-eyebrow" name="eyebrow" class="form-input" maxlength="120" value="<%= c.eyebrow || '' %>">
+      <span class="char-counter"><%= (c.eyebrow || '').length %>/120</span>
+    </div>
+
+    <div class="form-group">
+      <label class="field-label" for="p3-heading">Encabezado principal <span class="required">*</span></label>
+      <input type="text" id="p3-heading" name="heading" class="form-input" maxlength="220" required value="<%= c.heading || '' %>">
+      <span class="char-counter"><%= (c.heading || '').length %>/220</span>
+    </div>
+
+    <div class="form-group">
+      <label class="field-label" for="p3-desc">Descripción</label>
+      <textarea id="p3-desc" name="description" class="form-input" rows="3" maxlength="1200"><%= c.description || '' %></textarea>
+      <span class="char-counter"><%= (c.description || '').length %>/1200</span>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar borrador</button>
+    </div>
+  </form>
+</div>
+
+<!-- ═══ Cards tab ═══ -->
+<div class="cms-tab-panel" role="tabpanel" data-panel="cards" hidden>
+  <div class="cms-section-header">
+    <h3>Tarjetas de servicios</h3>
+    <span class="badge"><%= items.filter(i => i.status === 'published').length %> publicadas · <%= items.filter(i => i.status === 'draft').length %> borradores · <%= items.length %> total</span>
+  </div>
+
+  <table class="cms-table">
+    <thead>
+      <tr><th>Icono</th><th>Título</th><th>Descripción</th><th>Visible</th><th>Estado</th><th>Orden</th><th>Acciones</th></tr>
+    </thead>
+    <tbody>
+      <% items.forEach(function(item) { %>
+        <tr>
+          <td>
+            <% if (item.icon_type === 'builtin') { %>
+              <span class="badge"><%= item.icon_key %></span>
+            <% } else if (item.media_public_id_resolved) { %>
+              <img src="<%= item.media_public_id_resolved.thumbnail_url || item.media_public_id_resolved.url %>" style="max-width:30px;max-height:30px" alt="">
+            <% } else { %>
+              <em>Sin icono</em>
+            <% } %>
+          </td>
+          <td><strong><%= item.title %></strong></td>
+          <td><small><%= (item.description || '').substring(0, 100) %></small></td>
+          <td><%= item.is_visible ? 'Sí' : 'No' %></td>
+          <td><span class="badge badge-<%= item.status === 'published' ? 'published' : 'draft' %>"><%= item.status %></span></td>
+          <td><%= item.sort_order %></td>
+          <td class="cms-actions-cell">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="editFeatureItem('<%= item.public_id %>', '<%= (item.title || '').replace(/'/g, "\\'") %>', '<%= (item.description || '').replace(/'/g, "\\'") %>', '<%= (item.detail_text || '').replace(/'/g, "\\'") %>', '<%= item.icon_type %>', '<%= item.icon_key || '' %>', '<%= item.media_public_id ? 'media://' + item.media_public_id : '' %>', '<%= item.url || '' %>', '<%= item.link_type %>', '<%= item.target %>', '<%= item.style_variant || '' %>', <%= item.is_visible %>, '<%= item.status %>')">Editar</button>
+            <form method="POST" action="/admin/page/home/panel-3/items/archive" class="cms-form--inline">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="public_id" value="<%= item.public_id %>">
+              <button type="submit" class="btn btn-sm btn-danger">Archivar</button>
+            </form>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+
+  <details class="cms-card">
+    <summary class="cms-card-title">Agregar / Editar tarjeta</summary>
+    <form method="POST" action="/admin/page/home/panel-3/items" class="cms-form" id="feature-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="public_id" id="feature-edit-id" value="">
+
+      <div class="form-group">
+        <label class="field-label" for="feature-title">Título <span class="required">*</span></label>
+        <input type="text" id="feature-title" name="title" class="form-input" maxlength="160" required>
+      </div>
+
+      <div class="form-group">
+        <label class="field-label" for="feature-desc">Descripción</label>
+        <textarea id="feature-desc" name="description" class="form-input" rows="3" maxlength="1000"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="field-label" for="feature-detail">Texto detallado</label>
+        <textarea id="feature-detail" name="detail_text" class="form-input" rows="3" maxlength="1500"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label">Tipo de icono</label>
+          <select name="icon_type" id="feature-icon-type" class="form-input">
+            <option value="builtin">Icono integrado</option>
+            <option value="media">Imagen de biblioteca</option>
+          </select>
+        </div>
+        <div class="form-group" id="feature-builtin-group">
+          <label class="field-label">Ícono integrado</label>
+          <select name="icon_key" id="feature-icon-key" class="form-input">
+            <option value="">Seleccionar...</option>
+            <option value="diseno-3d">Diseño 3D</option>
+            <option value="escaneo-3d">Escaneo 3D</option>
+            <option value="diseno-grafico">Diseño Gráfico</option>
+            <option value="desarrollo-web">Desarrollo Web</option>
+            <option value="prendas">Prendas</option>
+            <option value="impresion-3d">Impresión 3D</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group" id="feature-media-group" hidden>
+        <%- include('../../../components/media-selector', {
+          fieldName: 'media_public_id',
+          currentValue: '',
+          label: 'Icono desde biblioteca',
+          kindLabel: 'Icono/Imagen',
+          allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
+          allowedCategories: ['icon'],
+          uploadProfile: 'feature-icon',
+        }) %>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label" for="feature-url">URL (opcional)</label>
+          <input type="text" id="feature-url" name="url" class="form-input" maxlength="500">
+        </div>
+        <div class="form-group">
+          <label class="field-label">Target</label>
+          <select name="target" id="feature-target" class="form-input">
+            <option value="_self">Misma pestaña</option>
+            <option value="_blank">Nueva pestaña</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label">Variante de estilo</label>
+          <select name="style_variant" id="feature-style" class="form-input">
+            <option value="">Default</option>
+            <option value="default">Default</option>
+            <option value="highlight">Highlight</option>
+            <option value="minimal">Minimal</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="field-label">Visible</label>
+          <select name="is_visible" id="feature-visible" class="form-input">
+            <option value="1">Sí</option>
+            <option value="0">No</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="feature-submit-btn">Agregar tarjeta</button>
+        <button type="button" class="btn btn-secondary" id="feature-cancel-btn" hidden onclick="resetFeatureForm()">Cancelar</button>
+      </div>
+    </form>
+
+    <form method="POST" action="/admin/page/home/panel-3/items/reorder" class="cms-form cms-form--inline" style="margin-top:1rem">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field-label">Reordenar (IDs separados por coma)</label>
+      <input type="text" name="ids" class="form-input" value="<%= items.map(i => i.public_id).join(',') %>" style="width:100%">
+      <button type="submit" class="btn btn-secondary btn-sm">Actualizar orden</button>
+    </form>
+  </details>
+
+  <div class="cms-section-footer">
+    <form method="POST" action="/admin/page/home/panel-3/items/publish" class="cms-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-success">Publicar tarjetas</button>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ Style tab ═══ -->
+<div class="cms-tab-panel" role="tabpanel" data-panel="style" hidden>
+  <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label" for="p3-bg-color">Color de fondo</label>
+        <input type="text" id="p3-bg-color" name="backgroundColor" class="form-input" placeholder="#RRGGBB" pattern="#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?" value="<%= s.backgroundColor || '' %>">
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="p3-text-color">Color de texto</label>
+        <input type="text" id="p3-text-color" name="textColor" class="form-input" placeholder="#RRGGBB" pattern="#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?" value="<%= s.textColor || '' %>">
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="p3-accent-color">Color de acento</label>
+        <input type="text" id="p3-accent-color" name="accentColor" class="form-input" placeholder="#RRGGBB" pattern="#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?" value="<%= s.accentColor || '' %>">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar borrador</button>
+    </div>
+  </form>
+
+  <div class="cms-section-footer">
+    <form method="POST" action="/admin/page/home/panel-3/publish" class="cms-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <p style="margin-bottom:0.5rem">Publica contenido general y tarjetas de servicios.</p>
+      <button type="submit" class="btn btn-success">Publicar Panel 3</button>
+    </form>
+  </div>
+</div>
+
+<script>
+// ── Tab switching ──
+document.querySelectorAll('.cms-tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.cms-tab').forEach(function(t) { t.classList.remove('is-active'); t.setAttribute('aria-selected','false'); });
+    document.querySelectorAll('.cms-tab-panel').forEach(function(p) { p.classList.remove('is-active'); p.hidden = true; });
+    this.classList.add('is-active'); this.setAttribute('aria-selected','true');
+    var panel = document.querySelector('[data-panel="'+this.dataset.tab+'"]');
+    if (panel) { panel.classList.add('is-active'); panel.hidden = false; }
+  });
+});
+
+// ── Icon type switching ──
+var iconTypeSel = document.getElementById('feature-icon-type');
+var builtinGroup = document.getElementById('feature-builtin-group');
+var mediaGroup = document.getElementById('feature-media-group');
+function updateIconFields() {
+  builtinGroup.hidden = iconTypeSel.value !== 'builtin';
+  mediaGroup.hidden = iconTypeSel.value !== 'media';
+}
+iconTypeSel.addEventListener('change', updateIconFields);
+updateIconFields();
+
+// ── Edit helper ──
+function editFeatureItem(id, title, desc, detail, iconType, iconKey, media, url, linkType, target, styleVar, visible, status) {
+  document.getElementById('feature-edit-id').value = id;
+  document.getElementById('feature-title').value = title || '';
+  document.getElementById('feature-desc').value = desc || '';
+  document.getElementById('feature-detail').value = detail || '';
+  iconTypeSel.value = iconType || 'builtin';
+  document.getElementById('feature-icon-key').value = iconKey || '';
+  document.querySelector('[name="media_public_id"]').value = media || '';
+  document.getElementById('feature-url').value = url || '';
+  document.getElementById('feature-target').value = target || '_self';
+  document.getElementById('feature-style').value = styleVar || '';
+  document.getElementById('feature-visible').value = visible ? '1' : '0';
+  document.getElementById('feature-submit-btn').textContent = 'Guardar cambios';
+  document.getElementById('feature-cancel-btn').hidden = false;
+  document.getElementById('feature-form').action = '/admin/page/home/panel-3/items/save';
+  updateIconFields();
+  document.querySelector('[data-tab="cards"]').click();
+  document.querySelector('.cms-card summary')?.click();
+}
+
+function resetFeatureForm() {
+  document.getElementById('feature-edit-id').value = '';
+  document.getElementById('feature-submit-btn').textContent = 'Agregar tarjeta';
+  document.getElementById('feature-cancel-btn').hidden = true;
+  document.getElementById('feature-form').action = '/admin/page/home/panel-3/items';
+  document.getElementById('feature-form').reset();
+  updateIconFields();
+}
+</script>

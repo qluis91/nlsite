@@ -1,0 +1,99 @@
+<div class="page-header">
+  <div>
+    <h1>Editar multimedia</h1>
+    <p>El identificador del medio no cambia, por lo que las referencias existentes siguen siendo válidas.</p>
+  </div>
+  <a class="btn btn-outline" href="/admin/page/media/<%= asset.public_id %>">Ver detalle</a>
+</div>
+
+<div class="card">
+  <h2>Metadatos</h2>
+  <form action="/admin/page/media/<%= asset.public_id %>" method="POST" class="cms-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="form-group">
+      <label for="title">Título</label>
+      <input class="form-control" id="title" name="title" type="text"
+             maxlength="<%= constants.titleMax %>" value="<%= asset.title || '' %>">
+    </div>
+
+    <div class="form-group">
+      <label for="altText">Texto alternativo</label>
+      <input class="form-control" id="altText" name="altText" type="text"
+             maxlength="<%= constants.altTextMax %>" value="<%= asset.alt_text || '' %>">
+    </div>
+
+    <div class="form-group form-check">
+      <label>
+        <input type="checkbox" name="decorative" value="1" <%= asset.alt_text ? '' : 'checked' %>>
+        La imagen es decorativa y no necesita texto alternativo
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label for="description">Descripción</label>
+      <textarea class="form-control" id="description" name="description" rows="3"
+                maxlength="<%= constants.descriptionMax %>"><%= asset.description || '' %></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="category">Categoría</label>
+      <select class="form-control" id="category" name="category" required>
+        <% constants.categories.forEach(function (category) { %>
+          <option value="<%= category %>" <%= asset.category === category ? 'selected' : '' %>>
+            <%= constants.categoryLabels[category] %>
+          </option>
+        <% }); %>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="status">Estado</label>
+      <select class="form-control" id="status" name="status">
+        <% constants.editableStatuses.forEach(function (status) { %>
+          <option value="<%= status %>" <%= asset.status === status ? 'selected' : '' %>>
+            <%= constants.statusLabels[status] %>
+          </option>
+        <% }); %>
+      </select>
+      <small>Un archivo en uso no puede archivarse.</small>
+    </div>
+
+    <div class="cms-actions">
+      <button class="btn btn-primary" type="submit">Guardar metadatos</button>
+      <a class="btn btn-outline" href="/admin/page/media/<%= asset.public_id %>">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Reemplazar archivo</h2>
+  <p>
+    El archivo nuevo debe ser del mismo tipo
+    (<%= asset.kind === 'model' ? 'modelo GLB' : 'imagen' %>).
+    El medio conserva su identidad y su historial.
+  </p>
+  <form action="/admin/page/media/<%= asset.public_id %>/replace" method="POST"
+        enctype="multipart/form-data" class="cms-form" data-media-upload>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="form-group">
+      <label for="file">Archivo de reemplazo</label>
+      <input class="form-control" id="file" name="file" type="file" required
+             accept="<%= asset.kind === 'model' ? '.glb' : '.jpg,.jpeg,.png,.webp' + (constants.avifSupported ? ',.avif' : '') %>">
+      <p class="cms-upload-state" data-upload-state hidden>Procesando archivo…</p>
+    </div>
+    <div class="cms-actions">
+      <button class="btn btn-danger" type="submit">Reemplazar archivo</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Datos no editables</h2>
+  <dl class="cms-meta-list">
+    <dt>Nombre almacenado</dt><dd><%= asset.filename %></dd>
+    <dt>Tipo</dt><dd><%= asset.mime_type %></dd>
+    <dt>Tamaño</dt><dd><%= formatFileSize(asset.file_size) %></dd>
+    <dt>Checksum</dt><dd><code><%= asset.checksum.slice(0, 16) %>…</code></dd>
+  </dl>
+</div>

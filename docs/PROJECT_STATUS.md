@@ -1,7 +1,8 @@
 # nlSite — Project Status
 
-**Last updated:** 2026-07-24
-**Current phase:** Homepage Panel 2 — Project Showcase
+**Last updated:** 2026-07-25
+**Current phase:** CMS Phase 11D — Centralized publishing, revision history, comparison, and restore (Jul 2026)
+**Next:** CMS Phase 11E — (to be defined)
 
 ---
 
@@ -21,6 +22,43 @@
 
 ## Working Features
 
+- [x] Unified direct-upload experience for all CMS image selectors: "Seleccionar de la biblioteca" + "Subir desde mi dispositivo" tabs, drag-and-drop zone, file picker, Spanish errors, processing state, auto-select after upload
+- [x] Shared image processing pipeline at WebP quality 80 for all public/content images — CMS media library, gallery, catalog, avatars
+- [x] All sharp quality settings unified to 80: `IMAGE_VARIANTS` (large/medium/thumbnail), `imageProcessingService PROFILES` (product/avatar/gallery/category), `galleryOptions IMAGE_PROFILES` (display/thumbnail/poster)
+- [x] Upload profiles (`config/cmsOptions.js` UPLOAD_PROFILES): `navbar-logo`, `navbar-light`, `navbar-dark`, `favicon`, `hero-background`, `hero-model`, `hero-fallback`, `logo-loop`, `carousel-main`, `carousel-preview`, `feature-icon`, `nav-item-icon`, `gallery`, `product`, `category`, `avatar`
+- [x] AJAX upload endpoint `POST /admin/api/page/media/upload` with capability check, CSRF, Multer, profile validation, duplicate detection, transactional DB/cleanup
+- [x] `mediaService.createFromSelectorUpload` — creates asset or returns existing duplicate
+- [x] All media-selector includes in Navbar, Panel 1, Panel 2, Panel 3 updated with `uploadProfile` parameter
+- [x] Payment proofs explicitly unchanged (private, separate flow, quality 86)
+- [x] GLB uploads remain GLB-only, not passed through Sharp
+
+- [x] Visual media selector integrated into Navbar and Panel 1 admin forms (logos, favicon, background, GLB, fallback) with type filtering and pre-population
+- [x] Public Panel 3 consumes published CMS feature items via `servicesCarousel.mjs`, with hardcoded `SERVICES` fallback for zero items
+- [x] Panel 2/3 draft preview complete with preview banner, draft repeatable items, no-cache/noindex headers
+- [x] Admin layout supports `pageScripts` for non-module JS (media-selector.js loaded on all admin page editors)
+- [x] Full test suite: 486 tests, 0 failures (Phase 11A+B+C tests all pass)
+- [x] `saveItem` revision data corrected: previousData = old row, newData = merged result
+
+- [x] Admin CMS: Panel 2 editor (LogoLoop items, project carousel, general content/styles) and Panel 3 editor (feature cards, general content/styles) — see `docs/CMS_PHASE_11C.md`
+- [x] `logo_loop_items`, `home_carousel_items`, `home_feature_items` tables with UUID public_ids, soft-delete, sort_order, status workflow (draft/published/archived), idempotent seed of current hardcoded items
+- [x] Reusable visual media selector: EJS partial + vanilla JS, server-side search/filter/pagination, type/category constraints, upgrades all Phase 11B media inputs
+- [x] Public homepage: Panel 2 LogoLoop, carousel, and Panel 3 headings/text resolve published CMS content with hardcoded fallbacks
+- [x] Admin CMS: Navbar editor (logo, colores, favicon, enlaces ordenables, draft/publicar) and Panel 1 editor (textos, botones, modelo 3D GLB, fallback, draft/publicar/preview) — see `docs/CMS_PHASE_11B.md`
+- [x] `navigation_items` table with UUID public_ids, soft-delete, sort_order, status workflow (draft/published/archived), idempotent seed of current navbar links
+- [x] Public homepage: navbar and Panel 1 resolve published CMS content with hardcoded fallbacks; CMS content never blanks the public site
+- [x] Three.js model configuration from DOM data attributes (model URL, scale, position, rotation, auto-rotate, speed); single renderer/canvas/RAF lifecycle preserved
+- [x] In-memory read cache for published site content, invalidated per-namespace on publish; drafts and preview bypass cache
+
+- [x] Admin `Administrar página` overview with media aggregates and non-linked placeholders for navbar, Panel 1/2/3 and publishing (see `docs/CMS_PHASE_11A.md`)
+- [x] CMS media library with upload, metadata editing, file replacement preserving media identity, archive (soft delete) and restore, behind admin auth, capability checks and CSRF
+- [x] Content-based upload validation (MIME/extension/decoded bytes), 15 MB image and 30 MB GLB limits, 10000 px dimension cap, decompression-bomb and animated-image rejection, SVG disabled by design
+- [x] Sharp WebP variants (2560 / 1280 / 400) without upscaling, metadata stripped, transparency preserved, SHA-256 checksum duplicate detection and bounded-concurrency batch uploads with partial-success reporting
+- [x] GLB magic-byte, version, length and JSON-chunk validation with stored model metadata; models never processed by Sharp
+- [x] Configurable media storage under `<UPLOAD_PUBLIC_DIR>/media` with traversal-resistant resolution, never-overwrite writes and failure compensation
+- [x] `media://<public_id>` reference tokens with usage lookup across `page_sections` and `site_settings`, extensible per phase, blocking archive of referenced assets
+- [x] Idempotent additive CMS migration for `media_assets`, `pages`, `page_sections`, extended `site_settings` and `content_revisions`, with transactional non-overwriting `home` seed
+- [x] Revision/audit records for upload, metadata edit, replacement, archive and restore using allowlisted metadata snapshots
+- [x] Public homepage and every existing upload flow unchanged; seeded sections remain disabled drafts so hardcoded fallbacks still render
 - [x] Public `/galeria` with server-rendered category/type filters, 24-item pagination, responsive fallback grid and empty states
 - [x] MySQL gallery categories/items with additive idempotent migration, synchronized schema, publication, featured state and deterministic ordering
 - [x] Admin gallery/category CRUD behind administrator authentication and centralized CSRF
@@ -348,3 +386,8 @@
 | Tilopay v2 | **BLOCKED**: Real API endpoints, webhook signatures, sandbox credentials, live transactions pending. SDK V2 guides behind merchant portal login, Postman requires JS. See docs/TILOPAY_INTEGRATION.md for exact gaps. | 2026-07-23 |
 | 3D Loader | Localized 3D loading animation: full-page intro disabled, SpinnerMorph (native SVG/SMIL) inside hero-3d only, model state machine (loading/ready/error), retry button, reduced-motion support, zero new dependencies | 2026-07-23 |
 | Homepage Panel 2 | Gray project showcase, camera-space Antigravity soft repulsion, scroll-driven Blur Text, carousel wrapper/card entrance, and preserved Panel 1 lifecycle | 2026-07-24 |
+| CMS Phase 11A | CMS foundation: media library, upload validation, Sharp variants, GLB validation, revisions | 2026-07-24 |
+| CMS Phase 11B | Navbar editor, Panel 1 editor, draft/publish/preview, cache | 2026-07-24 |
+| CMS Phase 11C | Panel 2/3 editors, LogoLoop, carousel, feature cards, reusable media selector | 2026-07-24 |
+| CMS Phase 11C-S | Direct upload, unified WebP quality 80, upload profiles, AJAX endpoint | 2026-07-25 |
+| CMS Phase 11D | Centralized publishing, atomic batches, history, comparison, safe restore, 75 tests | 2026-07-25 |

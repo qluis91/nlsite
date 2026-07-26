@@ -1,0 +1,115 @@
+<div class="page-header">
+  <div>
+    <h1>Publicación e historial</h1>
+    <p>Publica módulos seleccionados o la página completa. Revisa cambios pendientes y el historial de revisiones.</p>
+  </div>
+  <div class="cms-actions">
+    <a href="/admin/page/history" class="btn btn-outline">Historial de revisiones</a>
+    <a href="/admin/page/preview" target="_blank" class="btn btn-outline">Vista previa</a>
+    <form action="/admin/page/publishing/publish-home" method="POST" style="display:inline" onsubmit="return confirm('¿Publicar la página completa? Esta acción es atómica.')">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-primary">Publicar página completa</button>
+    </form>
+  </div>
+</div>
+
+<% if (error) { %>
+  <div class="alert alert-error"><%= error %></div>
+<% } %>
+<% if (saved) { %>
+  <div class="alert alert-success"><%= saved %></div>
+<% } %>
+
+<!-- Module status cards -->
+<section>
+  <h2>Estado de los módulos</h2>
+  <form action="/admin/page/publishing/publish-selected" method="POST" id="publish-selected-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="cms-module-cards">
+      <% cards.forEach(function(card) { %>
+        <div class="cms-module-card" style="<%= card.status === 'cambios_sin_publicar' ? 'border-left: 3px solid #f59e0b;' : card.status === 'borrador_invalido' ? 'border-left: 3px solid #dc2626;' : '' %>">
+          <div class="cms-module-card__header">
+            <label class="cms-checkbox">
+              <% if (card.hasPending) { %>
+                <input type="checkbox" name="modules" value="<%= card.moduleKey %>" data-module-checkbox>
+              <% } %>
+              <strong><%= card.label %></strong>
+            </label>
+            <span class="badge <%= card.status === 'cambios_sin_publicar' ? 'badge-warning' : card.status === 'borrador_invalido' ? 'badge-error' : card.status === 'sin_cambios' ? 'badge-published' : '' %>">
+              <% if (card.status === 'cambios_sin_publicar') { %>Cambios sin publicar
+              <% } else if (card.status === 'borrador_invalido') { %>Borrador inválido
+              <% } else if (card.status === 'sin_cambios') { %>Sin cambios
+              <% } else if (card.status === 'error') { %>Error
+              <% } else { %><%= card.status %><% } %>
+            </span>
+          </div>
+          <% if (card.validation && card.validation.warnings && card.validation.warnings.length) { %>
+            <div class="cms-module-card__warnings">
+              <% card.validation.warnings.forEach(function(w) { %>
+                <p class="warning">⚠ <%= w %></p>
+              <% }); %>
+            </div>
+          <% } %>
+          <% if (card.validation && card.validation.errors && card.validation.errors.length) { %>
+            <div class="cms-module-card__errors">
+              <% card.validation.errors.forEach(function(e) { %>
+                <p class="error">✕ <%= e %></p>
+              <% }); %>
+            </div>
+          <% } %>
+          <div class="cms-module-card__meta">
+            <% if (card.lastDraftAt) { %><span>Último borrador: <%= new Date(card.lastDraftAt).toLocaleString('es-CR') %></span><% } %>
+            <% if (card.lastEditor) { %><span> · Editor: <%= card.lastEditor %></span><% } %>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+    <div class="cms-actions" style="margin-top:1rem">
+      <button type="submit" class="btn btn-primary" data-confirm="¿Publicar los módulos seleccionados?" id="publish-selected-btn">Publicar módulos seleccionados</button>
+    </div>
+  </form>
+</section>
+
+<!-- Recent publication batches -->
+<% if (recentBatches.length) { %>
+<section style="margin-top:2rem">
+  <h2>Publicaciones recientes</h2>
+  <table class="cms-table">
+    <thead><tr><th>Fecha</th><th>Alcance</th><th>Estado</th><th>Resumen</th><th>Publicado por</th></tr></thead>
+    <tbody>
+      <% recentBatches.forEach(function(b) { %>
+        <tr>
+          <td><%= new Date(b.published_at || b.created_at).toLocaleString('es-CR') %></td>
+          <td><%= b.scope === 'homepage' ? 'Página completa' : b.scope === 'selected' ? 'Seleccionado' : b.scope === 'restore' ? 'Restauración' : b.scope %></td>
+          <td><span class="badge <%= b.status === 'published' ? 'badge-published' : 'badge-error' %>"><%= b.status %></span></td>
+          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= b.summary || '—' %></td>
+          <td><%= b.published_by_name || b.created_by_name || '—' %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</section>
+<% } %>
+
+<script>
+(function() {
+  // Select-all / deselect-all toggle behavior
+  const checkboxes = document.querySelectorAll('[data-module-checkbox]');
+  if (!checkboxes.length) {
+    document.getElementById('publish-selected-btn')?.setAttribute('disabled', '');
+  }
+  // Confirmation on publish-selected
+  const form = document.getElementById('publish-selected-form');
+  form?.addEventListener('submit', function(e) {
+    const checked = form.querySelectorAll('[data-module-checkbox]:checked');
+    if (!checked.length) {
+      e.preventDefault();
+      alert('Seleccione al menos un módulo para publicar.');
+      return;
+    }
+    if (!confirm('¿Publicar los módulos seleccionados? Esta acción es atómica.')) {
+      e.preventDefault();
+    }
+  });
+})();
+</script>

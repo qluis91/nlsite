@@ -1,0 +1,81 @@
+<div class="page-header">
+  <div>
+    <h1>Administrar página</h1>
+    <p>Contenido editable del sitio. En esta fase está disponible la biblioteca multimedia.</p>
+  </div>
+</div>
+
+<section class="cms-stats" aria-label="Resumen de la biblioteca multimedia">
+  <div class="card cms-stat">
+    <span class="cms-stat-label">Archivos totales</span>
+    <strong class="cms-stat-value"><%= summary.totalAssets %></strong>
+  </div>
+  <div class="card cms-stat">
+    <span class="cms-stat-label">Imágenes</span>
+    <strong class="cms-stat-value"><%= summary.imageAssets %></strong>
+  </div>
+  <div class="card cms-stat">
+    <span class="cms-stat-label">Modelos 3D</span>
+    <strong class="cms-stat-value"><%= summary.modelAssets %></strong>
+  </div>
+  <div class="card cms-stat">
+    <span class="cms-stat-label">Almacenamiento usado</span>
+    <strong class="cms-stat-value"><%= summary.storageLabel %></strong>
+  </div>
+  <div class="card cms-stat">
+    <span class="cms-stat-label">Archivados</span>
+    <strong class="cms-stat-value"><%= summary.archivedAssets %></strong>
+  </div>
+  <div class="card cms-stat">
+    <span class="cms-stat-label">Procesando / fallidos</span>
+    <strong class="cms-stat-value"><%= summary.processingAssets %> / <%= summary.failedAssets %></strong>
+  </div>
+</section>
+
+<section class="cms-modules" aria-label="Módulos de administración">
+  <% modules.forEach(function (module) { %>
+    <article class="card cms-module <%= module.status === 'active' ? 'is-active' : 'is-next' %>">
+      <header class="cms-module-header">
+        <h2><%= module.title %></h2>
+        <% if (module.status === 'active') { %>
+          <span class="badge badge-published">Disponible</span>
+        <% } else { %>
+          <span class="badge badge-hidden">Próxima fase</span>
+        <% } %>
+      </header>
+      <p><%= module.description %></p>
+      <% if (module.status === 'active' && module.href) { %>
+        <a class="btn btn-primary" href="<%= module.href %>">Abrir</a>
+      <% } else { %>
+        <span class="cms-module-disabled">Se habilitará en una fase posterior.</span>
+      <% } %>
+    </article>
+  <% }); %>
+</section>
+
+<section class="card cms-recent" aria-label="Cargas recientes">
+  <h2>Cargas recientes</h2>
+  <% if (!recent.length) { %>
+    <div class="empty-state">
+      <p>Todavía no hay archivos en la biblioteca multimedia.</p>
+      <a class="btn btn-primary" href="/admin/page/media/upload">Cargar el primer archivo</a>
+    </div>
+  <% } else { %>
+    <ul class="cms-recent-list">
+      <% recent.forEach(function (asset) { %>
+        <li class="cms-recent-item">
+          <% if (asset.thumbnail_path) { %>
+            <img class="cms-thumb" src="<%= asset.thumbnail_path %>" alt="" width="56" height="56" loading="lazy">
+          <% } else { %>
+            <span class="cms-thumb cms-thumb-model" aria-hidden="true">GLB</span>
+          <% } %>
+          <span class="cms-recent-meta">
+            <a href="/admin/page/media/<%= asset.public_id %>"><%= asset.title || asset.original_name || asset.filename %></a>
+            <small><%= asset.category %> · <%= formatFileSize(asset.file_size) %> · <%= new Date(asset.created_at).toLocaleDateString('es-CR') %></small>
+          </span>
+        </li>
+      <% }); %>
+    </ul>
+    <a class="btn btn-outline" href="/admin/page/media">Ver biblioteca completa</a>
+  <% } %>
+</section>

@@ -29,6 +29,15 @@ const UPLOAD_PROOFS = process.env.UPLOAD_PROOFS_DIR || path.join(__dirname, 'sto
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
+// ── Ensure CMS media library directories (inside the public upload root) ──
+const { MEDIA_ROOT, MEDIA_DIRECTORIES } = require('./config/cmsOptions');
+[MEDIA_ROOT, ...MEDIA_DIRECTORIES.map(name => path.join(MEDIA_ROOT, name))].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
+// ── Register CMS usage sources for later Phases (media references in nav items etc.) ──
+require('./services/cmsPublishingService').registerNavUsageSource();
+
 // ── Session store ──
 const { createSessionMiddleware, sessionStore } = require('./config/session');
 
@@ -40,6 +49,13 @@ const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const adminCatalogRoutes = require('./routes/adminCatalogRoutes');
 const adminGalleryRoutes = require('./routes/adminGalleryRoutes');
+const adminPageRoutes = require('./routes/adminPageRoutes');
+const adminPageContentRoutes = require('./routes/adminPageContentRoutes');
+const adminPanelsRoutes = require('./routes/adminPanelsRoutes');
+const adminPublishingRoutes = require('./routes/adminPublishingRoutes');
+
+// ── Register Phase 11C usage sources for Panel 2/3 media references ──
+require('./services/cmsRepeatableService').registerPanelUsageSources();
 const adminOrderRoutes = require('./routes/adminOrderRoutes');
 const accountRoutes = require('./routes/accountRoutes');
 const accountAvatarRoutes = require('./routes/accountAvatarRoutes');
@@ -184,6 +200,10 @@ app.post('/admin/login', isAdminGuest, csrfSynchronisedProtection, adminLoginLim
 // ── Admin catalog: mounted BEFORE global CSRF so multipart routes handle CSRF after multer ──
 app.use('/admin', isAuthenticated, isAdmin, adminCatalogRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminGalleryRoutes);
+app.use('/admin', isAuthenticated, isAdmin, adminPageRoutes);
+app.use('/admin', isAuthenticated, isAdmin, adminPageContentRoutes);
+app.use('/admin', isAuthenticated, isAdmin, adminPanelsRoutes);
+app.use('/admin', isAuthenticated, isAdmin, adminPublishingRoutes);
 app.use('/cuenta', isAuthenticated, accountAvatarRoutes);
 const paymentProofAccountRoutes = require('./routes/paymentProofAccountRoutes');
 const paymentProofGuestRoutes = require('./routes/paymentProofGuestRoutes');
@@ -255,13 +275,143 @@ app.get('/sitemap.xml', async (_req, res) => {
 });
 
 // ── Página de Inicio ──
-app.get('/', (req, res) => {
-  res.render('pages/home', {
-    title: 'Inicio',
-    layout: 'layouts/main',
-    pageClass: 'page-home',
-    pageStyles: ['/css/home.css'],
-  });
+app.get('/', async (req, res) => {
+  try {
+    const cms = require('./services/cmsPublishingService');
+    const cmsContent = require('./services/cmsContentService');
+
+    const [navItems, heroContent, showcaseContent, servicesContent, settings] = await Promise.all([
+      cms.getPublishedNavItems('home'),
+      cmsContent.getPublishedSectionContent('home', 'hero', null),
+      cmsContent.getPublishedSectionContent('home', 'showcase', null),
+      cmsContent.getPublishedSectionContent('home', 'services', null),
+      cms.getPublishedSettings([
+        'site.logo_primary', 'site.logo_light', 'site.logo_dark',
+        'site.favicon', 'navbar.bg_color', 'navbar.text_color',
+        'navbar.accent_color', 'navbar.border_color', 'navbar.opacity', 'navbar.logo_width',
+      ]),
+    ]);
+
+    // Published hero style
+    let heroStyle = null;
+    let showcaseStyle = null;
+    let servicesStyle = null;
+    if (heroContent || showcaseContent || servicesContent) {
+      const db = require('./config/db');
+      const [rows] = await db.query(
+        `SELECT s.section_key, s.style_json FROM page_sections s INNER JOIN pages p ON p.id = s.page_id
+          WHERE p.page_key = ? AND s.section_key IN ('hero', 'showcase', 'services')
+            AND s.is_enabled = 1 AND s.status = 'published'`,
+        ['home']
+      );
+      for (const row of rows) {
+        const style = (typeof row.style_json === 'string' ? JSON.parse(row.style_json) : row.style_json) || {};
+        if (row.section_key === 'hero') heroStyle = style;
+        else if (row.section_key === 'showcase') showcaseStyle = style;
+        else if (row.section_key === 'services') servicesStyle = style;
+      }
+    }
+
+    // Resolve Panel 2 repeatable items
+    const repeatableSvc = require('./services/cmsRepeatableService');
+    let logoLoopItems = [];
+    let carouselItems = [];
+    let featureItems = [];
+
+    if (showcaseContent) {
+      const sectionId = await resolveSectionId('showcase');
+      if (sectionId) {
+        [logoLoopItems, carouselItems] = await Promise.all([
+          repeatableSvc.getPublishedItems('logo_loop_items', sectionId),
+          repeatableSvc.getPublishedItems('home_carousel_items', sectionId),
+        ]);
+      }
+    }
+
+    if (servicesContent) {
+      const sectionId = await resolveSectionId('services');
+      if (sectionId) {
+        featureItems = await repeatableSvc.getPublishedItems('home_feature_items', sectionId);
+      }
+    }
+
+    // Resolve media references
+    const resolveMedia = async (ref) => {
+      if (!ref) return null;
+      return cmsContent.resolveMediaReference(ref, null);
+    };
+
+    async function resolveSectionId(sectionKey) {
+      const db = require('./config/db');
+      const [[row]] = await db.query(
+        "SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = ?",
+        [sectionKey]
+      );
+      return row ? row.id : null;
+    }
+
+    // Resolve carousel item media
+    for (const item of carouselItems) {
+      if (item.media_public_id) {
+        item.media_resolved = await resolveMedia('media://' + item.media_public_id);
+      }
+    }
+    for (const item of featureItems) {
+      if (item.icon_type === 'media' && item.media_public_id) {
+        item.media_resolved = await resolveMedia('media://' + item.media_public_id);
+      }
+    }
+
+    const [logoPrimary, logoLight, logoDark, favicon, modelMedia, modelFallback, bgMedia] = await Promise.all([
+      resolveMedia(settings['site.logo_primary']),
+      resolveMedia(settings['site.logo_light']),
+      resolveMedia(settings['site.logo_dark']),
+      resolveMedia(settings['site.favicon']),
+      resolveMedia(heroContent?.modelMedia),
+      resolveMedia(heroContent?.modelFallbackMedia),
+      resolveMedia(heroContent?.backgroundMedia),
+    ]);
+
+    const cmsData = {
+      navItems: navItems.length ? navItems : null,
+      heroContent,
+      heroStyle,
+      showcaseContent,
+      showcaseStyle,
+      servicesContent,
+      servicesStyle,
+      logoLoopItems: logoLoopItems.length ? logoLoopItems : null,
+      carouselItems: carouselItems.length ? carouselItems : null,
+      featureItems: featureItems.length ? featureItems : null,
+      settings,
+      logos: {
+        primary: logoPrimary,
+        light: logoLight,
+        dark: logoDark,
+        favicon,
+      },
+      modelMedia,
+      modelFallback,
+      backgroundMedia: bgMedia,
+    };
+
+    res.render('pages/home', {
+      title: 'Inicio',
+      layout: 'layouts/main',
+      pageClass: 'page-home',
+      pageStyles: ['/css/home.css'],
+      cmsData,
+    });
+  } catch (_err) {
+    // CMS resolution failure → fall back to the hardcoded page
+    res.render('pages/home', {
+      title: 'Inicio',
+      layout: 'layouts/main',
+      pageClass: 'page-home',
+      pageStyles: ['/css/home.css'],
+      cmsData: null,
+    });
+  }
 });
 
 // ── Controlled public-upload static mount ──

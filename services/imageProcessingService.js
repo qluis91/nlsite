@@ -29,7 +29,7 @@ const PROFILES = {
   avatar: {
     maxWidth: 512,
     maxHeight: 512,
-    quality: 82,
+    quality: 80,
     format: 'webp',
     fit: 'cover',
     position: 'attention',
@@ -37,6 +37,8 @@ const PROFILES = {
   },
   gallery: { maxWidth: 2400, maxHeight: 1600, quality: 80, format: 'webp' },
   category: { maxWidth: 1200, maxHeight: 800, quality: 80, format: 'webp' },
+  carousel: { maxWidth: 2560, maxHeight: 2560, quality: 80, format: 'webp' },
+  icon: { maxWidth: 800, maxHeight: 800, quality: 80, format: 'webp' },
 };
 
 /**

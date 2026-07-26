@@ -45,7 +45,7 @@ const IMAGE_PROFILES = Object.freeze({
     maxHeight: 2400,
     fit: 'inside',
     withoutEnlargement: true,
-    quality: 86,
+    quality: 80,
     format: 'webp',
   }),
   thumbnail: Object.freeze({
@@ -54,7 +54,7 @@ const IMAGE_PROFILES = Object.freeze({
     fit: 'cover',
     position: 'attention',
     withoutEnlargement: false,
-    quality: 82,
+    quality: 80,
     format: 'webp',
   }),
   poster: Object.freeze({
@@ -62,7 +62,7 @@ const IMAGE_PROFILES = Object.freeze({
     maxHeight: 2400,
     fit: 'inside',
     withoutEnlargement: true,
-    quality: 86,
+    quality: 80,
     format: 'webp',
   }),
 });

@@ -1,0 +1,186 @@
+<%
+  const msFieldName =
+    typeof fieldName !== 'undefined' && fieldName
+      ? String(fieldName)
+      : '';
+  const msLabel =
+    typeof label !== 'undefined' && label
+      ? String(label)
+      : 'Archivo multimedia';
+  const msCurrentValue =
+    typeof currentValue !== 'undefined' && currentValue
+      ? String(currentValue)
+      : '';
+  const msSelectedAsset =
+    typeof selectedAsset !== 'undefined' && selectedAsset && typeof selectedAsset === 'object'
+      ? selectedAsset
+      : {};
+  const msThumbnailUrl =
+    typeof thumbnailUrl !== 'undefined' && thumbnailUrl
+      ? String(thumbnailUrl)
+      : String(msSelectedAsset.thumbnail_url || msSelectedAsset.thumbnail_path || '');
+  const msTitle =
+    typeof title !== 'undefined' && title
+      ? String(title)
+      : '';
+  const msOriginalName =
+    typeof originalName !== 'undefined' && originalName
+      ? String(originalName)
+      : '';
+  const msMimeType =
+    typeof mimeType !== 'undefined' && mimeType
+      ? String(mimeType)
+      : '';
+  const msSelectedTitle =
+    typeof selectedTitle !== 'undefined' && selectedTitle
+      ? String(selectedTitle)
+      : String(msTitle || msOriginalName || msSelectedAsset.title || msSelectedAsset.original_filename || msSelectedAsset.original_name || '');
+  const msSelectedCategory =
+    typeof selectedCategory !== 'undefined' && selectedCategory
+      ? String(selectedCategory)
+      : String(msSelectedAsset.category || '');
+  const msSelectedMime =
+    typeof selectedMime !== 'undefined' && selectedMime
+      ? String(selectedMime)
+      : String(msMimeType || msSelectedAsset.mime_type || '');
+  const msSelectedDimensions =
+    typeof selectedDimensions !== 'undefined' && selectedDimensions
+      ? String(selectedDimensions)
+      : String(msSelectedAsset.dimensions || '');
+  const msKindLabel =
+    typeof kindLabel !== 'undefined' && kindLabel
+      ? String(kindLabel)
+      : 'Imagen';
+  const msAllowedTypes =
+    typeof allowedTypes !== 'undefined' && Array.isArray(allowedTypes)
+      ? allowedTypes.map(String)
+      : [];
+  const msAllowedCategories =
+    typeof allowedCategories !== 'undefined' && Array.isArray(allowedCategories)
+      ? allowedCategories.map(String)
+      : [];
+  const msUploadProfile =
+    typeof uploadProfile !== 'undefined' && uploadProfile
+      ? String(uploadProfile)
+      : '';
+  const msRequired =
+    typeof required !== 'undefined'
+      ? Boolean(required)
+      : false;
+  const msHelpText =
+    typeof helpText !== 'undefined' && helpText
+      ? String(helpText)
+      : '';
+%>
+<div class="media-selector"
+     data-media-selector
+     data-field-name="<%= msFieldName %>"
+     data-allowed-types="<%= msAllowedTypes.join(',') %>"
+     data-allowed-categories="<%= msAllowedCategories.join(',') %>"
+     data-upload-profile="<%= msUploadProfile %>"
+     data-kind-label="<%= msKindLabel %>"
+     data-required="<%= msRequired ? 'true' : 'false' %>">
+
+  <% if (!msFieldName) { %>
+    <div class="alert alert-warning" role="alert">Media selector: falta el fieldName requerido.</div>
+  <% } %>
+
+  <label class="field-label"><%= msLabel %><% if (msRequired) { %> <span class="required">*</span><% } %></label>
+  <% if (msHelpText) { %><small class="form-help"><%= msHelpText %></small><% } %>
+
+  <div class="media-selector__preview" data-ms-preview>
+    <% if (msCurrentValue) { %>
+      <div class="media-selector__card" data-ms-card>
+        <div class="media-selector__thumbnail" data-ms-thumb>
+          <% if (msThumbnailUrl) { %>
+            <img src="<%= msThumbnailUrl %>" alt="" class="media-selector__thumb-img" data-ms-img>
+          <% } else { %>
+            <span class="media-selector__thumb-icon" data-ms-icon>📄</span>
+          <% } %>
+        </div>
+        <div class="media-selector__info">
+          <span class="media-selector__title" data-ms-title><%= msSelectedTitle || '—' %></span>
+          <span class="media-selector__meta" data-ms-meta>
+            <%= msSelectedCategory %><%= msSelectedCategory && msSelectedMime ? ' · ' : '' %><%= msSelectedMime %>
+            <%= msSelectedDimensions ? (' · ' + msSelectedDimensions) : '' %>
+          </span>
+        </div>
+        <div class="media-selector__actions">
+          <button type="button" class="btn btn-secondary btn-sm" data-ms-change>Cambiar</button>
+          <button type="button" class="btn btn-danger btn-sm" data-ms-remove>Quitar</button>
+          <a href="/admin/page/media?search=<%= msCurrentValue.replace('media://','') %>" class="btn-link btn-sm" data-ms-detail target="_blank" rel="noopener">Ver detalle</a>
+        </div>
+      </div>
+    <% } else { %>
+      <div class="media-selector__empty" data-ms-empty>
+        <p class="empty-state">Sin <%= msKindLabel.toLowerCase() %> seleccionado.</p>
+        <button type="button" class="btn btn-primary" data-ms-select>Seleccionar desde biblioteca</button>
+      </div>
+    <% } %>
+  </div>
+
+  <input type="hidden" name="<%= msFieldName %>" value="<%= msCurrentValue %>" data-ms-input>
+
+  <!-- Modal -->
+  <dialog class="media-selector__modal" data-ms-modal>
+    <div class="media-selector__modal-inner">
+      <header class="media-selector__modal-header">
+        <h2>Seleccionar archivo</h2>
+        <nav class="media-selector__tabs" data-ms-tabs>
+          <button type="button" class="media-selector__tab is-active" data-ms-tab="library">Seleccionar de la biblioteca</button>
+          <button type="button" class="media-selector__tab" data-ms-tab="upload">Subir desde mi dispositivo</button>
+        </nav>
+      </header>
+
+      <!-- Library tab -->
+      <div class="media-selector__panel is-active" data-ms-panel="library">
+        <form class="media-selector__search" data-ms-search-form>
+          <input type="search" name="search" placeholder="Buscar..." class="form-input" data-ms-search>
+          <select name="category" class="form-input" data-ms-category-filter>
+            <option value="">Todas las categorías</option>
+          </select>
+          <select name="mime_filter" class="form-input" data-ms-type-filter>
+            <option value="">Todos los tipos</option>
+          </select>
+          <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
+        </form>
+
+        <div class="media-selector__grid" data-ms-grid>
+          <p class="empty-state">Cargando archivos…</p>
+        </div>
+
+        <div class="media-selector__pagination" data-ms-pagination></div>
+      </div>
+
+      <!-- Upload tab -->
+      <div class="media-selector__panel" data-ms-panel="upload">
+        <div class="media-selector__upload-zone" data-ms-upload-zone>
+          <div class="media-selector__upload-label">
+            <span class="media-selector__upload-icon">⬆️</span>
+            <p>Arrastra un archivo o haz clic para seleccionar</p>
+            <p class="media-selector__upload-hint">Formatos permitidos según el perfil configurado.</p>
+          </div>
+          <input type="file" accept="<%= msAllowedTypes.join(',') %>" class="media-selector__upload-input" data-ms-file-input>
+        </div>
+        <div class="media-selector__upload-file" data-ms-upload-file style="display:none">
+          <span class="media-selector__upload-filename" data-ms-upload-filename></span>
+          <button type="button" class="btn btn-secondary btn-sm" data-ms-upload-clear>Quitar</button>
+        </div>
+        <div class="media-selector__upload-progress" data-ms-upload-progress style="display:none">
+          <div class="media-selector__upload-bar"></div>
+          <span class="media-selector__upload-status" data-ms-upload-status></span>
+        </div>
+        <div class="media-selector__upload-error" data-ms-upload-error style="display:none"></div>
+        <div class="media-selector__upload-actions" data-ms-upload-actions style="display:none">
+          <button type="button" class="btn btn-primary" data-ms-upload-btn>Subir archivo</button>
+          <button type="button" class="btn btn-secondary" data-ms-upload-retry style="display:none">Reintentar</button>
+        </div>
+      </div>
+
+      <footer class="media-selector__modal-footer">
+        <button type="button" class="btn btn-secondary" data-ms-cancel>Cancelar</button>
+        <button type="button" class="btn btn-primary" data-ms-confirm disabled>Confirmar selección</button>
+      </footer>
+    </div>
+  </dialog>
+</div>

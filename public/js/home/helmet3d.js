@@ -7,9 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 // ── Constants ──
-//const HELMET_MODEL_URL = 'https://storage.googleapis.com/ninjalab3d/casco.glb';
 const HELMET_MODEL_URL = 'https://storage.googleapis.com/ninjalab3d/casco-optimized.glb';
-//const HELMET_MODEL_URL = '/3d/casco-optimized.glb';
 const IDLE_ROTATION_SPEED = 0.25;
 const INTERACTION_DAMPING = 0.92;
 const MAX_PIXEL_RATIO = 2;
@@ -21,6 +19,45 @@ const FRONT_ROTATION = Object.freeze({
   y: -2,
   z: 0,
 });
+
+let _cmsModelUrl = null;  // Override set from DOM (Phase 11B CMS)
+/** Read model configuration from DOM data attributes (Phase 11B CMS).
+ *  When data-model-config is present it's parsed JSON; otherwise defaults apply. */
+function readModelConfig() {
+  const page = document.querySelector('[data-home-page]');
+  if (!page) return null;
+
+  // Model URL override
+  const cmsUrl = page.dataset.modelUrl;
+  if (cmsUrl) _cmsModelUrl = cmsUrl;
+
+  // Model disabled
+  if (page.dataset.modelDisabled === '1') return 'disabled';
+
+  let config = {};
+  try {
+    if (page.dataset.modelConfig) {
+      config = JSON.parse(page.dataset.modelConfig);
+    }
+  } catch { /* stay with defaults */ }
+
+  return {
+    scale: Number.isFinite(Number(config.scale)) ? Number(config.scale) : 1,
+    position: {
+      x: Number.isFinite(Number(config.position?.x)) ? Number(config.position.x) : 0,
+      y: Number.isFinite(Number(config.position?.y)) ? Number(config.position.y) : 0,
+      z: Number.isFinite(Number(config.position?.z)) ? Number(config.position.z) : 0,
+    },
+    rotation: {
+      x: Number.isFinite(Number(config.rotation?.x)) ? Number(config.rotation.x) : 0,
+      y: Number.isFinite(Number(config.rotation?.y)) ? Number(config.rotation.y) : -2,
+      z: Number.isFinite(Number(config.rotation?.z)) ? Number(config.rotation.z) : 0,
+    },
+    autoRotate: config.autoRotate !== false,
+    autoRotateSpeed: Number.isFinite(Number(config.autoRotateSpeed)) ? Number(config.autoRotateSpeed) : IDLE_ROTATION_SPEED,
+  };
+}
+
 let helmetInitPromise = null;
 
 function logTiming(label) {
@@ -74,6 +111,16 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
   const stage = canvas.parentElement;
   if (!stage) {
     signalHelmetError();
+    return;
+  }
+
+  // Read Phase 11B CMS model configuration from DOM
+  const modelConfig = readModelConfig();
+  if (modelConfig === 'disabled') {
+    // Model disabled by CMS — show fallback immediately
+    if (stage) stage.classList.add('has-fallback');
+    const fallbackEl = document.querySelector('[data-helmet-fallback]');
+    if (fallbackEl) fallbackEl.hidden = false;
     return;
   }
 
@@ -134,10 +181,12 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
   let autoRotateEnabled = false;
   let autoRotateStartTimer = null;
   let destroyed = false;
-  let targetRotationX = FRONT_ROTATION.x;
-  let targetRotationY = FRONT_ROTATION.y;
-  let currentRotationX = FRONT_ROTATION.x;
-  let currentRotationY = FRONT_ROTATION.y;
+  let useAutoRotateSpeed = (modelConfig && modelConfig.autoRotateSpeed) || IDLE_ROTATION_SPEED;
+  const initialRot = modelConfig ? modelConfig.rotation : FRONT_ROTATION;
+  let targetRotationX = initialRot.x;
+  let targetRotationY = initialRot.y;
+  let currentRotationX = initialRot.x;
+  let currentRotationY = initialRot.y;
   let isDragging = false;
   let activePointerId = null;
   let prevPointerX = 0;
@@ -179,14 +228,14 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
     prevPointerX = 0;
     prevPointerY = 0;
 
-    targetRotationX = FRONT_ROTATION.x;
-    targetRotationY = FRONT_ROTATION.y;
-    currentRotationX = FRONT_ROTATION.x;
-    currentRotationY = FRONT_ROTATION.y;
+    targetRotationX = initialRot.x;
+    targetRotationY = initialRot.y;
+    currentRotationX = initialRot.x;
+    currentRotationY = initialRot.y;
     modelGroup.rotation.set(
-      FRONT_ROTATION.x,
-      FRONT_ROTATION.y,
-      FRONT_ROTATION.z
+      initialRot.x,
+      initialRot.y,
+      initialRot.z
     );
   }
 
@@ -198,6 +247,7 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
     resetHelmetToFront();
 
     if (prefersReduced) return;
+    if (modelConfig && !modelConfig.autoRotate) return;
 
     autoRotateStartTimer = window.setTimeout(() => {
       autoRotateStartTimer = null;
@@ -210,7 +260,7 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
     const gltf = await new Promise((resolve, reject) => {
       logTiming('GLB request started');
       loader.load(
-        HELMET_MODEL_URL,
+        _cmsModelUrl || HELMET_MODEL_URL,
         (result) => {
           logTiming('GLB loaded/parsed');
           resolve(result);
@@ -261,6 +311,19 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
     model.scale.setScalar(scale);
 
     modelGroup.add(model);
+
+    // Apply CMS model configuration (scale, position, rotation)
+    if (modelConfig) {
+      const cmsScale = modelConfig.scale;
+      const cmsPos = modelConfig.position;
+      const cmsRot = modelConfig.rotation;
+      if (cmsScale && cmsScale !== 1) {
+        modelGroup.scale.setScalar(cmsScale);
+      }
+      modelGroup.position.set(cmsPos.x, cmsPos.y, cmsPos.z);
+      modelGroup.rotation.set(cmsRot.x, cmsRot.y, cmsRot.z);
+    }
+
     logTiming('model added to scene');
 
     // ── Fit camera from final bounding box ──
@@ -423,7 +486,7 @@ async function initializeHelmet3D(canvas, prefersReduced = false) {
         idleResumeAt = 0;
       }
       if (autoRotateEnabled && idleResumeAt === 0) {
-        targetRotationY += idleSpeed * dt;
+        targetRotationY += useAutoRotateSpeed * dt;
       }
     }
 

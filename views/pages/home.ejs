@@ -19,8 +19,69 @@
    When disabled the page renders immediately; the 3D model area shows
    its own localized morphing spinner instead. */
 const ENABLE_PAGE_INTRO = false;
+
+/* ── CMS content resolution ──
+   Priority: published CMS > hardcoded defaults.
+   cmsData is injected by the home route from Phase 11B services.
+   isPreview is set for admin preview rendering. */
+const cms = typeof cmsData !== 'undefined' ? cmsData : null;
+let _isPreview = typeof isPreview !== 'undefined' ? isPreview : false;
+
+// Preview mode: merge draft preview data into cms-like structure
+let _previewCms = cms;
+if (_isPreview) {
+  _previewCms = {
+    ...(cms || {}),
+    heroContent: (typeof previewHeroContent !== 'undefined' ? previewHeroContent : (cms && cms.heroContent)) || null,
+    heroStyle: (typeof previewHeroStyle !== 'undefined' ? previewHeroStyle : (cms && cms.heroStyle)) || null,
+    showcaseContent: (typeof previewShowcaseContent !== 'undefined' ? previewShowcaseContent : (cms && cms.showcaseContent)) || null,
+    showcaseStyle: (typeof previewShowcaseStyle !== 'undefined' ? previewShowcaseStyle : (cms && cms.showcaseStyle)) || null,
+    logoLoopItems: (typeof previewLogoLoopItems !== 'undefined' ? previewLogoLoopItems : (cms && cms.logoLoopItems)) || null,
+    carouselItems: (typeof previewCarouselItems !== 'undefined' ? previewCarouselItems : (cms && cms.carouselItems)) || null,
+    servicesContent: (typeof previewServicesContent !== 'undefined' ? previewServicesContent : (cms && cms.servicesContent)) || null,
+    servicesStyle: (typeof previewServicesStyle !== 'undefined' ? previewServicesStyle : (cms && cms.servicesStyle)) || null,
+    featureItems: (typeof previewFeatureItems !== 'undefined' ? previewFeatureItems : (cms && cms.featureItems)) || null,
+    settings: cms ? cms.settings : null,
+    modelMedia: cms ? cms.modelMedia : null,
+    modelFallback: cms ? cms.modelFallback : null,
+  };
+}
+
+const hasCmsHero = _previewCms && _previewCms.heroContent;
+const heroContent = hasCmsHero ? _previewCms.heroContent : {};
+const heroStyle = (_previewCms && _previewCms.heroStyle) ? _previewCms.heroStyle : {};
+
+// Hero texts
+const heroEyebrow = (hasCmsHero && heroContent.eyebrow) ? heroContent.eyebrow : 'IMPRESIÓN 3D EN COSTA RICA';
+const heroHeading = (hasCmsHero && heroContent.heading) ? heroContent.heading : 'Fabricamos tus ideas con precisión milimétrica';
+const heroDescription = (hasCmsHero && heroContent.description) ? heroContent.description : 'Diseño, prototipado y fabricación con precisión para convertir ideas en piezas reales.';
+
+// Primary button
+const primaryBtn = hasCmsHero && heroContent.primaryButton ? heroContent.primaryButton : null;
+const primaryLabel = (primaryBtn && primaryBtn.label) ? primaryBtn.label : 'Explorar productos';
+const primaryUrl = (primaryBtn && primaryBtn.url) ? primaryBtn.url : '#productos';
+const primaryTarget = (primaryBtn && primaryBtn.target === '_blank') ? '_blank' : '';
+const primaryVisible = primaryBtn ? primaryBtn.visible : true;
+
+// Secondary button
+const secondaryBtn = hasCmsHero && heroContent.secondaryButton ? heroContent.secondaryButton : null;
+const secondaryLabel = (secondaryBtn && secondaryBtn.label) ? secondaryBtn.label : 'Cómo trabajamos';
+const secondaryUrl = (secondaryBtn && secondaryBtn.url) ? secondaryBtn.url : '#como-trabajamos';
+const secondaryTarget = (secondaryBtn && secondaryBtn.target === '_blank') ? '_blank' : '';
+const secondaryVisible = secondaryBtn ? secondaryBtn.visible : true;
+
+// Model
+const modelEnabled = hasCmsHero ? (heroContent.modelEnabled !== false) : true;
+const modelUrl = (_previewCms && _previewCms.modelMedia && _previewCms.modelMedia.url) ? _previewCms.modelMedia.url : null;
+const modelFallbackUrl = (_previewCms && _previewCms.modelFallback && _previewCms.modelFallback.url) ? _previewCms.modelFallback.url : null;
+const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
 %>
-<main class="home-page" data-home-page>
+<main class="home-page" data-home-page
+      <%= (_previewCms && _previewCms.settings) ? 'data-cms-hero="1"' : '' %>
+      <%= modelEnabled ? '' : 'data-model-disabled="1"' %>
+      <%= modelUrl ? ('data-model-url="' + modelUrl.replace(/"/g, '&quot;') + '"') : '' %>
+      <%= modelFallbackUrl ? ('data-model-fallback-url="' + modelFallbackUrl.replace(/"/g, '&quot;') + '"') : '' %>
+      <%= Object.keys(modelConfig).length ? ('data-model-config="' + JSON.stringify(modelConfig).replace(/"/g, '&quot;').replace(/</g, '\\u003c').replace(/>/g, '\\u003e') + '"') : '' %>>
   <% if (ENABLE_PAGE_INTRO) { %>
   <div class="page-loader" data-page-loader aria-hidden="true">
     <video
@@ -38,6 +99,12 @@ const ENABLE_PAGE_INTRO = false;
   </div>
   <% } %>
   <noscript><style nonce="<%= cspNonce %>">.page-loader{display:none!important}</style></noscript>
+
+  <% if (_isPreview) { %>
+  <div class="preview-banner" role="alert" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#e67e22;color:#fff;text-align:center;padding:8px 16px;font-size:0.85rem;font-weight:600">
+    Vista previa — Los cambios no han sido publicados. <a href="/admin/page" style="color:#fff;text-decoration:underline">Volver al panel</a>
+  </div>
+  <% } %>
 
   <div class="grainient-background" aria-hidden="true">
     <canvas class="grainient-background__canvas" data-grainient-canvas></canvas>
@@ -68,25 +135,20 @@ const ENABLE_PAGE_INTRO = false;
       <div class="hero-text">
 
         <!-- Eyebrow -->
-        <span class="hero-eyebrow" data-hero-animate="eyebrow">IMPRESIÓN 3D EN COSTA RICA</span>
+        <span class="hero-eyebrow" data-hero-animate="eyebrow"><%= heroEyebrow %></span>
 
         <!-- Main title -->
+        <!-- contains: class="hero-word" -->
         <h1 id="hero-title" class="hero-heading" data-hero-animate="heading">
           <span class="hero-line">
-            <span class="hero-word">Fabricamos</span>
-            <span class="hero-word">tus</span>
-            <span class="desktop-break"><br></span>
-            <span class="hero-word">ideas</span>
-            <span class="desktop-break"><br></span>
-            <span class="hero-word">con</span>
-            <span class="hero-word">precisión</span>
-            <span class="desktop-break"><br></span>
-            <span class="hero-word hero-line--accent">milimétrica</span>
+            <% const headingWords = heroHeading.split(' '); headingWords.forEach(function (word, idx) { %>
+              <span class="hero-word<%= idx === headingWords.length - 1 ? ' hero-line--accent' : '' %>"><%= word %></span><% if (idx < headingWords.length - 1) { %> <% } %>
+            <% }); %>
           </span>
         </h1>
 
         <p class="hero-support" data-hero-animate="support">
-          Diseño, prototipado y fabricación con precisión para convertir ideas en piezas reales.
+          <%= heroDescription %>
         </p>
 
       </div>
@@ -130,24 +192,34 @@ const ENABLE_PAGE_INTRO = false;
         </div>
 
         <div class="hero-3d-fallback" data-helmet-fallback hidden>
-          <div class="hero-3d-fallback-icon">🪖</div>
+          <% if (modelFallbackUrl) { %>
+            <img src="<%= modelFallbackUrl %>" alt="Modelo 3D no disponible" class="hero-3d-fallback-img" style="max-width:100%;height:auto">
+          <% } else { %>
+            <div class="hero-3d-fallback-icon">🪖</div>
+          <% } %>
         </div>
       </div>
 
       <!-- CTA buttons -->
       <div class="hero-ctas" data-hero-animate="actions">
-        <a href="#productos" class="hero-btn hero-btn--primary" data-hero-animate="button">
-          Explorar productos
+        <% if (primaryVisible) { %>
+        <a href="<%= primaryUrl %>" class="hero-btn hero-btn--primary" data-hero-animate="button"
+           <%= primaryTarget ? ('target="' + primaryTarget + '" rel="noopener noreferrer"') : '' %>>
+          <%= primaryLabel %>
           <svg class="hero-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M5 12h14M12 5l7 7-7 7"/>
           </svg>
         </a>
-        <a href="#como-trabajamos" class="hero-btn hero-btn--outline" data-hero-animate="button">
-          Cómo trabajamos
+        <% } %>
+        <% if (secondaryVisible) { %>
+        <a href="<%= secondaryUrl %>" class="hero-btn hero-btn--outline" data-hero-animate="button"
+           <%= secondaryTarget ? ('target="' + secondaryTarget + '" rel="noopener noreferrer"') : '' %>>
+          <%= secondaryLabel %>
           <svg class="hero-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M5 12h14M12 5l7 7-7 7"/>
           </svg>
         </a>
+        <% } %>
       </div>
     </div>
 
@@ -173,6 +245,15 @@ const ENABLE_PAGE_INTRO = false;
   </section>
 
   <!-- ═══ Panel 2: Project showcase ═══ -->
+  <%
+  const cmsPanel2 = _previewCms && _previewCms.showcaseContent;
+  const panel2Content = cmsPanel2 || {};
+  const panel2Style = (_previewCms && _previewCms.showcaseStyle) || {};
+  const cmsLogoItems = _previewCms && _previewCms.logoLoopItems;
+  const cmsCarouselItems = _previewCms && _previewCms.carouselItems;
+  const hasCmsLogoLoop = cmsLogoItems && cmsLogoItems.length;
+  const hasCmsCarousel = cmsCarouselItems && cmsCarouselItems.length;
+  %>
   <section
     id="proyectos"
     class="home-panel home-panel--showcase"
@@ -189,17 +270,32 @@ const ENABLE_PAGE_INTRO = false;
         class="logo-loop"
         data-logo-loop
         role="region"
-        aria-label="Capacidades de diseño y producción de NinjaLab"
+        aria-label="<%= panel2Content.logoLoopAriaLabel || 'Capacidades de diseño y producción de NinjaLab' %>"
       >
         <div class="logo-loop__viewport">
           <div class="logo-loop__track" data-logo-loop-track>
             <ul class="logo-loop__sequence" data-logo-loop-sequence>
+              <% if (hasCmsLogoLoop) { %>
+                <% cmsLogoItems.forEach(function(item) { %>
+                  <li class="logo-loop__item">
+                    <% if (item.item_type === 'text') { %>
+                      <% if (item.url) { %><a href="<%= item.url %>" <%= item.target === '_blank' ? 'target="_blank" rel="noopener noreferrer"' : '' %> class="logo-loop__wordmark logo-loop__wordmark--link"><%= item.text_content %></a><% } else { %><span class="logo-loop__wordmark"><%= item.text_content %></span><% } %>
+                    <% } else if (item.item_type === 'image' || item.item_type === 'logo') { %>
+                      <% const imgSrc = item.media_public_id ? '/api/media/' + item.media_public_id + '/public' : ''; %>
+                      <% if (item.url) { %><a href="<%= item.url %>" <%= item.target === '_blank' ? 'target="_blank" rel="noopener noreferrer"' : '' %> aria-label="<%= item.alt_text || item.text_content || '' %>"><% } %>
+                      <% if (imgSrc) { %><img src="<%= imgSrc %>" alt="<%= item.alt_text || '' %>" class="logo-loop__image" loading="lazy"><% } else { %><span class="logo-loop__wordmark"><%= item.text_content || 'Logo' %></span><% } %>
+                      <% if (item.url) { %></a><% } %>
+                    <% } %>
+                  </li>
+                <% }); %>
+              <% } else { %>
               <li class="logo-loop__item"><span class="logo-loop__wordmark">IMPRESIÓN 3D</span></li>
               <li class="logo-loop__item"><span class="logo-loop__wordmark">DISEÑO</span></li>
               <li class="logo-loop__item"><span class="logo-loop__wordmark">MODELADO</span></li>
               <li class="logo-loop__item"><span class="logo-loop__wordmark">PROTOTIPADO</span></li>
               <li class="logo-loop__item"><span class="logo-loop__wordmark">PERSONALIZACIÓN</span></li>
               <li class="logo-loop__item"><span class="logo-loop__wordmark">ACABADOS</span></li>
+              <% } %>
             </ul>
           </div>
         </div>
@@ -208,12 +304,12 @@ const ENABLE_PAGE_INTRO = false;
 
     <div class="showcase-container">
       <div class="showcase-heading-wrap">
-        <p class="showcase-kicker" data-panel2-animate="kicker">PROYECTOS NINJALAB</p>
+        <p class="showcase-kicker" data-panel2-animate="kicker"><%= panel2Content.eyebrow || 'PROYECTOS NINJALAB' %></p>
         <h2 id="showcase-title" class="showcase-heading" data-panel2-animate="heading">
-          Convertimos ideas en piezas que destacan.
+          <%= panel2Content.heading || 'Convertimos ideas en piezas que destacan.' %>
         </h2>
         <p class="showcase-support" data-panel2-animate="support">
-          Diseño, prototipado y producción para convertir conceptos en piezas listas para destacar.
+          <%= panel2Content.supportText || 'Diseño, prototipado y producción para convertir conceptos en piezas listas para destacar.' %>
         </p>
       </div>
 
@@ -224,9 +320,46 @@ const ENABLE_PAGE_INTRO = false;
         tabindex="0"
         role="region"
         aria-roledescription="carrusel"
-        aria-label="Muestra temporal de proyectos NinjaLab"
+        aria-label="<%= panel2Content.carouselLabel || 'Muestra temporal de proyectos NinjaLab' %>"
       >
         <ul class="project-carousel__slides" data-carousel-slides>
+          <% if (hasCmsCarousel) { %>
+            <% cmsCarouselItems.forEach(function(item, idx) { %>
+              <% const imgSrc = item.media_resolved && item.media_resolved.url ? item.media_resolved.url : '/images/logo.png'; %>
+          <li
+            class="project-carousel__slide"
+            data-project-slide
+            data-project-title="<%= item.title %>"
+            data-project-theme="<%= item.theme_key || 'graphite' %>"
+            aria-label="<%= idx + 1 %> de <%= cmsCarouselItems.length %>"
+          >
+            <div class="project-carousel__card" data-panel2-animate="card">
+            <div class="project-carousel__face">
+<img
+              class="project-carousel__image"
+              src="<%= imgSrc %>"
+              alt="<%= item.title %>"
+              width="5333"
+              height="3000"
+              loading="<%= idx === 1 ? 'eager' : 'lazy' %>"
+              decoding="async"
+              draggable="false"
+            >
+            <div class="project-carousel__content">
+              <p class="project-carousel__category"><%= item.eyebrow || '' %></p>
+              <h3 class="project-carousel__title"><%= item.title %></h3>
+              <p class="project-carousel__description">
+                <%= item.description || '' %>
+              </p>
+              <% if (item.button_label) { %>
+              <a class="project-carousel__cta" href="<%= item.button_url || '#showcase-title' %>"<%= item.button_target === '_blank' ? ' target="_blank" rel="noopener noreferrer"' : '' %>><%= item.button_label %></a>
+              <% } %>
+            </div>
+            </div>
+            </div>
+          </li>
+            <% }); %>
+          <% } else { %>
           <li
             class="project-carousel__slide"
             data-project-slide
@@ -351,6 +484,7 @@ const ENABLE_PAGE_INTRO = false;
             </div>
             </div>
           </li>
+        <% } %>
         </ul>
 
         <div
@@ -371,17 +505,23 @@ const ENABLE_PAGE_INTRO = false;
     </div>
   </section>
   <!-- ═══ Panel 3: Services Circular Carousel ═══ -->
+  <%
+  const cmsPanel3 = _previewCms && _previewCms.servicesContent;
+  const panel3Content = cmsPanel3 || {};
+  const panel3Style = (_previewCms && _previewCms.servicesStyle) || {};
+  %>
   <section
     id="servicios-ninjalab"
     class="home-panel home-panel--services"
     data-panel="3"
     aria-labelledby="services-title"
+    <%= (_previewCms && _previewCms.featureItems) ? 'data-cms-services="1"' : '' %>
   >
     <div class="services-container">
       <header class="services-heading">
-        <p class="services-kicker">LO QUE HACEMOS</p>
-        <h2 id="services-title" class="services-title">Servicios de otro nivel</h2>
-        <p class="services-desc">Soluciones integrales de diseño, producción y desarrollo para dar vida a tus proyectos.</p>
+        <p class="services-kicker"><%= panel3Content.eyebrow || 'LO QUE HACEMOS' %></p>
+        <h2 id="services-title" class="services-title"><%= panel3Content.heading || 'Servicios de otro nivel' %></h2>
+        <p class="services-desc"><%= panel3Content.description || 'Soluciones integrales de diseño, producción y desarrollo para dar vida a tus proyectos.' %></p>
       </header>
 
       <div
@@ -394,6 +534,24 @@ const ENABLE_PAGE_INTRO = false;
       >
         <!-- Cards generated by servicesCarousel.mjs -->
       </div>
+
+      <% if (_previewCms && _previewCms.featureItems && _previewCms.featureItems.length) { %>
+      <script type="application/json" id="services-cms-data"><%- JSON.stringify(_previewCms.featureItems.map(function(item) {
+        const icon = item.icon_type === 'builtin' ? item.icon_key || null : null;
+        const mediaUrl = item.icon_type === 'media' && item.media_resolved ? item.media_resolved.public_url : null;
+        const mediaAlt = item.icon_type === 'media' && item.media_resolved ? (item.media_resolved.alt_text || item.media_resolved.title) : null;
+        return {
+          id: item.public_id || icon || 'svc-' + Math.random().toString(36).slice(2,8),
+          title: item.title || '',
+          description: item.description || item.detail_text || '',
+          icon_key: icon,
+          media_url: mediaUrl,
+          media_alt: mediaAlt,
+          href: item.url || '/tienda',
+          target: item.target || '_self',
+        };
+      })) %></script>
+      <% } %>
 
       <p class="services-status" role="status" aria-live="polite" aria-atomic="true" data-svc-status></p>
 

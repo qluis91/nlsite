@@ -200,7 +200,7 @@ describe('Footer Magic Rings', () => {
 
 describe('Footer Layout Integration', () => {
   test('main layout always includes footer', () => {
-    assert.match(mainLayout, /include\('\.\.\/components\/footer'\)/);
+    assert.match(mainLayout, /include\('\.\.\/components\/footer',\s*\{/);
   });
 
   test('main layout includes footer.css', () => {

@@ -1,5 +1,176 @@
 # Changelog
 
+## 2026-07-25 — Phase 11D: Centralized publishing, revision history, comparison, and restore
+
+### Added
+- Centralized publishing dashboard (`GET /admin/page/publishing`) with 7 module status cards
+- Module registry (`services/moduleRegistry.js`) declaring keys, labels, sources, validators, dependencies, and cache namespaces for all 7 CMS modules
+- Atomic batch publication via `publicationService.publishModules()` with transactional rollback
+- Selected-module publication (`POST /admin/page/publishing/publish-selected`)
+- Full-homepage publication (`POST /admin/page/publishing/publish-home`)
+- `publication_batches` and `publication_batch_items` tables tracking every publish event
+- History browser (`GET /admin/page/history`) with module/action filters and pagination
+- Revision detail view (`GET /admin/page/history/revision/:id`) with field-level change detection
+- Revision comparison (`GET /admin/page/history/compare?from=X&to=Y`) with safe JSON rendering
+- Safe restore: restore-as-draft and restore-and-publish via `POST /admin/page/history/revision/:id/restore`
+- 6 new capabilities: `cms.publishing.view`, `cms.publishing.publish`, `cms.history.view`, `cms.history.compare`, `cms.history.restoreDraft`, `cms.history.restorePublish`
+- All new routes behind `isAuthenticated`, `isAdmin`, capability middleware, and CSRF
+- EJS views: `publishing/index`, `history/index`, `history/detail`, `history/compare`, `history/restore`
+- CSS: Phase 11D publishing dashboard styles, module cards, badges, tables, forms
+
+### Changed
+- `controllers/adminPageController.js`: publishing module activated (`status: 'active'`, `href: '/admin/page/publishing'`)
+- `config/capabilities.js`: 6 new capabilities added
+- `app.js`: fixed line break between `adminPanelsRoutes` and `accountAvatarRoutes`; added `adminPublishingRoutes`
+- `scripts/migrate-all.js`: added `migratePublishing` call
+
+### Schema
+- New tables: `publication_batches` (public_id, scope, status, summary, created_by, published_by, timestamps, failure_reason) and `publication_batch_items` (batch_id, module_key, entity_type, source/published revision FKs, snapshots, status)
+- Migration: `scripts/migrate-publishing.js` — idempotent, additive
+- `schema.sql` synchronized
+
+### Tests
+- `tests/cms-phase11d.test.js`: 75 tests covering migration, registry, capabilities, publication service, controller/routes, EJS compilation, history, comparison, restore, preview, cache invalidation, concurrency, authorization, and regression
+
+## 2026-07-25 — Direct upload and WebP quality 80 standardization (Phase 11C-S continuation)
+
+### Added
+- Unified direct-upload experience in media selector: "Seleccionar de la biblioteca" + "Subir desde mi dispositivo" tabs
+- Drag-and-drop zone, file picker, upload progress, Spanish errors, auto-select after successful upload
+- AJAX upload endpoint `POST /admin/api/page/media/upload` with capability check, CSRF, Multer (memoryStorage, 30MB max)
+- `mediaService.createFromSelectorUpload()` — transactional asset creation with duplicate detection (returns existing)
+- Upload profiles configuration in `config/cmsOptions.js`: 15 profiles (navbar-logo, hero-background, logo-loop, carousel-main, feature-icon, gallery, product, category, avatar, etc.)
+- Server-side profile validation: MIME enforcement, size limits, kind (image/model) restrictions per profile
+- Tests for shared pipeline quality, upload profiles, selector upload flow, route existence, JS/EJS structure
+
+### Changed
+- All sharp quality settings unified to WebP quality 80: `IMAGE_VARIANTS` (large/medium/thumbnail), `imageProcessingService.PROFILES` (product/avatar/gallery/category), `galleryOptions.IMAGE_PROFILES` (display/thumbnail/poster)
+- `media-selector.ejs`: added tabs, upload panel with drag-drop zone, file picker, progress, error display
+- `media-selector.js`: added upload tab switching, `handleFile()`, `performUpload()`, `updatePreview()`, `resetUpload()`
+- All media-selector EJS includes updated with `uploadProfile` parameter: navbar.ejs (4×), panel1.ejs (3×), panel2.ejs (3×), panel3.ejs (1×)
+- `views/components/media-selector.ejs`: new template with tabs for library/upload panels
+
+### Security
+- Server-side profile validation never trusts client-supplied profile/MIME alone
+- CSRF required on upload endpoint, capability-enforced (`media.upload`)
+- Path containment via `mediaStorageService`, no filesystem paths in JSON responses
+- File validation: decoded content (Sharp metadata), not extension/MIME alone
+
+### Not modified
+- Payment proofs: unchanged (private flow, quality 86, `UPLOAD_PROOFS_DIR`)
+- GLB uploads: remain GLB-only, no Sharp processing
+- SVG: remains disabled (no sanitizer)
+
+## 2026-07-25 — CMS Phase 11C-S: Stabilization and integration
+
+### Fixed
+- `saveItem updates fields` test: fixed destructuring bug (`const [rows] = ...` → `const items = ...`)
+- `home-panel-transition` test: updated expected card count from 4 to 5 (CMS branch adds one template line)
+- `saveItem` revision data: `previousData` now correctly records old row, `newData` records merged result
+- Test suite: all 486 tests pass (Phase 11A + 11B + 11C), 0 failures
+
+### Added
+- Visual media selector integration into Navbar admin (logo_primary, logo_light, logo_dark, favicon)
+- Visual media selector integration into Panel 1 admin (background_media, model_media, model_fallback)
+- `resolveMediaData()` helper in `adminPageContentController.js` for media ref pre-population
+- `pageScripts` support in admin layout for non-module script loading
+- Public Panel 3 CMS feature items integration via `servicesCarousel.mjs` with JSON data block
+- `resolveServiceItems()` function with safe fallback for unknown icons and zero items
+- Panel 2/3 draft preview with preview banner, no-cache/noindex, draft repeatable items
+- `_previewCms` variable in `home.ejs` merging published CMS + preview draft data
+
+### Changed
+- `views/layouts/admin.ejs`: added `pageScripts` slot
+- `views/pages/admin/page/navbar.ejs`: replaced text inputs with media-selector component
+- `views/pages/admin/page/panel1.ejs`: replaced text inputs with media-selector component
+- `views/pages/home.ejs`: added preview mode, `_previewCms` variable, services CMS JSON block
+- `public/js/home/servicesCarousel.mjs`: added `resolveServiceItems()` reading from JSON block
+- `controllers/adminPageContentController.js`: added `resolveMediaData`, updated `showNavbar`/`showPanel1`
+- `services/cmsRepeatableService.js`: fixed `saveItem` revision data
+- `tests/cms-phase11c.test.js`: fixed saveItem test, enhanced revision assertion
+- `tests/home-panel-transition.test.js`: updated card count assertion
+- `docs/CMS_PHASE_11C.md`, `docs/PROJECT_STATUS.md`: added stabilization documentation
+
+## 2026-07-25 — CMS Phase 11C: Panel 2, Panel 3 y Visual Media Selector
+
+### Added
+- Reusable visual media selector: `views/components/media-selector.ejs` (EJS partial) + `public/js/admin/media-selector.js` (vanilla JS, lazy thumbnails, search/filter/pagination), API endpoint `GET /admin/api/page/media`
+- Panel 2 (Showcase) editor at `/admin/page/home/panel-2` with tabs: General content, LogoLoop, Carousel, Appearance
+- Panel 3 (Services) editor at `/admin/page/home/panel-3` with tabs: General content, Cards, Appearance
+- `logo_loop_items` table with types `text|image|logo`, UUID public_ids, soft-delete, sort_order, draft/published/archived workflow, idempotent seed of 6 current text items
+- `home_carousel_items` table with theme keys `graphite|lime|silver|ink`, UUID public_ids, image refs, idempotent seed of 4 current projects
+- `home_feature_items` table with builtin icon keys or media-based icons, UUID public_ids, style variants, idempotent seed of 6 current services
+- `services/cmsRepeatableService.js`: generic CRUD for repeatable items (create/save/archive/reorder/publishCollection), media usage registration
+- `validators/cmsPanelsValidator.js`: text limits, URL validation, color format, item type enums, ALLOWLIST-based validation
+- `controllers/adminPanelsController.js`: Panel 2/3 draft saves, collection publishes, LogoLoop item CRUD, Carousel item CRUD, Feature item CRUD
+- `routes/adminPanelsRoutes.js` mounted under `/admin` behind auth + capabilities + CSRF
+- Admin views: `views/pages/admin/page/panel2.ejs`, `views/pages/admin/page/panel3.ejs`
+- Public integration: `home.ejs` renders Panel 2 LogoLoop items, carousel items, headings/text from CMS with hardcoded fallbacks; Panel 3 headings from CMS
+- New capabilities: `home.showcase.view/edit/publish`, `home.logoLoop.edit/publish`, `home.carousel.edit/publish`, `home.services.view/edit/publish`
+- Cache namespaces: `section_home_showcase`, `logoLoop_home`, `carousel_home`, `section_home_services`, `features_home`
+- Extended preview route to include Panel 2/3 draft content
+- Idempotent migration `scripts/migrate-panels.js` (wired into `npm run migrate`)
+- `tests/cms-phase11c.test.js`: 37 tests covering migration, validators, CRUD, capabilities, media usage, publishing
+
+### Changed
+- `config/capabilities.js`: added 10 Phase 11C capabilities
+- `config/cmsOptions.js`: added `logo_loop_item`, `carousel_item`, `feature_item` to REVISION_ENTITY_TYPES
+- `controllers/adminPageController.js`: activated Panel 2 and Panel 3 modules in overview with item counts
+- `controllers/adminPageContentController.js`: extended preview to include Panel 2/3 data
+- `controllers/adminMediaController.js`: added `mediaBrowse` JSON API endpoint
+- `routes/adminPageRoutes.js`: added `/api/page/media` JSON browse endpoint
+- `app.js`: wired panel routes, registered panel usage sources, extended home route for Panel 2/3 CMS data
+- `schema.sql`: added `logo_loop_items`, `home_carousel_items`, `home_feature_items` tables
+- `public/css/admin-page.css`: added media selector modal, tabs, table, card preview styles
+
+## 2026-07-24 — CMS Phase 11B: Navbar y Panel 1 (Hero) administration
+
+### Added
+- Navbar editor at `/admin/page/navbar` with logo/favicon selectors (`media://` references), color pickers (#RRGGBB), opacity/logo-width controls, and sortable nav-link list.
+- Panel 1 (Hero) editor at `/admin/page/home/panel-1` with text inputs (eyebrow/heading/description, character counters), button CTAs (URL/target/visibility), media selectors for model/fallback/background, model config (scale/position/rotation/auto-rotate/speed, bounded numeric controls).
+- `navigation_items` table with UUID public_ids, FKs, indexes on (location, status, sort_order), idempotent seed of current hardcoded navbar links.
+- Idempotent migration `scripts/migrate-nav-items.js` (wired into `npm run migrate`).
+- `services/cmsPublishingService.js`: draft/publish lifecycle for page sections, site settings and navigation items, with transactional revisions, in-memory read cache per namespace, and cache invalidation on publish.
+- `validators/cmsPageValidator.js`: URL (safe protocols, reject `javascript:`/`data:`/protocol-relative), color (#RRGGBB/#RRGGBBAA), target (_self/_blank), bounded numerics, text length limits, media ref UUID format.
+- `controllers/adminPageContentController.js`: navbar settings save, nav-item CRUD/reorder/archive, section draft save/publish, authenticated preview.
+- `routes/adminPageContentRoutes.js` mounted under `/admin` behind isAuthenticated + isAdmin + capability checks.
+- Admin views: `views/pages/admin/page/navbar.ejs`, `views/pages/admin/page/panel1.ejs`.
+- Public integration: `home.ejs` and `home-navbar.ejs` resolve published CMS content with hardcoded fallbacks; `helmet3d.js` reads model config from DOM `data-*` attributes.
+- 6 new capabilities: `navbar.view/edit/publish`, `home.hero.view/edit/publish`.
+- 36 focused tests covering migration/schema, capabilities, validators, nav CRUD, hero draft/publish, cache, revisions, usage sources.
+- Overview module cards for Navbar and Panel 1 activated with real links.
+- `docs/CMS_PHASE_11B.md` documentation.
+
+### Changed
+- `home.ejs`: Panel 1 texts/buttons now come from CMS with fallback to hardcoded values; model config serialized as `data-model-config`.
+- `home-navbar.ejs`: Logo and nav links resolve from CMS; hardcoded navbar preserved as fallback.
+- `helmet3d.js`: model URL and config read from DOM; single renderer/canvas/RAF lifecycle preserved.
+- `app.js`: home route resolves CMS content; nav usage source registered at startup.
+- `config/capabilities.js`: added navbar and hero capabilities.
+
+### Added
+- Admin navigation entry `Administrar página` with an overview page at `/admin/page` showing media aggregates and cards for the modules of later phases (navbar, Panel 1/2/3, publishing) that are labelled and deliberately not linked.
+- Media library at `/admin/page/media` with server-side search, category/type/status filters, pagination, lazy thumbnail grid, detail view with usage and revision history, metadata editing, file replacement, archive and restore.
+- Idempotent, additive migration `scripts/migrate-cms.js` (wired into `npm run migrate`) creating `media_assets`, `pages`, `page_sections` and `content_revisions`, extending the existing `site_settings` table with `value_type`, `setting_group`, `is_public`, `updated_by` and `created_at`, and transactionally seeding the `home` page plus `hero`/`showcase`/`services` sections as disabled drafts.
+- `services/mediaStorageService.js`: containment-checked path resolution, `category-timestamp-randomhash` filenames, never-overwrite writes, content-based validation, Sharp variants (2560/1280/400 WebP, no upscaling, metadata stripped, animated images rejected) and GLB header/JSON-chunk validation with model metadata.
+- `services/mediaService.js`: transactional create/update/replace/archive/restore with SHA-256 duplicate detection, bounded-concurrency batch uploads with partial-success reporting, and file compensation on every failure path.
+- `services/mediaUsageService.js` with the `media://<public_id>` reference token, built-in `page_sections`/`site_settings` scanning and a `registerUsageSource` hook for later phases.
+- `services/contentRevisionService.js` writing allowlisted metadata snapshots for upload, metadata edit, replacement, archive and restore.
+- `services/cmsContentService.js` fallback-first readers for pages, sections, settings and media references, ready for Phase 11B.
+- `config/capabilities.js` plus `middlewares/capabilityMiddleware.js` mapping `page.manage` and the `media.*` capabilities to the existing database admin role.
+- 35 focused tests covering schema/index/foreign-key/seed idempotency, soft deletion, upload validation, GLB validation, traversal resistance, duplicate detection, partial batch failures, CRUD, replacement identity, usage-based archive blocking, filters/pagination, aggregates, authorization, CSRF and public-serving headers.
+- `docs/CMS_PHASE_11A.md` documenting scope, tables, storage layout, limits, migration and rollback notes, security and known limitations.
+
+### Architecture
+- Media files live under `<UPLOAD_PUBLIC_DIR>/media/{site,gallery,logos,carousel,icons,models,other,thumbnails}` and are served read-only at `/uploads/media/`; MySQL stores metadata only and no Railway path is hardcoded.
+- Multipart routes run multer before `csrfSynchronisedProtection`, matching the established catalog/gallery/payment-proof order.
+- No dependency was added; Sharp, multer, EJS and the existing admin layout are reused.
+
+### Unchanged
+- Product, category, avatar, gallery and payment-proof uploads keep their own services and directories.
+- Seeded sections stay disabled drafts, so the public homepage still renders its hardcoded content.
+- SVG upload stays disabled (no vetted sanitizer dependency) and physical deletion is not implemented; archive is the only destructive action.
+
 ## 2026-07-23 - Gallery Phase 4: Infinite Menu
 
 ### Added

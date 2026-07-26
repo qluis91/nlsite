@@ -36,6 +36,40 @@ function renderCard(item) {
   return card;
 }
 
+/**
+ * Read CMS feature items from a server-rendered JSON block.
+ * Falls back to the hardcoded SERVICES array when CMS data is absent or invalid.
+ */
+function resolveServiceItems() {
+  try {
+    const el = document.getElementById('services-cms-data');
+    if (!el) return SERVICES;
+    const raw = JSON.parse(el.textContent);
+    if (!Array.isArray(raw) || raw.length === 0) return SERVICES;
+    return raw.map(function(item) {
+      // Resolve icon: builtin → ICON_SVG, media → <img> tag, unknown → fallback
+      let iconHtml;
+      if (item.icon_key && ICON_SVG[item.icon_key]) {
+        iconHtml = ICON_SVG[item.icon_key];
+      } else if (item.media_url) {
+        iconHtml = '<img src="' + item.media_url + '" alt="' + (item.media_alt || item.title || '') + '" class="svc-card__media-icon">';
+      } else {
+        // Safe fallback icon
+        iconHtml = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg>';
+      }
+      return {
+        id: item.id,
+        title: item.title || 'Servicio',
+        description: item.description || '',
+        icon: iconHtml,
+        href: item.href || '/tienda',
+      };
+    });
+  } catch (_) {
+    return SERVICES;
+  }
+}
+
 export function initServicesCarousel(root) {
   if (!root) return () => {};
   if (instanceMap.has(root)) return instanceMap.get(root);
@@ -47,9 +81,11 @@ export function initServicesCarousel(root) {
 
   const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  const serviceItems = resolveServiceItems();
+
   const carousel = createCircularCarousel({
     root,
-    items: SERVICES,
+    items: serviceItems,
     renderItem: renderCard,
     cardWidth: 280,
     cardHeight: 470,

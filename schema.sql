@@ -89,6 +89,11 @@ CREATE TABLE IF NOT EXISTS site_settings (
   id INT AUTO_INCREMENT PRIMARY KEY,
   setting_key VARCHAR(100) NOT NULL UNIQUE,
   setting_value TEXT,
+  value_type VARCHAR(20) NOT NULL DEFAULT 'string' COMMENT 'string | number | boolean | json | media',
+  setting_group VARCHAR(40) NOT NULL DEFAULT 'general',
+  is_public TINYINT(1) NOT NULL DEFAULT 0,
+  updated_by INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -337,6 +342,236 @@ CREATE TABLE IF NOT EXISTS tilopay_transactions (
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Tilopay payment transaction attempts';
+
+-- ── Biblioteca multimedia del CMS (Fase 11A) ──
+CREATE TABLE IF NOT EXISTS media_assets (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  public_id CHAR(36) NOT NULL COMMENT 'UUID estable usado en URLs de admin y referencias de contenido',
+  filename VARCHAR(255) NOT NULL,
+  original_name VARCHAR(255) NULL COMMENT 'Nombre del navegador, solo metadato',
+  storage_disk VARCHAR(30) NOT NULL DEFAULT 'public',
+  storage_path VARCHAR(500) NOT NULL COMMENT 'Ruta relativa a la raíz de medios',
+  public_url VARCHAR(500) NOT NULL,
+  thumbnail_path VARCHAR(500) NULL,
+  variants_json JSON NULL,
+  mime_type VARCHAR(100) NOT NULL,
+  extension VARCHAR(10) NOT NULL,
+  file_size INT UNSIGNED NOT NULL,
+  width INT NULL,
+  height INT NULL,
+  model_metadata JSON NULL,
+  checksum CHAR(64) NOT NULL,
+  title VARCHAR(150) NULL,
+  alt_text VARCHAR(250) NULL,
+  description VARCHAR(2000) NULL,
+  category VARCHAR(20) NOT NULL DEFAULT 'other' COMMENT 'site | gallery | logo | carousel | icon | model | other',
+  status VARCHAR(20) NOT NULL DEFAULT 'active' COMMENT 'active | archived | processing | failed',
+  created_by INT NULL,
+  updated_by INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  UNIQUE KEY uq_media_assets_public_id (public_id),
+  UNIQUE KEY uq_media_assets_storage_path (storage_path),
+  KEY idx_media_assets_category_status (category, status, deleted_at),
+  KEY idx_media_assets_status_created (status, created_at),
+  KEY idx_media_assets_checksum (checksum),
+  KEY idx_media_assets_creator (created_by),
+  KEY idx_media_assets_title (title),
+  CONSTRAINT fk_media_assets_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_media_assets_updater FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Páginas administrables ──
+CREATE TABLE IF NOT EXISTS pages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  page_key VARCHAR(60) NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  slug VARCHAR(160) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'published' COMMENT 'draft | published | archived',
+  published_version INT NOT NULL DEFAULT 1,
+  created_by INT NULL,
+  updated_by INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_pages_page_key (page_key),
+  UNIQUE KEY uq_pages_slug (slug),
+  KEY idx_pages_status (status),
+  CONSTRAINT fk_pages_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_pages_updater FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Secciones de página ──
+CREATE TABLE IF NOT EXISTS page_sections (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  page_id INT NOT NULL,
+  section_key VARCHAR(60) NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  content_json JSON NULL,
+  style_json JSON NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  status VARCHAR(20) NOT NULL DEFAULT 'draft' COMMENT 'draft | published | archived',
+  version INT NOT NULL DEFAULT 1,
+  created_by INT NULL,
+  updated_by INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_page_sections_page_section (page_id, section_key),
+  KEY idx_page_sections_page_order (page_id, sort_order, id),
+  KEY idx_page_sections_status (status, is_enabled),
+  CONSTRAINT fk_page_sections_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
+  CONSTRAINT fk_page_sections_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_page_sections_updater FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Historial de revisiones de contenido ──
+CREATE TABLE IF NOT EXISTS content_revisions (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  entity_type VARCHAR(40) NOT NULL COMMENT 'media_asset | page | page_section | site_setting',
+  entity_id BIGINT NOT NULL,
+  revision_number INT NOT NULL,
+  action VARCHAR(30) NOT NULL COMMENT 'upload | metadata_edit | replace | archive | restore',
+  previous_data JSON NULL,
+  new_data JSON NULL,
+  change_summary VARCHAR(300) NULL,
+  changed_by INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_content_revisions_entity_revision (entity_type, entity_id, revision_number),
+  KEY idx_content_revisions_entity_created (entity_type, entity_id, created_at),
+  KEY idx_content_revisions_actor (changed_by),
+  CONSTRAINT fk_content_revisions_actor FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Phase 11C: Panel 2 & Panel 3 repeatable items ──
+
+CREATE TABLE IF NOT EXISTS logo_loop_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id CHAR(36) NOT NULL,
+  page_section_id INT NOT NULL COMMENT 'FK → page_sections (home/showcase)',
+  item_type VARCHAR(20) NOT NULL DEFAULT 'text' COMMENT 'text | image | logo',
+  text_content VARCHAR(160) NULL,
+  media_public_id CHAR(36) NULL,
+  url VARCHAR(500) NULL,
+  link_type VARCHAR(20) NOT NULL DEFAULT 'internal',
+  target VARCHAR(20) NOT NULL DEFAULT '_self',
+  alt_text VARCHAR(250) NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_visible TINYINT(1) NOT NULL DEFAULT 1,
+  status VARCHAR(20) NOT NULL DEFAULT 'draft',
+  created_by INT NULL,
+  updated_by INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  UNIQUE KEY uq_logo_loop_items_public_id (public_id),
+  KEY idx_logo_loop_items_section_status (page_section_id, status, deleted_at, sort_order),
+  CONSTRAINT fk_logo_loop_items_section FOREIGN KEY (page_section_id) REFERENCES page_sections(id) ON DELETE CASCADE,
+  CONSTRAINT fk_logo_loop_items_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_logo_loop_items_updater FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS home_carousel_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id CHAR(36) NOT NULL,
+  page_section_id INT NOT NULL COMMENT 'FK → page_sections (home/showcase)',
+  eyebrow VARCHAR(120) NULL,
+  title VARCHAR(180) NOT NULL,
+  description VARCHAR(1200) NULL,
+  button_label VARCHAR(80) NULL,
+  button_url VARCHAR(500) NULL,
+  button_target VARCHAR(20) NOT NULL DEFAULT '_self',
+  media_public_id CHAR(36) NULL COMMENT 'Main/background image',
+  preview_media_public_id CHAR(36) NULL,
+  theme_key VARCHAR(40) NULL COMMENT 'graphite | lime | silver | ink',
+  sort_order INT NOT NULL DEFAULT 0,
+  is_visible TINYINT(1) NOT NULL DEFAULT 1,
+  status VARCHAR(20) NOT NULL DEFAULT 'draft',
+  created_by INT NULL,
+  updated_by INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  UNIQUE KEY uq_home_carousel_items_public_id (public_id),
+  KEY idx_home_carousel_items_section_status (page_section_id, status, deleted_at, sort_order),
+  CONSTRAINT fk_home_carousel_items_section FOREIGN KEY (page_section_id) REFERENCES page_sections(id) ON DELETE CASCADE,
+  CONSTRAINT fk_home_carousel_items_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_home_carousel_items_updater FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS home_feature_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id CHAR(36) NOT NULL,
+  page_section_id INT NOT NULL COMMENT 'FK → page_sections (home/services)',
+  title VARCHAR(160) NOT NULL,
+  description VARCHAR(1000) NULL,
+  detail_text VARCHAR(1500) NULL,
+  icon_type VARCHAR(20) NOT NULL DEFAULT 'builtin' COMMENT 'builtin | media',
+  icon_key VARCHAR(40) NULL COMMENT 'diseno-3d | escaneo-3d | diseno-grafico | desarrollo-web | prendas | impresion-3d',
+  media_public_id CHAR(36) NULL,
+  url VARCHAR(500) NULL,
+  link_type VARCHAR(20) NOT NULL DEFAULT 'internal',
+  target VARCHAR(20) NOT NULL DEFAULT '_self',
+  style_variant VARCHAR(40) NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_visible TINYINT(1) NOT NULL DEFAULT 1,
+  status VARCHAR(20) NOT NULL DEFAULT 'draft',
+  created_by INT NULL,
+  updated_by INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  UNIQUE KEY uq_home_feature_items_public_id (public_id),
+  KEY idx_home_feature_items_section_status (page_section_id, status, deleted_at, sort_order),
+  CONSTRAINT fk_home_feature_items_section FOREIGN KEY (page_section_id) REFERENCES page_sections(id) ON DELETE CASCADE,
+  CONSTRAINT fk_home_feature_items_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_home_feature_items_updater FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Phase 11D: Publication batches ──
+
+CREATE TABLE IF NOT EXISTS publication_batches (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id CHAR(36) NOT NULL,
+  scope VARCHAR(20) NOT NULL DEFAULT 'selected' COMMENT 'selected | homepage | module | restore',
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT 'pending | validating | published | failed | cancelled',
+  summary VARCHAR(500) NULL,
+  created_by INT NULL,
+  published_by INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  published_at TIMESTAMP NULL,
+  failed_at TIMESTAMP NULL,
+  failure_reason VARCHAR(1000) NULL,
+  UNIQUE KEY uq_publication_batches_public_id (public_id),
+  INDEX idx_pb_scope (scope),
+  INDEX idx_pb_status (status),
+  INDEX idx_pb_created_by (created_by),
+  INDEX idx_pb_created_at (created_at),
+  CONSTRAINT fk_pb_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_pb_published_by FOREIGN KEY (published_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS publication_batch_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  batch_id INT NOT NULL,
+  module_key VARCHAR(60) NOT NULL,
+  entity_type VARCHAR(40) NULL,
+  entity_id INT NULL,
+  source_revision_id BIGINT NULL,
+  published_revision_id BIGINT NULL,
+  previous_published_snapshot JSON NULL,
+  new_published_snapshot JSON NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT 'pending | validated | published | failed | skipped',
+  error_message VARCHAR(500) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_pbi_batch_id (batch_id),
+  INDEX idx_pbi_module_key (module_key),
+  INDEX idx_pbi_status (status),
+  CONSTRAINT fk_pbi_batch_id FOREIGN KEY (batch_id) REFERENCES publication_batches(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pbi_source_revision FOREIGN KEY (source_revision_id) REFERENCES content_revisions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_pbi_published_revision FOREIGN KEY (published_revision_id) REFERENCES content_revisions(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Crear administrador ──
 -- Usa: node create-admin.js

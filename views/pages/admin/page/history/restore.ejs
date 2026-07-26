@@ -1,0 +1,42 @@
+<div class="page-header">
+  <h1>Restaurar revisión #<%= revision.revision_number %></h1>
+  <div class="cms-actions">
+    <a href="/admin/page/history/revision/<%= revision.id %>" class="btn btn-outline">Cancelar</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Confirmar restauración</h2>
+  <p>Está a punto de restaurar la revisión <strong>#<%= revision.revision_number %></strong> de la entidad <strong><%= revision.entity_type %></strong>.</p>
+
+  <table class="cms-table" style="width:auto;margin-bottom:1.5rem">
+    <tr><th style="width:150px">Acción original</th><td><%= revision.action %></td></tr>
+    <tr><th>Fecha</th><td><%= new Date(revision.created_at).toLocaleString('es-CR') %></td></tr>
+    <tr><th>Actor original</th><td><%= revision.actor_name || 'Desconocido' %></td></tr>
+    <tr><th>Resumen</th><td><%= revision.change_summary || '—' %></td></tr>
+  </table>
+
+  <div class="alert alert-warning" style="margin-bottom:1.5rem">
+    ⚠ La restauración crea un nuevo borrador. El contenido publicado actual no cambiará a menos que elija "Restaurar y publicar".
+  </div>
+
+  <% if (snapshot) { %>
+    <details style="margin-bottom:1.5rem">
+      <summary>Ver datos de la revisión</summary>
+      <pre style="background:#f8fafc;padding:0.75rem;overflow:auto;max-height:300px;font-size:0.75rem"><code><%= JSON.stringify(snapshot, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;') %></code></pre>
+    </details>
+  <% } %>
+
+  <div class="cms-actions" style="display:flex;gap:1rem">
+    <form action="/admin/page/history/revision/<%= revision.id %>/restore" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="publish" value="0">
+      <button type="submit" class="btn btn-primary" onclick="return confirm('¿Restaurar esta revisión como borrador?')">Restaurar como borrador</button>
+    </form>
+    <form action="/admin/page/history/revision/<%= revision.id %>/restore" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="publish" value="1">
+      <button type="submit" class="btn btn-primary btn-warning" onclick="return confirm('¿Restaurar Y PUBLICAR esta revisión? El contenido público cambiará inmediatamente.')">Restaurar y publicar</button>
+    </form>
+  </div>
+</div>

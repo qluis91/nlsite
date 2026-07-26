@@ -1,0 +1,97 @@
+<div class="page-header">
+  <div>
+    <h1>Biblioteca multimedia</h1>
+    <p>Imágenes, logotipos, iconos y modelos 3D reutilizables en el sitio.</p>
+  </div>
+  <div class="cms-actions">
+    <a href="/admin/page" class="btn btn-outline">Administrar página</a>
+    <a href="/admin/page/media/upload" class="btn btn-primary">Cargar archivos</a>
+  </div>
+</div>
+
+<div class="card filters-bar">
+  <form method="GET" action="/admin/page/media" class="cms-filters">
+    <input class="form-control" type="search" name="search" value="<%= filters.search %>"
+           maxlength="100" placeholder="Buscar por título o nombre…" aria-label="Buscar">
+    <select class="form-control" name="category" aria-label="Categoría">
+      <option value="">Todas las categorías</option>
+      <% constants.categories.forEach(function (category) { %>
+        <option value="<%= category %>" <%= filters.category === category ? 'selected' : '' %>>
+          <%= constants.categoryLabels[category] %>
+        </option>
+      <% }); %>
+    </select>
+    <select class="form-control" name="kind" aria-label="Tipo">
+      <option value="">Todos los tipos</option>
+      <option value="image" <%= filters.kind === 'image' ? 'selected' : '' %>>Imágenes</option>
+      <option value="model" <%= filters.kind === 'model' ? 'selected' : '' %>>Modelos 3D</option>
+    </select>
+    <select class="form-control" name="status" aria-label="Estado">
+      <option value="">Activos</option>
+      <% constants.statuses.forEach(function (status) { %>
+        <option value="<%= status %>" <%= filters.status === status ? 'selected' : '' %>>
+          <%= constants.statusLabels[status] %>
+        </option>
+      <% }); %>
+    </select>
+    <button class="btn btn-outline" type="submit">Filtrar</button>
+  </form>
+</div>
+
+<div class="card">
+  <% if (!items.length) { %>
+    <div class="empty-state">
+      <p>No hay archivos que coincidan con los filtros seleccionados.</p>
+      <a class="btn btn-primary" href="/admin/page/media/upload">Cargar archivos</a>
+    </div>
+  <% } else { %>
+    <p><strong><%= total %></strong> archivo(s) — Página <%= page %> de <%= totalPages %></p>
+    <ul class="cms-grid">
+      <% items.forEach(function (asset) { %>
+        <li class="cms-card <%= asset.is_archived ? 'is-archived' : '' %>">
+          <a class="cms-card-media" href="/admin/page/media/<%= asset.public_id %>">
+            <% if (asset.thumbnail_path) { %>
+              <img src="<%= asset.thumbnail_path %>" alt="<%= asset.alt_text || '' %>" loading="lazy" decoding="async">
+            <% } else { %>
+              <span class="cms-thumb-model" aria-hidden="true">GLB</span>
+            <% } %>
+          </a>
+          <div class="cms-card-body">
+            <a class="cms-card-title" href="/admin/page/media/<%= asset.public_id %>">
+              <%= asset.title || asset.original_name || asset.filename %>
+            </a>
+            <p class="cms-card-meta">
+              <span class="badge badge-published"><%= constants.categoryLabels[asset.category] || asset.category %></span>
+              <span class="badge <%= asset.status === 'active' ? 'badge-published' : 'badge-hidden' %>">
+                <%= constants.statusLabels[asset.status] || asset.status %>
+              </span>
+            </p>
+            <p class="cms-card-meta">
+              <%= asset.kind === 'model' ? 'Modelo GLB' : 'Imagen' %>
+              <% if (asset.width && asset.height) { %> · <%= asset.width %>×<%= asset.height %><% } %>
+              · <%= formatFileSize(asset.file_size) %>
+            </p>
+            <p class="cms-card-meta">
+              <%= new Date(asset.created_at).toLocaleDateString('es-CR') %>
+              · <%= asset.uploader_name || 'Sistema' %>
+            </p>
+            <div class="cms-card-actions">
+              <a class="btn btn-sm btn-outline" href="/admin/page/media/<%= asset.public_id %>/edit">Editar</a>
+              <button class="btn btn-sm btn-outline" type="button"
+                      data-copy-url="<%= asset.public_url %>">Copiar URL</button>
+            </div>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>
+
+<% if (totalPages > 1) { %>
+  <nav class="pagination" aria-label="Paginación">
+    <% for (let current = 1; current <= totalPages; current += 1) { %>
+      <% if (current === page) { %><span class="page-current"><%= current %></span>
+      <% } else { %><a class="page-link" href="<%= buildLibraryUrl({ page: current }) %>"><%= current %></a><% } %>
+    <% } %>
+  </nav>
+<% } %>

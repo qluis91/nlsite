@@ -1,0 +1,60 @@
+<div class="page-header">
+  <h1>Revisión #<%= revision.revision_number %></h1>
+  <div class="cms-actions">
+    <a href="/admin/page/history<%= batch ? '?moduleKey=&action=' : '' %>" class="btn btn-outline">Volver al historial</a>
+    <% if (batch) { %>
+      <a href="/admin/page/history/compare?from=<%= revision.id %>&to=<%= revision.id %>" class="btn btn-outline btn-sm">Comparar</a>
+    <% } %>
+    <a href="/admin/page/history/revision/<%= revision.id %>/restore" class="btn btn-primary">Restaurar</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Detalles</h2>
+  <table class="cms-table" style="width:auto">
+    <tr><th style="width:150px">ID</th><td><code><%= revision.id %></code></td></tr>
+    <tr><th>Número</th><td>#<%= revision.revision_number %></td></tr>
+    <tr><th>Entidad</th><td><%= revision.entity_type %></td></tr>
+    <tr><th>ID Entidad</th><td><%= revision.entity_id %></td></tr>
+    <tr><th>Acción</th><td><span class="badge"><%= revision.action %></span></td></tr>
+    <tr><th>Actor</th><td><%= revision.actor_name || '—' %></td></tr>
+    <tr><th>Fecha</th><td><%= new Date(revision.created_at).toLocaleString('es-CR') %></td></tr>
+    <tr><th>Resumen</th><td><%= revision.change_summary || '—' %></td></tr>
+    <% if (batch) { %>
+      <tr><th>Lote de publicación</th><td><code><%= batch.public_id %></code> (<%= batch.scope %>, <%= batch.status %>)</td></tr>
+    <% } %>
+  </table>
+</div>
+
+<% if (fieldChanges.length) { %>
+<div class="card" style="margin-top:1.5rem">
+  <h2>Cambios registrados</h2>
+  <table class="cms-table">
+    <thead><tr><th>Campo</th><th>Anterior</th><th>Nuevo</th><th>Tipo</th></tr></thead>
+    <tbody>
+      <% fieldChanges.forEach(function(c) { %>
+        <tr>
+          <td><strong><%= c.field %></strong></td>
+          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code><%= c.oldValue.slice(0, 100) %></code></td>
+          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code><%= c.newValue.slice(0, 100) %></code></td>
+          <td><span class="badge <%= c.type === 'added' ? 'badge-published' : c.type === 'removed' ? 'badge-error' : 'badge-warning' %>"><%= c.type %></span></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
+<% if (newData && !fieldChanges.length) { %>
+<div class="card" style="margin-top:1.5rem">
+  <h2>Datos de la revisión</h2>
+  <details>
+    <summary>Ver JSON</summary>
+    <pre style="background:#f8fafc;padding:1rem;overflow:auto;max-height:400px;font-size:0.8rem"><code><%= JSON.stringify(newData, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;') %></code></pre>
+  </details>
+</div>
+<% } %>
+
+<div class="cms-actions" style="margin-top:1.5rem">
+  <a href="/admin/page/history/revision/<%= revision.id %>/restore" class="btn btn-primary">Restaurar esta revisión</a>
+</div>

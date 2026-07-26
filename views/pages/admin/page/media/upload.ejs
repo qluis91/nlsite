@@ -1,0 +1,67 @@
+<div class="page-header">
+  <div>
+    <h1>Cargar multimedia</h1>
+    <p>Los archivos se validan por contenido, se optimizan y se guardan con nombres únicos.</p>
+  </div>
+  <a href="/admin/page/media" class="btn btn-outline">Volver a la biblioteca</a>
+</div>
+
+<div class="card">
+  <form action="/admin/page/media" method="POST" enctype="multipart/form-data" class="cms-form" data-media-upload>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="form-group">
+      <label for="category">Categoría</label>
+      <select class="form-control" id="category" name="category" required>
+        <% constants.categories.forEach(function (category) { %>
+          <option value="<%= category %>"><%= constants.categoryLabels[category] %></option>
+        <% }); %>
+      </select>
+      <small>La categoría define dónde se almacena el archivo y qué formatos se aceptan.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="files">Archivos</label>
+      <input class="form-control" id="files" name="files" type="file" multiple required
+             accept=".jpg,.jpeg,.png,.webp<%= constants.avifSupported ? ',.avif' : '' %>,.glb">
+      <small>
+        Máximo <%= constants.maxFiles %> archivos por carga.
+        Imágenes JPG, PNG o WebP<%= constants.avifSupported ? ' o AVIF' : '' %> hasta <%= constants.maxImageMb %> MB
+        y <%= constants.maxDimension %> × <%= constants.maxDimension %> px.
+        Modelos GLB hasta <%= constants.maxModelMb %> MB.
+        <% if (!constants.svgEnabled) { %>La carga de SVG está deshabilitada por seguridad.<% } %>
+      </small>
+      <p class="cms-upload-state" data-upload-state hidden>Procesando archivos…</p>
+    </div>
+
+    <div class="form-group">
+      <label for="title">Título</label>
+      <input class="form-control" id="title" name="title" type="text" maxlength="<%= constants.titleMax %>">
+      <small>Opcional. Si cargas varios archivos, se aplica el mismo título a todos.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="altText">Texto alternativo</label>
+      <input class="form-control" id="altText" name="altText" type="text" maxlength="<%= constants.altTextMax %>">
+      <small>Describe la imagen para lectores de pantalla.</small>
+    </div>
+
+    <div class="form-group form-check">
+      <label>
+        <input type="checkbox" name="decorative" value="1">
+        La imagen es decorativa y no necesita texto alternativo
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label for="description">Descripción</label>
+      <textarea class="form-control" id="description" name="description" rows="3"
+                maxlength="<%= constants.descriptionMax %>"></textarea>
+    </div>
+
+    <div class="cms-actions">
+      <button class="btn btn-primary" type="submit">Cargar</button>
+      <a class="btn btn-outline" href="/admin/page/media">Cancelar</a>
+    </div>
+  </form>
+</div>

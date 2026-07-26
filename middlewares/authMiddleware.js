@@ -7,7 +7,7 @@ const siteConfig = require('../config/site');
 // ── Inyectar variables globales en todas las vistas ──
 function setLocals(req, res, next) {
   res.locals.user = req.session.user || null;
-  res.locals.site = siteConfig;
+  res.locals.site = res.locals.site || siteConfig;
   res.locals.currentPath = req.path;
   res.locals.success_msg = req.session.success_msg || null;
   res.locals.error_msg = req.session.error_msg || null;

@@ -56,6 +56,7 @@ Both directories are created automatically at startup. The volume must be mounte
 - Gallery images and thumbnails (public)
 - Category hero images (public)
 - Avatar images (public)
+- CMS media library (public, served at `/uploads/media/…` — see `docs/CMS_PHASE_11A.md`)
 - Payment proof files (private, NOT statically served)
 
 **What does NOT live on the volume:**
@@ -127,6 +128,7 @@ On Railway, download the volume snapshot or use Railway's backup features.
 - Product images.
 - Category hero images.
 - Gallery media.
+- CMS media library files under `<UPLOAD_PUBLIC_DIR>/media` (the database only stores metadata, never the binaries; back up the volume and the database together so `media_assets` rows and files stay synchronized).
 
 ### Migration Rollback
 Migrations in this project are additive (ALTER TABLE ADD COLUMN, CREATE TABLE IF NOT EXISTS).
