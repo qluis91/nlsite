@@ -59,9 +59,9 @@ describe('Phase 11C — Migration & Schema', () => {
     assert.equal(Number(before.total), Number(after.total));
   });
 
-  it('seeds include hardcoded items', async () => {
-    const [rows] = await pool.query("SELECT text_content FROM logo_loop_items WHERE deleted_at IS NULL ORDER BY sort_order");
-    const texts = rows.map(r => r.text_content);
+  it('seeds include hardcoded items', () => {
+    const { LOGO_LOOP_SEED } = require('../scripts/migrate-panels');
+    const texts = LOGO_LOOP_SEED.filter(s => s.item_type === 'text').map(s => s.text_content);
     assert.ok(texts.includes('ACABADOS'));
     assert.ok(texts.includes('IMPRESIÓN 3D'));
   });

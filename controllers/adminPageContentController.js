@@ -47,7 +47,11 @@ async function resolveMediaData(ref) {
   if (!ref || !ref.startsWith('media://')) return null;
   const publicId = ref.replace('media://', '');
   const [rows] = await pool.query(
-    'SELECT public_id, title, original_filename, mime_type, category, dimensions, thumbnail_url FROM media_assets WHERE public_id = ? AND status = "active"',
+    `SELECT public_id, title, original_name AS original_filename, mime_type, category,
+            thumbnail_path AS thumbnail_url,
+            CONCAT(IFNULL(width, '?'), '\u00d7', IFNULL(height, '?')) AS dimensions
+     FROM media_assets
+     WHERE public_id = ? AND status = "active"`,
     [publicId]
   );
   return rows[0] || null;
@@ -303,6 +307,31 @@ async function preview(req, res, next) {
       );
       if (sRow) {
         featureItems = await repeatableSvc.listItems('home_feature_items', sRow.id);
+      }
+    }
+
+    // Resolve media for repeatable items (needed by public template)
+    const cmsContent = require('../services/cmsContentService');
+    const resolveMedia = async (ref) => {
+      if (!ref) return null;
+      return cmsContent.resolveMediaReference(ref, null);
+    };
+    for (const item of carouselItems) {
+      if (item.media_public_id) {
+        item.media_resolved = await resolveMedia('media://' + item.media_public_id);
+      }
+      if (item.preview_media_public_id) {
+        item.preview_media_resolved = await resolveMedia('media://' + item.preview_media_public_id);
+      }
+    }
+    for (const item of logoLoopItems) {
+      if (item.item_type !== 'text' && item.media_public_id) {
+        item.media_resolved = await resolveMedia('media://' + item.media_public_id);
+      }
+    }
+    for (const item of featureItems) {
+      if (item.icon_type === 'media' && item.media_public_id) {
+        item.media_resolved = await resolveMedia('media://' + item.media_public_id);
       }
     }
 

@@ -158,6 +158,67 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── Admin branding from global settings (Phase 12A) ──
+app.use(async (req, res, next) => {
+  if (!req.path.startsWith('/admin') || req.path === '/admin/login') return next();
+  try {
+    const cms = require('./services/cmsPublishingService');
+    const cmsContent = require('./services/cmsContentService');
+    const settings = await cms.getPublishedSettings(['global.site_name', 'site.favicon']);
+    if (settings['global.site_name']) {
+      const siteConfig = require('./config/site');
+      res.locals.site = { ...siteConfig, name: settings['global.site_name'] };
+    }
+    if (settings['site.favicon']) {
+      const fav = await cmsContent.resolveMediaReference(settings['site.favicon'], null);
+      if (fav && fav.url) res.locals.globalFavicon = fav.url;
+    }
+  } catch (_) {
+    // Graceful fallback: use .env / config/site.js default
+  }
+  next();
+});
+
+// ── Public SEO defaults from global settings (Phase 12A) ──
+app.use(async (req, res, next) => {
+  // Skip admin, auth, API, and static paths
+  if (req.path.startsWith('/admin') || req.path.startsWith('/auth') || req.path.startsWith('/api') ||
+      req.path.startsWith('/health') || req.path.startsWith('/ready')) return next();
+  try {
+    const cms = require('./services/cmsPublishingService');
+    const cmsContent = require('./services/cmsContentService');
+    const settings = await cms.getPublishedSettings([
+      'global.seo_title', 'global.seo_description', 'global.og_image',
+      'global.canonical_url', 'global.indexing_mode', 'site.favicon',
+    ]);
+
+    if (settings['global.seo_title']) {
+      res.locals.globalSeoTitle = settings['global.seo_title'];
+    }
+    if (settings['global.seo_description']) {
+      res.locals.globalSeoDescription = settings['global.seo_description'];
+    }
+    if (settings['global.indexing_mode']) {
+      res.locals.globalRobots = settings['global.indexing_mode'];
+    }
+    if (settings['global.canonical_url']) {
+      res.locals.globalCanonical = settings['global.canonical_url'];
+    }
+    // Resolve OG image and favicon media references
+    if (settings['global.og_image']) {
+      const ogImg = await cmsContent.resolveMediaReference(settings['global.og_image'], null);
+      if (ogImg && ogImg.url) res.locals.globalOgImage = ogImg.url;
+    }
+    if (settings['site.favicon']) {
+      const fav = await cmsContent.resolveMediaReference(settings['site.favicon'], null);
+      if (fav && fav.url) res.locals.globalFavicon = fav.url;
+    }
+  } catch (_) {
+    // Graceful fallback
+  }
+  next();
+});
+
 // ── Rate Limiter para Login de Administrador ──
 const adminLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -353,6 +414,15 @@ app.get('/', async (req, res) => {
     // Resolve carousel item media
     for (const item of carouselItems) {
       if (item.media_public_id) {
+        item.media_resolved = await resolveMedia('media://' + item.media_public_id);
+      }
+      if (item.preview_media_public_id) {
+        item.preview_media_resolved = await resolveMedia('media://' + item.preview_media_public_id);
+      }
+    }
+    // Resolve logo loop item media
+    for (const item of logoLoopItems) {
+      if (item.item_type !== 'text' && item.media_public_id) {
         item.media_resolved = await resolveMedia('media://' + item.media_public_id);
       }
     }

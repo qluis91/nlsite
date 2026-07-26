@@ -85,7 +85,7 @@
           <td><span class="badge badge-<%= item.status === 'published' ? 'published' : 'draft' %>"><%= item.status %></span></td>
           <td><%= item.sort_order %></td>
           <td class="cms-actions-cell">
-            <button type="button" class="btn btn-sm btn-secondary" onclick="editLogoItem('<%= item.public_id %>', '<%= item.item_type %>', '<%= (item.text_content || '').replace(/'/g, "\\'") %>', '<%= item.media_public_id ? 'media://' + item.media_public_id : '' %>', '<%= item.url || '' %>', '<%= item.link_type %>', '<%= item.target %>', '<%= item.alt_text || '' %>', <%= item.is_visible %>, '<%= item.status %>')">Editar</button>
+            <button type="button" class="btn btn-sm btn-secondary" data-logo-edit-id="<%= item.public_id %>">Editar</button>
             <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/archive" class="cms-form--inline">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <input type="hidden" name="public_id" value="<%= item.public_id %>">
@@ -145,6 +145,13 @@
           <input type="text" id="logo-url" name="url" class="form-input" maxlength="500" placeholder="/pagina o #seccion o https://...">
         </div>
         <div class="form-group">
+          <label class="field-label">Tipo de enlace</label>
+          <select name="link_type" id="logo-link-type" class="form-input">
+            <option value="internal">Interno</option>
+            <option value="external">Externo</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label class="field-label">Target</label>
           <select name="target" id="logo-target" class="form-input">
             <option value="_self">Misma pestaña</option>
@@ -160,7 +167,7 @@
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" id="logo-submit-btn">Agregar elemento</button>
-        <button type="button" class="btn btn-secondary" id="logo-cancel-btn" hidden onclick="resetLogoForm()">Cancelar</button>
+        <button type="button" class="btn btn-secondary" id="logo-cancel-btn" hidden>Cancelar</button>
       </div>
     </form>
 
@@ -206,7 +213,7 @@
             <small>Tema: <%= item.theme_key || '-' %> · Visible: <%= item.is_visible ? 'Sí' : 'No' %> · <%= item.status %></small>
           </p>
           <div class="cms-actions-cell">
-            <button type="button" class="btn btn-sm btn-secondary" onclick="editCarouselItem('<%= item.public_id %>', '<%= (item.eyebrow || '').replace(/'/g, "\\'") %>', '<%= (item.title || '').replace(/'/g, "\\'") %>', '<%= (item.description || '').replace(/'/g, "\\'") %>', '<%= item.button_label || '' %>', '<%= item.button_url || '' %>', '<%= item.button_target %>', '<%= item.media_public_id ? 'media://' + item.media_public_id : '' %>', '<%= item.preview_media_public_id ? 'media://' + item.preview_media_public_id : '' %>', '<%= item.theme_key || '' %>', <%= item.is_visible %>, '<%= item.status %>')">Editar</button>
+            <button type="button" class="btn btn-sm btn-secondary" data-carousel-edit-id="<%= item.public_id %>">Editar</button>
             <form method="POST" action="/admin/page/home/panel-2/carousel/items/archive" class="cms-form--inline">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <input type="hidden" name="public_id" value="<%= item.public_id %>">
@@ -218,7 +225,11 @@
     </article>
   <% }); %>
 
-  <details class="cms-card">
+  <% if (!carouselItems.length) { %>
+    <div class="empty-state">Sin proyectos en el carrusel. Agregue uno usando el formulario abajo.</div>
+  <% } %>
+
+  <details class="cms-card" id="carousel-edit-details">
     <summary class="cms-card-title">Agregar / Editar proyecto</summary>
     <form method="POST" action="/admin/page/home/panel-2/carousel/items" class="cms-form" id="carousel-form">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -269,7 +280,7 @@
         </select>
       </div>
 
-      <div class="form-group">
+      <div class="form-group" id="carousel-media-group">
         <%- include('../../../components/media-selector', {
           fieldName: 'media_public_id',
           currentValue: '',
@@ -281,7 +292,7 @@
         }) %>
       </div>
 
-      <div class="form-group">
+      <div class="form-group" id="carousel-preview-media-group">
         <%- include('../../../components/media-selector', {
           fieldName: 'preview_media_public_id',
           currentValue: '',
@@ -303,7 +314,7 @@
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" id="carousel-submit-btn">Agregar proyecto</button>
-        <button type="button" class="btn btn-secondary" id="carousel-cancel-btn" hidden onclick="resetCarouselForm()">Cancelar</button>
+        <button type="button" class="btn btn-secondary" id="carousel-cancel-btn" hidden>Cancelar</button>
       </div>
     </form>
 
@@ -321,7 +332,6 @@
       <button type="submit" class="btn btn-success">Publicar carrusel</button>
     </form>
   </div>
-</form> <!-- Carousel tab -->
 </div>
 
 <!-- ═══ Style tab ═══ -->
@@ -358,85 +368,39 @@
   </div>
 </div>
 
-<script>
-// ── Tab switching ──
-document.querySelectorAll('.cms-tab').forEach(function(tab) {
-  tab.addEventListener('click', function() {
-    document.querySelectorAll('.cms-tab').forEach(function(t) { t.classList.remove('is-active'); t.setAttribute('aria-selected','false'); });
-    document.querySelectorAll('.cms-tab-panel').forEach(function(p) { p.classList.remove('is-active'); p.hidden = true; });
-    this.classList.add('is-active');
-    this.setAttribute('aria-selected','true');
-    var panel = document.querySelector('[data-panel="'+this.dataset.tab+'"]');
-    if (panel) { panel.classList.add('is-active'); panel.hidden = false; }
-  });
-});
-
-// ── LogoLoop type switching ──
-var logoType = document.getElementById('logo-type');
-var logoTextGroup = document.getElementById('logo-text-group');
-var logoMediaGroup = document.getElementById('logo-media-group');
-var logoAltGroup = document.getElementById('logo-alt-group');
-
-function updateLogoFields() {
-  var t = logoType.value;
-  logoTextGroup.hidden = t !== 'text';
-  logoMediaGroup.hidden = t === 'text';
-  logoAltGroup.hidden = t === 'text';
-}
-logoType.addEventListener('change', updateLogoFields);
-updateLogoFields();
-
-function editLogoItem(id, type, text, media, url, linkType, target, alt, visible, status) {
-  document.getElementById('logo-edit-id').value = id;
-  document.getElementById('logo-type').value = type;
-  document.getElementById('logo-text-content').value = text || '';
-  document.querySelector('[name="media_public_id"]').value = media || '';
-  document.getElementById('logo-url').value = url || '';
-  document.getElementById('logo-target').value = target || '_self';
-  document.getElementById('logo-alt').value = alt || '';
-  document.getElementById('logo-visible').value = visible ? '1' : '0';
-  document.getElementById('logo-submit-btn').textContent = 'Guardar cambios';
-  document.getElementById('logo-cancel-btn').hidden = false;
-  document.getElementById('logo-form').action = '/admin/page/home/panel-2/logo-loop/items/save';
-  updateLogoFields();
-  document.querySelector('[data-tab="logoloop"]').click();
-  document.querySelector('.cms-card summary').click();
-}
-
-function resetLogoForm() {
-  document.getElementById('logo-edit-id').value = '';
-  document.getElementById('logo-submit-btn').textContent = 'Agregar elemento';
-  document.getElementById('logo-cancel-btn').hidden = true;
-  document.getElementById('logo-form').action = '/admin/page/home/panel-2/logo-loop/items';
-  document.getElementById('logo-form').reset();
-  updateLogoFields();
-}
-
-// ── Carousel edit helper ──
-function editCarouselItem(id, eyebrow, title, desc, btnLabel, btnUrl, btnTarget, media, preview, theme, visible, status) {
-  document.getElementById('carousel-edit-id').value = id;
-  document.getElementById('carousel-eyebrow').value = eyebrow || '';
-  document.getElementById('carousel-title').value = title || '';
-  document.getElementById('carousel-desc').value = desc || '';
-  document.getElementById('carousel-btn-label').value = btnLabel || '';
-  document.getElementById('carousel-btn-url').value = btnUrl || '';
-  document.getElementById('carousel-btn-target').value = btnTarget || '_self';
-  document.querySelector('[name="media_public_id"]').value = media || '';
-  document.querySelector('[name="preview_media_public_id"]').value = preview || '';
-  document.getElementById('carousel-theme').value = theme || 'graphite';
-  document.getElementById('carousel-visible').value = visible ? '1' : '0';
-  document.getElementById('carousel-submit-btn').textContent = 'Guardar cambios';
-  document.getElementById('carousel-cancel-btn').hidden = false;
-  document.getElementById('carousel-form').action = '/admin/page/home/panel-2/carousel/items/save';
-  document.querySelector('[data-tab="carousel"]').click();
-  document.querySelectorAll('.cms-card summary')[document.querySelectorAll('.cms-card').length - 1]?.click();
-}
-
-function resetCarouselForm() {
-  document.getElementById('carousel-edit-id').value = '';
-  document.getElementById('carousel-submit-btn').textContent = 'Agregar proyecto';
-  document.getElementById('carousel-cancel-btn').hidden = true;
-  document.getElementById('carousel-form').action = '/admin/page/home/panel-2/carousel/items';
-  document.getElementById('carousel-form').reset();
-}
-</script>
+<script type="application/json" id="panel2-logo-items-data"><%- JSON.stringify(logoItems.map(function(item) {
+  return {
+    id: item.public_id,
+    item_type: item.item_type,
+    text_content: item.text_content || '',
+    media: item.media_public_id ? 'media://' + item.media_public_id : '',
+    media_thumb: item.media_public_id_resolved ? (item.media_public_id_resolved.thumbnail_url || item.media_public_id_resolved.url || '') : '',
+    media_title: item.media_public_id_resolved ? (item.media_public_id_resolved.title || '') : '',
+    url: item.url || '',
+    link_type: item.link_type || 'internal',
+    target: item.target || '_self',
+    alt_text: item.alt_text || '',
+    is_visible: item.is_visible,
+    status: item.status,
+  };
+})) %></script>
+<script type="application/json" id="panel2-carousel-items-data"><%- JSON.stringify(carouselItems.map(function(item) {
+  return {
+    id: item.public_id,
+    eyebrow: item.eyebrow || '',
+    title: item.title || '',
+    description: item.description || '',
+    button_label: item.button_label || '',
+    button_url: item.button_url || '',
+    button_target: item.button_target || '_self',
+    media_public_id: item.media_public_id ? 'media://' + item.media_public_id : '',
+    media_thumb: item.media_public_id_resolved ? (item.media_public_id_resolved.thumbnail_url || item.media_public_id_resolved.url || '') : '',
+    media_title: item.media_public_id_resolved ? (item.media_public_id_resolved.title || '') : '',
+    preview_media_public_id: item.preview_media_public_id ? 'media://' + item.preview_media_public_id : '',
+    preview_media_thumb: item.preview_media_public_id_resolved ? (item.preview_media_public_id_resolved.thumbnail_url || item.preview_media_public_id_resolved.url || '') : '',
+    preview_media_title: item.preview_media_public_id_resolved ? (item.preview_media_public_id_resolved.title || '') : '',
+    theme_key: item.theme_key || 'graphite',
+    is_visible: item.is_visible,
+    status: item.status,
+  };
+})) %></script>

@@ -75,8 +75,13 @@ async function saveItem(table, publicId, data, { actorId = null } = {}) {
     const [rows] = await connection.query(`SELECT * FROM ${table} WHERE public_id = ? FOR UPDATE`, [publicId]);
     if (!rows[0]) throw new Error('Elemento no encontrado.');
 
-    const setClauses = Object.entries(data).map(([k]) => `${k} = ?`).join(', ');
-    const values = Object.values(data);
+    const entries = Object.entries(data);
+    if (!entries.length) {
+      await connection.commit();
+      return rows[0];
+    }
+    const setClauses = entries.map(([k]) => `${k} = ?`).join(', ');
+    const values = entries.map(([, v]) => v);
     await connection.query(
       `UPDATE ${table} SET ${setClauses}, updated_by = ? WHERE public_id = ?`,
       [...values, actorId, publicId]

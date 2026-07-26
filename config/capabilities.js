@@ -36,6 +36,10 @@ const CAPABILITIES = Object.freeze({
   HISTORY_COMPARE: 'cms.history.compare',
   HISTORY_RESTORE_DRAFT: 'cms.history.restoreDraft',
   HISTORY_RESTORE_PUBLISH: 'cms.history.restorePublish',
+  // Phase 12A — Global Settings & SEO
+  GLOBAL_SETTINGS_VIEW: 'global.settings.view',
+  GLOBAL_SETTINGS_EDIT: 'global.settings.edit',
+  GLOBAL_SETTINGS_PUBLISH: 'global.settings.publish',
 });
 
 const CAPABILITY_VALUES = Object.freeze(Object.values(CAPABILITIES));

@@ -108,6 +108,10 @@ exports.showRegister = (req, res) => {
   res.render('pages/register', {
     title: 'Registrarse',
     layout: 'layouts/main',
+    pageClass: 'page-auth',
+    pageStyles: ['/css/auth.css'],
+    robots: 'noindex, nofollow',
+    hideFooter: true,
     form,
   });
 };
@@ -352,6 +356,10 @@ exports.showAdminLogin = (req, res) => {
   res.render('pages/admin-login', {
     title: 'Acceso Administrativo',
     layout: 'layouts/main',
+    pageClass: 'page-auth',
+    pageStyles: ['/css/auth.css'],
+    robots: 'noindex, nofollow',
+    hideFooter: true,
   });
 };
 

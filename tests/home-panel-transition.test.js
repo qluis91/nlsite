@@ -365,15 +365,15 @@ test('panel-two text and carousel use visible scroll-owned animation layers', ()
 
 test('project carousel hierarchy favors a clearer active slide over softer previews', () => {
   assert.match(css, /--preview-width: clamp\(160px, 13vw, 205px\)/);
-  assert.match(css, /--preview-height: clamp\(225px, 22vw, 305px\)/);
-  assert.match(css, /rgba\(0, 0, 0, 0\.58\)/);
+  assert.match(css, /--preview-height: clamp\(112px, 11vw, 152px\)/);
+  assert.match(css, /rgba\(0, 0, 0, 0\.30\)/);
   assert.doesNotMatch(css, /rgba\(0, 0, 0, 0\.84\)/);
   assert.match(
     css,
     /\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*brightness\(1\.08\)/,
   );
-  assert.match(css, /\.is-preview-near\s*\{[\s\S]*top: calc\(50% \+ 52px\)[\s\S]*opacity: 0\.94/);
-  assert.match(css, /\.is-preview-rear\s*\{[\s\S]*top: calc\(50% \+ 72px\)[\s\S]*opacity: 0\.82/);
+  assert.match(css, /\.is-preview-near\s*\{[\s\S]*top: calc\(50% \+ 110px\)[\s\S]*opacity: 0\.94/);
+  assert.match(css, /\.is-preview-rear\s*\{[\s\S]*top: calc\(50% \+ 130px\)[\s\S]*opacity: 0\.82/);
   assert.match(css, /\.project-carousel__face\s*\{[\s\S]*--preview-scale/);
   assert.match(css, /\.is-preview-near \.project-carousel__face\s*\{[\s\S]*--preview-scale: 0\.96/);
   assert.match(css, /\.is-preview-rear \.project-carousel__face\s*\{[\s\S]*--preview-scale: 0\.9/);

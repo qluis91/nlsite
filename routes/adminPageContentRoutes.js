@@ -1,9 +1,11 @@
 /**
  * Navbar & Panel 1 admin routes — Phase 11B.
+ * Global Settings & SEO routes — Phase 12A.
  * Mounted under /admin behind isAuthenticated + isAdmin in app.js.
  */
 const express = require('express');
 const controller = require('../controllers/adminPageContentController');
+const globalSettingsController = require('../controllers/adminGlobalSettingsController');
 const { csrfSynchronisedProtection } = require('../config/csrf');
 const { requireCapability } = require('../middlewares/capabilityMiddleware');
 const { CAPABILITIES } = require('../config/capabilities');
@@ -24,6 +26,11 @@ router.post('/page/navbar/items/reorder', requireCapability(CAPABILITIES.NAVBAR_
 router.get('/page/home/panel-1', requireCapability(CAPABILITIES.HERO_VIEW), controller.showPanel1);
 router.post('/page/home/panel-1/save', requireCapability(CAPABILITIES.HERO_EDIT), csrfSynchronisedProtection, controller.savePanel1Draft);
 router.post('/page/home/panel-1/publish', requireCapability(CAPABILITIES.HERO_PUBLISH), csrfSynchronisedProtection, controller.publishPanel1);
+
+// ── Global Settings & SEO (Phase 12A) ──
+router.get('/page/global-settings', requireCapability(CAPABILITIES.GLOBAL_SETTINGS_VIEW), globalSettingsController.showGlobalSettings);
+router.post('/page/global-settings/save', requireCapability(CAPABILITIES.GLOBAL_SETTINGS_EDIT), csrfSynchronisedProtection, globalSettingsController.saveGlobalSettings);
+router.post('/page/global-settings/publish', requireCapability(CAPABILITIES.GLOBAL_SETTINGS_PUBLISH), csrfSynchronisedProtection, globalSettingsController.publishGlobalSettings);
 
 // ── Preview ──
 router.get('/page/preview', requireCapability(CAPABILITIES.PAGE_MANAGE), controller.preview);

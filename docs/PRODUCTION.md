@@ -56,7 +56,7 @@ Both directories are created automatically at startup. The volume must be mounte
 - Gallery images and thumbnails (public)
 - Category hero images (public)
 - Avatar images (public)
-- CMS media library (public, served at `/uploads/media/…` — see `docs/CMS_PHASE_11A.md`)
+- CMS media library files (public, served at `/uploads/media/…`) — `media_assets` table holds metadata only; binary files on volume must be backed up together with DB to keep rows and files synchronized
 - Payment proof files (private, NOT statically served)
 
 **What does NOT live on the volume:**
@@ -85,7 +85,17 @@ Both directories are created automatically at startup. The volume must be mounte
 ### Database
 Use Railway MySQL plugin or external MySQL/MariaDB.
 Run `npm run migrate` after initial database creation.
-All migrations are idempotent (safe to run multiple times).
+All migrations are idempotent (safe to run multiple times). Each migration creates tables with `IF NOT EXISTS`, seeds data only when tables are empty, and never overwrites existing CMS content.
+
+### CMS Publication & Cache
+- Published content is cached in-memory per namespace (`home:showcase`, `home:hero`, `home:services`, `home:navbar`).
+- Publishing any section invalidates the corresponding cache namespace and the aggregate home page cache.
+- Publication batches (`publication_batches`, `publication_batch_items`) track atomic multi-section publishes with actor attribution.
+- Content revisions (`content_revisions`) store snapshots before every publish; the history browser and version comparison work against these snapshots.
+- Safe restoration reads a revision snapshot, marks all current items as archived, and inserts restored versions.
+
+### Cache Invalidation on Deploy
+A restart clears the in-memory cache naturally. Railway's rolling restart will show stale published content briefly (under 1 second). No external cache flush is needed.
 
 ### Graceful Shutdown
 The app handles SIGTERM correctly: stops accepting requests, closes HTTP server, closes DB pool, closes session store. 10-second timeout.

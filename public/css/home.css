@@ -1973,6 +1973,41 @@ body.page-home.is-page-loading {
   transform: scale(1.055);
 }
 
+/* ── LogoLoop media slot — constrain image/logo items ── */
+.logo-loop__media {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: var(--logo-loop-height, 56px);
+  max-height: clamp(90px, 16vw, 140px);
+  max-width: clamp(100px, 14vw, 180px);
+  overflow: hidden;
+}
+
+.logo-loop__media a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 100%;
+  max-width: 100%;
+}
+
+.logo-loop__image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
+  flex: 0 0 auto;
+}
+
+.logo-loop--scale-on-hover .logo-loop__item:hover .logo-loop__media {
+  transform: scale(1.055);
+}
+
 .showcase-heading-wrap {
   padding: clamp(3.5rem, 7vw, 7rem) 0 clamp(2rem, 4vw, 3.5rem);
 }
@@ -2008,7 +2043,7 @@ body.page-home.is-page-loading {
 .project-carousel {
   --carousel-duration: 760ms;
   --preview-width: clamp(160px, 13vw, 205px);
-  --preview-height: clamp(225px, 22vw, 305px);
+  --preview-height: clamp(112px, 11vw, 152px);
   --preview-gap: clamp(0.8rem, 1.5vw, 1.4rem);
   position: relative;
   height: clamp(440px, 48vw, 620px);
@@ -2130,12 +2165,12 @@ body.page-home.is-page-loading {
 }
 
 .project-carousel__slide.is-preview-near {
-  top: calc(50% + 52px);
+  top: calc(50% + 110px);
   opacity: 0.94;
 }
 
 .project-carousel__slide.is-preview-rear {
-  top: calc(50% + 72px);
+  top: calc(50% + 130px);
   opacity: 0.82;
 }
 
@@ -2212,13 +2247,13 @@ body.page-home.is-page-loading {
   background:
     linear-gradient(
       90deg,
-      rgba(0, 0, 0, 0.58) 0%,
-      rgba(0, 0, 0, 0.28) 40%,
-      rgba(0, 0, 0, 0.04) 72%
+      rgba(0, 0, 0, 0.30) 0%,
+      rgba(0, 0, 0, 0.14) 40%,
+      rgba(0, 0, 0, 0.02) 72%
     ),
     linear-gradient(
       0deg,
-      rgba(0, 0, 0, 0.18),
+      rgba(0, 0, 0, 0.12),
       transparent 48%
     );
 }
@@ -2346,11 +2381,11 @@ body.page-home.is-page-loading {
 
 @media (max-width: 1024px) {
   .project-carousel__slide.is-preview-near {
-    top: calc(50% + 40px);
+    top: calc(50% + 120px);
   }
 
   .project-carousel__slide.is-preview-rear {
-    top: calc(50% + 56px);
+    top: calc(50% + 140px);
   }
 }
 
@@ -2418,7 +2453,7 @@ body.page-home.is-page-loading {
   .project-carousel {
     height: clamp(420px, 58vw, 560px);
     --preview-width: clamp(130px, 15vw, 160px);
-    --preview-height: clamp(180px, 22vw, 230px);
+    --preview-height: clamp(90px, 11vw, 115px);
   }
 
   .project-carousel__slide {
@@ -2446,6 +2481,11 @@ body.page-home.is-page-loading {
 
   .logo-loop__viewport {
     min-height: clamp(6.75rem, 24vw, 9rem);
+  }
+
+  .logo-loop__media {
+    max-height: clamp(70px, 20vw, 110px);
+    max-width: clamp(80px, 30vw, 150px);
   }
 
   .showcase-heading-wrap {
@@ -2485,7 +2525,7 @@ body.page-home.is-page-loading {
 
   .project-carousel__slide.is-active::after,
   .project-carousel:not(.is-enhanced) .project-carousel__slide:nth-child(2)::after {
-    background: linear-gradient(0deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.34) 52%, rgba(0, 0, 0, 0.06) 82%);
+    background: linear-gradient(0deg, rgba(0, 0, 0, 0.50) 0%, rgba(0, 0, 0, 0.24) 52%, rgba(0, 0, 0, 0.04) 82%);
   }
 
   .project-carousel__image {

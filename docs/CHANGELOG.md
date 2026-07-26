@@ -1,5 +1,60 @@
 # Changelog
 
+## 2026-07-26 — Phase 12A: Global Settings & Basic SEO
+
+### Added
+- New admin card "Configuración global y SEO" in `/admin/page` overview
+- `controllers/adminGlobalSettingsController.js`: show/save/publish for 7 global settings keys (`global.site_name`, `global.seo_title`, `global.seo_description`, `global.og_image`, `global.canonical_url`, `global.indexing_mode`, `site.favicon`)
+- `views/pages/admin/page/global-settings.ejs`: admin editor with media selector reuse for OG image and favicon
+- `validateGlobalSettings` in `validators/cmsPanelsValidator.js`: validates site name (≤100), SEO title (≤120), description (≤300), URL format, index modes
+- 3 new capabilities: `GLOBAL_SETTINGS_VIEW`, `GLOBAL_SETTINGS_EDIT`, `GLOBAL_SETTINGS_PUBLISH`
+- Admin branding middleware: loads `global.site_name` from `site_settings` and overrides `res.locals.site` for admin routes — sidebar/header shows dynamic name instead of hardcoded "Mi Sitio Web"
+- Public SEO middleware: loads global SEO settings from `site_settings` and injects into `res.locals.globalSeoTitle`, `.globalSeoDescription`, `.globalRobots`, `.globalCanonical`, `.globalOgImage`, `.globalFavicon`
+- Favicon rendering: `<link rel="icon">` added to both `main.ejs` (public) and `admin.ejs` (admin) layouts
+- Open Graph tags: `og:title`, `og:description`, `og:image`, `og:url`, `og:type`, `og:locale` in `main.ejs`
+- Twitter Card tags: `twitter:card`, `twitter:title`, `twitter:description`, `twitter:image` in `main.ejs`
+- SEO fallback chain: page-specific → global settings → .env defaults → hardcoded "NinjaLab CR"
+- `tests/global-settings-seo.test.js`: 23 focused tests covering card registration, validation, capabilities, persistence, public rendering, and view compilation
+
+### Changed
+- `controllers/adminPageController.js`: added `{ key: 'global-settings', ... }` to `CMS_MODULES` array
+- `config/capabilities.js`: added 3 global settings capabilities
+- `routes/adminPageContentRoutes.js`: added GET/POST routes for global-settings
+- `views/layouts/main.ejs`: expanded fallback logic for title, description, robots, canonical; added OG, Twitter, and favicon tags
+- `views/layouts/admin.ejs`: added favicon link tag
+- `app.js`: added admin branding middleware (loads `global.site_name` + favicon for admin routes) and public SEO middleware (loads all SEO defaults for non-admin routes)
+- `validators/cmsPanelsValidator.js`: added `validateGlobalSettings` and `INDEXING_MODES` constant
+
+## 2026-07-26 — Phase 11E: CMS stabilization & production readiness
+
+### Added
+- `tests/auth-register-layout.test.js`: 5 live-HTTP tests verifying register page uses same `page-auth` layout, `auth.css`, `auth-card`, and `auth-logo` as login
+- `tests/navbar-favicon-regression.test.js`: 10 tests verifying `resolveMediaData` aliases correct schema columns and handles null gracefully
+- Carousel autoplay: 5.5s interval, pauses on pointer-enter/tab-hidden, respects `prefers-reduced-motion`, resets on manual navigation
+- Preview-card click: clicking a preview card promotes it to the active/main slide via DOM rotation
+- Production docs: added CMS cache invalidation, publication batch/revision notes, backup synchronization notes to `PRODUCTION.md`
+
+### Fixed
+- **Test suite at 100%**: 798 tests, 0 failures. Fixed `seeds include hardcoded items` — changed from fragile database query (corrupted by concurrent test data) to source-constant check against `LOGO_LOOP_SEED`.
+- **`resolveMediaData` SQL crash (HTTP 500 on Navbar editor)**: `original_filename`, `thumbnail_url`, `dimensions` were wrong column names. Aliased real schema columns: `original_name AS original_filename`, `thumbnail_path AS thumbnail_url`, `CONCAT(width, height) AS dimensions`.
+- **Preview image = main image**: Added `data-project-preview-image` attribute to carousel slides and JS swap logic in `syncState()` — preview slides now show their distinct secondary image.
+- **Dark overlay on active carousel slide**: Reduced pseudo-element gradient opacity from `0.58→0.28→0.04` to `0.30→0.14→0.02` (desktop) and `0.72→0.34→0.06` to `0.50→0.24→0.04` (mobile).
+- **Register page white-card layout**: `showRegister` controller now passes `pageClass: 'page-auth'`, `pageStyles: ['/css/auth.css']`, `hideFooter: true` — matches login's dark auth theme.
+- **Admin login dark theme**: `showAdminLogin` controller now passes same auth layout options as login.
+- **LogoLoop image sizing**: Changed `.logo-loop__media` `max-height` from fixed `56px` to `clamp(90px, 16vw, 140px)` so images fill the available viewport space while preserving `object-fit: contain`.
+- **Preview-card positioning**: Moved preview cards lower so bottom edges align near navigation arrows: `top: calc(50% + 52px)` → `calc(50% + 110px)` (near), `calc(50% + 72px)` → `calc(50% + 130px)` (rear).
+
+### Changed
+- `controllers/authController.js`: `showRegister` and `showAdminLogin` now pass `pageClass: 'page-auth'`, `pageStyles: ['/css/auth.css']`, `robots: 'noindex, nofollow'`, `hideFooter: true`
+- `views/pages/register.ejs`: Rewrote to match login dark auth theme structure (logo, auth-page-title, password-toggle on both fields, auth-links)
+- `views/pages/admin-login.ejs`: Rewrote to match login dark auth theme structure
+- `controllers/adminPageContentController.js`: `resolveMediaData` SQL query aliased correct schema columns
+- `public/js/home/projectCarousel.js`: Added autoplay module, preview-click promotion, image swap logic, pointer/tab visibility pause
+- `views/pages/home.ejs`: Added `data-project-preview-image` and `data-main-src` to carousel slides
+- `public/css/home.css`: Reduced carousel overlay opacity, lowered preview-card positions, increased LogoLoop media height
+- `docs/PROJECT_STATUS.md`: Updated to Phase 11E, added working-features summary
+- `docs/PROJECT_STATUS.md`: Updated known limitations — CSP script-src no longer unsafe-inline, Panel 2/3 no longer placeholder
+
 ## 2026-07-25 — Phase 11D: Centralized publishing, revision history, comparison, and restore
 
 ### Added

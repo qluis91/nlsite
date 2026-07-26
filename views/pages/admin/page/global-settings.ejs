@@ -1,0 +1,105 @@
+<div class="page-header">
+  <div>
+    <h1>Configuración global y SEO</h1>
+    <p>Nombre del sitio, metadatos para buscadores, imagen Open Graph, favicon, URL canónica y modo de indexación.</p>
+  </div>
+  <div class="cms-actions">
+    <a href="/admin/page" class="btn btn-outline">Administrar página</a>
+    <form action="/admin/page/global-settings/publish" method="POST" style="display:inline">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-primary">Publicar configuración</button>
+    </form>
+  </div>
+</div>
+
+<form action="/admin/page/global-settings/save" method="POST" class="cms-form">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+  <div class="card">
+    <h2>Identidad del sitio</h2>
+    <div class="form-group">
+      <label for="site_name">Nombre del sitio</label>
+      <input type="text" id="site_name" name="site_name"
+             value="<%= (settings['global.site_name'] || '') %>" maxlength="100"
+             placeholder="Mi Sitio Web">
+      <small>Se usa en la barra lateral del admin, títulos de página y el pie de página.</small>
+    </div>
+
+    <div class="form-group">
+      <%- include('../../../components/media-selector', {
+        fieldName: 'favicon',
+        currentValue: settings['site.favicon'] || '',
+        allowedTypes: ['image/png','image/jpeg','image/webp','image/x-icon'],
+        allowedCategories: ['logo'],
+        uploadProfile: 'favicon',
+        label: 'Favicon',
+        kindLabel: 'Favicon',
+        thumbnailUrl: favicon ? favicon.thumbnail_url : null,
+        selectedTitle: favicon ? (favicon.title || favicon.original_filename) : null,
+        selectedCategory: favicon ? favicon.category : null,
+        selectedMime: favicon ? favicon.mime_type : null,
+        selectedDimensions: favicon ? favicon.dimensions : null,
+      }) %>
+      <small>Ícono de la pestaña del navegador. Compartido con la configuración del Navbar.</small>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>SEO y redes sociales</h2>
+    <div class="form-group">
+      <label for="seo_title">Título SEO predeterminado</label>
+      <input type="text" id="seo_title" name="seo_title"
+             value="<%= (settings['global.seo_title'] || '') %>" maxlength="120"
+             placeholder="NinjaLab CR — Impresión 3D y diseño">
+      <small>Se usa cuando una página no define su propio título. También es el título para Open Graph y Twitter Cards.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="seo_description">Descripción meta predeterminada</label>
+      <textarea id="seo_description" name="seo_description" maxlength="300" rows="3"
+                placeholder="Impresión 3D, diseño, modelado y prototipado en Costa Rica."><%= settings['global.seo_description'] || '' %></textarea>
+      <small>Se usa cuando una página no define su propia descripción. También es la descripción para Open Graph y Twitter Cards.</small>
+    </div>
+
+    <div class="form-group">
+      <%- include('../../../components/media-selector', {
+        fieldName: 'og_image',
+        currentValue: settings['global.og_image'] || '',
+        allowedTypes: ['image/png','image/jpeg','image/webp'],
+        allowedCategories: ['logo','image','banner'],
+        uploadProfile: 'hero-background',
+        label: 'Imagen Open Graph',
+        kindLabel: 'Imagen OG',
+        thumbnailUrl: ogImage ? ogImage.thumbnail_url : null,
+        selectedTitle: ogImage ? (ogImage.title || ogImage.original_filename) : null,
+        selectedCategory: ogImage ? ogImage.category : null,
+        selectedMime: ogImage ? ogImage.mime_type : null,
+        selectedDimensions: ogImage ? ogImage.dimensions : null,
+      }) %>
+      <small>Imagen que aparece al compartir el sitio en redes sociales. Recomendado: 1200×630 px.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="canonical_url">URL canónica base</label>
+      <input type="url" id="canonical_url" name="canonical_url"
+             value="<%= (settings['global.canonical_url'] || '') %>" maxlength="500"
+             placeholder="https://ejemplo.com">
+      <small>URL base del sitio para etiquetas canónicas y Open Graph.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="indexing_mode">Modo de indexación</label>
+      <select id="indexing_mode" name="indexing_mode">
+        <% indexingModes.forEach(function (mode) { %>
+          <option value="<%= mode.value %>" <%= (settings['global.indexing_mode'] || 'index,follow') === mode.value ? 'selected' : '' %>><%= mode.label %></option>
+        <% }); %>
+      </select>
+      <small>Define la directiva <code>robots</code> predeterminada del sitio.</small>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <button type="submit" class="btn btn-primary">Guardar como borrador</button>
+    <a href="/admin/page" class="btn btn-outline">Cancelar</a>
+  </div>
+</form>

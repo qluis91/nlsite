@@ -253,7 +253,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
   const cmsCarouselItems = _previewCms && _previewCms.carouselItems;
   const hasCmsLogoLoop = cmsLogoItems && cmsLogoItems.length;
   const hasCmsCarousel = cmsCarouselItems && cmsCarouselItems.length;
-  %>
+%>
   <section
     id="proyectos"
     class="home-panel home-panel--showcase"
@@ -281,10 +281,16 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
                     <% if (item.item_type === 'text') { %>
                       <% if (item.url) { %><a href="<%= item.url %>" <%= item.target === '_blank' ? 'target="_blank" rel="noopener noreferrer"' : '' %> class="logo-loop__wordmark logo-loop__wordmark--link"><%= item.text_content %></a><% } else { %><span class="logo-loop__wordmark"><%= item.text_content %></span><% } %>
                     <% } else if (item.item_type === 'image' || item.item_type === 'logo') { %>
-                      <% const imgSrc = item.media_public_id ? '/api/media/' + item.media_public_id + '/public' : ''; %>
-                      <% if (item.url) { %><a href="<%= item.url %>" <%= item.target === '_blank' ? 'target="_blank" rel="noopener noreferrer"' : '' %> aria-label="<%= item.alt_text || item.text_content || '' %>"><% } %>
-                      <% if (imgSrc) { %><img src="<%= imgSrc %>" alt="<%= item.alt_text || '' %>" class="logo-loop__image" loading="lazy"><% } else { %><span class="logo-loop__wordmark"><%= item.text_content || 'Logo' %></span><% } %>
-                      <% if (item.url) { %></a><% } %>
+                      <% const imgSrc = item.media_resolved && item.media_resolved.url ? item.media_resolved.url : ''; %>
+                      <% if (imgSrc) { %>
+                        <span class="logo-loop__media">
+                          <% if (item.url) { %><a href="<%= item.url %>" <%= item.target === '_blank' ? 'target="_blank" rel="noopener noreferrer"' : '' %> aria-label="<%= item.alt_text || item.text_content || '' %>"><% } %>
+                          <img src="<%= imgSrc %>" alt="<%= item.alt_text || '' %>" class="logo-loop__image" loading="lazy" decoding="async">
+                          <% if (item.url) { %></a><% } %>
+                        </span>
+                      <% } else { %>
+                        <span class="logo-loop__wordmark"><%= item.text_content || 'Logo' %></span>
+                      <% } %>
                     <% } %>
                   </li>
                 <% }); %>
@@ -326,11 +332,13 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
           <% if (hasCmsCarousel) { %>
             <% cmsCarouselItems.forEach(function(item, idx) { %>
               <% const imgSrc = item.media_resolved && item.media_resolved.url ? item.media_resolved.url : '/images/logo.png'; %>
+              <% const previewSrc = item.preview_media_resolved && item.preview_media_resolved.url ? item.preview_media_resolved.url : ''; %>
           <li
             class="project-carousel__slide"
             data-project-slide
             data-project-title="<%= item.title %>"
             data-project-theme="<%= item.theme_key || 'graphite' %>"
+            data-project-preview-image="<%= previewSrc %>"
             aria-label="<%= idx + 1 %> de <%= cmsCarouselItems.length %>"
           >
             <div class="project-carousel__card" data-panel2-animate="card">
@@ -338,6 +346,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
 <img
               class="project-carousel__image"
               src="<%= imgSrc %>"
+              data-main-src="<%= imgSrc %>"
               alt="<%= item.title %>"
               width="5333"
               height="3000"
@@ -538,7 +547,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
       <% if (_previewCms && _previewCms.featureItems && _previewCms.featureItems.length) { %>
       <script type="application/json" id="services-cms-data"><%- JSON.stringify(_previewCms.featureItems.map(function(item) {
         const icon = item.icon_type === 'builtin' ? item.icon_key || null : null;
-        const mediaUrl = item.icon_type === 'media' && item.media_resolved ? item.media_resolved.public_url : null;
+        const mediaUrl = item.icon_type === 'media' && item.media_resolved ? item.media_resolved.url : null;
         const mediaAlt = item.icon_type === 'media' && item.media_resolved ? (item.media_resolved.alt_text || item.media_resolved.title) : null;
         return {
           id: item.public_id || icon || 'svc-' + Math.random().toString(36).slice(2,8),

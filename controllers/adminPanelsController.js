@@ -88,7 +88,7 @@ async function showPanel2(req, res, next) {
       title: 'Panel 2 — Showcase',
       layout: 'layouts/admin',
       pageStyles: ['/css/admin-page.css'],
-      pageScripts: ['/js/admin/media-selector.js'],
+      pageScripts: ['/js/admin/media-selector.js', '/js/admin/panel2-editor.js'],
       content,
       style,
       bgMedia,
@@ -187,7 +187,6 @@ async function saveLogoLoopItem(req, res) {
       target: req.body.target || '_self',
       alt_text: req.body.alt_text?.trim() || null,
       is_visible: req.body.is_visible === '0' ? 0 : 1,
-      status: req.body.status || 'draft',
     }, { actorId: req.user?.id });
     return successRedirect(res, '/admin/page/home/panel-2', 'Elemento guardado.');
   } catch (e) {
@@ -208,7 +207,12 @@ async function archiveLogoLoopItem(req, res) {
 async function reorderLogoLoopItems(req, res) {
   try {
     const section = await getSectionId('home', 'showcase');
-    const ids = Array.isArray(req.body.ids) ? req.body.ids : JSON.parse(req.body.ids || '[]');
+    let ids = req.body.ids;
+    if (typeof ids === 'string') {
+      ids = ids.split(',').map(s => s.trim()).filter(Boolean);
+    } else if (!Array.isArray(ids)) {
+      try { ids = JSON.parse(ids || '[]'); } catch { ids = []; }
+    }
     await repeatable.reorderItems('logo_loop_items', section.id, ids, { actorId: req.user?.id });
     return successRedirect(res, '/admin/page/home/panel-2', 'Orden actualizado.');
   } catch (e) {
@@ -220,6 +224,10 @@ async function publishLogoLoop(req, res) {
   try {
     const section = await getSectionId('home', 'showcase');
     await repeatable.publishCollection('logo_loop_items', section.id, 'logoLoop_home', { actorId: req.user?.id });
+    // Ensure the section itself is published so items appear on the public homepage
+    if (section.status !== 'published') {
+      await publishing.publishSection('home', 'showcase', { actorId: req.user?.id });
+    }
     return successRedirect(res, '/admin/page/home/panel-2', 'LogoLoop publicado.');
   } catch (e) {
     return errorRedirect(res, '/admin/page/home/panel-2', ['Error al publicar.']);
@@ -269,7 +277,6 @@ async function saveCarouselItem(req, res) {
       preview_media_public_id: (req.body.preview_media_public_id || '').replace('media://', '') || null,
       theme_key: req.body.theme_key?.trim() || null,
       is_visible: req.body.is_visible === '0' ? 0 : 1,
-      status: req.body.status || 'draft',
     }, { actorId: req.user?.id });
     return successRedirect(res, '/admin/page/home/panel-2', 'Proyecto guardado.');
   } catch (e) {
@@ -289,7 +296,12 @@ async function archiveCarouselItem(req, res) {
 async function reorderCarouselItems(req, res) {
   try {
     const section = await getSectionId('home', 'showcase');
-    const ids = Array.isArray(req.body.ids) ? req.body.ids : JSON.parse(req.body.ids || '[]');
+    let ids = req.body.ids;
+    if (typeof ids === 'string') {
+      ids = ids.split(',').map(s => s.trim()).filter(Boolean);
+    } else if (!Array.isArray(ids)) {
+      try { ids = JSON.parse(ids || '[]'); } catch { ids = []; }
+    }
     await repeatable.reorderItems('home_carousel_items', section.id, ids, { actorId: req.user?.id });
     return successRedirect(res, '/admin/page/home/panel-2', 'Orden actualizado.');
   } catch (e) {
@@ -301,6 +313,10 @@ async function publishCarousel(req, res) {
   try {
     const section = await getSectionId('home', 'showcase');
     await repeatable.publishCollection('home_carousel_items', section.id, 'carousel_home', { actorId: req.user?.id });
+    // Ensure the section itself is published so items appear on the public homepage
+    if (section.status !== 'published') {
+      await publishing.publishSection('home', 'showcase', { actorId: req.user?.id });
+    }
     return successRedirect(res, '/admin/page/home/panel-2', 'Carrusel publicado.');
   } catch (e) {
     return errorRedirect(res, '/admin/page/home/panel-2', ['Error al publicar.']);
@@ -328,7 +344,7 @@ async function showPanel3(req, res, next) {
       title: 'Panel 3 — Servicios',
       layout: 'layouts/admin',
       pageStyles: ['/css/admin-page.css'],
-      pageScripts: ['/js/admin/media-selector.js'],
+      pageScripts: ['/js/admin/media-selector.js', '/js/admin/panel3-editor.js'],
       content,
       style,
       items,
@@ -424,7 +440,6 @@ async function saveFeatureItem(req, res) {
       target: req.body.target || '_self',
       style_variant: req.body.style_variant?.trim() || null,
       is_visible: req.body.is_visible === '0' ? 0 : 1,
-      status: req.body.status || 'draft',
     }, { actorId: req.user?.id });
     return successRedirect(res, '/admin/page/home/panel-3', 'Tarjeta guardada.');
   } catch (e) {
@@ -444,7 +459,12 @@ async function archiveFeatureItem(req, res) {
 async function reorderFeatureItems(req, res) {
   try {
     const section = await getSectionId('home', 'services');
-    const ids = Array.isArray(req.body.ids) ? req.body.ids : JSON.parse(req.body.ids || '[]');
+    let ids = req.body.ids;
+    if (typeof ids === 'string') {
+      ids = ids.split(',').map(s => s.trim()).filter(Boolean);
+    } else if (!Array.isArray(ids)) {
+      try { ids = JSON.parse(ids || '[]'); } catch { ids = []; }
+    }
     await repeatable.reorderItems('home_feature_items', section.id, ids, { actorId: req.user?.id });
     return successRedirect(res, '/admin/page/home/panel-3', 'Orden actualizado.');
   } catch (e) {

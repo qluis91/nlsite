@@ -41,19 +41,45 @@
   const layoutDocumentTitle =
     layoutPageTitle
       ? `${layoutPageTitle} | ${layoutSiteName}`
-      : layoutSiteName;
+      : (typeof globalSeoTitle !== 'undefined' && globalSeoTitle)
+        ? globalSeoTitle
+        : layoutSiteName;
   const layoutDescription =
     typeof metaDescription !== 'undefined' && metaDescription
       ? String(metaDescription)
-      : layoutSiteDescription;
+      : (typeof globalSeoDescription !== 'undefined' && globalSeoDescription)
+        ? globalSeoDescription
+        : layoutSiteDescription;
   const layoutRobots =
     typeof robots !== 'undefined' && robots
       ? String(robots)
-      : '';
+      : (typeof globalRobots !== 'undefined' && globalRobots)
+        ? String(globalRobots)
+        : '';
   const layoutCanonical =
     typeof canonical !== 'undefined' && canonical
       ? String(canonical)
-      : '';
+      : (typeof globalCanonical !== 'undefined' && globalCanonical)
+        ? String(globalCanonical)
+        : '';
+  const layoutOgImage =
+    typeof ogImage !== 'undefined' && ogImage
+      ? String(ogImage)
+      : (typeof globalOgImage !== 'undefined' && globalOgImage)
+        ? String(globalOgImage)
+        : '';
+  const layoutFavicon =
+    typeof favicon !== 'undefined' && favicon
+      ? String(favicon)
+      : (typeof globalFavicon !== 'undefined' && globalFavicon)
+        ? String(globalFavicon)
+        : '';
+  const layoutOgUrl =
+    typeof ogUrl !== 'undefined' && ogUrl
+      ? String(ogUrl)
+      : (typeof globalCanonical !== 'undefined' && globalCanonical)
+        ? String(globalCanonical)
+        : '';
   const layoutPageClass =
     typeof pageClass !== 'undefined' && pageClass
       ? String(pageClass)
@@ -120,6 +146,28 @@
     <link rel="canonical" href="<%= layoutCanonical %>">
   <% } %>
   <title><%= layoutDocumentTitle %></title>
+  <% if (layoutFavicon) { %>
+    <link rel="icon" type="image/x-icon" href="<%= layoutFavicon %>">
+    <link rel="shortcut icon" href="<%= layoutFavicon %>">
+  <% } %>
+  <% /* Open Graph */ %>
+  <meta property="og:title" content="<%= layoutDocumentTitle %>">
+  <meta property="og:description" content="<%= layoutDescription %>">
+  <% if (layoutOgImage) { %>
+    <meta property="og:image" content="<%= layoutOgImage %>">
+  <% } %>
+  <% if (layoutOgUrl) { %>
+    <meta property="og:url" content="<%= layoutOgUrl %>">
+  <% } %>
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_CR">
+  <% /* Twitter Card */ %>
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="<%= layoutDocumentTitle %>">
+  <meta name="twitter:description" content="<%= layoutDescription %>">
+  <% if (layoutOgImage) { %>
+    <meta name="twitter:image" content="<%= layoutOgImage %>">
+  <% } %>
   <% if (layoutPageClass === 'page-home') { %>
   <script nonce="<%= layoutNonce %>">
     document.documentElement.classList.add('js');

@@ -1,8 +1,8 @@
 # nlSite — Project Status
 
-**Last updated:** 2026-07-25
-**Current phase:** CMS Phase 11D — Centralized publishing, revision history, comparison, and restore (Jul 2026)
-**Next:** CMS Phase 11E — (to be defined)
+**Last updated:** 2026-07-26
+**Current phase:** CMS Phase 12A — Global Settings & Basic SEO (Jul 2026)
+**Next:** Tilopay sandbox integration or feature expansion
 
 ---
 
@@ -22,7 +22,10 @@
 
 ## Working Features
 
-- [x] Unified direct-upload experience for all CMS image selectors: "Seleccionar de la biblioteca" + "Subir desde mi dispositivo" tabs, drag-and-drop zone, file picker, Spanish errors, processing state, auto-select after upload
+- [x] **Phase 12A**: Global settings & SEO. Admin editor for site name, SEO title/description, OG image, favicon, canonical URL, and index mode. Admin sidebar/header uses dynamic site name from global settings. Public layout renders OG tags, Twitter cards, favicon, and canonical URL with page-specific → global fallback chain. 821 tests, 0 failures.
+- [x] **Phase 11E**: Full CMS stabilization with 798 passing tests.
+- [x] **Phase 11D**: Centralized publishing dashboard, publication batches, atomic multi-section publication, revision history browser, version comparison, and safe restoration with audit trail.
+- [x] Unificada la experiencia de subida directa para todos los selectores de imágenes CMS: pestañas "Seleccionar de la biblioteca" + "Subir desde mi dispositivo"
 - [x] Shared image processing pipeline at WebP quality 80 for all public/content images — CMS media library, gallery, catalog, avatars
 - [x] All sharp quality settings unified to 80: `IMAGE_VARIANTS` (large/medium/thumbnail), `imageProcessingService PROFILES` (product/avatar/gallery/category), `galleryOptions IMAGE_PROFILES` (display/thumbnail/poster)
 - [x] Upload profiles (`config/cmsOptions.js` UPLOAD_PROFILES): `navbar-logo`, `navbar-light`, `navbar-dark`, `favicon`, `hero-background`, `hero-model`, `hero-fallback`, `logo-loop`, `carousel-main`, `carousel-preview`, `feature-icon`, `nav-item-icon`, `gallery`, `product`, `category`, `avatar`
@@ -304,6 +307,14 @@
 | Caveman | Token-efficient communication | Skill loaded |
 | CodeBurn | Token usage tracking (estimates) | Global install, CLI active |
 
+- Panel 2 and Panel 3 admin editors fully working: create, save, reorder, publish, preview, revision tracking.
+- Panel 2 carousel: main image and preview/secondary image persist independently, preview cards show swapped images, autoplay every 5.5s (pauses on hover/tab-hidden, respects reduced-motion), clickable preview cards promote to active slide.
+- Panel 2 LogoLoop: images constrained to `clamp(90px, 16vw, 140px)` with `object-fit: contain`, preserving aspect ratio within fixed track height.
+- Auth pages (login, register, admin login, forgot-password) share unified dark theme via `pageClass: 'page-auth'` and `auth.css` — zero white-card or navbar-visible auth pages.
+- All admin views comply with CSP via per-request `nonce`; zero `onclick=` attributes on admin pages; all inline scripts use `nonce="<%= cspNonce %>"`.
+- All `media-selector` includes correctly resolve media references without crashing on missing/archived assets.
+- `resolveMediaData` in `adminPageContentController` aliases real schema columns (`original_name`→`original_filename`, `thumbnail_path`→`thumbnail_url`, `CONCAT(width,height)`→`dimensions`).
+
 ## Known Limitations
 
 - Real-browser visual validation of the account dashboard viewport matrix is pending because no browser backend was available in the Codex session.
@@ -319,12 +330,12 @@
 - MySQL session-store failure mode has not been manually tested
 - Multiple Node.js process sharing has not been tested
 - Rate-limit counters remain in memory (reset on restart)
-- Helmet CSP allows `'unsafe-inline'` for EJS inline styles
+- Helmet CSP uses per-request nonce (`crypto.randomBytes`) — zero `'unsafe-inline'` in `script-src`. Inline styles remain permitted via `'unsafe-inline'` on `style-src` only.
 - Admin login doesn't share rate limit counter with user login (separate buckets)
 - Email templates inline in `config/mailer.js` (no template folder)
 - Deployment hardening remains pending
 - `casco.glb` is 26.76 MB (uncompressed 3D asset) — optimization deferred
-- Panel 2 is a transition placeholder only; Panel 3+ not yet designed
+- Panel 2 and Panel 3 are fully implemented with admin CRUD, preview, publish, and revision history.
 - Manual browser visual validation of the responsive Panel 1 matrix required (in-app browser unavailable during the responsive adaptation)
 - Lenis initialized only on homepage; anchor link behavior not tested
 - GLB loading confirmed working via HTTP; manual browser WebGL rendering validation pending

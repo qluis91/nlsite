@@ -134,7 +134,7 @@
 
       <!-- Library tab -->
       <div class="media-selector__panel is-active" data-ms-panel="library">
-        <form class="media-selector__search" data-ms-search-form>
+        <div class="media-selector__search" data-ms-search-form>
           <input type="search" name="search" placeholder="Buscar..." class="form-input" data-ms-search>
           <select name="category" class="form-input" data-ms-category-filter>
             <option value="">Todas las categorías</option>
@@ -142,8 +142,8 @@
           <select name="mime_filter" class="form-input" data-ms-type-filter>
             <option value="">Todos los tipos</option>
           </select>
-          <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
-        </form>
+          <button type="button" class="btn btn-primary btn-sm" data-ms-search-btn>Buscar</button>
+        </div>
 
         <div class="media-selector__grid" data-ms-grid>
           <p class="empty-state">Cargando archivos…</p>

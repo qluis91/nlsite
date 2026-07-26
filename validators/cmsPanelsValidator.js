@@ -201,6 +201,31 @@ function validateFeatureItem(body = {}) {
   return errors;
 }
 
+const INDEXING_MODES = new Set(['index,follow', 'noindex,nofollow', 'index,nofollow']);
+
+function validateGlobalSettings(body) {
+  const errors = [];
+  const e = (msg) => msg && errors.push(msg);
+
+  if (body.site_name !== undefined && body.site_name !== null) {
+    e(boundedText(body.site_name, 'Nombre del sitio', 100));
+  }
+  if (body.seo_title !== undefined && body.seo_title !== null) {
+    e(boundedText(body.seo_title, 'Título SEO', 120));
+  }
+  if (body.seo_description !== undefined && body.seo_description !== null) {
+    e(boundedText(body.seo_description, 'Descripción SEO', 300));
+  }
+  if (body.canonical_url && String(body.canonical_url).trim()) {
+    e(validateUrl(body.canonical_url, { required: false }));
+  }
+  if (body.indexing_mode && !INDEXING_MODES.has(String(body.indexing_mode).trim())) {
+    e('Modo de indexación no permitido.');
+  }
+
+  return errors;
+}
+
 module.exports = {
   validatePanel2Content,
   validatePanel2Style,
@@ -209,6 +234,7 @@ module.exports = {
   validatePanel3Content,
   validatePanel3Style,
   validateFeatureItem,
+  validateGlobalSettings,
   validateColor,
   validateUrl,
   LOGOLOOP_TYPES,

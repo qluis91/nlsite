@@ -74,7 +74,7 @@
           <td><span class="badge badge-<%= item.status === 'published' ? 'published' : 'draft' %>"><%= item.status %></span></td>
           <td><%= item.sort_order %></td>
           <td class="cms-actions-cell">
-            <button type="button" class="btn btn-sm btn-secondary" onclick="editFeatureItem('<%= item.public_id %>', '<%= (item.title || '').replace(/'/g, "\\'") %>', '<%= (item.description || '').replace(/'/g, "\\'") %>', '<%= (item.detail_text || '').replace(/'/g, "\\'") %>', '<%= item.icon_type %>', '<%= item.icon_key || '' %>', '<%= item.media_public_id ? 'media://' + item.media_public_id : '' %>', '<%= item.url || '' %>', '<%= item.link_type %>', '<%= item.target %>', '<%= item.style_variant || '' %>', <%= item.is_visible %>, '<%= item.status %>')">Editar</button>
+            <button type="button" class="btn btn-sm btn-secondary" data-feature-edit-id="<%= item.public_id %>">Editar</button>
             <form method="POST" action="/admin/page/home/panel-3/items/archive" class="cms-form--inline">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <input type="hidden" name="public_id" value="<%= item.public_id %>">
@@ -147,6 +147,13 @@
           <input type="text" id="feature-url" name="url" class="form-input" maxlength="500">
         </div>
         <div class="form-group">
+          <label class="field-label">Tipo de enlace</label>
+          <select name="link_type" id="feature-link-type" class="form-input">
+            <option value="internal">Interno</option>
+            <option value="external">Externo</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label class="field-label">Target</label>
           <select name="target" id="feature-target" class="form-input">
             <option value="_self">Misma pestaña</option>
@@ -176,7 +183,7 @@
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" id="feature-submit-btn">Agregar tarjeta</button>
-        <button type="button" class="btn btn-secondary" id="feature-cancel-btn" hidden onclick="resetFeatureForm()">Cancelar</button>
+        <button type="button" class="btn btn-secondary" id="feature-cancel-btn" hidden>Cancelar</button>
       </div>
     </form>
 
@@ -229,57 +236,24 @@
     </form>
   </div>
 </div>
+</div>
 
-<script>
-// ── Tab switching ──
-document.querySelectorAll('.cms-tab').forEach(function(tab) {
-  tab.addEventListener('click', function() {
-    document.querySelectorAll('.cms-tab').forEach(function(t) { t.classList.remove('is-active'); t.setAttribute('aria-selected','false'); });
-    document.querySelectorAll('.cms-tab-panel').forEach(function(p) { p.classList.remove('is-active'); p.hidden = true; });
-    this.classList.add('is-active'); this.setAttribute('aria-selected','true');
-    var panel = document.querySelector('[data-panel="'+this.dataset.tab+'"]');
-    if (panel) { panel.classList.add('is-active'); panel.hidden = false; }
-  });
-});
-
-// ── Icon type switching ──
-var iconTypeSel = document.getElementById('feature-icon-type');
-var builtinGroup = document.getElementById('feature-builtin-group');
-var mediaGroup = document.getElementById('feature-media-group');
-function updateIconFields() {
-  builtinGroup.hidden = iconTypeSel.value !== 'builtin';
-  mediaGroup.hidden = iconTypeSel.value !== 'media';
-}
-iconTypeSel.addEventListener('change', updateIconFields);
-updateIconFields();
-
-// ── Edit helper ──
-function editFeatureItem(id, title, desc, detail, iconType, iconKey, media, url, linkType, target, styleVar, visible, status) {
-  document.getElementById('feature-edit-id').value = id;
-  document.getElementById('feature-title').value = title || '';
-  document.getElementById('feature-desc').value = desc || '';
-  document.getElementById('feature-detail').value = detail || '';
-  iconTypeSel.value = iconType || 'builtin';
-  document.getElementById('feature-icon-key').value = iconKey || '';
-  document.querySelector('[name="media_public_id"]').value = media || '';
-  document.getElementById('feature-url').value = url || '';
-  document.getElementById('feature-target').value = target || '_self';
-  document.getElementById('feature-style').value = styleVar || '';
-  document.getElementById('feature-visible').value = visible ? '1' : '0';
-  document.getElementById('feature-submit-btn').textContent = 'Guardar cambios';
-  document.getElementById('feature-cancel-btn').hidden = false;
-  document.getElementById('feature-form').action = '/admin/page/home/panel-3/items/save';
-  updateIconFields();
-  document.querySelector('[data-tab="cards"]').click();
-  document.querySelector('.cms-card summary')?.click();
-}
-
-function resetFeatureForm() {
-  document.getElementById('feature-edit-id').value = '';
-  document.getElementById('feature-submit-btn').textContent = 'Agregar tarjeta';
-  document.getElementById('feature-cancel-btn').hidden = true;
-  document.getElementById('feature-form').action = '/admin/page/home/panel-3/items';
-  document.getElementById('feature-form').reset();
-  updateIconFields();
-}
-</script>
+<script type="application/json" id="panel3-feature-items-data"><%- JSON.stringify(items.map(function(item) {
+  return {
+    id: item.public_id,
+    title: item.title || '',
+    description: item.description || '',
+    detail_text: item.detail_text || '',
+    icon_type: item.icon_type || 'builtin',
+    icon_key: item.icon_key || '',
+    media_public_id: item.media_public_id ? 'media://' + item.media_public_id : '',
+    media_thumb: item.media_public_id_resolved ? (item.media_public_id_resolved.thumbnail_url || item.media_public_id_resolved.url || '') : '',
+    media_title: item.media_public_id_resolved ? (item.media_public_id_resolved.title || '') : '',
+    url: item.url || '',
+    link_type: item.link_type || 'internal',
+    target: item.target || '_self',
+    style_variant: item.style_variant || '',
+    is_visible: item.is_visible,
+    status: item.status,
+  };
+})) %></script>
