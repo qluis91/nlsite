@@ -356,7 +356,10 @@ test('panel-two text and carousel use visible scroll-owned animation layers', ()
   assert.match(animations, /fromTo\(headingTargets[\s\S]*y: fallY/);
   assert.match(animations, /settle\.heading/);
   assert.match(animations, /filter: 'blur\(0px\)'/);
-  assert.match(animations, /addLabel\('carouselIn', 0\.9\)/);
+  // Carousel has its own ScrollTrigger trigger
+  assert.match(animations, /home-panel2-carousel/);
+  assert.match(animations, /start: 'top 70%'/);
+  assert.match(animations, /end: 'top 35%'/);
   assert.match(animations, /rotationX: 0/);
   assert.match(css, /\[data-blur-text-split="true"\]/);
   assert.match(css, /\.blur-text__char/);

@@ -55,7 +55,7 @@ exports.login = async (req, res, next) => {
     }
 
     const [rows] = await pool.query(
-      'SELECT id, name, email, password, role_id FROM users WHERE email = ? AND is_active = 1 LIMIT 1',
+      'SELECT id, name, email, password, role_id, avatar_path FROM users WHERE email = ? AND is_active = 1 LIMIT 1',
       [email]
     );
 
@@ -85,6 +85,7 @@ exports.login = async (req, res, next) => {
         email: user.email,
         role_id: roleId,
         role: mapRole(roleId),
+        avatar_path: user.avatar_path || null,
       };
 
       // Restore guest cart into new session
@@ -375,7 +376,7 @@ exports.adminLogin = async (req, res, next) => {
     }
 
     const [rows] = await pool.query(
-      'SELECT id, name, email, password, role_id FROM users WHERE email = ? AND is_active = 1 AND role_id = 1 LIMIT 1',
+      'SELECT id, name, email, password, role_id, avatar_path FROM users WHERE email = ? AND is_active = 1 AND role_id = 1 LIMIT 1',
       [email]
     );
 
@@ -405,6 +406,7 @@ exports.adminLogin = async (req, res, next) => {
         email: user.email,
         role_id: roleId,
         role: mapRole(roleId),
+        avatar_path: user.avatar_path || null,
       };
 
       // Restore guest cart into new session

@@ -43,6 +43,10 @@ function getLogoJs() {
   return fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'home', 'logoLoop.js'), 'utf-8');
 }
 
+function getAnimationsJs() {
+  return fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'home', 'animations.js'), 'utf-8');
+}
+
 const viewPath = path.join(__dirname, '..', 'views', 'pages', 'home.ejs');
 
 describe('LogoLoop markup — media wrapper', () => {
@@ -157,6 +161,56 @@ describe('LogoLoop animation JS — cloning preserved', () => {
   it('measure() uses getBoundingClientRect', () => {
     const js = getLogoJs();
     assert.ok(js.includes('sequence.getBoundingClientRect()'), 'must measure sequence');
+  });
+});
+
+describe('LogoLoop entrance animation', () => {
+  it('home.css has reduced-motion item overrides', () => {
+    const css = getHomeCss();
+    assert.ok(css.includes('.logo-loop.is-reduced-motion .logo-loop__item'), 'must have reduced-motion item rule');
+  });
+
+  it('animations.js creates ScrollTrigger for logo-loop scale reveal', () => {
+    const js = getAnimationsJs();
+    assert.ok(js.includes('logoLoopEl'), 'must query .logo-loop element');
+    assert.ok(js.includes('ScrollTrigger'), 'must use ScrollTrigger');
+    assert.ok(js.includes("id: 'home-logo-loop-scale'"), 'must have unique trigger ID');
+  });
+
+  it('ScrollTrigger scales from 0.72 to 1 with scrub', () => {
+    const js = getAnimationsJs();
+    assert.ok(js.includes('scale: 0.72'), 'must start at scale 0.72');
+    assert.ok(js.includes('scale: 1'), 'must end at scale 1');
+    assert.ok(js.includes('scrub: 0.6'), 'must use scrub 0.6');
+  });
+
+  it('ScrollTrigger animates opacity and position', () => {
+    const js = getAnimationsJs();
+    assert.ok(js.includes('opacity: 0.35'), 'must start at opacity 0.35');
+    assert.ok(js.includes('y: 45'), 'must start with translateY 45px');
+    assert.ok(js.includes('opacity: 1'), 'must end at opacity 1');
+    assert.ok(js.includes('y: 0'), 'must end at translateY 0');
+  });
+
+  it('ScrollTrigger uses correct start/end positions', () => {
+    const js = getAnimationsJs();
+    assert.ok(js.includes("start: 'top 85%'"), 'must start at top 85%');
+    assert.ok(js.includes("end: 'top 45%'"), 'must end at top 45%');
+  });
+
+  it('ScrollTrigger has transformOrigin center center', () => {
+    const js = getAnimationsJs();
+    assert.ok(js.includes("transformOrigin: 'center center'"), 'must set transform-origin');
+  });
+
+  it('ScrollTrigger skips animation in reduced-motion mode', () => {
+    const js = getAnimationsJs();
+    assert.ok(js.includes('prefers-reduced-motion: reduce'), 'must check reduced-motion');
+  });
+
+  it('revealPanelTransitionImmediately resets logo-loop on GSAP failure', () => {
+    const js = getAnimationsJs();
+    assert.ok(js.includes('logoLoopEl.style.removeProperty'), 'must clean up logo-loop on failure');
   });
 });
 

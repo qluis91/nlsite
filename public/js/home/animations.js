@@ -43,6 +43,11 @@ export function revealPanelTransitionImmediately() {
     ['opacity', 'visibility', 'transform', 'filter', 'will-change']
       .forEach((property) => element.style.removeProperty(property));
   });
+  // Reset logo-loop to full scale if GSAP fails
+  const logoLoopEl = document.querySelector('.logo-loop');
+  if (logoLoopEl) {
+    ['opacity', 'transform', 'transform-origin'].forEach((p) => logoLoopEl.style.removeProperty(p));
+  }
   revealBlurTextSegments(document);
 }
 
@@ -359,33 +364,77 @@ async function runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange
         duration: 0.1,
         stagger: compact ? 0.01 : 0.014,
         ease: 'power2.out',
-      }, 'supportIn+=0.1')
-      .addLabel('carouselIn', 0.9)
-      .to('[data-panel2-animate="carousel"]', {
-        opacity: 1,
-        y: 0,
-        scale: 1,
-        filter: 'blur(0px)',
-        duration: 0.28,
-      }, 'carouselIn')
-      .to('[data-panel2-animate="card"]', {
+      }, 'supportIn+=0.1');
+
+    // ── Carousel entrance — own ScrollTrigger for later reveal ──
+    const carouselEl = panelTwo.querySelector('[data-panel2-animate="carousel"]');
+    const cardEls = panelTwo.querySelectorAll('[data-panel2-animate="card"]');
+    const controlsEl = panelTwo.querySelector('[data-panel2-animate="controls"]');
+    const carouselElements = [carouselEl, controlsEl, ...cardEls].filter(Boolean);
+
+    let carouselTween = null;
+    if (carouselElements.length && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      gsap.set(carouselElements, {
+        opacity: 0,
+        y: compact ? 18 : 32,
+        scale: 0.92,
+        transformOrigin: 'center center',
+        filter: 'blur(4px)',
+      });
+      gsap.set(cardEls, { rotationX: compact ? 4 : 8 });
+      carouselTween = gsap.to([carouselEl, controlsEl, ...cardEls].filter(Boolean), {
         opacity: 1,
         y: 0,
         scale: 1,
         rotationX: 0,
         filter: 'blur(0px)',
-        duration: 0.24,
-        stagger: compact ? 0.03 : 0.045,
-      }, 'carouselIn+=0.04')
-      .to('[data-panel2-animate="controls"]', {
-        opacity: 1,
-        duration: 0.16,
-      }, 0.96);
+        duration: 0.6,
+        stagger: cardEls.length ? { each: compact ? 0.04 : 0.06, from: 'start' } : 0,
+        ease: 'power2.out',
+        scrollTrigger: {
+          id: 'home-panel2-carousel',
+          trigger: carouselEl || panelTwo,
+          start: 'top 70%',
+          end: 'top 35%',
+          scrub: compact ? 0.3 : 0.5,
+          invalidateOnRefresh: true,
+        },
+      });
+    }
+
+    // ── Logo-loop scroll-driven scale reveal ──
+    const logoLoopEl = panelTwo.querySelector('.logo-loop');
+    let logoLoopTween = null;
+    if (logoLoopEl && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      gsap.set(logoLoopEl, {
+        transformOrigin: 'center center',
+      });
+      logoLoopTween = gsap.fromTo(logoLoopEl,
+        { scale: 0.72, opacity: 0.35, y: 45, transformOrigin: 'center center' },
+        {
+          scale: 1,
+          opacity: 1,
+          y: 0,
+          transformOrigin: 'center center',
+          ease: 'none',
+          scrollTrigger: {
+            id: 'home-logo-loop-scale',
+            trigger: logoLoopEl,
+            start: 'top 85%',
+            end: 'top 45%',
+            scrub: 0.6,
+            invalidateOnRefresh: true,
+          },
+        }
+      );
+    }
 
     return () => {
       if (kickerSplit) kickerSplit.destroy();
       if (headingSplit) headingSplit.destroy();
       if (supportSplit) supportSplit.destroy();
+      if (logoLoopTween) logoLoopTween.kill();
+      if (carouselTween) carouselTween.kill();
       transition.kill();
     };
   });

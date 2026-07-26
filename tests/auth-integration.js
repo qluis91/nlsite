@@ -307,7 +307,7 @@ async function main() {
     {
       const r = await request('GET', '/', null, userCookie);
       assert('Authenticated home: status 200', r.status === 200);
-      assert('Authenticated home: navbar has logout form', hasText(r.data, '/auth/logout'));
+      assert('Authenticated home: navbar has avatar block', hasText(r.data, 'hero-nav-user-block'));
       const navIdx = r.data.indexOf('<nav ');
       const featuresIdx = r.data.indexOf('features-grid');
       const adminLinkIdx = r.data.indexOf('href="/admin"');

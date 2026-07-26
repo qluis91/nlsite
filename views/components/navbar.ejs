@@ -5,13 +5,20 @@
       <li><a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">Inicio</a></li>
       <li><a href="/galeria" class="<%= currentPath.startsWith('/galeria') ? 'active' : '' %>">Galería</a></li>
       <% if (user) { %>
-        <li><a href="/cuenta" class="<%= currentPath === '/cuenta' || currentPath.startsWith('/cuenta/perfil') || currentPath.startsWith('/cuenta/direcciones') || currentPath.startsWith('/cuenta/seguridad') ? 'active' : '' %>">Mi cuenta</a></li>
-        <li><a href="/cuenta/pedidos" class="<%= currentPath.startsWith('/cuenta/pedidos') ? 'active' : '' %>">Mis pedidos</a></li>
-        <% if (Number(user.role_id) === 1) { %>
-          <li><a href="/admin" class="<%= currentPath.startsWith('/admin') && currentPath !== '/admin/login' ? 'active' : '' %>">Panel Admin</a></li>
-        <% } %>
         <li class="nav-user">
-          <span class="nav-user-name"><%= user.name %></span>
+          <a href="/cuenta" class="nav-user-link">
+            <div class="nav-user-avatar" aria-hidden="true">
+            <% if (user.avatar_path) { %>
+              <img src="/uploads/<%= user.avatar_path %>" alt="" width="28" height="28" class="nav-user-avatar-img">
+            <% } else { %>
+              <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>
+            <% } %>
+          </div>
+          <span class="nav-user-name" title="<%= user.name %>"><%= user.name %></span>
+          </a>
+          <% if (Number(user.role_id) === 1) { %>
+            <a href="/admin" class="nav-user-admin">Admin</a>
+          <% } %>
           <form action="/auth/logout" method="POST" class="logout-form">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button type="submit" class="btn btn-sm btn-outline logout-button">Cerrar Sesión</button>
