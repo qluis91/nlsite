@@ -208,6 +208,7 @@ const REVISION_ACTIONS = Object.freeze({
   REPLACE: 'replace',
   ARCHIVE: 'archive',
   RESTORE: 'restore',
+  PERMANENT_DELETE: 'permanent_delete',
   SELECTOR_UPLOAD: 'selector_upload',
 });
 

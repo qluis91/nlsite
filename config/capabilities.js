@@ -48,7 +48,7 @@ const CAPABILITY_VALUES = Object.freeze(Object.values(CAPABILITIES));
  * Physical deletion has no admin UI in Phase 11A: the project has no
  * established super-admin destructive-action pattern to hook into.
  */
-const UNASSIGNED_CAPABILITIES = Object.freeze([CAPABILITIES.MEDIA_DELETE]);
+const UNASSIGNED_CAPABILITIES = Object.freeze([]);
 
 const ADMIN_CAPABILITIES = Object.freeze(
   CAPABILITY_VALUES.filter((capability) => !UNASSIGNED_CAPABILITIES.includes(capability))

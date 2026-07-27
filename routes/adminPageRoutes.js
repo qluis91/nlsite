@@ -95,6 +95,14 @@ router.post(
   mediaController.restore
 );
 
+// ── Phase 16D: permanent delete ──
+router.post(
+  `${MEDIA_BASE}/${UUID_ROUTE}/permanent-delete`,
+  requireCapability(CAPABILITIES.MEDIA_DELETE),
+  csrfSynchronisedProtection,
+  mediaController.permanentDelete
+);
+
 // ── Phase 11C: JSON browse endpoint for visual media selector ──
 router.get(
   '/api/page/media',

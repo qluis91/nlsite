@@ -555,6 +555,66 @@ async function restore(publicId, actorId = null) {
   }
 }
 
+/**
+ * Permanent deletion. Removes DB record and physical files.
+ * Blocked when the asset is referenced by any CMS content.
+ * Missing physical files are reported but do not block DB cleanup.
+ */
+async function permanentDelete(publicId, actorId = null) {
+  const asset = await getByPublicId(publicId);
+  if (!asset) throw new MediaError('El archivo no existe en la biblioteca.', 'NOT_FOUND');
+
+  await usage.assertNotReferenced(asset.public_id, 'eliminar permanentemente');
+
+  const pathsToRemove = storage.ownedPaths(asset);
+  const deleteErrors = [];
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [locked] = await connection.query(
+      `SELECT ${SELECT_COLUMNS} FROM media_assets m WHERE m.id = ? FOR UPDATE`,
+      [asset.id]
+    );
+    if (!locked[0]) throw new MediaError('El archivo no existe en la biblioteca.', 'NOT_FOUND');
+    const previous = locked[0];
+
+    await revisions.recordRevision({
+      entityType: REVISION_ENTITY_TYPES.MEDIA_ASSET,
+      entityId: asset.id,
+      action: REVISION_ACTIONS.PERMANENT_DELETE,
+      previousData: revisions.mediaSnapshot(previous),
+      newData: null,
+      changeSummary: 'Archivo eliminado permanentemente.',
+      changedBy: actorId,
+    }, connection);
+
+    await connection.query('DELETE FROM media_assets WHERE id = ?', [asset.id]);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback().catch(() => {});
+    throw error;
+  } finally {
+    connection.release();
+  }
+
+  // Physical files removed after successful DB commit
+  for (const relPath of pathsToRemove) {
+    try {
+      const absPath = storage.resolveStoragePath(relPath);
+      await require('fs').promises.unlink(absPath);
+    } catch (err) {
+      if (err.code !== 'ENOENT') {
+        deleteErrors.push(relPath);
+      }
+    }
+  }
+
+  if (deleteErrors.length) {
+    console.warn(`[mediaService] ${deleteErrors.length} archivo(s) físico(s) no se pudieron eliminar.`);
+  }
+}
+
 module.exports = {
   MediaError,
   SELECT_COLUMNS,
@@ -574,4 +634,5 @@ module.exports = {
   replaceFile,
   archive,
   restore,
+  permanentDelete,
 };

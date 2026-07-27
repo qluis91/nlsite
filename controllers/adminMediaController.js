@@ -243,6 +243,19 @@ async function restore(req, res, next) {
   }
 }
 
+// ── HANDLER: permanent delete ──
+async function permanentDelete(req, res, next) {
+  const destination = LIBRARY_PATH;
+  try {
+    await mediaService.permanentDelete(req.params.publicId, actorId(req));
+    req.session.success_msg = 'Archivo eliminado permanentemente.';
+    return res.redirect(destination);
+  } catch (error) {
+    if (isInfrastructureError(error)) return next(error);
+    return redirectWithError(req, res, destination, error.message);
+  }
+}
+
 // ── Phase 11C: JSON API for visual media selector ──
 
 async function mediaBrowse(req, res, next) {
@@ -391,6 +404,7 @@ module.exports = {
   replace,
   archive,
   restore,
+  permanentDelete,
   mediaBrowse,
   selectorUpload,
 };
