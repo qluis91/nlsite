@@ -135,7 +135,7 @@ app.use(helmet(helmetConfig));
 app.use((_req, res, next) => {
   res.setHeader(
     'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), vr=(), accelerometer=(), gyroscope=(), magnetometer=()'
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=()'
   );
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
