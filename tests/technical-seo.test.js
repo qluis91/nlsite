@@ -115,6 +115,128 @@ describe('Phase 12D — jsonLdHelper unit tests', () => {
   });
 });
 
+// ──── JSON-LD script-breakout safety ────
+describe('Phase 16A — JSON-LD script-breakout prevention', () => {
+  /**
+   * Helper: extract the content between the opening <script...> tag
+   * and the closing </script> tag — i.e. the JSON body.
+   */
+  function jsonBody(script) {
+    return script.slice(script.indexOf('>') + 1, script.lastIndexOf('</'));
+  }
+
+  it('escapes </script> sequence from user content', () => {
+    const ld = { '@type': 'Product', name: 'Foo', description: '</script><script>alert(1)</script>' };
+    const script = jsonLdScript(ld);
+    const body = jsonBody(script);
+    // Must NOT contain a literal </script> from user content
+    assert.ok(!body.includes('</script>'));
+    // Must contain the escaped form
+    assert.ok(body.includes('\\u003c/script\\u003e'));
+    // No double-escape of already-escaped forms
+    assert.ok(!body.includes('\\\\u003c'));
+  });
+
+  it('escapes closing tag even without opening tag', () => {
+    const ld = { '@type': 'Product', name: 'X</script>Y' };
+    const script = jsonLdScript(ld);
+    const body = jsonBody(script);
+    assert.ok(!body.includes('</script>'));
+    assert.ok(body.includes('\\u003c/script\\u003e'));
+  });
+
+  it('round-trips original values through JSON.parse', () => {
+    const original = {
+      '@type': 'Product',
+      name: 'Casco Ninja <3',
+      description: 'Desc with </script> & special chars',
+    };
+    const script = jsonLdScript(original);
+    const jsonText = script.slice(script.indexOf('>') + 1, script.lastIndexOf('</'));
+    const parsed = JSON.parse(jsonText);
+    assert.equal(parsed.name, original.name);
+    assert.equal(parsed.description, original.description);
+  });
+
+  it('preserves ampersands in parsed values', () => {
+    const ld = { '@type': 'Organization', name: 'A & B Co.' };
+    const script = jsonLdScript(ld);
+    const jsonText = script.slice(script.indexOf('>') + 1, script.lastIndexOf('</'));
+    const parsed = JSON.parse(jsonText);
+    assert.equal(parsed.name, 'A & B Co.');
+  });
+
+  it('preserves quotes and backslashes', () => {
+    const ld = { '@type': 'Product', name: 'Casco "Ninja"', sku: 'NL\\001' };
+    const script = jsonLdScript(ld);
+    const jsonText = script.slice(script.indexOf('>') + 1, script.lastIndexOf('</'));
+    const parsed = JSON.parse(jsonText);
+    assert.equal(parsed.name, 'Casco "Ninja"');
+    assert.equal(parsed.sku, 'NL\\001');
+  });
+
+  it('escapes U+2028 line separator', () => {
+    const ld = { '@type': 'Product', name: 'Line1\u2028Line2' };
+    const script = jsonLdScript(ld);
+    const body = jsonBody(script);
+    assert.ok(!body.includes('\u2028'));
+    assert.ok(body.includes('\\u2028'));
+  });
+
+  it('escapes U+2029 paragraph separator', () => {
+    const ld = { '@type': 'Product', name: 'Para1\u2029Para2' };
+    const script = jsonLdScript(ld);
+    const body = jsonBody(script);
+    assert.ok(!body.includes('\u2029'));
+    assert.ok(body.includes('\\u2029'));
+  });
+
+  it('handles nested objects with mixed special chars', () => {
+    const ld = {
+      '@type': 'Product',
+      name: 'Item',
+      description: 'a < b & c > d',
+      offers: { '@type': 'Offer', price: '100', priceCurrency: 'CRC' },
+    };
+    const script = jsonLdScript(ld);
+    const body = jsonBody(script);
+    // Body must not contain raw < or > from user data
+    assert.ok(!body.includes('<'));
+    assert.ok(!body.includes('>'));
+    assert.ok(body.includes('\\u003c'));
+    assert.ok(body.includes('\\u003e'));
+    const parsed = JSON.parse(body);
+    assert.equal(parsed.description, 'a < b & c > d');
+    assert.equal(parsed.offers.price, '100');
+  });
+
+  it('Organization JSON-LD does not leak raw angle brackets', () => {
+    const { buildOrganizationLd } = require('../config/jsonLdHelper');
+    const ld = buildOrganizationLd({
+      siteName: 'NinjaLab <3D>',
+      siteDescription: 'Best </script> shop',
+      baseUrl: 'http://localhost:3000',
+    });
+    const script = jsonLdScript(ld);
+    const body = jsonBody(script);
+    assert.ok(!body.includes('</script>'));
+    assert.ok(!body.includes('<3D>'));
+    const parsed = JSON.parse(body);
+    assert.equal(parsed.name, 'NinjaLab <3D>');
+    assert.equal(parsed.description, 'Best </script> shop');
+  });
+
+  it('WebSite JSON-LD is safe', () => {
+    const { buildWebSiteLd } = require('../config/jsonLdHelper');
+    const ld = buildWebSiteLd({ siteName: 'Test', baseUrl: 'http://localhost:3000' });
+    const script = jsonLdScript(ld);
+    const jsonText = script.slice(script.indexOf('>') + 1, script.lastIndexOf('</'));
+    const parsed = JSON.parse(jsonText);
+    assert.equal(parsed['@type'], 'WebSite');
+    assert.equal(parsed.name, 'Test');
+  });
+});
+
 // ──── Integration tests: live HTTP ────
 describe('Phase 12D — Live HTTP SEO endpoints', () => {
   it('robots.txt returns 200 with sitemap URL', async () => {

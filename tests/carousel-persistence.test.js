@@ -10,6 +10,7 @@ const path = require('node:path');
 
 const pool = require('../config/db');
 const repeatable = require('../services/cmsRepeatableService');
+const { safeJsonScript } = require('../config/jsonLdHelper');
 
 let sectionId;
 let createdItemId;
@@ -279,7 +280,7 @@ describe('Carousel template — panel2.ejs JSON data block', () => {
         preview_media_public_id_resolved: { thumbnail_url: '/t2.webp', url: '/m2.webp', title: 'Preview Image' },
         theme_key: 'graphite', is_visible: 1, status: 'draft', sort_order: 0,
       }],
-      csrfToken: 'x', error: null, saved: null,
+      csrfToken: 'x', error: null, saved: null, safeJsonScript,
     });
 
     const m = html.match(/id="panel2-carousel-items-data"[^>]*>([\s\S]*?)<\/script>/);
@@ -308,7 +309,7 @@ describe('Carousel template — panel2.ejs JSON data block', () => {
         preview_media_public_id_resolved: null,
         theme_key: 'lime', is_visible: 1, status: 'draft', sort_order: 0,
       }],
-      csrfToken: 'x', error: null, saved: null,
+      csrfToken: 'x', error: null, saved: null, safeJsonScript,
     });
 
     const m = html.match(/id="panel2-carousel-items-data"[^>]*>([\s\S]*?)<\/script>/);
@@ -333,7 +334,7 @@ describe('Carousel template — panel2.ejs JSON data block', () => {
       content: {}, style: {}, bgMedia: null,
       logoItems: [],
       carouselItems: [],
-      csrfToken: 'x', error: null, saved: null,
+      csrfToken: 'x', error: null, saved: null, safeJsonScript,
     });
     assert.ok(html.includes('name="media_public_id"'), 'rendered form must have main media input');
     assert.ok(html.includes('name="preview_media_public_id"'), 'rendered form must have preview media input');

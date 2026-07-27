@@ -6,6 +6,7 @@ const pool = require('../config/db');
 const catalog = require('../services/adminCatalogService');
 const imgProc = require('../services/imageProcessingService');
 const v = require('../validators/catalogValidator');
+const { parsePositiveId } = require('../validators/addressValidator');
 
 // ══════════════════════════════════════
 //  CATEGORIES
@@ -98,7 +99,12 @@ exports.createCategory = async (req, res, next) => {
 
 exports.showEditCategory = async (req, res, next) => {
   try {
-    const cat = await catalog.getCategoryById(req.params.id);
+    const categoryId = parsePositiveId(req.params.id);
+    if (!categoryId) {
+      req.session.error_msg = 'Categoría no encontrada.';
+      return res.redirect('/admin/catalogo/categorias');
+    }
+    const cat = await catalog.getCategoryById(categoryId);
     if (!cat) {
       req.session.error_msg = 'Categoría no encontrada.';
       return res.redirect('/admin/catalogo/categorias');
@@ -114,7 +120,7 @@ exports.showEditCategory = async (req, res, next) => {
 
 exports.updateCategory = async (req, res, next) => {
   try {
-    const cat = await catalog.getCategoryById(req.params.id);
+    const cat = await catalog.getCategoryById(parsePositiveId(req.params.id));
     if (!cat) {
       req.session.error_msg = 'Categoría no encontrada.';
       return res.redirect('/admin/catalogo/categorias');
@@ -185,7 +191,7 @@ exports.updateCategory = async (req, res, next) => {
 
 exports.deleteCategory = async (req, res, next) => {
   try {
-    await catalog.deleteCategory(req.params.id);
+    await catalog.deleteCategory(parsePositiveId(req.params.id));
     req.session.success_msg = 'Categoría eliminada exitosamente.';
     res.redirect('/admin/catalogo/categorias');
   } catch (err) {
@@ -352,7 +358,7 @@ exports.createProduct = async (req, res, next) => {
 
 exports.showEditProduct = async (req, res, next) => {
   try {
-    const product = await catalog.getProductById(req.params.id);
+    const product = await catalog.getProductById(parsePositiveId(req.params.id));
     if (!product) {
       req.session.error_msg = 'Producto no encontrado.';
       return res.redirect('/admin/catalogo/productos');
@@ -370,7 +376,7 @@ exports.showEditProduct = async (req, res, next) => {
 
 exports.updateProduct = async (req, res, next) => {
   try {
-    const product = await catalog.getProductById(req.params.id);
+    const product = await catalog.getProductById(parsePositiveId(req.params.id));
     if (!product) {
       req.session.error_msg = 'Producto no encontrado.';
       return res.redirect('/admin/catalogo/productos');
@@ -504,7 +510,7 @@ exports.updateProduct = async (req, res, next) => {
 
 exports.deleteProduct = async (req, res, next) => {
   try {
-    const product = await catalog.getProductById(req.params.id);
+    const product = await catalog.getProductById(parsePositiveId(req.params.id));
     if (!product) {
       req.session.error_msg = 'Producto no encontrado.';
       return res.redirect('/admin/catalogo/productos');

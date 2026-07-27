@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const Module = require('node:module');
 const ejs = require('ejs');
 const express = require('express');
+const { safeJsonScript } = require('../config/jsonLdHelper');
 
 const root = path.join(__dirname, '..');
 const selectorPath = path.join(root, 'views', 'components', 'media-selector.ejs');
@@ -69,7 +70,7 @@ function renderAdminView(name, locals = {}) {
       items: [],
     },
   };
-  return ejs.renderFile(viewPath(name), { ...common, ...defaults[name], ...locals });
+  return ejs.renderFile(viewPath(name), { safeJsonScript, ...common, ...defaults[name], ...locals });
 }
 
 describe('media-selector optional-local regression', () => {

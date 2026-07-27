@@ -1,6 +1,8 @@
 /**
  * Environment validation — fail-fast for missing critical secrets in production.
- * Safe: never logs secret values, only presence.
+ * Phase 16D: added DB_PASSWORD remote check, APP_URL HTTPS requirement,
+ * mail credentials, analytics format validation, Railway volume warning.
+ * Safe: never logs secret values, only presence and format.
  */
 function validateEnv() {
   const issues = [];
@@ -15,30 +17,74 @@ function validateEnv() {
 
   // Production-critical
   if (isProduction) {
-    if (!process.env.DB_PASSWORD && process.env.DB_HOST !== 'localhost') {
-      issues.push('DB_PASSWORD: requerido en producción con host remoto.');
+    // DB_PASSWORD: required for any DB_HOST that isn't localhost/127.0.0.1
+    if (!process.env.DB_PASSWORD) {
+      const isRemote = process.env.DB_HOST &&
+        process.env.DB_HOST !== 'localhost' &&
+        process.env.DB_HOST !== '127.0.0.1';
+      if (isRemote) {
+        issues.push('DB_PASSWORD: requerido en producción con host remoto.');
+      }
     }
+
+    // APP_URL must be present and use HTTPS
+    if (!process.env.APP_URL) {
+      issues.push('APP_URL: requerido en producción (ej. https://misitio.com).');
+    } else {
+      try {
+        const url = new URL(process.env.APP_URL);
+        if (url.protocol !== 'https:') {
+          issues.push('APP_URL: debe usar HTTPS en producción.');
+        }
+      } catch (_err) {
+        issues.push('APP_URL: no es una URL válida.');
+      }
+    }
+
+    // Tilopay: optional integration
     if (process.env.TILOPAY_ENABLED === 'true') {
       if (!process.env.TILOPAY_API_KEY) issues.push('TILOPAY_API_KEY: requerido cuando Tilopay está habilitado.');
       if (!process.env.TILOPAY_API_USER) issues.push('TILOPAY_API_USER: requerido cuando Tilopay está habilitado.');
       if (!process.env.TILOPAY_API_PASSWORD) issues.push('TILOPAY_API_PASSWORD: requerido cuando Tilopay está habilitado.');
+      if (!process.env.TILOPAY_PUBLIC_BASE_URL) issues.push('TILOPAY_PUBLIC_BASE_URL: requerido cuando Tilopay está habilitado.');
+    }
+
+    // Mail: optional integration
+    if (process.env.MAIL_ENABLED === 'true') {
+      if (!process.env.SMTP_HOST) issues.push('SMTP_HOST: requerido cuando el correo está habilitado.');
+      if (!process.env.SMTP_USER) issues.push('SMTP_USER: requerido cuando el correo está habilitado.');
+      if (!process.env.SMTP_PASSWORD) issues.push('SMTP_PASSWORD: requerido cuando el correo está habilitado.');
+    }
+
+    // Analytics: validate format if present
+    if (process.env.GA_MEASUREMENT_ID) {
+      const gaId = String(process.env.GA_MEASUREMENT_ID);
+      if (gaId && !/^G-[A-Z0-9]{6,}$/.test(gaId)) {
+        issues.push('GA_MEASUREMENT_ID: el formato debe ser G-XXXXXXXXXX.');
+      }
+    }
+
+    // Railway: warn about missing persistent volume
+    const hasUploadDir = process.env.UPLOAD_PUBLIC_DIR || process.env.UPLOAD_PROOFS_DIR;
+    if (!hasUploadDir) {
+      issues.push('UPLOAD_PUBLIC_DIR / UPLOAD_PROOFS_DIR: sin volumen persistente, los archivos se pierden al reiniciar.');
     }
   }
 
-  // Port validation
+  // Port validation (all environments)
   const port = parseInt(process.env.PORT, 10);
   if (process.env.PORT && (Number.isNaN(port) || port < 1 || port > 65535)) {
     issues.push('PORT: debe ser un número de puerto válido (1-65535).');
   }
 
-  // URL validation
-  if (process.env.APP_URL) {
+  // URL format validation (development only)
+  if (process.env.APP_URL && !isProduction) {
     try { new URL(process.env.APP_URL); } catch (_err) {
       issues.push('APP_URL: no es una URL válida.');
     }
   }
 
-  // Upload path validation
+  // Upload path isolation (all environments)
   const path = require('path');
   const uploadPublic = process.env.UPLOAD_PUBLIC_DIR;
   const uploadProofs = process.env.UPLOAD_PROOFS_DIR;

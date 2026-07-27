@@ -2,6 +2,7 @@ const gallery = require('../services/galleryService');
 const media = require('../services/galleryMediaService');
 const validator = require('../validators/galleryValidator');
 const { MEDIA_TYPES } = require('../config/galleryOptions');
+const { parsePositiveId } = require('../validators/addressValidator');
 
 function redirectWithError(req, res, destination, error) {
   req.session.error_msg = error?.message || 'No fue posible completar la operación de galería.';
@@ -125,7 +126,7 @@ async function createItem(req, res, next) {
 
 async function showEditItem(req, res, next) {
   try {
-    const item = await gallery.getItemById(req.params.id);
+    const item = await gallery.getItemById(parsePositiveId(req.params.id));
     if (!item) return redirectWithError(req, res, '/admin/galeria', new Error('Elemento de galería no encontrado.'));
     res.render('pages/admin/gallery/form', {
       title: 'Editar elemento de galería',
@@ -144,7 +145,7 @@ async function updateItem(req, res, next) {
   const createdPaths = [];
   const destination = `/admin/galeria/${req.params.id}/editar`;
   try {
-    const existing = await gallery.getItemById(req.params.id);
+    const existing = await gallery.getItemById(parsePositiveId(req.params.id));
     if (!existing) return redirectWithError(req, res, '/admin/galeria', new Error('Elemento de galería no encontrado.'));
     const categories = await gallery.listCategories();
     const validation = validator.validateItem(req.body, categories.map((category) => Number(category.id)));
@@ -214,7 +215,7 @@ async function updateItem(req, res, next) {
 
 async function deleteItem(req, res, next) {
   try {
-    const deleted = await gallery.deleteItem(req.params.id);
+    const deleted = await gallery.deleteItem(parsePositiveId(req.params.id));
     await media.deleteGalleryPaths(itemFilePaths(deleted));
     req.session.success_msg = 'Elemento de galería eliminado correctamente.';
     res.redirect('/admin/galeria');
@@ -226,7 +227,7 @@ async function deleteItem(req, res, next) {
 
 async function togglePublished(req, res, next) {
   try {
-    const item = await gallery.getItemById(req.params.id);
+    const item = await gallery.getItemById(parsePositiveId(req.params.id));
     if (!item) return redirectWithError(req, res, '/admin/galeria', new Error('Elemento de galería no encontrado.'));
     const publish = !Boolean(item.is_published);
     if (publish) await media.assertPublishable(item);
@@ -241,7 +242,7 @@ async function togglePublished(req, res, next) {
 
 async function toggleFeatured(req, res, next) {
   try {
-    const item = await gallery.getItemById(req.params.id);
+    const item = await gallery.getItemById(parsePositiveId(req.params.id));
     if (!item) return redirectWithError(req, res, '/admin/galeria', new Error('Elemento de galería no encontrado.'));
     await gallery.setFeatured(item.id, !Boolean(item.is_featured));
     req.session.success_msg = item.is_featured ? 'Elemento retirado de destacados.' : 'Elemento destacado.';
@@ -282,7 +283,7 @@ async function createCategory(req, res, next) {
 
 async function updateCategory(req, res, next) {
   try {
-    const category = await gallery.getCategoryById(req.params.id);
+    const category = await gallery.getCategoryById(parsePositiveId(req.params.id));
     if (!category) return redirectWithError(req, res, '/admin/galeria/categorias', new Error('Categoría no encontrada.'));
     const validation = validator.validateCategory(req.body);
     if (!validation.valid) return redirectWithError(req, res, '/admin/galeria/categorias', new Error(validation.error));
@@ -300,7 +301,7 @@ async function updateCategory(req, res, next) {
 
 async function deleteCategory(req, res, next) {
   try {
-    await gallery.deleteCategory(req.params.id);
+    await gallery.deleteCategory(parsePositiveId(req.params.id));
     req.session.success_msg = 'Categoría de galería eliminada.';
     res.redirect('/admin/galeria/categorias');
   } catch (error) {

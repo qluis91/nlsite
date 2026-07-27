@@ -9,6 +9,7 @@ const fs = require('node:fs');
 const pool = require('../config/db');
 const repeatable = require('../services/cmsRepeatableService');
 const ejs = require('ejs');
+const { safeJsonScript } = require('../config/jsonLdHelper');
 
 let sectionId;
 const TEST_MEDIA_ID = 'persist-test-media-ref';
@@ -106,6 +107,7 @@ describe('Media persistence — LogoLoop', () => {
       content: {}, style: {}, bgMedia: null,
       logoItems: items,
       carouselItems: [],
+      safeJsonScript,
       csrfToken: 'x', error: null, saved: null,
     });
     // Verify JSON block exists and contains media_thumb

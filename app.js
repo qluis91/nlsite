@@ -77,6 +77,7 @@ const { setLocals, isAuthenticated, isAdmin, isAdminGuest } = require('./middlew
 
 // ── Inicializar Express ──
 const app = express();
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -89,12 +90,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── Seguridad: Helmet ──
-app.use(helmet({
+// ── Seguridad: Helmet + Headers ──
+// Phase 16D: Referrer-Policy, HSTS (prod), Permissions-Policy, hide X-Powered-By
+// Note: style-src 'unsafe-inline' is an unresolved hardening opportunity — requires
+// externalising or noncing all CMS inline styles. Not exploitable without a confirmed
+// CSS injection vector.
+
+const helmetConfig = {
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // hardening opportunity — see note above
       scriptSrc: [
         "'self'","'wasm-unsafe-eval'",
         (req, res) => "'nonce-" + res.locals.cspNonce + "'",
@@ -112,11 +118,28 @@ app.use(helmet({
         'https://*.googletagmanager.com',
       ],
       workerSrc: ["'self'", 'blob:'],
+      fontSrc: ["'self'", 'data:'],
+      mediaSrc: ["'self'"],
       frameAncestors: ["'self'"],
       formAction: ["'self'"],
     },
   },
-}));
+  ...(IS_PRODUCTION ? { hsts: { maxAge: 63072000, includeSubDomains: true, preload: false } } : {}),
+  xPoweredBy: false,
+  crossOriginResourcePolicy: { policy: 'same-origin' },
+};
+
+app.use(helmet(helmetConfig));
+
+// Phase 16D: Permissions-Policy and strict Referrer-Policy — applied separately (Helmet v8 compatibility)
+app.use((_req, res, next) => {
+  res.setHeader(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), vr=(), accelerometer=(), gyroscope=(), magnetometer=()'
+  );
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 
 // ── Configuración del Motor de Vistas (EJS) ──
 app.set('view engine', 'ejs');
@@ -209,6 +232,8 @@ app.use(setLocals);
 // ── CSRF: expose token to all views ──
 app.use((req, res, next) => {
   res.locals.csrfToken = generateToken(req);
+  // Phase 16C: safe JSON serialization for <script type="application/json"> blocks
+  res.locals.safeJsonScript = require('./config/jsonLdHelper').safeJsonScript;
   next();
 });
 
@@ -667,6 +692,24 @@ const { probeDatabase } = require('./config/databaseReadiness');
 app.get('/ready', async (_req, res) => {
   const ready = await probeDatabase();
   res.status(ready ? 200 : 503).json({ status: ready ? 'ok' : 'not_ready' });
+});
+
+// ── Phase 16D: Proxy/IP diagnostic (admin-only, disabled by default) ──
+// Enable temporarily: PROXY_DIAGNOSTIC_ENABLED=true
+// Then visit /admin/proxy-diagnostic as an authenticated admin.
+// Disable afterward by removing or setting to false.
+app.get('/admin/proxy-diagnostic', isAuthenticated, isAdmin, (_req, res) => {
+  if (process.env.PROXY_DIAGNOSTIC_ENABLED !== 'true') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  const trustProxy = app.get('trust proxy');
+  res.status(200).json({
+    trust_proxy: typeof trustProxy === 'number' ? trustProxy : String(trustProxy),
+    ip: _req.ip,
+    protocol: _req.protocol,
+    secure: _req.secure,
+    proxy_count: Array.isArray(_req.ips) ? _req.ips.length : 0,
+  });
 });
 
 // ── 404 - Página no encontrada ──

@@ -1,6 +1,7 @@
 /**
  * Phase 12D — JSON-LD safe serialization helper.
- * Escapes </script, U+2028, U+2029 to keep JSON-LD CSP-compatible.
+ * Phase 16C — Exported escapeJsonLd for reuse across inline JSON blocks.
+ * Escapes </script, U+2028, U+2029 to keep JSON-LD / inline JSON CSP-compatible.
  */
 function escapeJsonLd(str) {
   return String(str)
@@ -13,7 +14,20 @@ function escapeJsonLd(str) {
 
 function jsonLdScript(ld) {
   const json = JSON.stringify(ld);
-  return `<script type="application/ld+json">${json}</script>`;
+  const escaped = escapeJsonLd(json);
+  return `<script type="application/ld+json">${escaped}</script>`;
+}
+
+/**
+ * Safe JSON serialization for embedding inside <script type="application/json"> blocks.
+ * Prevents script-breakout via </script> sequences in user/CMS-controlled values.
+ * Apply to the result of JSON.stringify(), not to individual field values.
+ *
+ * Usage in EJS:
+ *   <script type="application/json" id="data"><%- safeJsonScript(data) %></script>
+ */
+function safeJsonScript(value) {
+  return escapeJsonLd(JSON.stringify(value));
 }
 
 /**
@@ -123,6 +137,7 @@ function makeAbsolute(url, baseUrl) {
 
 module.exports = {
   escapeJsonLd,
+  safeJsonScript,
   jsonLdScript,
   buildOrganizationLd,
   buildWebSiteLd,

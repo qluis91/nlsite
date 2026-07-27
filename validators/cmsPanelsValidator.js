@@ -66,11 +66,6 @@ function validateMediaRef(value) {
   return null; // Format validated at usage time
 }
 
-function validateBoolean(value) {
-  if (value === undefined || value === null) return null;
-  return null;
-}
-
 // ── Panel 2 general ──
 
 function validatePanel2Content(body = {}) {

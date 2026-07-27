@@ -553,7 +553,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
       </div>
 
       <% if (_previewCms && _previewCms.featureItems && _previewCms.featureItems.length) { %>
-      <script type="application/json" id="services-cms-data"><%- JSON.stringify(_previewCms.featureItems.map(function(item) {
+      <script type="application/json" id="services-cms-data"><%- safeJsonScript(_previewCms.featureItems.map(function(item) {
         const icon = item.icon_type === 'builtin' ? item.icon_key || null : null;
         const mediaUrl = item.icon_type === 'media' && item.media_resolved ? item.media_resolved.url : null;
         const mediaAlt = item.icon_type === 'media' && item.media_resolved ? (item.media_resolved.alt_text || item.media_resolved.title) : null;

@@ -368,7 +368,7 @@
   </div>
 </div>
 
-<script type="application/json" id="panel2-logo-items-data"><%- JSON.stringify(logoItems.map(function(item) {
+<script type="application/json" id="panel2-logo-items-data"><%- safeJsonScript(logoItems.map(function(item) {
   return {
     id: item.public_id,
     item_type: item.item_type,
@@ -384,7 +384,7 @@
     status: item.status,
   };
 })) %></script>
-<script type="application/json" id="panel2-carousel-items-data"><%- JSON.stringify(carouselItems.map(function(item) {
+<script type="application/json" id="panel2-carousel-items-data"><%- safeJsonScript(carouselItems.map(function(item) {
   return {
     id: item.public_id,
     eyebrow: item.eyebrow || '',

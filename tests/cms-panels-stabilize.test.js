@@ -7,6 +7,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const pool = require('../config/db');
+const { safeJsonScript } = require('../config/jsonLdHelper');
 
 let showcaseSectionId, servicesSectionId;
 
@@ -37,7 +38,7 @@ describe('EJS compile — Panel 2 & 3 views', () => {
     const html = await ejs.renderFile(viewPath, {
       content: {}, style: {}, bgMedia: null,
       logoItems: [], carouselItems: [],
-      csrfToken: 'test-token', error: null, saved: null,
+      csrfToken: 'test-token', safeJsonScript, error: null, saved: null,
     });
     assert.ok(typeof html === 'string');
     assert.ok(html.length > 0);
@@ -48,7 +49,7 @@ describe('EJS compile — Panel 2 & 3 views', () => {
     const viewPath = path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'panel3.ejs');
     const html = await ejs.renderFile(viewPath, {
       content: {}, style: {}, items: [],
-      csrfToken: 'test-token', error: null, saved: null,
+      csrfToken: 'test-token', safeJsonScript, error: null, saved: null,
     });
     assert.ok(typeof html === 'string');
     assert.ok(html.length > 0);
@@ -60,7 +61,7 @@ describe('EJS compile — Panel 2 & 3 views', () => {
     const html = await ejs.renderFile(viewPath, {
       content: {}, style: {}, bgMedia: null,
       logoItems: [], carouselItems: [],
-      csrfToken: 'test-token', error: null, saved: null,
+      csrfToken: 'test-token', safeJsonScript, error: null, saved: null,
     });
     assert.ok(html.includes('data-tab="general"'));
     assert.ok(html.includes('data-tab="logoloop"'));
@@ -75,7 +76,7 @@ describe('EJS compile — Panel 2 & 3 views', () => {
       content: {}, style: {}, bgMedia: null,
       logoItems: [{ public_id: 'test-id', item_type: 'text', text_content: 'Hello', media_public_id: null, url: null, link_type: 'internal', target: '_self', alt_text: null, is_visible: 1, status: 'draft' }],
       carouselItems: [],
-      csrfToken: 'test-token', error: null, saved: null,
+      csrfToken: 'test-token', safeJsonScript, error: null, saved: null,
     });
     assert.ok(html.includes('data-logo-edit'), 'LogoLoop edit buttons should use data-logo-edit attribute');
     assert.ok(html.includes('name="link_type"'), 'LogoLoop form should have link_type');
@@ -88,7 +89,7 @@ describe('EJS compile — Panel 2 & 3 views', () => {
     const html = await ejs.renderFile(viewPath, {
       content: {}, style: {}, bgMedia: null,
       logoItems: [], carouselItems: [],
-      csrfToken: 'test-token', error: null, saved: null,
+      csrfToken: 'test-token', safeJsonScript, error: null, saved: null,
     });
     assert.ok(html.includes('id="carousel-edit-details"'), 'Carousel edit details should have scoped id');
     const openCount = (html.match(/<form /g) || []).length;
@@ -103,7 +104,7 @@ describe('EJS compile — Panel 2 & 3 views', () => {
     const viewPath = path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'panel3.ejs');
     const html = await ejs.renderFile(viewPath, {
       content: {}, style: {}, items: [{ public_id: 'test-id', title: 'Test', description: '', detail_text: '', icon_type: 'builtin', icon_key: 'diseno-3d', media_public_id: null, url: null, link_type: 'internal', target: '_self', style_variant: '', is_visible: 1, status: 'draft' }],
-      csrfToken: 'test-token', error: null, saved: null,
+      csrfToken: 'test-token', safeJsonScript, error: null, saved: null,
     });
     assert.ok(html.includes('data-feature-edit'), 'Feature edit buttons should use data-feature-edit');
     assert.ok(html.includes('name="link_type"'), 'Feature form should have link_type');
@@ -121,7 +122,7 @@ describe('Button type safety', () => {
     const html = await ejs.renderFile(viewPath, {
       content: {}, style: {}, bgMedia: null,
       logoItems: [], carouselItems: [],
-      csrfToken: 'test-token', error: null, saved: null,
+      csrfToken: 'test-token', safeJsonScript, error: null, saved: null,
     });
     assert.ok(html.includes('type="button"'));
     // No inline event handlers
@@ -135,7 +136,7 @@ describe('Button type safety', () => {
     const viewPath = path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'panel3.ejs');
     const html = await ejs.renderFile(viewPath, {
       content: {}, style: {}, items: [],
-      csrfToken: 'test-token', error: null, saved: null,
+      csrfToken: 'test-token', safeJsonScript, error: null, saved: null,
     });
     assert.ok(html.includes('type="button"'));
   });
@@ -147,7 +148,7 @@ describe('Button type safety', () => {
       const html = await ejs.renderFile(viewPath, {
         content: {}, style: {}, bgMedia: view === 'panel2' ? null : undefined,
         logoItems: [], carouselItems: [], items: [],
-        csrfToken: 'test-token', error: null, saved: null,
+        csrfToken: 'test-token', safeJsonScript, error: null, saved: null,
       });
       // Count total <form> opens and </form> closes — they must balance
       const opens = (html.match(/<form\b/gi) || []).length;
@@ -163,7 +164,7 @@ describe('Button type safety', () => {
       const html = await ejs.renderFile(viewPath, {
         content: {}, style: {}, bgMedia: view === 'panel2' ? null : undefined,
         logoItems: [], carouselItems: [], items: [],
-        csrfToken: 'test-token', error: null, saved: null,
+        csrfToken: 'test-token', safeJsonScript, error: null, saved: null,
       });
       const ids = html.match(/id="([^"]+)"/g) || [];
       const seen = new Set();

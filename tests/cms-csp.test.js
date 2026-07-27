@@ -7,6 +7,7 @@ const assert = require('node:assert');
 const ejs = require('ejs');
 const fs = require('node:fs');
 const path = require('node:path');
+const { safeJsonScript } = require('../config/jsonLdHelper');
 
 // ── CSP header tests (source inspection) ──
 describe('CSP header presence', () => {
@@ -101,6 +102,7 @@ describe('EJS renders — CSP safe', () => {
       content: {}, style: {}, bgMedia: null,
       logoItems: [{ public_id: 'test', item_type: 'text', text_content: 'Hi', media_public_id: null, url: null, link_type: 'internal', target: '_self', alt_text: null, is_visible: 1, status: 'draft', media_public_id_resolved: null }],
       carouselItems: [],
+      safeJsonScript,
       csrfToken: 'x', error: null, saved: null,
     });
     assert.ok(html.includes('data-logo-edit-id'), 'must have data-logo-edit-id');
@@ -114,6 +116,7 @@ describe('EJS renders — CSP safe', () => {
     const html = await ejs.renderFile(viewPath, {
       content: {}, style: {},
       items: [{ public_id: 'test', title: 'T', description: '', detail_text: '', icon_type: 'builtin', icon_key: 'diseno-3d', media_public_id: null, url: null, link_type: 'internal', target: '_self', style_variant: '', is_visible: 1, status: 'draft', media_public_id_resolved: null }],
+      safeJsonScript,
       csrfToken: 'x', error: null, saved: null,
     });
     assert.ok(html.includes('data-feature-edit-id'), 'must have data-feature-edit-id');
@@ -130,6 +133,7 @@ describe('JSON data blocks', () => {
       content: {}, style: {}, bgMedia: null,
       logoItems: [{ public_id: 'test', item_type: 'text', text_content: 'Hello "World"', media_public_id: null, url: null, link_type: 'internal', target: '_self', alt_text: null, is_visible: 1, status: 'draft', media_public_id_resolved: null }],
       carouselItems: [],
+      safeJsonScript,
       csrfToken: 'x', error: null, saved: null,
     });
     const m = html.match(/id="panel2-logo-items-data"[^>]*>([\s\S]*?)<\/script>/);
@@ -144,6 +148,7 @@ describe('JSON data blocks', () => {
     const html = await ejs.renderFile(viewPath, {
       content: {}, style: {},
       items: [{ public_id: 'feat', title: 'Feature', description: '', detail_text: '', icon_type: 'builtin', icon_key: 'diseno-3d', media_public_id: null, url: null, link_type: 'internal', target: '_self', style_variant: '', is_visible: 1, status: 'draft', media_public_id_resolved: null }],
+      safeJsonScript,
       csrfToken: 'x', error: null, saved: null,
     });
     const m = html.match(/id="panel3-feature-items-data"[^>]*>([\s\S]*?)<\/script>/);

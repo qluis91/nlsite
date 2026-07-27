@@ -13,9 +13,20 @@ const { requireCapability } = require('../middlewares/capabilityMiddleware');
 const { CAPABILITIES } = require('../config/capabilities');
 const { mediaBatchUpload, mediaReplaceUpload, handleUpload } = require('../middleware/mediaUpload');
 const multer = require('multer');
+const { RASTER_MIME_TYPES, MODEL_MIME_TYPES, MAX_UPLOAD_SIZE, MAX_FILES_PER_REQUEST } = require('../config/cmsOptions');
+
+const selectorAcceptedMimeTypes = new Set([...RASTER_MIME_TYPES, ...MODEL_MIME_TYPES]);
+
+function selectorFileFilter(_req, file, callback) {
+  if (selectorAcceptedMimeTypes.has(String(file.mimetype || '').toLowerCase())) {
+    return callback(null, true);
+  }
+  return callback(new Error('Formato no permitido. Use JPG, PNG, WebP o un modelo GLB.'));
+}
 
 const selectorUploadMulter = multer({
   storage: multer.memoryStorage(),
+  fileFilter: selectorFileFilter,
   limits: { fileSize: 30 * 1024 * 1024 },
 }).single('file');
 

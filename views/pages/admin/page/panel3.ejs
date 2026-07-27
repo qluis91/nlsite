@@ -238,7 +238,7 @@
 </div>
 </div>
 
-<script type="application/json" id="panel3-feature-items-data"><%- JSON.stringify(items.map(function(item) {
+<script type="application/json" id="panel3-feature-items-data"><%- safeJsonScript(items.map(function(item) {
   return {
     id: item.public_id,
     title: item.title || '',

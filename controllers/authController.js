@@ -148,11 +148,13 @@ exports.register = async (req, res, next) => {
       return res.redirect('/auth/register');
     }
 
-    // Check existing verified user
+    // Check existing verified user — do NOT reveal existence
     const [existingUser] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
     if (existingUser.length > 0) {
-      req.session.error_msg = 'Ya existe una cuenta registrada con ese correo electrónico.';
-      return res.redirect('/auth/register');
+      // Generic response to prevent account enumeration
+      req.session.success_msg =
+        'Si el correo es válido, recibirás un enlace de verificación.';
+      return res.redirect('/auth/verify-pending');
     }
 
     const salt = await bcrypt.genSalt(10);
