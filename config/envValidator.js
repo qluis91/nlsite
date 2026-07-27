@@ -49,11 +49,21 @@ function validateEnv() {
       if (!process.env.TILOPAY_PUBLIC_BASE_URL) issues.push('TILOPAY_PUBLIC_BASE_URL: requerido cuando Tilopay está habilitado.');
     }
 
-    // Mail: optional integration
+    // Mail: optional integration — validate based on provider
     if (process.env.MAIL_ENABLED === 'true') {
-      if (!process.env.SMTP_HOST) issues.push('SMTP_HOST: requerido cuando el correo está habilitado.');
-      if (!process.env.SMTP_USER) issues.push('SMTP_USER: requerido cuando el correo está habilitado.');
-      if (!process.env.SMTP_PASSWORD) issues.push('SMTP_PASSWORD: requerido cuando el correo está habilitado.');
+      const mailProvider = (process.env.MAIL_PROVIDER || 'smtp').toLowerCase();
+      if (mailProvider === 'resend') {
+        if (!process.env.RESEND_API_KEY) issues.push('RESEND_API_KEY: requerido cuando MAIL_PROVIDER=resend.');
+        if (process.env.RESEND_FROM_EMAIL) {
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(process.env.RESEND_FROM_EMAIL)) {
+            issues.push('RESEND_FROM_EMAIL: formato de email inválido.');
+          }
+        }
+      } else {
+        if (!process.env.SMTP_HOST) issues.push('SMTP_HOST: requerido cuando el correo está habilitado.');
+        if (!process.env.SMTP_USER) issues.push('SMTP_USER: requerido cuando el correo está habilitado.');
+        if (!process.env.SMTP_PASSWORD) issues.push('SMTP_PASSWORD: requerido cuando el correo está habilitado.');
+      }
     }
 
     // Analytics: validate format if present
