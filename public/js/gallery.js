@@ -1,7 +1,27 @@
+import { initNavbar } from './home/navbar.js';
+import { initAntigravityBackground } from './home/antigravityBackground.js';
+
 const page = document.querySelector('[data-gallery-page]');
 
 if (page) {
   page.classList.add('is-enhanced');
+  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  const cleanupNavbar = initNavbar();
+  const visualZone = page.querySelector('[data-gallery-visual-zone]');
+  const antigravityController = initAntigravityBackground(
+    visualZone?.querySelector('[data-antigravity-canvas]'),
+    { reducedMotion: prefersReducedMotion, container: visualZone },
+  );
+  if (!prefersReducedMotion) antigravityController.resume();
+  let cleanupModes = () => {};
+  let pageDestroyed = false;
+  const categoryForm = page.querySelector('[data-gallery-category-form]');
+  const categorySelect = page.querySelector('[data-gallery-category-select]');
+  const onCategoryChange = () => {
+    if (typeof categoryForm?.requestSubmit === 'function') categoryForm.requestSubmit();
+    else categoryForm?.submit();
+  };
+  categorySelect?.addEventListener('change', onCategoryChange);
 
   const dataNode = document.getElementById('gallery-data');
   let items = [];
@@ -181,11 +201,21 @@ if (page) {
 
   import('./gallery/galleryModes.mjs')
     .then(({ setupGalleryModes }) => {
-      setupGalleryModes({ page, items: items.slice(), openGalleryItemById });
+      const cleanup = setupGalleryModes({ page, items: items.slice(), openGalleryItemById });
+      if (pageDestroyed) cleanup();
+      else cleanupModes = cleanup;
     })
     .catch((error) => {
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         console.warn('[Gallery] Enhanced modes could not be loaded.', error?.message || 'Unknown error');
       }
     });
+
+  window.addEventListener('pagehide', () => {
+    pageDestroyed = true;
+    categorySelect?.removeEventListener('change', onCategoryChange);
+    cleanupModes();
+    cleanupNavbar();
+    antigravityController.destroy();
+  }, { once: true });
 }

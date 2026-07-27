@@ -110,7 +110,7 @@ function validateItem(body = {}, availableCategoryIds = []) {
 function parsePublicFilters(query = {}) {
   const category = slugify(String(query.categoria || '').slice(0, 180));
   const type = Object.values(MEDIA_TYPES).includes(String(query.tipo || '')) ? String(query.tipo) : '';
-  const view = ['grid', 'circular', 'ring', 'infinite'].includes(String(query.view || '')) ? String(query.view) : 'grid';
+  const view = ['grid', 'infinite'].includes(String(query.view || '')) ? String(query.view) : 'infinite';
   const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
   const requestedLimit = Number.parseInt(query.limit, 10) || DEFAULT_PAGE_SIZE;
   const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, requestedLimit));

@@ -13,7 +13,7 @@ function read(relativePath) {
 
 test('view=infinite is allowlisted and preserved by gallery URLs', () => {
   assert.equal(validator.parsePublicFilters({ view: 'infinite' }).view, 'infinite');
-  assert.equal(validator.parsePublicFilters({ view: '<script>' }).view, 'grid');
+  assert.equal(validator.parsePublicFilters({ view: '<script>' }).view, 'infinite');
   assert.equal(
     buildGalleryUrl({ category: 'demo', view: 'infinite', page: 2 }),
     '/galeria?categoria=demo&view=infinite&page=2'
@@ -44,7 +44,7 @@ test('gallery page exposes the existing Infinite stage and shared action contrac
 test('Infinite CSS remains contained and does not touch responsive navigation', () => {
   const css = read('public/css/gallery.css');
   assert.match(css, /\.gallery-infinite \{/);
-  assert.match(css, /height: clamp\(32rem, 70vh, 48rem\)/);
+  assert.match(css, /height: clamp\(38rem, 78vh, 56rem\)/);
   assert.match(css, /overflow: hidden/);
   assert.match(css, /\.gallery-infinite__canvas \{[\s\S]*position: absolute;[\s\S]*inset: 0;[\s\S]*width: 100%;[\s\S]*height: 100%;/);
   assert.match(css, /touch-action: none/);
@@ -55,7 +55,8 @@ test('Infinite CSS remains contained and does not touch responsive navigation', 
 
 test('mode manager preserves the renderer constructor/ready/destroy contract', () => {
   const modes = read('public/js/gallery/galleryModes.mjs');
-  assert.match(modes, /new InfiniteMenuRenderer\(infinite\.stage, items/);
+  assert.match(modes, /new InfiniteMenuRenderer\(stage, rendererItems, options\)/);
+  assert.match(modes, /createInfiniteRenderer\(infinite\.stage, items/);
   assert.match(modes, /await candidate\.ready/);
   assert.match(modes, /candidate\.destroy\(\)/);
   assert.match(modes, /activeRenderer = candidate/);
@@ -72,7 +73,7 @@ test('active renderer is a clean implementation and the broken renderer is isola
   assert.match(source, /export class InfiniteMenuRenderer/);
   assert.match(source, /constructor\(container, items, options = \{\}\)/);
   assert.match(source, /this\.ready = this\.init\(\)/);
-  assert.match(source, /mat4\.lookAt\(view, CAMERA_POSITION, CAMERA_TARGET, WORLD_UP\)/);
+  assert.match(source, /mat4\.lookAt\(view, cameraPosition, CAMERA_TARGET, WORLD_UP\)/);
   assert.doesNotMatch(source, /mat4\.targetTo/);
   assert.match(legacy, /mat4\.targetTo\(viewMat, camPos/);
   assert.doesNotMatch(
@@ -102,7 +103,14 @@ test('sphere, billboard, and camera math follows the independently tested path',
   const source = read('public/js/gallery/infiniteMenuRenderer.mjs');
   assert.match(source, /function createSpherePoints/);
   assert.match(source, /SPHERE_POINT_COUNT = 42/);
-  assert.match(source, /SPHERE_RADIUS = 3\.5/);
+  assert.match(source, /SPHERE_RADIUS = 4\.2/);
+  assert.match(source, /function resolveSphereLayout/);
+  assert.match(source, /function positionSpherePoint/);
+  assert.match(source, /spreadX = spreadY \* horizontalRatio/);
+  assert.match(source, /safeWidth <= MOBILE_LAYOUT_MAX/);
+  assert.match(source, /safeWidth <= TABLET_LAYOUT_MAX/);
+  assert.match(source, /SELECTED_DISC_SCALE = 1\.16/);
+  assert.match(source, /sphereDiscScale\(index, selectedPointIndex, this\.sphereLayout\)/);
   assert.match(source, /function createTranslationMatrix/);
   assert.match(source, /function createBillboardMatrix/);
   assert.match(source, /vec3\.subtract\(vec3\.create\(\), cameraPosition, position\)/);

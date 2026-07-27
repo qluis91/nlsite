@@ -361,7 +361,7 @@ test('shared lightbox is singular, accessible, non-autoplaying, and uses safe DO
   assert.doesNotMatch(script, /innerHTML/);
 });
 
-test('public gallery recognizes safe visualization URLs and preserves circular mode in filters', async () => {
+test('public gallery accepts two visualization modes and normalizes legacy values to infinite', async () => {
   for (const requestPath of [
     '/galeria',
     '/galeria?view=grid',
@@ -383,22 +383,55 @@ test('public gallery recognizes safe visualization URLs and preserves circular m
     assert.doesNotMatch(response.data, /<script>[^<]*view=/);
   }
   const circular = await request('GET', `/galeria?categoria=${markerSlug}&tipo=image&view=circular`);
-  assert.match(circular.data, /data-requested-view="circular"/);
-  assert.match(circular.data, new RegExp(`categoria=${markerSlug}(?:&amp;|&)tipo=image(?:&amp;|&)view=circular`));
+  assert.match(circular.data, /data-requested-view="infinite"/);
+  assert.doesNotMatch(circular.data, /view=circular/);
+  assert.equal((circular.data.match(/data-gallery-view=/g) || []).length, 2);
   assert.match(circular.data, /data-gallery-view="grid"/);
-  assert.match(circular.data, /data-gallery-view="circular"/);
-  assert.match(circular.data, /data-gallery-view="ring"/);
   assert.match(circular.data, /data-gallery-view="infinite"/);
+  assert.doesNotMatch(circular.data, /data-gallery-view="(?:circular|ring)"/);
   const ring = await request('GET', `/galeria?categoria=${markerSlug}&tipo=image&view=ring`);
-  assert.match(ring.data, /data-requested-view="ring"/);
-  assert.match(ring.data, new RegExp(`categoria=${markerSlug}(?:&amp;|&)tipo=image(?:&amp;|&)view=ring`));
-  assert.match(ring.data, /data-gallery-ring/);
+  assert.match(ring.data, /data-requested-view="infinite"/);
+  assert.doesNotMatch(ring.data, /view=ring/);
+  assert.doesNotMatch(ring.data, /data-gallery-ring/);
   const infinite = await request('GET', `/galeria?categoria=${markerSlug}&tipo=image&view=infinite`);
   assert.match(infinite.data, /data-requested-view="infinite"/);
   assert.match(infinite.data, new RegExp(`categoria=${markerSlug}(?:&amp;|&)tipo=image(?:&amp;|&)view=infinite`));
   assert.match(infinite.data, /data-gallery-infinite/);
   const invalid = await request('GET', '/galeria?view=javascript%3Aalert(1)');
-  assert.match(invalid.data, /data-requested-view="grid"/);
+  assert.match(invalid.data, /data-requested-view="infinite"/);
+});
+
+test('public gallery renders mutually exclusive primary-mode containers before JavaScript', async () => {
+  const openingTag = (html, mode) => {
+    const match = html.match(new RegExp(`<div[^>]*data-gallery-primary-mode="${mode}"[^>]*>`));
+    assert.ok(match, `${mode} primary-mode container`);
+    return match[0];
+  };
+
+  const infiniteResponse = await request('GET', '/galeria?view=infinite');
+  assert.equal(infiniteResponse.status, 200);
+  const infiniteGrid = openingTag(infiniteResponse.data, 'grid');
+  const infiniteMode = openingTag(infiniteResponse.data, 'infinite');
+  assert.match(infiniteGrid, /\shidden(?:\s|>)/);
+  assert.match(infiniteGrid, /aria-hidden="true"/);
+  assert.match(infiniteGrid, /\bis-inactive\b/);
+  assert.doesNotMatch(infiniteMode, /\shidden(?:\s|>)/);
+  assert.match(infiniteMode, /aria-hidden="false"/);
+  assert.match(infiniteMode, /\bis-active\b/);
+
+  const gridResponse = await request('GET', '/galeria?view=grid');
+  assert.equal(gridResponse.status, 200);
+  const gridMode = openingTag(gridResponse.data, 'grid');
+  const gridInfinite = openingTag(gridResponse.data, 'infinite');
+  assert.doesNotMatch(gridMode, /\shidden(?:\s|>)/);
+  assert.match(gridMode, /aria-hidden="false"/);
+  assert.match(gridMode, /\bis-active\b/);
+  assert.match(gridInfinite, /\shidden(?:\s|>)/);
+  assert.match(gridInfinite, /aria-hidden="true"/);
+  assert.match(gridInfinite, /\bis-inactive\b/);
+
+  assert.equal((infiniteResponse.data.match(/data-gallery-infinite-canvas/g) || []).length, 1);
+  assert.equal((gridResponse.data.match(/data-gallery-infinite-canvas/g) || []).length, 1);
 });
 
 test('unpublishing and deletion hide public data and remove only controlled files', async () => {

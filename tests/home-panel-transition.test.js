@@ -18,6 +18,7 @@ const projectCarousel = read('public/js/home/projectCarousel.js');
 const css = read('public/css/home.css');
 const layout = read('views/layouts/main.ejs');
 const page = read('views/pages/home.ejs');
+const panel2Background = read('views/components/panel2-antigravity.ejs');
 const forcesUrl = pathToFileURL(path.join(root, 'public/js/home/antigravityForces.mjs')).href;
 
 test('one scrubbed timeline coordinates panel-one exit and panel-two entrance', () => {
@@ -145,8 +146,9 @@ test('panel-state error isolation: controller failure does not block sibling upd
 });
 
 test('panel-two canvas and prepaint states are singular and fail open', () => {
-  assert.equal((page.match(/data-antigravity-canvas/g) || []).length, 1);
-  assert.match(page, /data-panel2-animate="background"/);
+  assert.equal((panel2Background.match(/data-antigravity-canvas/g) || []).length, 1);
+  assert.match(panel2Background, /data-panel2-animate="background"/);
+  assert.match(page, /include\('\.\.\/components\/panel2-antigravity'\)/);
   assert.match(layout, /panel-transition-pending/);
   assert.ok(
     layout.indexOf('panel-transition-pending')

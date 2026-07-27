@@ -83,35 +83,19 @@ test('ring cards use safe DOM APIs and thumbnail-only same-origin paths', () => 
   assert.doesNotMatch(source, /\bgsap\b|Draggable|React|ReactDOM|WebGL|THREE|ogl/);
 });
 
-test('mode manager switches one active renderer and reuses stable modal identity', () => {
+test('removed ring mode is isolated from the public gallery lifecycle', () => {
   const modes = read('public/js/gallery/galleryModes.mjs');
-  assert.match(modes, /new RingGalleryRenderer\(ring\.stage, items/);
   assert.match(modes, /function destroyActiveRenderer\(\)/);
   assert.match(modes, /renderer\.destroy\(\)/);
-  assert.match(modes, /function activateMode\(mode\)/);
-  assert.match(modes, /mode === 'circular'/);
-  assert.match(modes, /mode === 'ring'/);
-  assert.match(modes, /openGalleryItemById\(item\.id, ring\.action\)/);
-  assert.match(modes, /openGalleryItemById\(activeItems\.ring\.id, ring\.action\)/);
-  assert.match(modes, /CSS\?\.supports\?\.\('transform-style', 'preserve-3d'\)/);
-  assert.match(modes, /CSS\.supports\('perspective', '1000px'\)/);
+  assert.match(modes, /function activateMode\(requestedMode\)/);
+  assert.doesNotMatch(modes, /RingGalleryRenderer|ringGalleryRenderer|data-gallery-ring/);
+  assert.doesNotMatch(modes, /mode === 'circular'|mode === 'ring'/);
   assert.doesNotMatch(modes, /innerHTML/);
 });
 
-test('ring markup and CSS remain scoped, responsive, semantic, and vertically scrollable', () => {
+test('removed ring mode has no public markup or selector control', () => {
   const view = read('views/pages/gallery.ejs');
-  const css = read('public/css/gallery.css');
-  assert.match(view, /data-gallery-view="ring"/);
-  assert.match(view, /data-gallery-ring/);
-  assert.match(view, /role="region"/);
-  assert.match(view, /aria-describedby="gallery-ring-hint"/);
-  assert.match(view, /data-gallery-ring-action/);
-  assert.match(css, /\.gallery-ring \{/);
-  assert.match(css, /perspective: 1800px/);
-  assert.match(css, /transform-style: preserve-3d/);
-  assert.match(css, /backface-visibility: hidden/);
-  assert.match(css, /touch-action: pan-y/);
-  assert.match(css, /\.gallery-ring__vignette/);
-  assert.doesNotMatch(css, /html,\s*\nbody\s*\{\s*overflow:\s*hidden/);
-  assert.doesNotMatch(css, /(?:^|\n)div\s*\{/);
+  assert.doesNotMatch(view, /data-gallery-view="ring"/);
+  assert.doesNotMatch(view, /data-gallery-ring/);
+  assert.doesNotMatch(view, /gallery-ring-hint/);
 });

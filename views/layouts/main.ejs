@@ -124,6 +124,10 @@
     typeof usesHeroNavbar !== 'undefined'
       ? Boolean(usesHeroNavbar)
       : false;
+  const layoutUsesPanel2Background =
+    typeof usesPanel2Background !== 'undefined'
+      ? Boolean(usesPanel2Background)
+      : false;
   const layoutSuccessMessage =
     typeof success_msg !== 'undefined' && success_msg
       ? String(success_msg)
@@ -239,7 +243,7 @@
     }
   </style>
 
-  <% if (layoutPageClass === 'page-home') { %>
+  <% if (layoutPageClass === 'page-home' || layoutUsesPanel2Background) { %>
   <link rel="preconnect" href="https://storage.googleapis.com" crossorigin>
   <script type="importmap" nonce="<%= layoutNonce %>">
   {
@@ -251,7 +255,7 @@
   </script>
   <link rel="preload" href="/css/home.css" as="style">
   <% /* Phase 15B: Preload hero GLB when available */ %>
-  <% if (typeof heroGlbUrl !== 'undefined' && heroGlbUrl) { %>
+  <% if (layoutPageClass === 'page-home' && typeof heroGlbUrl !== 'undefined' && heroGlbUrl) { %>
   <link rel="preload" href="<%= heroGlbUrl %>" as="fetch" crossorigin="anonymous">
   <% } %>
   <% } %>

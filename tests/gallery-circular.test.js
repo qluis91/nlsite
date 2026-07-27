@@ -12,19 +12,19 @@ function read(relativePath) {
 }
 
 test('public view values are allowlisted and gallery URLs preserve filters, view, and pagination', () => {
-  assert.equal(validator.parsePublicFilters({}).view, 'grid');
+  assert.equal(validator.parsePublicFilters({}).view, 'infinite');
   assert.equal(validator.parsePublicFilters({ view: 'grid' }).view, 'grid');
-  assert.equal(validator.parsePublicFilters({ view: 'circular' }).view, 'circular');
-  assert.equal(validator.parsePublicFilters({ view: 'ring' }).view, 'ring');
-  assert.equal(validator.parsePublicFilters({ view: '<script>' }).view, 'grid');
-  assert.equal(validator.parsePublicFilters({ view: '../../admin' }).view, 'grid');
+  assert.equal(validator.parsePublicFilters({ view: 'circular' }).view, 'infinite');
+  assert.equal(validator.parsePublicFilters({ view: 'ring' }).view, 'infinite');
+  assert.equal(validator.parsePublicFilters({ view: '<script>' }).view, 'infinite');
+  assert.equal(validator.parsePublicFilters({ view: '../../admin' }).view, 'infinite');
 
   assert.equal(
     buildGalleryUrl(
       { category: 'grabado', type: 'video', view: 'circular', page: 3 },
       { page: 2 }
     ),
-    '/galeria?categoria=grabado&tipo=video&view=circular&page=2'
+    '/galeria?categoria=grabado&tipo=video&page=2'
   );
   assert.equal(
     buildGalleryUrl({ category: '', type: '', view: 'grid', page: 1 }),
@@ -32,15 +32,16 @@ test('public view values are allowlisted and gallery URLs preserve filters, view
   );
 });
 
-test('gallery page keeps a server-rendered grid and exposes the bounded circular enhancement', () => {
+test('gallery page exposes exactly two primary modes and the bounded circular companion', () => {
   const view = read('views/pages/gallery.ejs');
   assert.match(view, /data-gallery-view="grid"/);
-  assert.match(view, /data-gallery-view="circular"/);
-  assert.match(view, /data-gallery-view="ring"/);
   assert.match(view, /data-gallery-view="infinite"/);
+  assert.equal((view.match(/data-gallery-view=/g) || []).length, 2);
+  assert.doesNotMatch(view, /data-gallery-view="(?:circular|ring)"/);
   assert.match(view, /data-requested-view="<%= filters\.view %>"/);
   assert.match(view, /data-gallery-grid/);
   assert.match(view, /data-gallery-circular/);
+  assert.match(view, /data-gallery-video-carousel/);
   assert.match(view, /role="region"/);
   assert.match(view, /tabindex="0"/);
   assert.match(view, /data-gallery-circular-action/);
@@ -56,13 +57,16 @@ test('mode coordinator has safe reduced-motion, WebGL, initialization, and conte
   assert.match(modes, /navigator\.hardwareConcurrency/);
   assert.match(modes, /'reduced-motion'/);
   assert.match(modes, /catch \(error\)/);
-  assert.match(modes, /grid\.hidden = false/);
+  assert.match(modes, /setPrimaryModeVisibility\('grid'\)/);
   assert.match(modes, /restoreGridFallback/);
   assert.match(modes, /renderer\.destroy\(\)/);
   assert.match(modes, /data-gallery-renderer-generated/);
   assert.match(modes, /window\.addEventListener\('pagehide'/);
   assert.match(modes, /textContent/);
   assert.match(modes, /activationGeneration/);
+  assert.match(modes, /selectVideoGalleryItems\(items\)/);
+  assert.match(modes, /createCircularRenderer\(circular\.stage, videoItems/);
+  assert.match(modes, /Todavía no hay proyectos con video disponibles/);
   assert.doesNotMatch(modes, /innerHTML|React|ReactDOM|gsap|gl-matrix/);
 });
 
@@ -124,5 +128,5 @@ test('the circular action reuses the Phase 1 modal by stable item ID and restore
   assert.match(gallery, /Number\(item\.id\) === Number\(id\)/);
   assert.match(gallery, /previousFocus = origin/);
   assert.match(modes, /openGalleryItemById\(item\.id, circular\.action\)/);
-  assert.match(modes, /openGalleryItemById\(activeItems\.circular\.id, circular\.action\)/);
+  assert.match(modes, /openGalleryItemById\(activeCircularItem\.id, circular\.action\)/);
 });

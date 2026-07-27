@@ -45,7 +45,9 @@ export function initAntigravityBackground(canvas, options = {}) {
   const compact = window.matchMedia('(max-width: 768px)').matches;
   const tablet = window.matchMedia('(max-width: 1024px)').matches;
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
-  const panel = canvas.closest('[data-panel="2"]') || canvas;
+  const panel = typeof Element !== 'undefined' && options.container instanceof Element
+    ? options.container
+    : canvas.closest('[data-panel="2"]') || canvas;
 
   /* ── particle count ── */
   const count = compact ? 60 : tablet ? 120 : 180;

@@ -1,9 +1,23 @@
 import { initCircularGallery } from './circularGalleryRenderer.mjs';
-import { RingGalleryRenderer } from './ringGalleryRenderer.mjs';
 import { InfiniteMenuRenderer } from './infiniteMenuRenderer.mjs';
 
 function prefersReducedMotion() {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+const SAFE_VIDEO_SOURCE = /^\/uploads\/gallery\/videos\/[a-zA-Z0-9._-]+$/;
+
+export function normalizeGalleryView(value) {
+  return value === 'grid' ? 'grid' : 'infinite';
+}
+
+export function selectVideoGalleryItems(items = []) {
+  if (!Array.isArray(items)) return [];
+  return items.filter((item) => (
+    item?.type === 'video'
+    && typeof item.source === 'string'
+    && SAFE_VIDEO_SOURCE.test(item.source)
+  ));
 }
 
 export function supportsCircularGallery(items = []) {
@@ -26,18 +40,6 @@ export function supportsCircularGallery(items = []) {
   return { supported: true, reason: '' };
 }
 
-export function supportsRingGallery(items = []) {
-  if (!Array.isArray(items) || items.length === 0) return { supported: false, reason: 'empty' };
-  if (prefersReducedMotion()) return { supported: false, reason: 'reduced-motion' };
-  if (!window.CSS?.supports?.('transform-style', 'preserve-3d')) {
-    return { supported: false, reason: 'css-3d' };
-  }
-  if (!window.CSS.supports('perspective', '1000px')) {
-    return { supported: false, reason: 'css-3d' };
-  }
-  return { supported: true, reason: '' };
-}
-
 export function supportsInfiniteGallery(items = []) {
   if (!Array.isArray(items) || items.length === 0) return { supported: false, reason: 'empty' };
   if (prefersReducedMotion()) return { supported: false, reason: 'reduced-motion' };
@@ -56,8 +58,18 @@ export function supportsInfiniteGallery(items = []) {
   return { supported: true, reason: '' };
 }
 
-export function setupGalleryModes({ page, items, openGalleryItemById }) {
+export function setupGalleryModes({
+  page,
+  items,
+  openGalleryItemById,
+  dependencies = {},
+}) {
+  const videoItems = selectVideoGalleryItems(items);
   const grid = page.querySelector('[data-gallery-grid]');
+  const primaryModes = {
+    grid: page.querySelector('[data-gallery-primary-mode="grid"]'),
+    infinite: page.querySelector('[data-gallery-primary-mode="infinite"]'),
+  };
   const circular = {
     stage: page.querySelector('[data-gallery-circular]'),
     loader: page.querySelector('[data-gallery-circular-loader]'),
@@ -67,16 +79,6 @@ export function setupGalleryModes({ page, items, openGalleryItemById }) {
     action: page.querySelector('[data-gallery-circular-action]'),
     fallback: page.querySelector('[data-gallery-circular-fallback]'),
     live: page.querySelector('[data-gallery-circular-live]'),
-  };
-  const ring = {
-    stage: page.querySelector('[data-gallery-ring]'),
-    loader: page.querySelector('[data-gallery-ring-loader]'),
-    overlay: page.querySelector('[data-gallery-ring-overlay]'),
-    title: page.querySelector('[data-gallery-ring-title]'),
-    meta: page.querySelector('[data-gallery-ring-meta]'),
-    action: page.querySelector('[data-gallery-ring-action]'),
-    fallback: page.querySelector('[data-gallery-ring-fallback]'),
-    live: page.querySelector('[data-gallery-ring-live]'),
   };
   const infinite = {
     stage: page.querySelector('[data-gallery-infinite]'),
@@ -89,209 +91,226 @@ export function setupGalleryModes({ page, items, openGalleryItemById }) {
     live: page.querySelector('[data-gallery-infinite-live]'),
   };
   const viewLinks = [...page.querySelectorAll('[data-gallery-view]')];
-  if (!grid || !circular.stage || !ring.stage || !infinite.stage || !viewLinks.length) return () => {};
+  if (
+    !grid
+    || !primaryModes.grid
+    || !primaryModes.infinite
+    || !circular.stage
+    || !infinite.stage
+    || viewLinks.length !== 2
+  ) return () => {};
+
+  const createInfiniteRenderer = dependencies.createInfiniteRenderer
+    || ((stage, rendererItems, options) => new InfiniteMenuRenderer(stage, rendererItems, options));
+  const createCircularRenderer = dependencies.createCircularRenderer || initCircularGallery;
+  const canUseInfinite = dependencies.supportsInfiniteGallery || supportsInfiniteGallery;
+  const canUseCircular = dependencies.supportsCircularGallery || supportsCircularGallery;
 
   let activeRenderer = null;
-  let activeMode = 'grid';
-  let activeItems = { circular: items[0] || null, ring: items[0] || null, infinite: items[0] || null };
+  let circularRenderer = null;
+  let activeMode = null;
   let destroyed = false;
   let activationGeneration = 0;
   let transitionChain = Promise.resolve();
-  const liveTimers = { circular: null, ring: null, infinite: null };
+  let circularLiveTimer = null;
+  let infiniteLiveTimer = null;
+  let activeCircularItem = videoItems[0] || null;
+  let activeInfiniteItem = items[0] || null;
 
   function updateSelector(view) {
     viewLinks.forEach((link) => {
-      if (link.dataset.galleryView === view) {
-        link.setAttribute('aria-current', 'true');
-        link.removeAttribute('aria-disabled');
-        link.removeAttribute('title');
-      } else {
-        link.removeAttribute('aria-current');
-      }
+      if (link.dataset.galleryView === view) link.setAttribute('aria-current', 'true');
+      else link.removeAttribute('aria-current');
     });
   }
 
-  function updateActive(mode, elements, item, index, length) {
-    if (!item) return;
-    activeItems[mode] = item;
-    elements.title.textContent = item.title || 'Proyecto';
-    const details = [item.category, item.type === 'video' ? 'Video' : 'Imagen'].filter(Boolean);
-    elements.meta.textContent = details.join(' · ');
-    window.clearTimeout(liveTimers[mode]);
-    liveTimers[mode] = window.setTimeout(() => {
-      elements.live.textContent = `${item.title || 'Proyecto'}, elemento ${index + 1} de ${length}`;
-    }, 240);
+  function setPrimaryModeVisibility(view) {
+    Object.entries(primaryModes).forEach(([mode, container]) => {
+      const isActive = mode === view;
+      container.hidden = !isActive;
+      container.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+      container.classList.remove(isActive ? 'is-inactive' : 'is-active');
+      container.classList.add(isActive ? 'is-active' : 'is-inactive');
+    });
   }
 
-  function resetStage(elements) {
-    elements.stage.hidden = true;
-    elements.stage.classList.remove('is-ready', 'is-fallback');
-    elements.loader.hidden = false;
-    elements.overlay.hidden = true;
-    elements.fallback.hidden = true;
+  function announce(elements, timerName, item, index, length) {
+    const timer = timerName === 'circular' ? circularLiveTimer : infiniteLiveTimer;
+    window.clearTimeout(timer);
+    const nextTimer = window.setTimeout(() => {
+      elements.live.textContent = `${item.title || 'Proyecto'}, elemento ${index + 1} de ${length}`;
+    }, 240);
+    if (timerName === 'circular') circularLiveTimer = nextTimer;
+    else infiniteLiveTimer = nextTimer;
+  }
+
+  function updateCircular(item, index, length) {
+    if (!item) return;
+    activeCircularItem = item;
+    circular.title.textContent = item.title || 'Proyecto';
+    circular.meta.textContent = [item.category, 'Video'].filter(Boolean).join(' · ');
+    announce(circular, 'circular', item, index, length);
+  }
+
+  function updateInfinite(item, index, length) {
+    if (!item) return;
+    activeInfiniteItem = item;
+    infinite.title.textContent = item.title || 'Proyecto';
+    infinite.meta.textContent = [
+      item.category,
+      item.type === 'video' ? 'Video' : 'Imagen',
+    ].filter(Boolean).join(' · ');
+    announce(infinite, 'infinite', item, index, length);
+  }
+
+  function cleanupInfiniteDom() {
+    infinite.stage.querySelectorAll('[data-gallery-renderer-generated]').forEach((element) => {
+      element.remove();
+    });
+  }
+
+  function resetInfiniteStage() {
+    infinite.stage.classList.remove('is-ready', 'is-fallback', 'is-dragging', 'is-moving');
+    infinite.loader.hidden = false;
+    infinite.overlay.hidden = true;
+    infinite.fallback.hidden = true;
   }
 
   async function destroyActiveRenderer() {
     const renderer = activeRenderer;
     activeRenderer = null;
-    if (!renderer) {
-      _cleanupGeneratedDom();
-      return;
+    if (renderer) {
+      try {
+        await Promise.resolve(renderer.destroy());
+      } catch (error) {
+        logDevelopmentFailure('cleanup', error);
+      }
     }
-    try {
-      await Promise.resolve(renderer.destroy());
-    } catch (error) {
-      logDevelopmentFailure('cleanup', error);
+    cleanupInfiniteDom();
+  }
+
+  async function destroyCircularRenderer() {
+    const renderer = circularRenderer;
+    circularRenderer = null;
+    if (renderer) {
+      try {
+        await Promise.resolve(renderer.destroy());
+      } catch (error) {
+        logDevelopmentFailure('video carousel cleanup', error);
+      }
     }
-    _cleanupGeneratedDom();
+    circular.stage.querySelectorAll('[data-gallery-renderer-generated]').forEach((element) => {
+      element.remove();
+    });
   }
 
-  function _cleanupGeneratedDom() {
-    circular.stage.querySelectorAll('[data-gallery-renderer-generated]').forEach((el) => el.remove());
-    ring.stage.querySelector('[data-gallery-ring-track]')?.replaceChildren();
-    infinite.stage.querySelectorAll('[data-gallery-renderer-generated]').forEach((el) => el.remove());
-  }
-
-  async function showGrid(generation) {
-    if (generation !== activationGeneration) return;
-    await destroyActiveRenderer();
-    _cleanupGeneratedDom();
-    resetStage(circular);
-    resetStage(ring);
-    resetStage(infinite);
-    grid.hidden = false;
-    activeMode = 'grid';
-    updateSelector('grid');
-  }
-
-  async function restoreGridFallback(generation, error) {
-    if (generation !== activationGeneration) return;
-    await destroyActiveRenderer();
-    _cleanupGeneratedDom();
-    resetStage(circular);
-    resetStage(ring);
-    resetStage(infinite);
-    grid.hidden = false;
-    activeMode = 'grid';
-    updateSelector('grid');
-    if (error) logDevelopmentFailure('fallback', error);
-  }
-
-  async function showCircular(generation) {
-    if (generation !== activationGeneration) return;
-    const capability = supportsCircularGallery(items);
-    if (!capability.supported) {
-      disableModeLink('circular', capability.reason);
-      await restoreGridFallback(generation);
-      return;
-    }
-    await destroyActiveRenderer();
-    resetStage(ring);
-    resetStage(infinite);
-    if (generation !== activationGeneration) return;
-    activeMode = 'circular';
+  function showCircularFallback(message) {
     circular.stage.hidden = false;
+    circular.stage.classList.remove('is-ready');
+    circular.stage.classList.add('is-fallback');
+    circular.loader.hidden = true;
+    circular.overlay.hidden = true;
+    circular.fallback.hidden = false;
+    circular.fallback.textContent = message;
+  }
+
+  async function ensureVideoCarousel(generation) {
+    if (generation !== activationGeneration || destroyed) return false;
+    circular.stage.hidden = false;
+    if (!videoItems.length) {
+      showCircularFallback('Todavía no hay proyectos con video disponibles.');
+      return false;
+    }
+    const capability = canUseCircular(videoItems);
+    if (!capability.supported) {
+      showCircularFallback(capability.reason === 'reduced-motion'
+        ? 'La lista de proyectos permanece disponible con movimiento reducido.'
+        : 'El carrusel de video no está disponible en este dispositivo.');
+      return false;
+    }
+    if (circularRenderer) return true;
+
+    circular.stage.classList.remove('is-fallback');
     circular.loader.hidden = false;
     circular.overlay.hidden = true;
     circular.fallback.hidden = true;
     let candidate = null;
     try {
-      candidate = initCircularGallery(circular.stage, items, {
+      candidate = createCircularRenderer(circular.stage, videoItems, {
         bend: 0,
-        onActiveChange: (item, index, length) => updateActive('circular', circular, item, index, length),
+        onActiveChange: updateCircular,
         onSelect: (item) => openGalleryItemById(item.id, circular.action),
         onContextLost: () => {
-          transitionChain = transitionChain.then(() => restoreGridFallback(activationGeneration));
+          transitionChain = transitionChain.then(async () => {
+            await destroyCircularRenderer();
+            showCircularFallback('El carrusel de video se detuvo. Los proyectos siguen disponibles.');
+          });
         },
       });
       await candidate.ready;
       if (destroyed || generation !== activationGeneration) {
         candidate.destroy();
-        return;
+        return false;
       }
-      activeRenderer = candidate;
+      circularRenderer = candidate;
       circular.loader.hidden = true;
       circular.overlay.hidden = false;
       circular.stage.classList.add('is-ready');
-      grid.hidden = true;
-      activeMode = 'circular';
-      updateSelector('circular');
-      circular.stage.focus({ preventScroll: true });
+      return true;
     } catch (error) {
       if (candidate) candidate.destroy();
       if (generation === activationGeneration) {
-        logDevelopmentFailure('Circular', error);
-        await restoreGridFallback(generation);
+        logDevelopmentFailure('Circular video', error);
+        showCircularFallback('El carrusel de video no pudo iniciarse. Los proyectos siguen disponibles.');
       }
+      return false;
     }
   }
 
-  async function showRing(generation) {
+  async function showGrid(generation) {
     if (generation !== activationGeneration) return;
-    const capability = supportsRingGallery(items);
-    if (!capability.supported) {
-      disableModeLink('ring', capability.reason);
-      await restoreGridFallback(generation);
-      return;
-    }
+    setPrimaryModeVisibility('grid');
+    activeMode = 'grid';
+    updateSelector('grid');
     await destroyActiveRenderer();
-    resetStage(circular);
-    resetStage(infinite);
     if (generation !== activationGeneration) return;
-    activeMode = 'ring';
-    ring.stage.hidden = false;
-    ring.loader.hidden = false;
-    ring.overlay.hidden = true;
-    ring.fallback.hidden = true;
-    let candidate = null;
-    try {
-      candidate = new RingGalleryRenderer(ring.stage, items, {
-        onActiveChange: (item, index, length) => updateActive('ring', ring, item, index, length),
-        onSelect: (item) => openGalleryItemById(item.id, ring.action),
-      });
-      await candidate.ready;
-      if (destroyed || generation !== activationGeneration) {
-        candidate.destroy();
-        return;
-      }
-      activeRenderer = candidate;
-      ring.loader.hidden = true;
-      ring.overlay.hidden = false;
-      ring.stage.classList.add('is-ready');
-      grid.hidden = true;
-      activeMode = 'ring';
-      updateSelector('ring');
-      ring.stage.focus({ preventScroll: true });
-    } catch (error) {
-      if (candidate) candidate.destroy();
-      if (generation === activationGeneration) {
-        logDevelopmentFailure('Ring', error);
-        await restoreGridFallback(generation);
-      }
-    }
+    resetInfiniteStage();
+    await ensureVideoCarousel(generation);
+  }
+
+  async function restoreGridFallback(generation, error) {
+    if (generation !== activationGeneration) return;
+    setPrimaryModeVisibility('grid');
+    activeMode = 'grid';
+    updateSelector('grid');
+    await destroyActiveRenderer();
+    if (generation !== activationGeneration) return;
+    resetInfiniteStage();
+    await ensureVideoCarousel(generation);
+    if (error) logDevelopmentFailure('fallback', error);
   }
 
   async function showInfinite(generation) {
     if (generation !== activationGeneration) return;
-    const capability = supportsInfiniteGallery(items);
+    const capability = canUseInfinite(items);
     if (!capability.supported) {
-      disableModeLink('infinite', capability.reason);
+      disableInfiniteLink(capability.reason);
       await restoreGridFallback(generation);
       return;
     }
+
     await destroyActiveRenderer();
-    resetStage(circular);
-    resetStage(ring);
     if (generation !== activationGeneration) return;
+    setPrimaryModeVisibility('infinite');
     activeMode = 'infinite';
-    infinite.stage.hidden = false;
+    updateSelector('infinite');
     infinite.loader.hidden = false;
     infinite.overlay.hidden = true;
     infinite.fallback.hidden = true;
     let candidate = null;
     try {
-      candidate = new InfiniteMenuRenderer(infinite.stage, items, {
-        onActiveChange: (item, index, length) => updateActive('infinite', infinite, item, index, length),
+      candidate = createInfiniteRenderer(infinite.stage, items, {
+        onActiveChange: updateInfinite,
         onSelect: (item) => openGalleryItemById(item.id, infinite.action),
         onContextLost: () => {
           transitionChain = transitionChain.then(() => restoreGridFallback(activationGeneration));
@@ -306,27 +325,22 @@ export function setupGalleryModes({ page, items, openGalleryItemById }) {
       infinite.loader.hidden = true;
       infinite.overlay.hidden = false;
       infinite.stage.classList.add('is-ready');
-      grid.hidden = true;
-      activeMode = 'infinite';
-      updateSelector('infinite');
+      await ensureVideoCarousel(generation);
+      if (destroyed || generation !== activationGeneration) return;
       infinite.stage.focus({ preventScroll: true });
     } catch (error) {
       if (candidate) candidate.destroy();
-      if (generation === activationGeneration) {
-        logDevelopmentFailure('Infinite', error);
-        await restoreGridFallback(generation);
-      }
+      if (generation === activationGeneration) await restoreGridFallback(generation, error);
     }
   }
 
-  function disableModeLink(mode, reason) {
-    const link = viewLinks.find((candidate) => candidate.dataset.galleryView === mode);
-    if (link) {
-      link.setAttribute('aria-disabled', 'true');
-      link.title = reason === 'reduced-motion'
-        ? 'La cuadrícula respeta tu preferencia de movimiento reducido.'
-        : 'Esta visualización no está disponible en este dispositivo.';
-    }
+  function disableInfiniteLink(reason) {
+    const link = viewLinks.find((candidate) => candidate.dataset.galleryView === 'infinite');
+    if (!link) return;
+    link.setAttribute('aria-disabled', 'true');
+    link.title = reason === 'reduced-motion'
+      ? 'La cuadrícula respeta tu preferencia de movimiento reducido.'
+      : 'Esta visualización no está disponible en este dispositivo.';
   }
 
   function logDevelopmentFailure(mode, error) {
@@ -335,24 +349,21 @@ export function setupGalleryModes({ page, items, openGalleryItemById }) {
     }
   }
 
-  async function activateMode(mode) {
+  async function activateMode(requestedMode) {
     if (destroyed) return;
-    if (mode === activeMode && activeRenderer) return;
-
+    const mode = normalizeGalleryView(requestedMode);
+    if (mode === activeMode && (mode === 'grid' || activeRenderer)) return transitionChain;
     const generation = ++activationGeneration;
-
+    setPrimaryModeVisibility(mode);
+    activeMode = mode;
+    updateSelector(mode);
     transitionChain = transitionChain
-      .catch((error) => {
-        logDevelopmentFailure('transition', error);
-      })
+      .catch((error) => logDevelopmentFailure('transition', error))
       .then(async () => {
         if (generation !== activationGeneration) return;
-        if (mode === 'circular') await showCircular(generation);
-        else if (mode === 'ring') await showRing(generation);
-        else if (mode === 'infinite') await showInfinite(generation);
-        else await showGrid(generation);
+        if (mode === 'grid') await showGrid(generation);
+        else await showInfinite(generation);
       });
-
     return transitionChain;
   }
 
@@ -368,44 +379,44 @@ export function setupGalleryModes({ page, items, openGalleryItemById }) {
       activateMode(link.dataset.galleryView);
     });
     link.addEventListener('keydown', (event) => {
-      if (event.key === ' ') {
-        event.preventDefault();
-        setUrlFromLink(link);
-        activateMode(link.dataset.galleryView);
-      }
+      if (event.key !== ' ') return;
+      event.preventDefault();
+      setUrlFromLink(link);
+      activateMode(link.dataset.galleryView);
     });
   });
 
   circular.action?.addEventListener('click', () => {
-    if (activeItems.circular) openGalleryItemById(activeItems.circular.id, circular.action);
-  });
-  ring.action?.addEventListener('click', () => {
-    if (activeItems.ring) openGalleryItemById(activeItems.ring.id, ring.action);
+    if (activeCircularItem) openGalleryItemById(activeCircularItem.id, circular.action);
   });
   infinite.action?.addEventListener('click', () => {
-    if (activeItems.infinite) openGalleryItemById(activeItems.infinite.id, infinite.action);
+    if (activeInfiniteItem) openGalleryItemById(activeInfiniteItem.id, infinite.action);
   });
 
   const onPopState = () => {
     const requested = new URLSearchParams(window.location.search).get('view');
-    activateMode(['circular', 'ring', 'infinite'].includes(requested) ? requested : 'grid');
+    activateMode(normalizeGalleryView(requested));
   };
   const onPageHide = () => {
     destroyed = true;
+    activationGeneration += 1;
     destroyActiveRenderer();
+    destroyCircularRenderer();
   };
   window.addEventListener('popstate', onPopState);
   window.addEventListener('pagehide', onPageHide, { once: true });
 
-  activateMode(['circular', 'ring', 'infinite'].includes(page.dataset.requestedView)
-    ? page.dataset.requestedView
-    : 'grid');
+  activateMode(normalizeGalleryView(page.dataset.requestedView));
 
   return () => {
+    if (destroyed) return;
     destroyed = true;
-    Object.values(liveTimers).forEach((timer) => window.clearTimeout(timer));
+    activationGeneration += 1;
+    window.clearTimeout(circularLiveTimer);
+    window.clearTimeout(infiniteLiveTimer);
     window.removeEventListener('popstate', onPopState);
     window.removeEventListener('pagehide', onPageHide);
     destroyActiveRenderer();
+    destroyCircularRenderer();
   };
 }

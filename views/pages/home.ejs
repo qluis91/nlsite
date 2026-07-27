@@ -268,9 +268,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
     data-panel="2"
     aria-labelledby="showcase-title"
   >
-    <div class="showcase-antigravity" aria-hidden="true" data-panel2-animate="background">
-      <canvas class="showcase-antigravity__canvas" data-antigravity-canvas></canvas>
-    </div>
+    <%- include('../components/panel2-antigravity') %>
     <div class="showcase-bridge" aria-hidden="true" data-panel2-animate="bridge"></div>
 
     <div class="showcase-trust" data-panel2-animate="trust">

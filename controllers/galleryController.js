@@ -53,6 +53,7 @@ async function showGallery(req, res, next) {
       pageStyles: ['/css/home.css', '/css/gallery.css'],
       pageModule: '/js/gallery.js',
       usesHeroNavbar: true,
+      usesPanel2Background: true,
       navbarOnHome: false,
       categories,
       activeCategory,

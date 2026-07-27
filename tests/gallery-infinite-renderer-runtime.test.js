@@ -277,17 +277,59 @@ class MockImage {
 function setupEnvironment({ imageSettle = 'error' } = {}) {
   const gl = createRecordingGl();
   const rafCallbacks = new Map();
+  const windowListeners = new Map();
+  const mediaQueries = [];
+  const resizeObservers = [];
   let nextRaf = 1;
   MockImage.instances = [];
   MockImage.settle = imageSettle;
+
+  class MockResizeObserver {
+    constructor(callback) {
+      this.callback = callback;
+      this.disconnected = false;
+      resizeObservers.push(this);
+    }
+
+    observe() {}
+
+    disconnect() {
+      this.disconnected = true;
+    }
+  }
+
+  const addWindowListener = (name, listener) => {
+    if (!windowListeners.has(name)) windowListeners.set(name, new Set());
+    windowListeners.get(name).add(listener);
+  };
+  const removeWindowListener = (name, listener) => {
+    windowListeners.get(name)?.delete(listener);
+  };
 
   global.window = {
     devicePixelRatio: 1.5,
     location: { hostname: 'localhost' },
     setTimeout,
     clearTimeout,
-    addEventListener() {},
-    removeEventListener() {},
+    ResizeObserver: MockResizeObserver,
+    addEventListener: addWindowListener,
+    removeEventListener: removeWindowListener,
+    matchMedia(media) {
+      const listeners = new Set();
+      const query = {
+        media,
+        matches: false,
+        addEventListener(name, listener) {
+          if (name === 'change') listeners.add(listener);
+        },
+        removeEventListener(name, listener) {
+          if (name === 'change') listeners.delete(listener);
+        },
+        listeners,
+      };
+      mediaQueries.push(query);
+      return query;
+    },
     requestAnimationFrame(callback) {
       const id = nextRaf++;
       rafCallbacks.set(id, callback);
@@ -306,10 +348,7 @@ function setupEnvironment({ imageSettle = 'error' } = {}) {
     removeEventListener() {},
   };
   global.Image = MockImage;
-  global.ResizeObserver = class {
-    observe() {}
-    disconnect() {}
-  };
+  global.ResizeObserver = MockResizeObserver;
   global.IntersectionObserver = class {
     constructor(callback) { this.callback = callback; }
     observe() {}
@@ -332,7 +371,17 @@ function setupEnvironment({ imageSettle = 'error' } = {}) {
     callback(timestamp);
     return true;
   };
-  return { gl, container, title, meta, rafCallbacks, flushFrame };
+  return {
+    gl,
+    container,
+    title,
+    meta,
+    rafCallbacks,
+    flushFrame,
+    windowListeners,
+    mediaQueries,
+    resizeObservers,
+  };
 }
 
 function items() {
@@ -373,6 +422,9 @@ test('disc, sphere, translation, billboard, and camera math is finite and indepe
     billboardNormal,
     getBillboardReferenceAxes,
     createCameraMatrices,
+    resolveSphereLayout,
+    positionSpherePoint,
+    sphereDiscScale,
   } = rendererModule;
   const geometry = createDiscGeometry();
   assert.equal(geometry.positions.every(Number.isFinite), true);
@@ -383,7 +435,8 @@ test('disc, sphere, translation, billboard, and camera math is finite and indepe
   const points = createSpherePoints();
   assert.equal(points.length, 42);
   const radii = points.map((point) => Math.hypot(...point));
-  radii.forEach((radius) => assert.ok(Math.abs(radius - 3.5) < 1e-5));
+  radii.forEach((radius) => assert.ok(Math.abs(radius - 4.2) < 1e-5));
+  assert.ok(sphereDiscScale(3, 3) > sphereDiscScale(2, 3) * 1.5);
   for (const axis of [0, 1, 2]) {
     assert.ok(new Set(points.map((point) => point[axis].toFixed(3))).size > 10);
   }
@@ -405,7 +458,7 @@ test('disc, sphere, translation, billboard, and camera math is finite and indepe
       matrixModule.vec3.create(),
       matrixModule.vec3.subtract(
         matrixModule.vec3.create(),
-        [0, 0, 9],
+        [0, 0, 9.5],
         point
       )
     );
@@ -413,18 +466,30 @@ test('disc, sphere, translation, billboard, and camera math is finite and indepe
   }
   assert.deepEqual(getBillboardReferenceAxes(), referencesBefore);
 
-  const camera = createCameraMatrices(800, 600);
-  assert.equal(camera.view[14], -9);
-  assert.ok(Math.hypot(...camera.position) > 3.5);
+  const desktopLayout = resolveSphereLayout(1440, 800);
+  const tabletLayout = resolveSphereLayout(900, 700);
+  const mobileLayout = resolveSphereLayout(390, 700);
+  assert.ok(desktopLayout.spreadX > desktopLayout.spreadY * 1.5);
+  assert.ok(desktopLayout.spreadY < 4.2);
+  assert.ok(tabletLayout.spreadX < desktopLayout.spreadX);
+  assert.ok(tabletLayout.spreadY < desktopLayout.spreadY);
+  assert.ok(mobileLayout.spreadX < tabletLayout.spreadX);
+  assert.ok(mobileLayout.spreadY < tabletLayout.spreadY);
+  assert.ok(mobileLayout.spreadZ < tabletLayout.spreadZ);
+
+  const camera = createCameraMatrices(1440, 800, desktopLayout);
+  assert.ok(Math.abs(camera.view[14] + desktopLayout.cameraDistance) < 1e-5);
+  assert.ok(Math.hypot(...camera.position) > 4.2);
   const viewProjection = matrixModule.mat4.multiply(
     matrixModule.mat4.create(),
     camera.projection,
     camera.view
   );
   const visibleCenters = points.filter((point) => {
+    const positioned = positionSpherePoint(point, desktopLayout);
     const clip = matrixModule.vec4.transformMat4(
       matrixModule.vec4.create(),
-      [point[0], point[1], point[2], 1],
+      [positioned[0], positioned[1], positioned[2], 1],
       viewProjection
     );
     return clip[3] > 0
@@ -432,7 +497,31 @@ test('disc, sphere, translation, billboard, and camera math is finite and indepe
       && Math.abs(clip[1]) <= clip[3]
       && Math.abs(clip[2]) <= clip[3];
   });
-  assert.ok(visibleCenters.length > 0);
+  assert.equal(visibleCenters.length, points.length);
+});
+
+test('responsive framing keeps horizontally expanded positions inside safe clip margins', () => {
+  const points = rendererModule.createSpherePoints();
+  for (const [width, height] of [[1440, 800], [900, 700], [390, 700]]) {
+    const layout = rendererModule.resolveSphereLayout(width, height);
+    const camera = rendererModule.createCameraMatrices(width, height, layout);
+    const viewProjection = matrixModule.mat4.multiply(
+      matrixModule.mat4.create(),
+      camera.projection,
+      camera.view
+    );
+    for (const point of points) {
+      const positioned = rendererModule.positionSpherePoint(point, layout);
+      const clip = matrixModule.vec4.transformMat4(
+        matrixModule.vec4.create(),
+        [positioned[0], positioned[1], positioned[2], 1],
+        viewProjection
+      );
+      assert.ok(clip[3] > 0);
+      assert.ok(Math.abs(clip[0] / clip[3]) < layout.frameMargin);
+      assert.ok(Math.abs(clip[1] / clip[3]) < layout.frameMargin);
+    }
+  }
 });
 
 test('recording WebGL 2 path binds a VAO/EBO and draws nonzero indexed instances', async () => {
@@ -487,17 +576,24 @@ test('diagnostic milestones use one disc, translated sphere, billboards, then fi
       assert.deepEqual(Array.from(renderer.instanceData.slice(12, 15)), [0, 0, 0]);
     }
     if (stage === 'sphere') {
+      const positioned = rendererModule.positionSpherePoint(
+        renderer.spherePoints[0],
+        renderer.sphereLayout
+      );
       assert.deepEqual(
         Array.from(renderer.instanceData.slice(12, 15)).map((value) => value.toFixed(5)),
-        Array.from(renderer.spherePoints[0]).map((value) => value.toFixed(5))
+        Array.from(positioned).map((value) => value.toFixed(5))
       );
     }
     if (stage === 'billboard' || stage === '') {
       const normal = rendererModule.billboardNormal(renderer.instanceData.slice(0, 16));
-      const point = renderer.spherePoints[0];
+      const point = rendererModule.positionSpherePoint(
+        renderer.spherePoints[0],
+        renderer.sphereLayout
+      );
       const toCamera = matrixModule.vec3.normalize(
         matrixModule.vec3.create(),
-        matrixModule.vec3.subtract(matrixModule.vec3.create(), [0, 0, 9], point)
+        matrixModule.vec3.subtract(matrixModule.vec3.create(), renderer.cameraPosition, point)
       );
       assert.ok(matrixModule.vec3.dot(normal, toCamera) > 0.999);
     }
@@ -591,4 +687,34 @@ test('destroy is safe before ready, twice, and prevents late image upload', asyn
     '[data-gallery-renderer-generated="infinite"]'
   ).length, 1);
   second.destroy();
+});
+
+test('orientation and breakpoint changes reuse resize and remove every responsive listener', async () => {
+  const env = setupEnvironment();
+  const renderer = new rendererModule.InfiniteMenuRenderer(env.container, items());
+  await renderer.ready;
+
+  assert.equal(env.resizeObservers.length, 1);
+  assert.equal(env.windowListeners.get('orientationchange')?.size, 1);
+  assert.equal(env.mediaQueries.length, 2);
+  assert.equal(env.mediaQueries.every((query) => query.listeners.size === 1), true);
+
+  env.container.clientWidth = 390;
+  env.container.clientHeight = 700;
+  env.windowListeners.get('orientationchange').forEach((listener) => listener());
+  assert.equal(renderer.width, 390);
+  assert.equal(renderer.height, 700);
+  assert.equal(renderer.sphereLayout.infoCardStartRatio, 0.72);
+  assert.equal(env.container.querySelectorAll(
+    '[data-gallery-renderer-generated="infinite"]'
+  ).length, 1);
+
+  renderer.destroy();
+  assert.equal(env.resizeObservers[0].disconnected, true);
+  assert.equal(env.windowListeners.get('orientationchange')?.size, 0);
+  assert.equal(env.mediaQueries.every((query) => query.listeners.size === 0), true);
+  assert.equal(env.rafCallbacks.size, 0);
+  assert.equal(env.container.querySelectorAll(
+    '[data-gallery-renderer-generated="infinite"]'
+  ).length, 0);
 });

@@ -4,8 +4,9 @@ const MAX_ITEMS = 24;
 const MAX_DPR = 2;
 const DISC_SEGMENTS = 56;
 const SPHERE_POINT_COUNT = 42;
-const SPHERE_RADIUS = 3.5;
-const DISC_SCALE = 0.76;
+const SPHERE_RADIUS = 4.2;
+const DISC_SCALE = 0.68;
+const SELECTED_DISC_SCALE = 1.16;
 const MAX_FRAME_MS = 50;
 const IMAGE_TIMEOUT_MS = 8000;
 const INERTIA_FRICTION = 0.91;
@@ -13,8 +14,17 @@ const INERTIA_EPSILON = 0.015;
 const SNAP_EPSILON = 0.0025;
 const POINTER_SENSITIVITY = 0.006;
 const SAFE_THUMBNAIL = /^\/uploads\/gallery\/thumbnails\/[a-zA-Z0-9._-]+$/;
+const CAMERA_FOV = Math.PI / 3;
+const FRAME_MARGIN = 0.86;
+const MOBILE_LAYOUT_MAX = 639;
+const TABLET_LAYOUT_MAX = 1023;
+const MOBILE_DISC_SCALE = 0.5;
+const MOBILE_SELECTED_DISC_SCALE = 0.84;
+const TABLET_DISC_SCALE = 0.56;
+const TABLET_SELECTED_DISC_SCALE = 0.96;
+const RESPONSIVE_INFO_START = 0.72;
 
-const CAMERA_POSITION = vec3.fromValues(0, 0, 9);
+const CAMERA_POSITION = vec3.fromValues(0, 0, 9.5);
 const CAMERA_TARGET = vec3.fromValues(0, 0, 0);
 const WORLD_UP = vec3.fromValues(0, 1, 0);
 const ALT_UP = vec3.fromValues(1, 0, 0);
@@ -145,11 +155,95 @@ export function createSpherePoints(count = SPHERE_POINT_COUNT, radius = SPHERE_R
   return points;
 }
 
+export function resolveSphereLayout(width, height) {
+  const safeWidth = Math.max(1, Number(width) || 1);
+  const safeHeight = Math.max(1, Number(height) || 1);
+  const aspect = clamp(safeWidth / safeHeight, 0.55, 2.4);
+  let spreadY;
+  let spreadZ;
+  let horizontalRatio;
+  let discScale;
+  let selectedDiscScale;
+  let centerOffsetY;
+  let infoCardStartRatio;
+
+  if (safeWidth <= MOBILE_LAYOUT_MAX) {
+    const isLandscape = aspect > 1;
+    spreadY = isLandscape ? 2.5 : 2.55;
+    spreadZ = isLandscape ? 2.3 : 2.25;
+    horizontalRatio = clamp(aspect * 1.25, 1.05, 1.52);
+    discScale = isLandscape ? 0.53 : MOBILE_DISC_SCALE;
+    selectedDiscScale = isLandscape ? 0.9 : MOBILE_SELECTED_DISC_SCALE;
+    centerOffsetY = isLandscape ? 0.42 : 0.55;
+    infoCardStartRatio = RESPONSIVE_INFO_START;
+  } else if (safeWidth <= TABLET_LAYOUT_MAX) {
+    spreadY = 2.85;
+    spreadZ = 2.55;
+    horizontalRatio = clamp(aspect * 1.12, 1.25, 1.75);
+    discScale = TABLET_DISC_SCALE;
+    selectedDiscScale = TABLET_SELECTED_DISC_SCALE;
+    centerOffsetY = 0.45;
+    infoCardStartRatio = RESPONSIVE_INFO_START;
+  } else {
+    spreadY = 3.15;
+    spreadZ = 3.05;
+    horizontalRatio = clamp(aspect * 1.05, 1.65, 2);
+    discScale = DISC_SCALE;
+    selectedDiscScale = SELECTED_DISC_SCALE;
+    centerOffsetY = 0;
+    infoCardStartRatio = null;
+  }
+
+  const spreadX = spreadY * horizontalRatio;
+  const tangent = Math.tan(CAMERA_FOV / 2);
+  const paddedX = spreadX + selectedDiscScale;
+  const paddedY = spreadY + Math.abs(centerOffsetY) + selectedDiscScale;
+  const horizontalDistance = Math.sqrt(
+    spreadZ ** 2 + (paddedX / (tangent * aspect * FRAME_MARGIN)) ** 2
+  );
+  const verticalDistance = Math.sqrt(
+    spreadZ ** 2 + (paddedY / (tangent * FRAME_MARGIN)) ** 2
+  );
+  const cameraDistance = Math.max(CAMERA_POSITION[2], horizontalDistance, verticalDistance);
+
+  return {
+    aspect,
+    spreadX,
+    spreadY,
+    spreadZ,
+    scaleX: spreadX / SPHERE_RADIUS,
+    scaleY: spreadY / SPHERE_RADIUS,
+    scaleZ: spreadZ / SPHERE_RADIUS,
+    discScale,
+    selectedDiscScale,
+    centerOffsetY,
+    infoCardStartRatio,
+    cameraDistance,
+    frameMargin: FRAME_MARGIN,
+  };
+}
+
+export function positionSpherePoint(point, layout, out = vec3.create()) {
+  const safeLayout = layout || { scaleX: 1, scaleY: 1, scaleZ: 1 };
+  return vec3.set(
+    out,
+    point[0] * safeLayout.scaleX,
+    point[1] * safeLayout.scaleY + (safeLayout.centerOffsetY || 0),
+    point[2] * safeLayout.scaleZ
+  );
+}
+
 export function createTranslationMatrix(position, scale = DISC_SCALE) {
   const matrix = mat4.create();
   mat4.translate(matrix, matrix, position);
   mat4.scale(matrix, matrix, [scale, scale, scale]);
   return matrix;
+}
+
+export function sphereDiscScale(pointIndex, activePointIndex, layout) {
+  const normalScale = layout?.discScale ?? DISC_SCALE;
+  const activeScale = layout?.selectedDiscScale ?? SELECTED_DISC_SCALE;
+  return pointIndex === activePointIndex ? activeScale : normalScale;
 }
 
 export function createBillboardMatrix(
@@ -200,17 +294,18 @@ export function getBillboardReferenceAxes() {
   };
 }
 
-export function createCameraMatrices(width, height) {
+export function createCameraMatrices(width, height, layout = resolveSphereLayout(width, height)) {
   const safeWidth = Math.max(1, Number(width) || 1);
   const safeHeight = Math.max(1, Number(height) || 1);
+  const cameraPosition = vec3.fromValues(0, 0, layout.cameraDistance);
   const view = mat4.create();
   const projection = mat4.create();
-  mat4.lookAt(view, CAMERA_POSITION, CAMERA_TARGET, WORLD_UP);
-  mat4.perspective(projection, Math.PI / 3, safeWidth / safeHeight, 0.1, 50);
+  mat4.lookAt(view, cameraPosition, CAMERA_TARGET, WORLD_UP);
+  mat4.perspective(projection, CAMERA_FOV, safeWidth / safeHeight, 0.1, 50);
   return {
     view,
     projection,
-    position: vec3.clone(CAMERA_POSITION),
+    position: cameraPosition,
     target: vec3.clone(CAMERA_TARGET),
   };
 }
@@ -622,6 +717,12 @@ export class InfiniteMenuRenderer {
     } else {
       window.addEventListener('resize', this.resize);
     }
+    window.addEventListener('orientationchange', this.resize);
+    this.breakpointQueries = [
+      window.matchMedia?.(`(max-width: ${MOBILE_LAYOUT_MAX}px)`),
+      window.matchMedia?.(`(max-width: ${TABLET_LAYOUT_MAX}px)`),
+    ].filter(Boolean);
+    this.breakpointQueries.forEach((query) => query.addEventListener?.('change', this.resize));
     if ('IntersectionObserver' in window) {
       this.intersectionObserver = new IntersectionObserver((entries) => {
         this.isIntersecting = entries[0]?.isIntersecting ?? true;
@@ -653,9 +754,19 @@ export class InfiniteMenuRenderer {
     this.width = width;
     this.height = height;
     this.gl.viewport(0, 0, pixelWidth, pixelHeight);
-    const camera = createCameraMatrices(width, height);
+    this.sphereLayout = resolveSphereLayout(width, height);
+    if (this.sphereLayout.infoCardStartRatio) {
+      this.container.style.setProperty(
+        '--infinite-info-start',
+        `${this.sphereLayout.infoCardStartRatio * 100}%`
+      );
+    } else {
+      this.container.style.removeProperty('--infinite-info-start');
+    }
+    const camera = createCameraMatrices(width, height, this.sphereLayout);
     this.viewMatrix = camera.view;
     this.projectionMatrix = camera.projection;
+    this.cameraPosition = camera.position;
     if (this.texture) this.requestFrame();
   }
 
@@ -850,11 +961,16 @@ export class InfiniteMenuRenderer {
 
     this.instanceCount = this.spherePoints.length;
     const rotated = vec3.create();
+    const positioned = vec3.create();
+    const selectedPointIndex = closestFrontPointIndex(this.spherePoints, this.orientation);
+    this.activePointIndex = selectedPointIndex;
     for (let index = 0; index < this.spherePoints.length; index += 1) {
       vec3.transformQuat(rotated, this.spherePoints[index], this.orientation);
+      positionSpherePoint(rotated, this.sphereLayout, positioned);
+      const scale = sphereDiscScale(index, selectedPointIndex, this.sphereLayout);
       const matrix = this.options.diagnosticStage === 'sphere'
-        ? createTranslationMatrix(rotated)
-        : createBillboardMatrix(rotated);
+        ? createTranslationMatrix(positioned, scale)
+        : createBillboardMatrix(positioned, this.cameraPosition, scale);
       this.instanceData.set(matrix, index * 16);
     }
   }
@@ -993,6 +1109,11 @@ export class InfiniteMenuRenderer {
     this.resizeObserver?.disconnect();
     this.intersectionObserver?.disconnect();
     window.removeEventListener('resize', this.resize);
+    window.removeEventListener('orientationchange', this.resize);
+    this.breakpointQueries?.forEach(
+      (query) => query.removeEventListener?.('change', this.resize)
+    );
+    this.breakpointQueries = [];
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     if (this.canvas && this.boundHandlers) {
       this.canvas.removeEventListener('pointerdown', this.onPointerDown);
