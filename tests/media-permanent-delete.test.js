@@ -2,7 +2,8 @@
  * Phase 16D — Permanent media delete tests.
  * Run: node --test tests/media-permanent-delete.test.js
  */
-const { after, describe, it } = require('node:test');
+const test = require('node:test');
+const { describe, it, after, before } = test;
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
@@ -262,18 +263,16 @@ describe('Media permanent delete — path safety', () => {
 // ──── Library list view actions ────
 
 describe('Media permanent delete — library list', () => {
-  it('index.ejs has Eliminar button for archived items', () => {
+  it('index.ejs has Eliminar button for active items', () => {
     const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
-    assert.ok(code.includes('Eliminar permanentemente'), 'Should have Eliminar button in library list');
+    assert.ok(code.includes('Eliminar</button>') || code.includes('>Eliminar<'), 'Should have Eliminar button for active cards');
   });
 
-  it('index.ejs Eliminar button only in archived block', () => {
+  it('index.ejs has Eliminar button in both active and archived blocks', () => {
     const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
-    const pdIdx = code.indexOf('permanent-delete');
-    // The is_archived guard appears before permanent-delete in the <% if (asset.is_archived) { %> block
-    const contextStart = Math.max(0, pdIdx - 800);
-    const context = code.substring(contextStart, pdIdx);
-    assert.ok(context.includes('is_archived'), 'Eliminar should only appear for archived items');
+    // Count the permanent-delete form occurrences — should appear twice (archived + active blocks)
+    const matches = code.match(/permanent-delete/g) || [];
+    assert.ok(matches.length >= 2, 'Should have permanent-delete forms in both active and archived blocks');
   });
 
   it('index.ejs Eliminar button includes CSRF', () => {
@@ -382,5 +381,208 @@ describe('Media permanent delete — detail view preserved', () => {
   it('detail.ejs archive form does NOT have return_to', () => {
     const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'detail.ejs'), 'utf8');
     assert.ok(!code.includes('return_to'), 'Detail view forms should not include return_to (uses default redirect)');
+  });
+});
+
+// ──── Active media deletion (no archive required) ────
+
+describe('Media permanent delete — active media deletion', () => {
+  it('permanentDelete does NOT require archived status', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'mediaService.js'), 'utf8');
+    const fnStart = code.indexOf('async function permanentDelete');
+    const fnEnd = code.indexOf('\n}', fnStart);
+    const fnBody = code.substring(fnStart, fnEnd);
+    assert.ok(!fnBody.includes('is_archived') && !fnBody.includes('NOT_ARCHIVED'),
+      'Should not check is_archived or require archiving first');
+  });
+
+  it('permanentDelete still checks references for active items', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'mediaService.js'), 'utf8');
+    const fnStart = code.indexOf('async function permanentDelete');
+    const fnEnd = code.indexOf('\n}', fnStart);
+    const fnBody = code.substring(fnStart, fnEnd);
+    assert.ok(fnBody.includes('assertNotReferenced'), 'Should still run reference check');
+  });
+
+  it('index.ejs Eliminar button appears inside the active (else) block', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
+    // Find all permanent-delete references in the file
+    const first = code.indexOf('permanent-delete');
+    const second = code.indexOf('permanent-delete', first + 1);
+    assert.ok(first > 0 && second > 0, 'Should have at least 2 permanent-delete references');
+    // The second occurrence should be in the active (else) block
+    // Verify the else block text appears between the two permanent-delete refs
+    const between = code.substring(first, second);
+    assert.ok(between.includes('else {'), 'Should have else block between two permanent-delete forms');
+  });
+});
+
+// ──── Integration: unreferenced active asset can be permanently deleted ────
+
+describe('Media permanent delete — integration', () => {
+  let testPublicId;
+  let testPngBuffer;
+
+  test.before(async () => {
+    const sharp = require('sharp');
+    testPngBuffer = await sharp({ create: { width: 10, height: 10, channels: 4, background: '#ff0000' } }).png().toBuffer();
+  });
+
+  test.after(async () => {
+    if (testPublicId) {
+      try {
+        const pool = require('../config/db');
+        await pool.query('DELETE FROM media_assets WHERE public_id = ?', [testPublicId]);
+      } catch (_) { /* best-effort */ }
+    }
+  });
+
+  test('unreferenced active asset can be permanently deleted', async (t) => {
+    const crypto = require('crypto');
+    const pool = require('../config/db');
+    const mediaService = require('../services/mediaService');
+    const storage = require('../services/mediaStorageService');
+    const fs = require('fs');
+    const path = require('path');
+
+    // 1. Create an active media asset with no references
+    const checksum = crypto.createHash('sha256').update(testPngBuffer).digest('hex');
+    const existing = await mediaService.findActiveByChecksum(checksum);
+    if (existing) {
+      // Clean up any pre-existing duplicate
+      await pool.query('DELETE FROM media_assets WHERE public_id = ?', [existing.public_id]);
+    }
+
+    const stored = await storage.storeUpload(
+      { buffer: testPngBuffer, mimetype: 'image/png', originalname: 'test-delete.png', size: testPngBuffer.length },
+      'other'
+    );
+
+    const publicId = crypto.randomUUID();
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    await connection.query(
+      `INSERT INTO media_assets
+         (public_id, filename, original_name, storage_disk, storage_path, public_url,
+          thumbnail_path, variants_json, mime_type, extension, file_size, width, height,
+          checksum, title, alt_text, category, status, created_by, updated_by)
+       VALUES (?, ?, ?, 'public', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, NULL)`,
+      [
+        publicId, stored.filename, stored.originalName,
+        stored.storagePath, stored.publicUrl, stored.thumbnailPath,
+        Object.keys(stored.variants).length ? JSON.stringify(stored.variants) : null,
+        stored.mimeType, stored.extension, stored.fileSize,
+        stored.width, stored.height, stored.checksum,
+        'Test Delete Target', 'test alt', 'other',
+      ]
+    );
+    await connection.commit();
+    connection.release();
+
+    testPublicId = publicId;
+
+    // 2. Verify it exists in the DB
+    const [before] = await pool.query('SELECT id, status FROM media_assets WHERE public_id = ?', [publicId]);
+    assert.strictEqual(before.length, 1, 'Asset should exist before deletion');
+    assert.strictEqual(before[0].status, 'active', 'Asset should be active');
+
+    // 3. Verify it has no references
+    const usageService = require('../services/mediaUsageService');
+    const refs = await usageService.findUsages(publicId);
+    assert.strictEqual(refs.length, 0, 'Asset should have no references');
+
+    // 4. Record physical file paths before deletion
+    const assetBefore = await mediaService.getByPublicId(publicId);
+    const physicalPaths = storage.ownedPaths(assetBefore);
+
+    // 5. Delete permanently
+    await mediaService.permanentDelete(publicId, null);
+
+    // 6. Verify DB record is gone
+    const [after] = await pool.query('SELECT id FROM media_assets WHERE public_id = ?', [publicId]);
+    assert.strictEqual(after.length, 0, 'Asset should be deleted from DB');
+
+    // 7. Verify physical files are gone
+    for (const relPath of physicalPaths) {
+      if (!relPath) continue;
+      try {
+        const absPath = storage.resolveStoragePath(relPath);
+        assert.ok(!fs.existsSync(absPath), `File ${relPath} should be deleted`);
+      } catch (_) { /* path containment — expected for some variants */ }
+    }
+
+    // Clear the cleanup id since deletion succeeded
+    testPublicId = null;
+  });
+
+  test('referenced active asset is blocked from deletion', async (t) => {
+    const crypto = require('crypto');
+    const pool = require('../config/db');
+    const mediaService = require('../services/mediaService');
+    const storage = require('../services/mediaStorageService');
+
+    const checksum = crypto.createHash('sha256').update(testPngBuffer).digest('hex');
+    const existing = await mediaService.findActiveByChecksum(checksum);
+    if (existing) {
+      await pool.query('DELETE FROM media_assets WHERE public_id = ?', [existing.public_id]);
+    }
+
+    const stored = await storage.storeUpload(
+      { buffer: testPngBuffer, mimetype: 'image/png', originalname: 'test-blocked.png', size: testPngBuffer.length },
+      'other'
+    );
+
+    const publicId = crypto.randomUUID();
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    await connection.query(
+      `INSERT INTO media_assets
+         (public_id, filename, original_name, storage_disk, storage_path, public_url,
+          thumbnail_path, variants_json, mime_type, extension, file_size, width, height,
+          checksum, title, alt_text, category, status, created_by, updated_by)
+       VALUES (?, ?, ?, 'public', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, NULL)`,
+      [
+        publicId, stored.filename, stored.originalName,
+        stored.storagePath, stored.publicUrl, stored.thumbnailPath,
+        Object.keys(stored.variants).length ? JSON.stringify(stored.variants) : null,
+        stored.mimeType, stored.extension, stored.fileSize,
+        stored.width, stored.height, stored.checksum,
+        'Test Blocked Delete', 'blocked alt', 'logo',
+      ]
+    );
+    await connection.commit();
+    connection.release();
+
+    // Insert a reference in site_settings
+    const ref = `media://${publicId}`;
+    await pool.query(
+      "INSERT INTO site_settings (setting_key, setting_value, setting_group) VALUES (?, ?, 'test') ON DUPLICATE KEY UPDATE setting_value = ?",
+      [`test_ref_block_${Date.now()}`, ref, ref]
+    );
+
+    try {
+      try {
+        await mediaService.permanentDelete(publicId, null);
+        assert.fail('Should have thrown for referenced asset');
+      } catch (err) {
+        assert.ok(err.message.includes('en uso') || err.message.includes('referencia') || err.message.includes('No se puede'),
+          `Should block referenced deletion: ${err.message}`);
+      }
+
+      // Verify asset still exists
+      const [still] = await pool.query('SELECT id FROM media_assets WHERE public_id = ?', [publicId]);
+      assert.strictEqual(still.length, 1, 'Referenced asset should not be deleted');
+    } finally {
+      // Cleanup
+      await pool.query("DELETE FROM site_settings WHERE setting_key LIKE 'test_ref_block_%'");
+      try { await mediaService.permanentDelete(publicId, null); } catch (_) {
+        // Force cleanup
+        const paths = storage.ownedPaths(await mediaService.getByPublicId(publicId));
+        await pool.query('DELETE FROM media_assets WHERE public_id = ?', [publicId]);
+        for (const rp of paths) {
+          try { await require('fs').promises.unlink(storage.resolveStoragePath(rp)); } catch (_) {}
+        }
+      }
+    }
   });
 });

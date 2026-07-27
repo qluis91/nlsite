@@ -126,8 +126,8 @@ describe('Login Page UI', () => {
     assert.match(loginHtml, /¿No tienes cuenta\?/);
   });
 
-  it('admin link uses verified /admin/login route', () => {
-    assert.match(loginHtml, /href="\/admin\/login"/);
+  it('admin link uses unified /auth/login?returnTo=/admin', () => {
+    assert.match(loginHtml, /href="\/auth\/login\?returnTo=\/admin"/);
     assert.match(loginHtml, /Admin/);
   });
 

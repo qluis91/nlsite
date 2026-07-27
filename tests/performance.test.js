@@ -259,8 +259,8 @@ describe('Phase 15 — No rendering regressions', () => {
   });
 
   it('admin login does NOT load footerMagicRings', async () => {
-    const res = await fetch('/admin/login');
+    const res = await fetch('/auth/login?returnTo=/admin');
     assert.equal(res.status, 200);
-    assert.ok(!res.body.includes('footerMagicRings.mjs'), 'admin login must not load footerMagicRings');
+    assert.ok(!res.body.includes('footerMagicRings.mjs'), 'login page must not load footerMagicRings');
   });
 });

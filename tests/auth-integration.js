@@ -131,8 +131,8 @@ async function main() {
     assert('Forgot-password page has _csrf hidden input', token !== null);
   }
   {
-    const { token } = await getCsrfToken('/admin/login');
-    assert('Admin login page has _csrf hidden input', token !== null);
+    const { token } = await getCsrfToken('/auth/login');
+    assert('Login page has _csrf hidden input', token !== null);
   }
 
   // ── CSRF: Missing token returns 403 ──
@@ -144,10 +144,6 @@ async function main() {
   {
     const r = await request('POST', '/auth/register', { name: 'X', email: 'x@x.com', password: '123456', password2: '123456' });
     assert('POST /auth/register without _csrf → 403', r.status === 403);
-  }
-  {
-    const r = await request('POST', '/admin/login', { email: 'x@x.com', password: 'x' });
-    assert('POST /admin/login without _csrf → 403', r.status === 403);
   }
   {
     const r = await request('POST', '/auth/forgot-password', { email: 'x@x.com' });
@@ -332,11 +328,11 @@ async function main() {
     let adminCookie = null;
     let adminToken = null;
     {
-      const jar = await getCsrfToken('/admin/login');
+      const jar = await getCsrfToken('/auth/login?returnTo=' + encodeURIComponent('/admin'));
       adminToken = jar.token;
       adminCookie = jar.setCookie ? jar.setCookie[0] : null;
-      const r = await request('POST', '/admin/login', {
-        email: ADMIN_EMAIL, password: ADMIN_PASS, _csrf: adminToken,
+      const r = await request('POST', '/auth/login', {
+        email: ADMIN_EMAIL, password: ADMIN_PASS, _csrf: adminToken, returnTo: '/admin',
       }, adminCookie);
       assert('Admin login: 302 redirect to /admin', r.status === 302 && r.redirect === '/admin');
       assert('Session cookie received', !!r.setCookie);

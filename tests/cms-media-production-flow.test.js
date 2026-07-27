@@ -136,9 +136,9 @@ async function stopServer() {
 }
 
 async function login() {
-  const page = await request('GET', '/admin/login');
-  const payload = formBody({ email: adminEmail, password, _csrf: csrf(page.text) });
-  const response = await request('POST', '/admin/login', payload, {
+  const page = await request('GET', '/auth/login?returnTo=' + encodeURIComponent('/admin'));
+  const payload = formBody({ email: adminEmail, password, _csrf: csrf(page.text), returnTo: '/admin' });
+  const response = await request('POST', '/auth/login', payload, {
     'Content-Type': 'application/x-www-form-urlencoded',
   });
   assert.equal(response.status, 302);
@@ -299,7 +299,11 @@ test('uploaded LogoLoop and carousel media survive restart, render publicly, and
       () => mediaService.archive(media.public_id, adminId),
       (error) => Array.isArray(error.usages) && error.usages.some((usage) => usage.source === 'logo_loop_items')
     );
-    await assert.rejects(() => mediaService.permanentDelete(media.public_id, adminId), (error) => error.code === 'NOT_ARCHIVED');
+    // Active media is now deletable without archiving first, but reference check still blocks
+    await assert.rejects(
+      () => mediaService.permanentDelete(media.public_id, adminId),
+      (error) => error.usages && error.usages.some((usage) => usage.source === 'logo_loop_items')
+    );
 
     const legacy = await reconciliation.inspectAsset({
       ...media,

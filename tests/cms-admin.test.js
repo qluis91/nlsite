@@ -88,11 +88,12 @@ function multipart(fields, files = []) {
 }
 
 async function loginAdmin() {
-  const page = await request('GET', '/admin/login', null, adminJar);
-  const response = await request('POST', '/admin/login', {
+  const page = await request('GET', '/auth/login?returnTo=' + encodeURIComponent('/admin'), null, adminJar);
+  const response = await request('POST', '/auth/login', {
     email: adminEmail,
     password,
     _csrf: csrf(page.data),
+    returnTo: '/admin',
   }, adminJar);
   assert.equal(response.status, 302);
   assert.equal(response.location, '/admin');

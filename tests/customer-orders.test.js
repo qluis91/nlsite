@@ -116,10 +116,11 @@ function csrf(html) {
 }
 
 async function login(jar, email, path = '/cuenta/pedidos', admin = false) {
-  const loginPath = admin ? '/admin/login' : `/auth/login?returnTo=${encodeURIComponent(path)}`;
+  const returnTo = admin ? '/admin' : path;
+  const loginPath = `/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
   const page = await request('GET', loginPath, null, jar);
-  const response = await request('POST', admin ? '/admin/login' : '/auth/login', {
-    email, password, _csrf: csrf(page.data), returnTo: path,
+  const response = await request('POST', '/auth/login', {
+    email, password, _csrf: csrf(page.data), returnTo,
   }, jar);
   assert.equal(response.status, 302);
   return response;
@@ -143,7 +144,18 @@ test.before(async () => {
 });
 
 test.after(async () => {
-  if (serverProcess && !serverProcess.killed) serverProcess.kill();
+  if (serverProcess && !serverProcess.killed) {
+    serverProcess.kill('SIGTERM');
+    // Wait for the OS to release the port before proceeding.
+    await new Promise((resolve) => {
+      serverProcess.on('exit', resolve);
+      // Safety timeout: force-kill after 5s
+      setTimeout(() => {
+        try { serverProcess.kill('SIGKILL'); } catch (_) {}
+        resolve();
+      }, 5000);
+    });
+  }
   await cleanup();
   await pool.end();
 });
@@ -299,6 +311,10 @@ test('controlled admin and regular-user authorization fixtures execute without s
   await login(regularJar, fixture.users.otherEmail);
   const denied = await request('GET', '/admin/orders', null, regularJar);
   assert.equal(denied.status, 302);
+
+  // Reset login limiters before attempting admin login so sequential
+  // login POSTs from earlier tests do not exhaust the shared limiter.
+  await request('GET', '/__test_reset_auth_limiters', null, {});
 
   const adminJar = {};
   await login(adminJar, fixture.users.adminEmail, '/admin', true);

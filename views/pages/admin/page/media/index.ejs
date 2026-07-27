@@ -102,6 +102,15 @@
                   <input type="hidden" name="return_to" value="<%= buildLibraryUrl({}) %>">
                   <button class="btn btn-sm btn-danger" type="submit">Archivar</button>
                 </form>
+                <% if (typeof capabilities !== 'undefined' && capabilities.includes('media.delete')) { %>
+                  <form action="/admin/page/media/<%= asset.public_id %>/permanent-delete" method="POST"
+                        style="display:inline"
+                        data-confirm="⚠️ ¿Eliminar permanentemente? Esta acción NO se puede deshacer. El archivo y todos sus derivados serán borrados del servidor.">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="return_to" value="<%= buildLibraryUrl({}) %>">
+                    <button class="btn btn-sm btn-danger" type="submit">Eliminar</button>
+                  </form>
+                <% } %>
               <% } %>
             </div>
           </div>

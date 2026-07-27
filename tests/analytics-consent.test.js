@@ -209,9 +209,9 @@ describe('Phase 14 — Live HTTP rendering', () => {
     assert.ok(res.body.includes('/js/analytics.js'));
   });
 
-  it('admin login does NOT have GA config variables', async () => {
-    const res = await fetch('/admin/login');
+  it('admin login redirect does NOT have GA config variables', async () => {
+    const res = await fetch('/auth/login?returnTo=/admin');
     assert.equal(res.status, 200);
-    assert.ok(!res.body.includes('__GA_MEASUREMENT_ID'), 'Admin pages should not set GA config');
+    assert.ok(!res.body.includes('__GA_MEASUREMENT_ID'), 'Login pages should not set GA config');
   });
 });

@@ -373,7 +373,7 @@
   }
 }
 @media screen and (max-width: 600px) {
-  /* Oculta Servicios, Explorar, Mi sitio web y Contacto */
+  /* Oculta Servicios, Explorar, NinjaLab CR y Contacto */
   .nl-footer__inner > .nl-footer__col {
     display: none;
   }

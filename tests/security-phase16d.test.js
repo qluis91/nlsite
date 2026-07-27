@@ -57,10 +57,10 @@ describe('Phase 16D — Security headers', () => {
     assert.ok(!csp.includes("'unsafe-eval'"), 'CSP should not allow unsafe-eval');
   });
 
-  it('admin page CSP also uses nonce', async () => {
-    const r = await httpReq('GET', '/admin/login');
+  it('admin login CSP also uses nonce (via /auth/login?returnTo=/admin)', async () => {
+    const r = await httpReq('GET', '/auth/login?returnTo=/admin');
     const csp = r.headers['content-security-policy'] || '';
-    assert.ok(csp.includes("'nonce-"), 'Admin CSP should use nonce');
+    assert.ok(csp.includes("'nonce-"), 'Admin login CSP should use nonce');
   });
 
   it('homepage has Permissions-Policy', async () => {

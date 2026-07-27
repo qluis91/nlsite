@@ -91,10 +91,15 @@ exports.login = async (req, res, next) => {
       // Restore guest cart into new session
       restoreCartAfterRegeneration(req, savedCart);
 
+      const isAdmin = roleId === 1;
       req.session.success_msg = `¡Bienvenido, ${user.name}!`;
       req.session.save((saveErr) => {
         if (saveErr) return next(saveErr);
-        return res.redirect(returnTo);
+        // Admin → /admin (or validated returnTo if not bare "/")
+        if (isAdmin) return res.redirect(returnTo === '/' ? '/admin' : returnTo);
+        // Normal user: never redirect to /admin, fall back to /cuenta
+        if (returnTo === '/admin') return res.redirect('/cuenta');
+        return res.redirect(returnTo === '/' ? '/cuenta' : returnTo);
       });
     });
   } catch (error) {
@@ -352,77 +357,6 @@ exports.logout = (req, res, next) => {
 
     return res.redirect('/auth/login');
   });
-};
-
-// ── Mostrar formulario de Login de Administrador ──
-exports.showAdminLogin = (req, res) => {
-  res.render('pages/admin-login', {
-    title: 'Acceso Administrativo',
-    layout: 'layouts/main',
-    pageClass: 'page-auth',
-    pageStyles: ['/css/auth.css'],
-    robots: 'noindex, nofollow',
-    hideFooter: true,
-  });
-};
-
-// ── Procesar Login de Administrador ──
-exports.adminLogin = async (req, res, next) => {
-  try {
-    const email = (req.body.email || '').trim().toLowerCase();
-    const password = req.body.password || '';
-
-    if (!email || !password) {
-      req.session.error_msg = 'Credenciales administrativas inválidas.';
-      return res.redirect('/admin/login');
-    }
-
-    const [rows] = await pool.query(
-      'SELECT id, name, email, password, role_id, avatar_path FROM users WHERE email = ? AND is_active = 1 AND role_id = 1 LIMIT 1',
-      [email]
-    );
-
-    if (rows.length !== 1) {
-      req.session.error_msg = 'Credenciales administrativas inválidas.';
-      return res.redirect('/admin/login');
-    }
-
-    const user = rows[0];
-    const validPassword = await bcrypt.compare(password, user.password);
-
-    if (!validPassword) {
-      req.session.error_msg = 'Credenciales administrativas inválidas.';
-      return res.redirect('/admin/login');
-    }
-
-    // Preserve guest cart before session regeneration
-    const savedCart = captureCartForRegeneration(req);
-
-    req.session.regenerate((err) => {
-      if (err) return next(err);
-
-      const roleId = Number(user.role_id);
-      req.session.user = {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role_id: roleId,
-        role: mapRole(roleId),
-        avatar_path: user.avatar_path || null,
-      };
-
-      // Restore guest cart into new session
-      restoreCartAfterRegeneration(req, savedCart);
-
-      req.session.success_msg = `¡Bienvenido, ${user.name}!`;
-      req.session.save((saveErr) => {
-        if (saveErr) return next(saveErr);
-        return res.redirect('/admin');
-      });
-    });
-  } catch (error) {
-    return next(error);
-  }
 };
 
 // ── Mostrar formulario de olvidó contraseña ──

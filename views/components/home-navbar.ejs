@@ -141,9 +141,6 @@
           </div>
           <span class="hero-nav-username" title="<%= user.name %>"><%= user.name %></span>
           </a>
-          <% if (Number(user.role_id) === 1) { %>
-            <a href="/admin" class="hero-nav-link hero-nav-admin">Admin</a>
-          <% } %>
         </div>
       <% } %>
       <a href="/carrito" class="hero-nav-link hero-nav-cart" aria-label="<%= 'Carrito, ' + (cartItemCount || 0) + ' artículos' %>">

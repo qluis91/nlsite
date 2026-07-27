@@ -95,7 +95,7 @@
 - `views/pages/admin/page/global-settings.ejs`: admin editor with media selector reuse for OG image and favicon
 - `validateGlobalSettings` in `validators/cmsPanelsValidator.js`: validates site name (≤100), SEO title (≤120), description (≤300), URL format, index modes
 - 3 new capabilities: `GLOBAL_SETTINGS_VIEW`, `GLOBAL_SETTINGS_EDIT`, `GLOBAL_SETTINGS_PUBLISH`
-- Admin branding middleware: loads `global.site_name` from `site_settings` and overrides `res.locals.site` for admin routes — sidebar/header shows dynamic name instead of hardcoded "Mi Sitio Web"
+- Admin branding middleware: loads `global.site_name` from `site_settings` and overrides `res.locals.site` for admin routes — sidebar/header shows dynamic name instead of hardcoded "NinjaLabCR"
 - Public SEO middleware: loads global SEO settings from `site_settings` and injects into `res.locals.globalSeoTitle`, `.globalSeoDescription`, `.globalRobots`, `.globalCanonical`, `.globalOgImage`, `.globalFavicon`
 - Favicon rendering: `<link rel="icon">` added to both `main.ejs` (public) and `admin.ejs` (admin) layouts
 - Open Graph tags: `og:title`, `og:description`, `og:image`, `og:url`, `og:type`, `og:locale` in `main.ejs`

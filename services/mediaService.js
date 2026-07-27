@@ -593,9 +593,6 @@ async function restore(publicId, actorId = null) {
 async function permanentDelete(publicId, actorId = null) {
   const asset = await getByPublicId(publicId);
   if (!asset) throw new MediaError('El archivo no existe en la biblioteca.', 'NOT_FOUND');
-  if (!asset.is_archived) {
-    throw new MediaError('Archive el archivo antes de eliminarlo permanentemente.', 'NOT_ARCHIVED');
-  }
 
   await usage.assertNotReferenced(asset.public_id, 'eliminar permanentemente');
 

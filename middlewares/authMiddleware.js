@@ -24,7 +24,8 @@ function setLocals(req, res, next) {
 // ── Proteger rutas: requiere sesión con id válido ──
 function safeAuthReturnPath(value) {
   const raw = String(value || '');
-  return /^\/cuenta(?:\/(?:perfil|seguridad|direcciones(?:\/(?:nueva|[1-9]\d*\/editar))?|pedidos(?:\/NL-[A-Z0-9]{12})?))?(?:\?page=\d+(?:&limit=\d+)?)?$/.test(raw)
+  // Phase 16E: /admin added as valid returnTo for unified login flow.
+  return /^\/admin$|^\/cuenta(?:\/(?:perfil|seguridad|direcciones(?:\/(?:nueva|[1-9]\d*\/editar))?|pedidos(?:\/NL-[A-Z0-9]{12})?))?(?:\?page=\d+(?:&limit=\d+)?)?$/.test(raw)
     ? raw
     : '/';
 }

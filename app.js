@@ -404,20 +404,8 @@ app.use(async (req, res, next) => {
   next();
 });
 
-// ── Rate Limiter para Login de Administrador ──
-const adminLoginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (req, res) => {
-    req.session.error_msg =
-      'Demasiados intentos de inicio de sesión. Inténtalo nuevamente en unos minutos.';
-    return res.redirect('/admin/login');
-  },
-});
-
 // ── Global auth rate limiters ──
+// Phase 16E: adminLoginLimiter removed — unified under /auth/login loginLimiter.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -427,6 +415,23 @@ const authLimiter = rateLimit({
     req.session.error_msg = 'Demasiados intentos. Inténtalo nuevamente en unos minutos.';
     return res.redirect('/auth/login');
   },
+});
+
+// ── Test-only: reset all auth rate limiters ──
+app.get('/__test_reset_auth_limiters', async (req, res) => {
+  if (process.env.NODE_ENV !== 'test') return res.status(404).end();
+  const keys = ['127.0.0.1', '::1', '::ffff:127.0.0.1'];
+  for (const key of keys) {
+    try { await authLimiter.resetKey(key); } catch (_) {}
+  }
+  try {
+    const authRoutes = require('./routes/authRoutes');
+    for (const key of keys) {
+      try { await authRoutes.registerLimiter.resetKey(key); } catch (_) {}
+      try { await authRoutes.loginLimiter.resetKey(key); } catch (_) {}
+    }
+  } catch (_) {}
+  res.json({ ok: true });
 });
 
 const guestLookupLimiter = rateLimit({
@@ -439,9 +444,13 @@ const guestLookupLimiter = rateLimit({
   },
 });
 
-// ── Rutas de Login de Administrador (ANTES del middleware de admin) ──
-app.get('/admin/login', isAdminGuest, authController.showAdminLogin);
-app.post('/admin/login', isAdminGuest, csrfSynchronisedProtection, adminLoginLimiter, authController.adminLogin);
+// ── Phase 16E: /admin/login redirects to unified /auth/login with returnTo=/admin ──
+app.get('/admin/login', isAdminGuest, (req, res) => {
+  return res.redirect('/auth/login?returnTo=/admin');
+});
+app.post('/admin/login', isAdminGuest, (req, res) => {
+  return res.redirect('/auth/login?returnTo=/admin');
+});
 
 // ── Admin catalog: mounted BEFORE global CSRF so multipart routes handle CSRF after multer ──
 app.use('/admin', isAuthenticated, isAdmin, adminCatalogRoutes);

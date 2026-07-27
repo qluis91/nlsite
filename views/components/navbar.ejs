@@ -16,9 +16,6 @@
           </div>
           <span class="nav-user-name" title="<%= user.name %>"><%= user.name %></span>
           </a>
-          <% if (Number(user.role_id) === 1) { %>
-            <a href="/admin" class="nav-user-admin">Admin</a>
-          <% } %>
           <form action="/auth/logout" method="POST" class="logout-form">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button type="submit" class="btn btn-sm btn-outline logout-button">Cerrar Sesión</button>

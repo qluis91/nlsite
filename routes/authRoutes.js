@@ -97,3 +97,5 @@ router.post('/reset-password', isGuest, resetPasswordLimiter, authController.res
 router.post('/logout', authController.logout);
 
 module.exports = router;
+module.exports.registerLimiter = registerLimiter;
+module.exports.loginLimiter = loginLimiter;

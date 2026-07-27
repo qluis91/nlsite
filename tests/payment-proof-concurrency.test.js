@@ -224,7 +224,7 @@ describe('Payment Proof CSRF & Concurrency', () => {
 
   // ── Regression tests ──
   it('Login/register pages have CSRF tokens', async () => {
-    for (const url of ['/auth/login', '/admin/login', '/auth/register']) {
+    for (const url of ['/auth/login', '/auth/register']) {
       const r = await get(url);
       assert.ok(r.b.includes('name="_csrf"'), url+' has CSRF');
     }
