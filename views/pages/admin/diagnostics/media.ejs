@@ -8,6 +8,41 @@
   </div>
 </div>
 
+<section class="card">
+  <h2>Reconciliación de Biblioteca multimedia</h2>
+  <p>Reporte de solo lectura. No mueve archivos ni modifica registros.</p>
+  <% const report = diagnostics.reconciliation; %>
+  <% if (report) { %>
+    <p>
+      Revisados: <strong><%= report.scanned %></strong> ·
+      Válidos: <strong><%= report.counts.valid %></strong> ·
+      Legado recuperable: <strong><%= report.counts.recoverable_legacy_path %></strong> ·
+      Original faltante: <strong><%= report.counts.missing_original %></strong> ·
+      Derivados faltantes: <strong><%= report.counts.missing_thumbnail_or_variant %></strong> ·
+      Ruta inválida: <strong><%= report.counts.invalid_stored_path %></strong>
+    </p>
+    <table class="table">
+      <thead><tr><th>Activo</th><th>Estado</th><th>Resultado</th><th>Acción</th></tr></thead>
+      <tbody>
+        <% report.assets.forEach(function(asset) { %>
+          <tr>
+            <td>
+              <strong><%= asset.title || asset.originalName || 'Sin nombre' %></strong><br>
+              <code><%= asset.publicId %></code>
+            </td>
+            <td><%= asset.status %></td>
+            <td>
+              <strong><%= asset.classification %></strong>
+              <% if (asset.issues.length) { %><br><%= asset.issues.join(' ') %><% } %>
+            </td>
+            <td><%= asset.requiresReupload ? 'Volver a cargar el archivo.' : 'No requiere recarga.' %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</section>
+
 <div class="card">
   <p class="warning-banner">
     Esta página solo está disponible cuando <code>MEDIA_DIAGNOSTIC_ENABLED=true</code>.

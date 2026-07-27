@@ -324,7 +324,8 @@ async function mediaBrowse(req, res, next) {
     // Paginate
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(l, offset);
-    const [assets] = await pool.query(sql, params);
+    const [rows] = await pool.query(sql, params);
+    const assets = rows.map(mediaService.decorate);
 
     // Get categories for filters
     const [catRows] = await pool.query(

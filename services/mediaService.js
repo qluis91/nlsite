@@ -11,6 +11,7 @@ const pool = require('../config/db');
 const storage = require('./mediaStorageService');
 const usage = require('./mediaUsageService');
 const revisions = require('./contentRevisionService');
+const publishing = require('./cmsPublishingService');
 const {
   MEDIA_STATUSES,
   MEDIA_KINDS,
@@ -48,14 +49,38 @@ function kindOf(asset) {
 
 function decorate(row) {
   if (!row) return null;
+  let resolvedPaths = null;
+  try {
+    resolvedPaths = storage.resolvedAssetPaths(row);
+  } catch {
+    resolvedPaths = null;
+  }
   return {
     ...row,
+    storage_path: resolvedPaths?.storagePath || row.storage_path,
+    public_url: resolvedPaths?.publicUrl || null,
+    thumbnail_path: resolvedPaths?.thumbnailUrl || null,
+    path_contract_valid: Boolean(resolvedPaths),
+    path_contract_legacy: Boolean(resolvedPaths?.isLegacy),
     variants: storage.parseVariants(row.variants_json),
     model_metadata: storage.parseVariants(row.model_metadata),
     kind: kindOf(row),
     reference: usage.buildReference(row.public_id),
     is_archived: row.status === MEDIA_STATUSES.ARCHIVED,
   };
+}
+
+function invalidateMediaCaches() {
+  for (const namespace of [
+    'siteSettings',
+    'nav_home',
+    'sc_home',
+    'logoLoop_home',
+    'carousel_home',
+    'features_home',
+  ]) {
+    publishing.invalidateNamespace(namespace);
+  }
 }
 
 function formatFileSize(bytes) {
@@ -254,6 +279,7 @@ async function createFromUpload({ file, category, metadata = {}, actorId = null 
     }, connection);
 
     await connection.commit();
+    invalidateMediaCaches();
     return decorate(rows[0]);
   } catch (error) {
     await connection.rollback().catch(() => {});
@@ -362,6 +388,7 @@ async function updateMetadata(publicId, data, actorId = null) {
     }, connection);
 
     await connection.commit();
+    invalidateMediaCaches();
     return decorate(rows[0]);
   } catch (error) {
     await connection.rollback().catch(() => {});
@@ -453,6 +480,7 @@ async function replaceFile(publicId, file, actorId = null) {
 
     await connection.commit();
     await storage.removeStoredPaths(storage.ownedPaths(previous));
+    invalidateMediaCaches();
     return decorate(rows[0]);
   } catch (error) {
     await connection.rollback().catch(() => {});
@@ -501,6 +529,7 @@ async function archive(publicId, actorId = null) {
     }, connection);
 
     await connection.commit();
+    invalidateMediaCaches();
     return decorate(rows[0]);
   } catch (error) {
     await connection.rollback().catch(() => {});
@@ -546,6 +575,7 @@ async function restore(publicId, actorId = null) {
     }, connection);
 
     await connection.commit();
+    invalidateMediaCaches();
     return decorate(rows[0]);
   } catch (error) {
     await connection.rollback().catch(() => {});
@@ -563,6 +593,9 @@ async function restore(publicId, actorId = null) {
 async function permanentDelete(publicId, actorId = null) {
   const asset = await getByPublicId(publicId);
   if (!asset) throw new MediaError('El archivo no existe en la biblioteca.', 'NOT_FOUND');
+  if (!asset.is_archived) {
+    throw new MediaError('Archive el archivo antes de eliminarlo permanentemente.', 'NOT_ARCHIVED');
+  }
 
   await usage.assertNotReferenced(asset.public_id, 'eliminar permanentemente');
 
@@ -591,6 +624,7 @@ async function permanentDelete(publicId, actorId = null) {
 
     await connection.query('DELETE FROM media_assets WHERE id = ?', [asset.id]);
     await connection.commit();
+    invalidateMediaCaches();
   } catch (error) {
     await connection.rollback().catch(() => {});
     throw error;
@@ -621,6 +655,7 @@ module.exports = {
   assertPublicId,
   kindOf,
   decorate,
+  invalidateMediaCaches,
   formatFileSize,
   getByPublicId,
   findActiveByChecksum,

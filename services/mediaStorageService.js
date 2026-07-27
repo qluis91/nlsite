@@ -10,8 +10,6 @@ const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
 const {
-  MEDIA_ROOT,
-  MEDIA_PUBLIC_PREFIX,
   MEDIA_DIRECTORIES,
   MEDIA_KINDS,
   CATEGORY_KIND,
@@ -30,9 +28,19 @@ const {
   MAX_IMAGE_PIXELS,
   IMAGE_VARIANTS,
 } = require('../config/cmsOptions');
+const {
+  MEDIA_ROOT,
+  MEDIA_STORAGE_PREFIX,
+  UPLOAD_PUBLIC_ROOT,
+  toPosix,
+  resolveUploadStoragePath,
+  publicUrlForStoragePath,
+  storagePathFromPublicUrl,
+  storagePathFromAbsolute,
+} = require('../config/uploadPaths');
 
 const MEDIA_ROOT_ABS = path.resolve(MEDIA_ROOT);
-const RELATIVE_PATH_PATTERN = /^[a-z]+\/[a-z0-9][a-z0-9._-]*$/;
+const FILENAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
 const GLB_MAGIC = 0x46546c67; // 'glTF' little-endian
 const GLB_JSON_CHUNK = 0x4e4f534a; // 'JSON'
 const MAX_GLB_JSON_CHUNK = 8 * 1024 * 1024;
@@ -64,28 +72,55 @@ function kindForCategory(category) {
  * Resolve a stored relative path to an absolute one, refusing anything that
  * escapes the media root. Never accepts browser-supplied strings directly.
  */
+function inspectStoredPath(storedPath) {
+  const raw = String(storedPath || '').trim();
+  if (!raw) throw new Error('Ruta de medio inválida.');
+
+  let relative;
+  let format = 'canonical';
+  if (/^\/uploads\//i.test(toPosix(raw))) {
+    relative = storagePathFromPublicUrl(toPosix(raw));
+    format = 'public-url';
+  } else if (path.isAbsolute(raw) || /^[a-z]:[\\/]/i.test(raw)) {
+    relative = storagePathFromAbsolute(raw);
+    format = 'absolute-under-upload-root';
+  } else {
+    relative = toPosix(raw).replace(/^\/+/, '');
+  }
+
+  const parts = relative.split('/');
+  if (parts.length === 2) {
+    relative = `${MEDIA_STORAGE_PREFIX}/${relative}`;
+    if (format === 'canonical') format = 'media-root-relative';
+  }
+
+  const canonicalParts = relative.split('/');
+  if (
+    canonicalParts.length !== 3 ||
+    canonicalParts[0] !== MEDIA_STORAGE_PREFIX ||
+    !MEDIA_DIRECTORIES.includes(canonicalParts[1]) ||
+    !FILENAME_PATTERN.test(canonicalParts[2]) ||
+    canonicalParts[2].includes('..')
+  ) {
+    throw new Error('Ruta de medio fuera del almacenamiento permitido.');
+  }
+
+  const canonicalPath = canonicalParts.join('/');
+  return {
+    canonicalPath,
+    publicUrl: publicUrlForStoragePath(canonicalPath),
+    format,
+    isLegacy: format !== 'canonical',
+  };
+}
+
 function resolveStoragePath(relativePath) {
-  const value = String(relativePath || '');
-  if (!RELATIVE_PATH_PATTERN.test(value) || value.includes('..')) {
-    throw new Error('Ruta de medio inválida.');
-  }
-  const [directory] = value.split('/');
-  if (!MEDIA_DIRECTORIES.includes(directory)) {
-    throw new Error('Ruta de medio fuera del almacenamiento permitido.');
-  }
-  const resolved = path.resolve(MEDIA_ROOT_ABS, value);
-  if (!resolved.startsWith(`${MEDIA_ROOT_ABS}${path.sep}`)) {
-    throw new Error('Ruta de medio fuera del almacenamiento permitido.');
-  }
-  return resolved;
+  return resolveUploadStoragePath(inspectStoredPath(relativePath).canonicalPath);
 }
 
 /** Public URL for a stored relative path. Never leaks the filesystem root. */
 function publicUrlFor(relativePath) {
-  if (!RELATIVE_PATH_PATTERN.test(String(relativePath || ''))) {
-    throw new Error('Ruta de medio inválida.');
-  }
-  return `${MEDIA_PUBLIC_PREFIX}${relativePath}`;
+  return inspectStoredPath(relativePath).publicUrl;
 }
 
 function checksumOf(buffer) {
@@ -287,7 +322,7 @@ async function storeUpload(file, category) {
   try {
     if (kind === MEDIA_KINDS.MODEL) {
       const modelMetadata = inspectGlb(buffer);
-      const relative = `${categoryDirectory(category)}/${base}.glb`;
+      const relative = `${MEDIA_STORAGE_PREFIX}/${categoryDirectory(category)}/${base}.glb`;
       await writeNewFile(relative, buffer);
       written.push(relative);
       return {
@@ -313,17 +348,17 @@ async function storeUpload(file, category) {
     const directory = categoryDirectory(category);
 
     const large = await renderVariant(buffer, IMAGE_VARIANTS.large);
-    const largeRelative = `${directory}/${base}.webp`;
+    const largeRelative = `${MEDIA_STORAGE_PREFIX}/${directory}/${base}.webp`;
     await writeNewFile(largeRelative, large.buffer);
     written.push(largeRelative);
 
     const medium = await renderVariant(buffer, IMAGE_VARIANTS.medium);
-    const mediumRelative = `${directory}/${base}-medium.webp`;
+    const mediumRelative = `${MEDIA_STORAGE_PREFIX}/${directory}/${base}-medium.webp`;
     await writeNewFile(mediumRelative, medium.buffer);
     written.push(mediumRelative);
 
     const thumbnail = await renderVariant(buffer, IMAGE_VARIANTS.thumbnail);
-    const thumbnailRelative = `${THUMBNAIL_DIRECTORY}/${base}-thumb.webp`;
+    const thumbnailRelative = `${MEDIA_STORAGE_PREFIX}/${THUMBNAIL_DIRECTORY}/${base}-thumb.webp`;
     await writeNewFile(thumbnailRelative, thumbnail.buffer);
     written.push(thumbnailRelative);
 
@@ -371,10 +406,11 @@ async function storeUpload(file, category) {
 function ownedPaths(asset) {
   if (!asset) return [];
   const variants = parseVariants(asset.variants_json);
-  return [
+  return [...new Set([
     asset.storage_path,
+    asset.thumbnail_path,
     ...Object.values(variants).map((variant) => variant?.storage_path),
-  ].filter(Boolean);
+  ].filter(Boolean))];
 }
 
 function parseVariants(value) {
@@ -388,12 +424,37 @@ function parseVariants(value) {
   }
 }
 
+function resolvedAssetPaths(asset) {
+  if (!asset) throw new Error('Activo multimedia inválido.');
+  const original = inspectStoredPath(asset.storage_path || asset.public_url);
+  const variants = parseVariants(asset.variants_json);
+  let thumbnail = null;
+  const thumbnailSource = variants.thumbnail?.storage_path || asset.thumbnail_path;
+  if (thumbnailSource) {
+    try {
+      thumbnail = inspectStoredPath(thumbnailSource);
+    } catch {
+      thumbnail = null;
+    }
+  }
+  return {
+    storagePath: original.canonicalPath,
+    publicUrl: original.publicUrl,
+    thumbnailStoragePath: thumbnail?.canonicalPath || null,
+    thumbnailUrl: thumbnail?.publicUrl || null,
+    originalFormat: original.format,
+    isLegacy: original.isLegacy || Boolean(thumbnail?.isLegacy),
+  };
+}
+
 module.exports = {
+  UPLOAD_PUBLIC_ROOT,
   MEDIA_ROOT_ABS,
   mediaRoot,
   ensureMediaDirectories,
   categoryDirectory,
   kindForCategory,
+  inspectStoredPath,
   resolveStoragePath,
   publicUrlFor,
   checksumOf,
@@ -409,4 +470,5 @@ module.exports = {
   storeUpload,
   ownedPaths,
   parseVariants,
+  resolvedAssetPaths,
 };

@@ -7,6 +7,9 @@ const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
 const compression = require('compression');
+const {
+  UPLOAD_PUBLIC_ROOT,
+} = require('./config/uploadPaths');
 
 // ── Environment validation (fail-fast) ──
 const { validateEnv } = require('./config/envValidator');
@@ -24,7 +27,7 @@ if (envIssues.length) {
 }
 
 // ── Ensure upload directories ──
-const UPLOAD_PUBLIC = process.env.UPLOAD_PUBLIC_DIR || path.join(__dirname, 'public', 'uploads');
+const UPLOAD_PUBLIC = UPLOAD_PUBLIC_ROOT;
 const UPLOAD_PROOFS = process.env.UPLOAD_PROOFS_DIR || path.join(__dirname, 'storage', 'payment-proofs');
 [UPLOAD_PUBLIC, UPLOAD_PROOFS].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -196,6 +199,30 @@ app.use('/js', express.static(path.join(__dirname, 'public', 'js'), textCacheOpt
 app.use('/images', express.static(path.join(__dirname, 'public', 'images'), mediaCacheOpts));
 app.use('/Video', express.static(path.join(__dirname, 'public', 'Video'), mediaCacheOpts));
 app.use('/fonts', express.static(path.join(__dirname, 'public', 'fonts'), mediaCacheOpts));
+
+// Canonical persistent uploads mount. It must precede the generic public root
+// so a checked-in public/uploads directory cannot shadow Railway's volume.
+{
+  const uploadsAbs = UPLOAD_PUBLIC_ROOT;
+  const existed = fs.existsSync(uploadsAbs);
+  if (!existed) {
+    console.warn(`⚠️  Uploads: ${uploadsAbs} no existe — creando directorio.`);
+    fs.mkdirSync(uploadsAbs, { recursive: true });
+  }
+  let writable = false;
+  try {
+    fs.accessSync(uploadsAbs, fs.constants.W_OK);
+    writable = true;
+  } catch (_) { /* not writable */ }
+  console.log(`📁 Uploads: ${uploadsAbs} (${existed ? 'existe' : 'creado'}, ${writable ? 'escribible' : 'NO escribible'})`);
+  app.use('/uploads', express.static(uploadsAbs, {
+    dotfiles: 'deny',
+    index: false,
+    maxAge: IS_PRODUCTION ? '7d' : 0,
+    immutable: IS_PRODUCTION,
+  }));
+}
+
 app.use(express.static(path.join(__dirname, 'public'), textCacheOpts));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -561,20 +588,20 @@ app.get('/', async (req, res) => {
     let carouselItems = [];
     let featureItems = [];
 
-    if (showcaseContent) {
-      const sectionId = await resolveSectionId('showcase');
-      if (sectionId) {
+    {
+      const section = await resolveSection('showcase');
+      if (section?.status === 'published' && Number(section.is_enabled) === 1) {
         [logoLoopItems, carouselItems] = await Promise.all([
-          repeatableSvc.getPublishedItems('logo_loop_items', sectionId),
-          repeatableSvc.getPublishedItems('home_carousel_items', sectionId),
+          repeatableSvc.getPublishedItems('logo_loop_items', section.id),
+          repeatableSvc.getPublishedItems('home_carousel_items', section.id),
         ]);
       }
     }
 
-    if (servicesContent) {
-      const sectionId = await resolveSectionId('services');
-      if (sectionId) {
-        featureItems = await repeatableSvc.getPublishedItems('home_feature_items', sectionId);
+    {
+      const section = await resolveSection('services');
+      if (section?.status === 'published' && Number(section.is_enabled) === 1) {
+        featureItems = await repeatableSvc.getPublishedItems('home_feature_items', section.id);
       }
     }
 
@@ -584,13 +611,13 @@ app.get('/', async (req, res) => {
       return cmsContent.resolveMediaReference(ref, null);
     };
 
-    async function resolveSectionId(sectionKey) {
+    async function resolveSection(sectionKey) {
       const db = require('./config/db');
       const [[row]] = await db.query(
-        "SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = ?",
+        "SELECT s.id, s.status, s.is_enabled FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = ?",
         [sectionKey]
       );
-      return row ? row.id : null;
+      return row || null;
     }
 
     // Resolve carousel item media
@@ -670,30 +697,6 @@ app.get('/', async (req, res) => {
     });
   }
 });
-
-// ── Phase 16D: Single /uploads mount — resolves to UPLOAD_PUBLIC_DIR or default public/uploads
-// Startup logging reports directory, existence, and writability. No credentials exposed.
-{
-  const uploadsAbs = path.resolve(UPLOAD_PUBLIC);
-  const exists = fs.existsSync(uploadsAbs);
-  if (!exists) {
-    console.warn(`⚠️  Uploads: ${uploadsAbs} no existe — creando directorio.`);
-    fs.mkdirSync(uploadsAbs, { recursive: true });
-  }
-  let writable = false;
-  try {
-    fs.accessSync(uploadsAbs, fs.constants.W_OK);
-    writable = true;
-  } catch (_) { /* not writable */ }
-  const status = writable ? 'escribible' : 'NO escribible';
-  console.log(`📁 Uploads: ${uploadsAbs} (${exists ? 'existe' : 'creado'}, ${status})`);
-  app.use('/uploads', express.static(uploadsAbs, {
-    dotfiles: 'deny',
-    index: false,
-    maxAge: IS_PRODUCTION ? '7d' : 0,
-    immutable: IS_PRODUCTION,
-  }));
-}
 
 // ── Health / Readiness (no auth, no session) ──
 app.get('/health', (_req, res) => {

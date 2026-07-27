@@ -7,6 +7,7 @@ const repeatable = require('../services/cmsRepeatableService');
 const mediaService = require('../services/mediaService');
 const validator = require('../validators/cmsPanelsValidator');
 const pool = require('../config/db');
+const cmsContent = require('../services/cmsContentService');
 
 // ── Helpers ──
 
@@ -20,7 +21,7 @@ function successRedirect(res, url, msg) {
 
 async function getSectionId(pageKey, sectionKey) {
   const [[row]] = await pool.query(
-    "SELECT s.id AS id, s.content_json AS content_json, s.style_json AS style_json, s.status AS status FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = ? AND s.section_key = ? LIMIT 1",
+    "SELECT s.id AS id, s.content_json AS content_json, s.style_json AS style_json, s.status AS status, s.is_enabled AS is_enabled FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = ? AND s.section_key = ? LIMIT 1",
     [pageKey, sectionKey]
   );
   return row || null;
@@ -30,20 +31,18 @@ async function resolveMediaData(ref) {
   if (!ref) return null;
   const publicId = String(ref).replace(/^media:\/\//, '').trim();
   if (!publicId) return null;
-  const [rows] = await pool.query(
-    `SELECT public_id, title, original_name AS original_filename, mime_type, category,
-            CASE
-              WHEN width IS NOT NULL AND height IS NOT NULL THEN CONCAT(width, '×', height)
-              ELSE ''
-            END AS dimensions,
-            thumbnail_path AS thumbnail_url,
-            public_url AS url
-       FROM media_assets
-      WHERE public_id = ? AND status = 'active' AND deleted_at IS NULL
-      LIMIT 1`,
-    [publicId]
-  );
-  return rows[0] || null;
+  const resolved = await cmsContent.resolveMediaReference(`media://${publicId}`, null);
+  if (!resolved) return null;
+  return {
+    public_id: publicId,
+    title: resolved.title,
+    original_filename: resolved.title,
+    mime_type: resolved.mimeType,
+    category: resolved.category,
+    dimensions: resolved.dimensions,
+    thumbnail_url: resolved.thumbnailUrl,
+    url: resolved.url,
+  };
 }
 
 async function resolveItemMediaData(items, fields) {
@@ -225,7 +224,7 @@ async function publishLogoLoop(req, res) {
     const section = await getSectionId('home', 'showcase');
     await repeatable.publishCollection('logo_loop_items', section.id, 'logoLoop_home', { actorId: req.user?.id });
     // Ensure the section itself is published so items appear on the public homepage
-    if (section.status !== 'published') {
+    if (section.status !== 'published' || Number(section.is_enabled) !== 1) {
       await publishing.publishSection('home', 'showcase', { actorId: req.user?.id });
     }
     return successRedirect(res, '/admin/page/home/panel-2', 'LogoLoop publicado.');
@@ -314,7 +313,7 @@ async function publishCarousel(req, res) {
     const section = await getSectionId('home', 'showcase');
     await repeatable.publishCollection('home_carousel_items', section.id, 'carousel_home', { actorId: req.user?.id });
     // Ensure the section itself is published so items appear on the public homepage
-    if (section.status !== 'published') {
+    if (section.status !== 'published' || Number(section.is_enabled) !== 1) {
       await publishing.publishSection('home', 'showcase', { actorId: req.user?.id });
     }
     return successRedirect(res, '/admin/page/home/panel-2', 'Carrusel publicado.');

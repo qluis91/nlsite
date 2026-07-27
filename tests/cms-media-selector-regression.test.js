@@ -193,15 +193,18 @@ describe('Panel 3 controller and authenticated route regression', () => {
     return originalModuleLoad.call(this, request, parent, isMain);
   };
   const repeatable = require('../services/cmsRepeatableService');
+  const mediaStorage = require('../services/mediaStorageService');
   const controller = require('../controllers/adminPanelsController');
   Module._load = originalModuleLoad;
   const originalPoolQuery = pool.query;
   const originalListItems = repeatable.listItems;
+  const originalStoredPathExists = mediaStorage.storedPathExists;
   const originalShowPanel3 = controller.showPanel3;
 
   afterEach(() => {
     pool.query = originalPoolQuery;
     repeatable.listItems = originalListItems;
+    mediaStorage.storedPathExists = originalStoredPathExists;
     controller.showPanel3 = originalShowPanel3;
     delete require.cache[require.resolve('../routes/adminPanelsRoutes')];
   });
@@ -233,16 +236,18 @@ describe('Panel 3 controller and authenticated route regression', () => {
         return [[{ id: 3, content_json: {}, style_json: {}, status: 'draft' }]];
       }
       return [[{
-        public_id: mediaId,
         title: 'Icono',
         original_filename: 'icon.webp',
         mime_type: 'image/webp',
         category: 'icon',
         dimensions: '200×200',
-        thumbnail_url: '/uploads/media/icon.webp',
-        url: '/uploads/media/icon.webp',
+        storage_path: 'media/icons/icon.webp',
+        public_url: '/uploads/media/icons/icon.webp',
+        thumbnail_path: 'media/icons/icon.webp',
+        variants_json: null,
       }]];
     };
+    mediaStorage.storedPathExists = async () => true;
     repeatable.listItems = async () => [
       feature({ icon_type: 'media', icon_key: null, media_public_id: mediaId }),
     ];
@@ -255,7 +260,7 @@ describe('Panel 3 controller and authenticated route regression', () => {
     assert.equal(queries.length, 2);
     assert.deepEqual(queries[1].params, [mediaId]);
     assert.match(queries[1].sql, /original_name AS original_filename/);
-    assert.equal(locals.items[0].media_public_id_resolved.thumbnail_url, '/uploads/media/icon.webp');
+    assert.equal(locals.items[0].media_public_id_resolved.thumbnail_url, '/uploads/media/icons/icon.webp');
   });
 
   it('authenticated admin Panel 3 route returns HTTP 200', async () => {

@@ -112,19 +112,31 @@ async function resolveMediaReference(reference, fallback = null) {
   if (!isMediaReference(reference)) return fallback;
   const publicId = reference.slice(REFERENCE_SCHEME.length);
   const [rows] = await pool.query(
-    `SELECT public_url, thumbnail_path, variants_json, alt_text
+    `SELECT storage_path, public_url, thumbnail_path, variants_json, alt_text,
+            title, original_name AS original_filename, mime_type, category, width, height
        FROM media_assets
-      WHERE public_id = ? AND deleted_at IS NULL
+      WHERE public_id = ? AND status = 'active' AND deleted_at IS NULL
       LIMIT 1`,
     [publicId]
   );
   const row = rows[0];
   if (!row) return fallback;
+  let paths;
+  try {
+    paths = storage.resolvedAssetPaths(row);
+  } catch {
+    return fallback;
+  }
+  if (!(await storage.storedPathExists(paths.storagePath))) return fallback;
   return {
-    url: row.public_url,
-    thumbnailUrl: row.thumbnail_path,
+    url: paths.publicUrl,
+    thumbnailUrl: paths.thumbnailUrl,
     variants: storage.parseVariants(row.variants_json),
     altText: row.alt_text,
+    title: row.title || row.original_filename || null,
+    mimeType: row.mime_type,
+    category: row.category,
+    dimensions: row.width && row.height ? `${row.width}Ã—${row.height}` : null,
   };
 }
 

@@ -43,18 +43,16 @@ describe('Navbar admin — resolveMediaData column fix', () => {
     assert.ok(/\n\s+height\s+INT/.test(mediaAssetsBlock), 'media_assets has height column');
   });
 
-  it('resolveMediaData aliases original_name -> original_filename', () => {
-    assert.match(controllerSrc, /original_name\s+AS\s+original_filename/);
+  it('resolveMediaData maps the shared resolver title to original_filename', () => {
+    assert.match(controllerSrc, /original_filename:\s*resolved\.title/);
   });
 
-  it('resolveMediaData aliases thumbnail_path -> thumbnail_url', () => {
-    assert.match(controllerSrc, /thumbnail_path\s+AS\s+thumbnail_url/);
+  it('resolveMediaData maps the shared resolver thumbnail URL', () => {
+    assert.match(controllerSrc, /thumbnail_url:\s*resolved\.thumbnailUrl/);
   });
 
-  it('resolveMediaData builds dimensions from CONCAT(width, height)', () => {
-    assert.match(controllerSrc, /CONCAT\(IFNULL\(width/);
-    assert.match(controllerSrc, /IFNULL\(height/);
-    assert.match(controllerSrc, /\bAS\s+dimensions\b/);
+  it('resolveMediaData maps dimensions from the shared resolver', () => {
+    assert.match(controllerSrc, /dimensions:\s*resolved\.dimensions/);
   });
 
   it('resolveMediaData does NOT query bare non-existent columns', () => {
@@ -76,7 +74,7 @@ describe('Navbar admin — resolveMediaData column fix', () => {
   });
 
   it('resolveMediaData returns rows[0] || null — never throws on missing', () => {
-    assert.match(controllerSrc, /rows\[0\]\s*\|\|\s*null/);
+    assert.match(controllerSrc, /if\s*\(!resolved\)\s*return null/);
   });
 
   it('navbar.ejs passes selectedDimensions to media-selector', () => {

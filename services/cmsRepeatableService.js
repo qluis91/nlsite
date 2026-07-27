@@ -167,7 +167,10 @@ function registerPanelUsageSources() {
   usageService.registerUsageSource('logo_loop_items', async (reference) => {
     const publicId = reference.replace('media://', '');
     const [rows] = await pool.query(
-      "SELECT text_content, id FROM logo_loop_items WHERE media_public_id = ? LIMIT 50", [publicId]
+      `SELECT text_content, id FROM logo_loop_items
+        WHERE media_public_id = ? AND deleted_at IS NULL AND status != 'archived'
+        LIMIT 50`,
+      [publicId]
     );
     return rows.map(r => ({ source: 'logo_loop_items', label: 'LogoLoop', location: `LogoLoop: ${r.text_content || 'item'}` }));
   });
@@ -175,7 +178,10 @@ function registerPanelUsageSources() {
   usageService.registerUsageSource('home_carousel_items', async (reference) => {
     const publicId = reference.replace('media://', '');
     const [rows] = await pool.query(
-      "SELECT title, id FROM home_carousel_items WHERE media_public_id = ? OR preview_media_public_id = ? LIMIT 50",
+      `SELECT title, id FROM home_carousel_items
+        WHERE (media_public_id = ? OR preview_media_public_id = ?)
+          AND deleted_at IS NULL AND status != 'archived'
+        LIMIT 50`,
       [publicId, publicId]
     );
     return rows.map(r => ({ source: 'home_carousel_items', label: 'Carrusel', location: `Proyecto: ${r.title}` }));
@@ -184,7 +190,10 @@ function registerPanelUsageSources() {
   usageService.registerUsageSource('home_feature_items', async (reference) => {
     const publicId = reference.replace('media://', '');
     const [rows] = await pool.query(
-      "SELECT title, id FROM home_feature_items WHERE media_public_id = ? LIMIT 50", [publicId]
+      `SELECT title, id FROM home_feature_items
+        WHERE media_public_id = ? AND deleted_at IS NULL AND status != 'archived'
+        LIMIT 50`,
+      [publicId]
     );
     return rows.map(r => ({ source: 'home_feature_items', label: 'Panel 3', location: `Tarjeta: ${r.title}` }));
   });

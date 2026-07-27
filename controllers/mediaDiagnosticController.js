@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const pool = require('../config/db');
 const storage = require('../services/mediaStorageService');
+const reconciliation = require('../services/mediaReconciliationService');
 const { CAPABILITIES, hasCapability } = require('../config/capabilities');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -89,6 +90,8 @@ async function mediaDiagnostic(req, res, next) {
       fileCheck = { public_id: queryId, valid_uuid: false };
     }
 
+    const reconciliationReport = await reconciliation.buildReport();
+
     res.render('pages/admin/diagnostics/media', {
       title: 'Diagnóstico de medios',
       layout: 'layouts/admin',
@@ -105,6 +108,7 @@ async function mediaDiagnostic(req, res, next) {
         active_media_count: Number(activeCount.total),
         archived_media_count: Number(archivedCount.total),
         file_check: fileCheck,
+        reconciliation: reconciliationReport,
       },
     });
   } catch (error) {

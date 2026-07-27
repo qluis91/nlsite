@@ -46,15 +46,18 @@ async function verifyMediaRef(ref, expectedKind = null) {
 async function resolveMediaData(ref) {
   if (!ref || !ref.startsWith('media://')) return null;
   const publicId = ref.replace('media://', '');
-  const [rows] = await pool.query(
-    `SELECT public_id, title, original_name AS original_filename, mime_type, category,
-            thumbnail_path AS thumbnail_url,
-            CONCAT(IFNULL(width, '?'), '\u00d7', IFNULL(height, '?')) AS dimensions
-     FROM media_assets
-     WHERE public_id = ? AND status = "active"`,
-    [publicId]
-  );
-  return rows[0] || null;
+  const resolved = await cmsContent.resolveMediaReference(`media://${publicId}`, null);
+  if (!resolved) return null;
+  return {
+    public_id: publicId,
+    title: resolved.title,
+    original_filename: resolved.title,
+    mime_type: resolved.mimeType,
+    category: resolved.category,
+    dimensions: resolved.dimensions,
+    thumbnail_url: resolved.thumbnailUrl,
+    url: resolved.url,
+  };
 }
 
 // ── Navbar editor ──

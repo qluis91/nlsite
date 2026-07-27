@@ -2,10 +2,19 @@
  * Phase 16D — Media diagnostics endpoint tests.
  * Run: node --test tests/media-diagnostic.test.js
  */
-const { describe, it } = require('node:test');
+const { after, describe, it } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
+
+after(async () => {
+  const dbPath = require.resolve('../config/db');
+  if (require.cache[dbPath]) {
+    const db = require('../config/db');
+    await db.query('SELECT 1');
+    await db.end();
+  }
+});
 
 // ──── Route registration ────
 

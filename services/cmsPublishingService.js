@@ -130,7 +130,7 @@ async function saveSectionDraft(pageKey, sectionKey, content, style, { actorId =
   try {
     await connection.beginTransaction();
     const [rows] = await connection.query(
-      `SELECT s.id, s.content_json, s.style_json, s.status, s.version
+      `SELECT s.id, s.content_json, s.style_json, s.status, s.is_enabled, s.version
          FROM page_sections s INNER JOIN pages p ON p.id = s.page_id
         WHERE p.page_key = ? AND s.section_key = ? FOR UPDATE`,
       [pageKey, sectionKey]
@@ -182,7 +182,7 @@ async function publishSection(pageKey, sectionKey, { actorId = null } = {}) {
     );
     const section = rows[0];
     if (!section) throw new Error('La sección no existe en la base de datos.');
-    if (section.status === 'published') {
+    if (section.status === 'published' && Number(section.is_enabled) === 1) {
       throw new Error('El borrador ya está publicado.');
     }
 
@@ -191,7 +191,7 @@ async function publishSection(pageKey, sectionKey, { actorId = null } = {}) {
 
     await connection.query(
       `UPDATE page_sections
-          SET status = 'published', updated_by = ?
+          SET status = 'published', is_enabled = 1, updated_by = ?
         WHERE id = ?`,
       [actorId, section.id]
     );

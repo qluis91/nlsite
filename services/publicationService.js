@@ -299,17 +299,17 @@ async function publishNavbarInTx(connection, actorId) {
 
 async function publishPageSectionInTx(connection, pageKey, sectionKey, actorId) {
   const [[before]] = await connection.query(
-    "SELECT s.id, s.content_json, s.style_json, s.status FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = ? AND s.section_key = ? FOR UPDATE",
+    "SELECT s.id, s.content_json, s.style_json, s.status, s.is_enabled FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = ? AND s.section_key = ? FOR UPDATE",
     [pageKey, sectionKey]
   );
   if (!before) throw new Error(`Sección ${sectionKey} no encontrada.`);
 
-  if (before.status === 'published') {
+  if (before.status === 'published' && Number(before.is_enabled) === 1) {
     return { publishedRevId: null, sourceRevId: null, previousSnapshot: null, newSnapshot: null, skipped: true };
   }
 
   await connection.query(
-    "UPDATE page_sections s INNER JOIN pages p ON p.id = s.page_id SET s.status = 'published', s.version = s.version + 1 WHERE p.page_key = ? AND s.section_key = ?",
+    "UPDATE page_sections s INNER JOIN pages p ON p.id = s.page_id SET s.status = 'published', s.is_enabled = 1, s.version = s.version + 1 WHERE p.page_key = ? AND s.section_key = ?",
     [pageKey, sectionKey]
   );
 
@@ -338,6 +338,14 @@ async function publishCollectionInTx(connection, table, entityType, actorId) {
 
   await connection.query(
     `UPDATE \`${table}\` SET status='published' WHERE status='draft' AND deleted_at IS NULL`
+  );
+  await connection.query(
+    `UPDATE page_sections
+        SET status = 'published', is_enabled = 1
+      WHERE id IN (
+        SELECT DISTINCT page_section_id FROM \`${table}\`
+         WHERE status = 'published' AND deleted_at IS NULL
+      )`
   );
 
   const revNum = await revisions.recordRevision({

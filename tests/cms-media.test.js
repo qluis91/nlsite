@@ -312,7 +312,7 @@ test('a valid GLB is stored with model metadata and without image variants', asy
   assert.equal(asset.thumbnail_path, null);
   assert.deepEqual(asset.variants, {});
   assert.equal(asset.model_metadata.version, '2.0');
-  assert.match(asset.storage_path, /^models\//);
+  assert.match(asset.storage_path, /^media\/models\//);
 });
 
 test('generated filenames are collision resistant and never overwrite existing files', async () => {

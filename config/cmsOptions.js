@@ -5,8 +5,12 @@
  * Storage roots derive from UPLOAD_PUBLIC_DIR so Railway's persistent volume
  * is honored without hardcoding any deployment path.
  */
-const path = require('path');
 const sharp = require('sharp');
+const {
+  UPLOAD_PUBLIC_ROOT,
+  MEDIA_ROOT,
+  UPLOAD_PUBLIC_URL_PREFIX,
+} = require('./uploadPaths');
 
 const MEDIA_CATEGORIES = Object.freeze({
   SITE: 'site',
@@ -175,12 +179,8 @@ const IMAGE_VARIANTS = Object.freeze({
 });
 
 /** Root of every publicly served upload (env-driven, never hardcoded). */
-const UPLOAD_PUBLIC_ROOT = process.env.UPLOAD_PUBLIC_DIR
-  || path.join(__dirname, '..', 'public', 'uploads');
-
-/** Media library lives in its own namespace so legacy uploads stay untouched. */
-const MEDIA_ROOT = path.join(UPLOAD_PUBLIC_ROOT, 'media');
-const MEDIA_PUBLIC_PREFIX = '/uploads/media/';
+/** Media library lives in its own namespace so Gallery remains independent. */
+const MEDIA_PUBLIC_PREFIX = `${UPLOAD_PUBLIC_URL_PREFIX}media/`;
 
 /** Page/section publication states, distinct from media statuses. */
 const CONTENT_STATUSES = Object.freeze({

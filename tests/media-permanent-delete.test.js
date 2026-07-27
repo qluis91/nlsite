@@ -2,11 +2,20 @@
  * Phase 16D — Permanent media delete tests.
  * Run: node --test tests/media-permanent-delete.test.js
  */
-const { describe, it } = require('node:test');
+const { after, describe, it } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+
+after(async () => {
+  const dbPath = require.resolve('../config/db');
+  if (require.cache[dbPath]) {
+    const db = require('../config/db');
+    await db.query('SELECT 1');
+    await db.end();
+  }
+});
 
 // ──── Service: permanentDelete function exists ────
 
