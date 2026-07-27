@@ -195,7 +195,6 @@ app.use('/css', express.static(path.join(__dirname, 'public', 'css'), textCacheO
 app.use('/js', express.static(path.join(__dirname, 'public', 'js'), textCacheOpts));
 app.use('/images', express.static(path.join(__dirname, 'public', 'images'), mediaCacheOpts));
 app.use('/Video', express.static(path.join(__dirname, 'public', 'Video'), mediaCacheOpts));
-app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads'), mediaCacheOpts));
 app.use('/fonts', express.static(path.join(__dirname, 'public', 'fonts'), mediaCacheOpts));
 app.use(express.static(path.join(__dirname, 'public'), textCacheOpts));
 app.use(express.urlencoded({ extended: true }));
@@ -672,14 +671,27 @@ app.get('/', async (req, res) => {
   }
 });
 
-// ── Controlled public-upload static mount ──
-const UPLOAD_PUBLIC_ABS = path.resolve(UPLOAD_PUBLIC);
-const PUBLIC_ABS = path.resolve(path.join(__dirname, 'public'));
-if (UPLOAD_PUBLIC_ABS !== PUBLIC_ABS && !UPLOAD_PUBLIC_ABS.startsWith(PUBLIC_ABS + path.sep)) {
-  app.use('/uploads', express.static(UPLOAD_PUBLIC_ABS, {
+// ── Phase 16D: Single /uploads mount — resolves to UPLOAD_PUBLIC_DIR or default public/uploads
+// Startup logging reports directory, existence, and writability. No credentials exposed.
+{
+  const uploadsAbs = path.resolve(UPLOAD_PUBLIC);
+  const exists = fs.existsSync(uploadsAbs);
+  if (!exists) {
+    console.warn(`⚠️  Uploads: ${uploadsAbs} no existe — creando directorio.`);
+    fs.mkdirSync(uploadsAbs, { recursive: true });
+  }
+  let writable = false;
+  try {
+    fs.accessSync(uploadsAbs, fs.constants.W_OK);
+    writable = true;
+  } catch (_) { /* not writable */ }
+  const status = writable ? 'escribible' : 'NO escribible';
+  console.log(`📁 Uploads: ${uploadsAbs} (${exists ? 'existe' : 'creado'}, ${status})`);
+  app.use('/uploads', express.static(uploadsAbs, {
     dotfiles: 'deny',
     index: false,
-    maxAge: '7d',
+    maxAge: IS_PRODUCTION ? '7d' : 0,
+    immutable: IS_PRODUCTION,
   }));
 }
 
