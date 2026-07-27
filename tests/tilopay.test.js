@@ -289,6 +289,9 @@ describe('Tilopay HTTP — Public Pages', () => {
   before(async function() {
     try { const r = await httpGet('/'); if (isServerAvailable(r)) serverReachable = true; }
     catch { /* will skip */ }
+    if (serverReachable) {
+      try { await httpGet('/__test_reset_auth_limiters'); } catch (_) {}
+    }
   });
 
   it('GET / → 200, no credentials in page source', async function() {
@@ -559,6 +562,9 @@ describe('Tilopay Regression', () => {
   before(async function() {
     try { const r = await httpGet('/'); if (isServerAvailable(r)) serverReachable = true; }
     catch { /* will skip */ }
+    if (serverReachable) {
+      try { await httpGet('/__test_reset_auth_limiters'); } catch (_) {}
+    }
   });
 
   it('GET /tienda → 200 with content', async function() {

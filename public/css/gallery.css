@@ -20,7 +20,12 @@ body.page-gallery [hidden] {
 
 .gallery-page {
   min-height: 75vh;
+  overflow-x: clip;
   background: var(--gallery-surface);
+}
+
+.gallery-page.is-gallery-motion-ready [data-gallery-animate] {
+  will-change: auto;
 }
 
 .gallery-shell {
@@ -1118,6 +1123,7 @@ body.page-gallery [hidden] {
   background: #111513;
   color: #fff;
   box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.45);
+  transform-origin: center center;
 }
 
 .gallery-modal__close {
@@ -1423,6 +1429,12 @@ body.is-gallery-modal-open {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .gallery-page [data-gallery-animate],
+  .gallery-page .gallery-primary-mode {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+
   .gallery-circular__loader::before {
     animation: none;
   }

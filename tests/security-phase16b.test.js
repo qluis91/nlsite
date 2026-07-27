@@ -118,6 +118,11 @@ describe('Phase 16B — Auth routes CSRF and limiters', () => {
 
 // ──── Anti-enumeration ────
 describe('Phase 16B — Anti-enumeration responses', () => {
+  before(async () => {
+    // Reset rate limiters to avoid suite-level exhaustion.
+    await httpReq('GET', '/__test_reset_auth_limiters').catch(() => {});
+  });
+
   it('login returns generic error for unknown email', async () => {
     const { token, cookie } = await getCsrf('/auth/login');
     const r = await httpReq('POST', '/auth/login', {
@@ -187,6 +192,11 @@ describe('Phase 16B — Anti-enumeration responses', () => {
 
 // ──── Session lifecycle ────
 describe('Phase 16B — Session lifecycle', () => {
+  before(async () => {
+    // Reset rate limiters to avoid suite-level exhaustion.
+    await httpReq('GET', '/__test_reset_auth_limiters').catch(() => {});
+  });
+
   it('logout destroys session and clears cookie', async () => {
     // Logout is CSRF-protected by the global middleware
     const r = await httpReq('POST', '/auth/logout');

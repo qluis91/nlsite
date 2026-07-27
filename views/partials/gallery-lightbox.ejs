@@ -1,5 +1,5 @@
 <div class="gallery-modal" data-gallery-modal hidden>
-  <button class="gallery-modal__backdrop" type="button" aria-label="Cerrar visor" data-gallery-close></button>
+  <button class="gallery-modal__backdrop" type="button" aria-label="Cerrar visor" data-gallery-close data-gallery-animate="viewer-backdrop"></button>
   <section
     class="gallery-modal__panel"
     role="dialog"
@@ -8,11 +8,12 @@
     aria-describedby="gallery-modal-description"
     tabindex="-1"
     data-gallery-dialog
+    data-gallery-animate="viewer-panel"
   >
-    <button class="gallery-modal__close" type="button" aria-label="Cerrar visor" data-gallery-close>
+    <button class="gallery-modal__close" type="button" aria-label="Cerrar visor" data-gallery-close data-gallery-animate="viewer-close">
       <span aria-hidden="true">×</span>
     </button>
-    <div class="gallery-modal__stage" data-gallery-stage>
+    <div class="gallery-modal__stage" data-gallery-stage data-gallery-animate="viewer-stage">
       <p class="gallery-modal__status" role="status" data-gallery-status>Cargando medio…</p>
       <img class="gallery-modal__image" alt="" data-gallery-image hidden>
       <video
@@ -24,12 +25,12 @@
         hidden
       ></video>
     </div>
-    <div class="gallery-modal__details">
+    <div class="gallery-modal__details" data-gallery-animate="viewer-details">
       <p class="gallery-modal__category" data-gallery-category></p>
       <h2 id="gallery-modal-title" data-gallery-title></h2>
       <p id="gallery-modal-description" data-gallery-description></p>
     </div>
-    <div class="gallery-modal__navigation" aria-label="Navegación del visor">
+    <div class="gallery-modal__navigation" aria-label="Navegación del visor" data-gallery-animate="viewer-controls">
       <button type="button" data-gallery-previous aria-label="Elemento anterior">Anterior</button>
       <span data-gallery-position aria-live="polite"></span>
       <button type="button" data-gallery-next aria-label="Elemento siguiente">Siguiente</button>

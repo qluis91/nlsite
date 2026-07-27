@@ -1,6 +1,8 @@
 import { initCircularGallery } from './circularGalleryRenderer.mjs';
 import { InfiniteMenuRenderer } from './infiniteMenuRenderer.mjs';
 
+const galleryModeInstances = new WeakMap();
+
 function prefersReducedMotion() {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 }
@@ -64,6 +66,7 @@ export function setupGalleryModes({
   openGalleryItemById,
   dependencies = {},
 }) {
+  if (galleryModeInstances.has(page)) return galleryModeInstances.get(page);
   const videoItems = selectVideoGalleryItems(items);
   const grid = page.querySelector('[data-gallery-grid]');
   const primaryModes = {
@@ -105,6 +108,12 @@ export function setupGalleryModes({
   const createCircularRenderer = dependencies.createCircularRenderer || initCircularGallery;
   const canUseInfinite = dependencies.supportsInfiniteGallery || supportsInfiniteGallery;
   const canUseCircular = dependencies.supportsCircularGallery || supportsCircularGallery;
+  const transitions = dependencies.transitions || {
+    exit: async () => {},
+    enter: async () => {},
+    reset() {},
+    revealCarousel: async () => {},
+  };
 
   let activeRenderer = null;
   let circularRenderer = null;
@@ -116,6 +125,13 @@ export function setupGalleryModes({
   let infiniteLiveTimer = null;
   let activeCircularItem = videoItems[0] || null;
   let activeInfiniteItem = items[0] || null;
+  const removers = [];
+
+  function listen(target, name, handler, options) {
+    if (!target) return;
+    target.addEventListener(name, handler, options);
+    removers.push(() => target.removeEventListener(name, handler, options));
+  }
 
   function updateSelector(view) {
     viewLinks.forEach((link) => {
@@ -212,6 +228,7 @@ export function setupGalleryModes({
     circular.overlay.hidden = true;
     circular.fallback.hidden = false;
     circular.fallback.textContent = message;
+    transitions.revealCarousel(circular.stage);
   }
 
   async function ensureVideoCarousel(generation) {
@@ -228,7 +245,10 @@ export function setupGalleryModes({
         : 'El carrusel de video no está disponible en este dispositivo.');
       return false;
     }
-    if (circularRenderer) return true;
+    if (circularRenderer) {
+      await transitions.revealCarousel(circular.stage);
+      return true;
+    }
 
     circular.stage.classList.remove('is-fallback');
     circular.loader.hidden = false;
@@ -256,6 +276,7 @@ export function setupGalleryModes({
       circular.loader.hidden = true;
       circular.overlay.hidden = false;
       circular.stage.classList.add('is-ready');
+      await transitions.revealCarousel(circular.stage);
       return true;
     } catch (error) {
       if (candidate) candidate.destroy();
@@ -352,17 +373,33 @@ export function setupGalleryModes({
   async function activateMode(requestedMode) {
     if (destroyed) return;
     const mode = normalizeGalleryView(requestedMode);
-    if (mode === activeMode && (mode === 'grid' || activeRenderer)) return transitionChain;
     const generation = ++activationGeneration;
-    setPrimaryModeVisibility(mode);
-    activeMode = mode;
-    updateSelector(mode);
     transitionChain = transitionChain
       .catch((error) => logDevelopmentFailure('transition', error))
       .then(async () => {
         if (generation !== activationGeneration) return;
+        const outgoingMode = activeMode;
+        const outgoingContainer = outgoingMode ? primaryModes[outgoingMode] : null;
+        if (outgoingMode === mode && (mode === 'grid' || activeRenderer)) {
+          transitions.reset(outgoingContainer);
+          updateSelector(mode);
+          await transitions.enter(outgoingContainer, mode);
+          return;
+        }
+        if (outgoingContainer) {
+          await transitions.exit(outgoingContainer, outgoingMode);
+          if (generation !== activationGeneration || destroyed) {
+            transitions.reset(outgoingContainer);
+            return;
+          }
+        }
         if (mode === 'grid') await showGrid(generation);
         else await showInfinite(generation);
+        if (generation !== activationGeneration || destroyed) return;
+        if (outgoingContainer && outgoingContainer !== primaryModes[activeMode]) {
+          transitions.reset(outgoingContainer);
+        }
+        await transitions.enter(primaryModes[activeMode], activeMode);
       });
     return transitionChain;
   }
@@ -373,12 +410,12 @@ export function setupGalleryModes({
   }
 
   viewLinks.forEach((link) => {
-    link.addEventListener('click', (event) => {
+    listen(link, 'click', (event) => {
       event.preventDefault();
       setUrlFromLink(link);
       activateMode(link.dataset.galleryView);
     });
-    link.addEventListener('keydown', (event) => {
+    listen(link, 'keydown', (event) => {
       if (event.key !== ' ') return;
       event.preventDefault();
       setUrlFromLink(link);
@@ -386,10 +423,10 @@ export function setupGalleryModes({
     });
   });
 
-  circular.action?.addEventListener('click', () => {
+  listen(circular.action, 'click', () => {
     if (activeCircularItem) openGalleryItemById(activeCircularItem.id, circular.action);
   });
-  infinite.action?.addEventListener('click', () => {
+  listen(infinite.action, 'click', () => {
     if (activeInfiniteItem) openGalleryItemById(activeInfiniteItem.id, infinite.action);
   });
 
@@ -397,26 +434,25 @@ export function setupGalleryModes({
     const requested = new URLSearchParams(window.location.search).get('view');
     activateMode(normalizeGalleryView(requested));
   };
-  const onPageHide = () => {
-    destroyed = true;
-    activationGeneration += 1;
-    destroyActiveRenderer();
-    destroyCircularRenderer();
-  };
-  window.addEventListener('popstate', onPopState);
-  window.addEventListener('pagehide', onPageHide, { once: true });
+  const onPageHide = () => cleanup();
+  listen(window, 'popstate', onPopState);
+  listen(window, 'pagehide', onPageHide, { once: true });
 
   activateMode(normalizeGalleryView(page.dataset.requestedView));
 
-  return () => {
+  function cleanup() {
     if (destroyed) return;
     destroyed = true;
     activationGeneration += 1;
     window.clearTimeout(circularLiveTimer);
     window.clearTimeout(infiniteLiveTimer);
-    window.removeEventListener('popstate', onPopState);
-    window.removeEventListener('pagehide', onPageHide);
+    removers.splice(0).forEach((remove) => remove());
+    Object.values(primaryModes).forEach((container) => transitions.reset(container));
     destroyActiveRenderer();
     destroyCircularRenderer();
-  };
+    if (galleryModeInstances.get(page) === cleanup) galleryModeInstances.delete(page);
+  }
+
+  galleryModeInstances.set(page, cleanup);
+  return cleanup;
 }

@@ -350,7 +350,7 @@ test('shared lightbox is singular, accessible, non-autoplaying, and uses safe DO
   assert.match(page.data, /data-gallery-next/);
   assert.match(page.data, /<video[\s\S]*controls[\s\S]*preload="metadata"[\s\S]*playsinline/);
   assert.doesNotMatch(page.data, /<video[^>]*autoplay/);
-  const script = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'gallery.js'), 'utf8');
+  const script = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'gallery', 'galleryViewer.mjs'), 'utf8');
   assert.match(script, /video\.pause\(\)/);
   assert.match(script, /previousFocus/);
   assert.match(script, /event\.key === 'Escape'/);

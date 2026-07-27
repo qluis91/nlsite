@@ -7,8 +7,8 @@
     <% } %>
 
     <section class="gallery-filters" aria-labelledby="gallery-filters-title">
-      <h1 id="gallery-filters-title">Explora galería</h1>
-      <nav class="gallery-filter-group gallery-category-chips" aria-label="Categorías">
+      <h1 id="gallery-filters-title" data-gallery-animate="entry">Explora galería</h1>
+      <nav class="gallery-filter-group gallery-category-chips" aria-label="Categorías" data-gallery-animate="entry">
         <span>Categorías</span>
         <a href="<%= buildGalleryUrl({ category: '', page: 1 }) %>" <% if (!filters.category) { %>aria-current="true"<% } %>>Todos</a>
         <% categories.forEach(function(category) { %>
@@ -18,7 +18,7 @@
           ><%= category.name %></a>
         <% }); %>
       </nav>
-      <form class="gallery-category-select" action="/galeria" method="get" data-gallery-category-form>
+      <form class="gallery-category-select" action="/galeria" method="get" data-gallery-category-form data-gallery-animate="entry">
         <label for="gallery-category-select">Categoría</label>
         <select id="gallery-category-select" name="categoria" data-gallery-category-select>
           <option value="" <% if (!filters.category) { %>selected<% } %>>Todos</option>
@@ -34,13 +34,13 @@
 
     <section class="gallery-results" aria-labelledby="gallery-results-title">
       <div class="gallery-results__header">
-        <div>
+        <div data-gallery-animate="entry">
           <h2 id="gallery-results-title">
           <%= activeCategory ? activeCategory.name : (filters.type === 'video' ? 'Videos' : filters.type === 'image' ? 'Imágenes' : 'Todos los proyectos') %>
           </h2>
           <p>Selecciona un elemento para abrir el visor.</p>
         </div>
-        <nav class="gallery-view-switcher" aria-label="Visualización de galería">
+        <nav class="gallery-view-switcher" aria-label="Visualización de galería" data-gallery-animate="entry">
           <a class="gallery-view-switcher__item" href="<%= buildGalleryUrl({ view: 'infinite' }) %>" data-gallery-view="infinite" <% if (filters.view === 'infinite') { %>aria-current="true"<% } %>>Menú infinito</a>
           <a class="gallery-view-switcher__item" href="<%= buildGalleryUrl({ view: 'grid' }) %>" data-gallery-view="grid" <% if (filters.view === 'grid') { %>aria-current="true"<% } %>>Cuadrícula</a>
         </nav>
@@ -72,7 +72,7 @@
               >
                 <canvas class="gallery-infinite__canvas" data-gallery-infinite-canvas role="img" aria-label="Esfera interactiva de imágenes de la galería"></canvas>
                 <div class="gallery-infinite__loader" data-gallery-infinite-loader role="status">Preparando menú infinito…</div>
-                <div class="gallery-infinite__overlay" data-gallery-infinite-overlay hidden>
+                <div class="gallery-infinite__overlay" data-gallery-infinite-overlay data-gallery-animate="infinite-panel" hidden>
                   <p class="gallery-infinite__meta" data-gallery-infinite-meta></p>
                   <h3 class="gallery-infinite__title" data-gallery-infinite-title></h3>
                   <button class="gallery-infinite__action" type="button" data-gallery-infinite-action>Ver proyecto</button>
@@ -123,7 +123,7 @@
     </section>
 
     <% if (totalPages > 1) { %>
-      <nav class="gallery-pagination" aria-label="Paginación de galería">
+      <nav class="gallery-pagination" aria-label="Paginación de galería" data-gallery-animate="scroll">
         <% if (page > 1) { %>
           <a href="<%= buildGalleryUrl({ page: page - 1 }) %>" rel="prev">Anterior</a>
         <% } else { %>
@@ -150,7 +150,7 @@
       </nav>
     <% } %>
 
-    <aside class="gallery-cta">
+    <aside class="gallery-cta" data-gallery-animate="scroll">
       <div>
         <p>¿Tienes una idea en mente?</p>
         <h2>Convirtámosla en algo real.</h2>

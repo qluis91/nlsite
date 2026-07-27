@@ -61,7 +61,7 @@ test('mode coordinator has safe reduced-motion, WebGL, initialization, and conte
   assert.match(modes, /restoreGridFallback/);
   assert.match(modes, /renderer\.destroy\(\)/);
   assert.match(modes, /data-gallery-renderer-generated/);
-  assert.match(modes, /window\.addEventListener\('pagehide'/);
+  assert.match(modes, /listen\(window, 'pagehide'/);
   assert.match(modes, /textContent/);
   assert.match(modes, /activationGeneration/);
   assert.match(modes, /selectVideoGalleryItems\(items\)/);
@@ -122,7 +122,7 @@ test('circular styles are namespaced and preserve vertical touch scrolling', () 
 });
 
 test('the circular action reuses the Phase 1 modal by stable item ID and restores focus there', () => {
-  const gallery = read('public/js/gallery.js');
+  const gallery = read('public/js/gallery/galleryViewer.mjs');
   const modes = read('public/js/gallery/galleryModes.mjs');
   assert.match(gallery, /function openGalleryItemById\(id, origin\)/);
   assert.match(gallery, /Number\(item\.id\) === Number\(id\)/);

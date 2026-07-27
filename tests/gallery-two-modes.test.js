@@ -184,6 +184,27 @@ test('mode lifecycle initializes one primary renderer and preserves one video co
     infiniteLive: 0,
     infinitePeak: 0,
   };
+  const transitionEvents = [];
+  let resolveFirstExit;
+  let holdFirstExit = true;
+  const transitions = {
+    exit(container, mode) {
+      transitionEvents.push(`exit:${mode}`);
+      if (!holdFirstExit) return Promise.resolve();
+      return new Promise((resolve) => {
+        resolveFirstExit = () => {
+          holdFirstExit = false;
+          resolve();
+        };
+      });
+    },
+    enter(container, mode) {
+      transitionEvents.push(`enter:${mode}`);
+      return Promise.resolve();
+    },
+    reset() {},
+    revealCarousel() { return Promise.resolve(); },
+  };
   const renderer = (kind) => {
     counts[`${kind}Created`] += 1;
     if (kind === 'infinite') {
@@ -213,6 +234,7 @@ test('mode lifecycle initializes one primary renderer and preserves one video co
       createCircularRenderer: () => renderer('circular'),
       supportsInfiniteGallery: () => ({ supported: true, reason: '' }),
       supportsCircularGallery: () => ({ supported: true, reason: '' }),
+      transitions,
     },
   });
 
@@ -227,10 +249,23 @@ test('mode lifecycle initializes one primary renderer and preserves one video co
   assert.equal(counts.infinitePeak, 1);
   assert.equal(counts.circularCreated - counts.circularDestroyed, 1);
   assert.equal(env.infiniteLink.attributes.get('aria-current'), 'true');
+  assert.deepEqual(transitionEvents, ['enter:infinite']);
+
+  const duplicateCleanup = modes.setupGalleryModes({
+    page: env.page,
+    items: [],
+    openGalleryItemById() {},
+  });
+  assert.equal(duplicateCleanup, cleanup);
+  assert.equal(counts.infiniteCreated, 1);
 
   env.gridLink.dispatch('click');
-  assert.equal(env.primaryModes.infinite.hidden, true);
-  assert.equal(env.primaryModes.grid.hidden, false);
+  await flushTransitions();
+  assert.equal(env.primaryModes.infinite.hidden, false, 'outgoing mode remains visible during exit');
+  assert.equal(env.primaryModes.grid.hidden, true);
+  assert.equal(counts.infiniteDestroyed, 0, 'renderer remains alive until exit finishes');
+  assert.equal(typeof resolveFirstExit, 'function');
+  resolveFirstExit();
   await flushTransitions();
   await flushTransitions();
   assert.equal(env.primaryModes.infinite.hidden, true);
@@ -242,6 +277,7 @@ test('mode lifecycle initializes one primary renderer and preserves one video co
   assert.equal(counts.circularCreated, 1);
   assert.equal(counts.circularDestroyed, 0);
   assert.equal(env.gridLink.attributes.get('aria-current'), 'true');
+  assert.deepEqual(transitionEvents.slice(1, 3), ['exit:infinite', 'enter:grid']);
 
   env.infiniteLink.dispatch('keydown', { key: ' ' });
   await flushTransitions();
