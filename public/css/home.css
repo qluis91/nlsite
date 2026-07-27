@@ -9,6 +9,7 @@ body.page-home {
   background: var(--home-bg-black);
   min-height: 100vh;
   min-height: 100svh;
+  min-height: 100dvh;
 }
 
 body.page-home .navbar {
@@ -28,6 +29,7 @@ body.page-home.is-page-loading {
   min-width: 100%;
   min-height: 100vh;
   min-height: 100svh;
+  min-height: 100dvh;
   padding: clamp(1rem, 3vw, 2rem);
   overflow: hidden;
   color: #e8e8e8;
@@ -81,7 +83,7 @@ body.page-home.is-page-loading {
   --home-grid-color: rgba(255, 255, 255, 0.04);
   --home-panel-padding: clamp(1.5rem, 4vw, 4rem);
   --home-content-width: 90rem;
-  --home-header-clearance: clamp(12rem, 15vw, 15rem);
+  --home-header-clearance: clamp(5.5rem, 7.5vw, 7rem);
 
   margin: 0;
   position: relative;
@@ -141,9 +143,13 @@ body.page-home.is-page-loading {
 .home-panel--hero {
   min-height: 100vh;
   min-height: 100svh;
-  height: auto;
+  min-height: 100dvh;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
   background: transparent;
   padding-top: var(--home-header-clearance);
   padding-bottom: 0;
@@ -416,7 +422,7 @@ body.page-home.is-page-loading {
     var(--home-content-width)
   );
   margin-inline: auto;
-  padding: 1rem 0;
+  padding: 0;
 }
 
 .hero-text {
@@ -425,6 +431,9 @@ body.page-home.is-page-loading {
   z-index: 4;
   min-width: 0;
   align-self: end;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(18px, 2.4vh, 26px);
 }
 
 /* ── 5.1 Eyebrow ── */
@@ -436,8 +445,8 @@ body.page-home.is-page-loading {
   text-transform: uppercase;
   color: var(--home-text-dark);
   opacity: 0.85;
-  margin-bottom: clamp(2rem, 5vh, 5rem);
-  margin-top: clamp(1rem, 5vh, 4rem);
+  margin-bottom: clamp(0.4rem, 0.8vh, 0.7rem);
+  margin-top: 0;
   position: relative;
   padding-bottom: 0.65rem;
 }
@@ -481,7 +490,7 @@ body.page-home.is-page-loading {
   flex-direction: column;
   gap: 0.85rem;
   width: min(100%, 280px);
-  margin-top: clamp(2.5rem, 6vh, 5rem);
+  margin-top: clamp(1.5rem, 3.5vh, 2.5rem);
   align-self: start;
   min-width: 0;
   z-index: 4;
@@ -584,7 +593,7 @@ body.page-home.is-page-loading {
   width: 100%;
   height: 100%;
   min-width: 0;
-  min-height: clamp(420px, min(50vw, 60vh), 760px);
+  min-height: clamp(380px, min(48vw, 55vh), 700px);
   aspect-ratio: 1 / 1;
   display: flex;
   align-items: center;
@@ -790,18 +799,13 @@ body.page-home.is-page-loading {
 
 /* ── 7. Social links ── */
 .hero-social {
-  position: relative;
-  right: auto;
-  bottom: auto;
-  align-self: flex-end;
-  flex-shrink: 0;
-  width: fit-content;
-  margin-top: 1rem;
-  margin-right: max(
+  position: absolute;
+  right: max(
     var(--home-panel-padding),
     calc((100% - var(--home-content-width)) / 2)
   );
-  margin-bottom: clamp(1.5rem, 3vh, 3rem);
+  bottom: clamp(18px, 3vh, 34px);
+  width: fit-content;
   z-index: 5;
   display: flex;
   gap: 1rem;
@@ -899,7 +903,7 @@ body.page-home.is-page-loading {
 /* Tablet: preserve the two-column composition while it remains usable */
 @media (max-width: 1024px) {
   .home-page {
-    --home-header-clearance: clamp(10.5rem, 19vw, 12rem);
+    --home-header-clearance: clamp(5rem, 8vw, 6.5rem);
   }
 
   .hero-logo {
@@ -924,11 +928,6 @@ body.page-home.is-page-loading {
     column-gap: 1.5rem;
   }
 
-  .hero-eyebrow {
-    margin-top: 1rem;
-    margin-bottom: clamp(1.5rem, 3vh, 2.5rem);
-  }
-
   .hero-heading {
     font-size: clamp(2rem, 4vw, 2.55rem);
   }
@@ -947,6 +946,9 @@ body.page-home.is-page-loading {
   .home-panel--hero {
     padding-top: 0;
     padding-bottom: 0;
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .hero-header {
@@ -989,6 +991,8 @@ body.page-home.is-page-loading {
   .hero-text {
     min-width: 0;
     align-self: auto;
+    display: block;
+    gap: normal;
   }
 
   .hero-eyebrow {
@@ -1016,9 +1020,13 @@ body.page-home.is-page-loading {
   }
 
   .hero-social {
+    position: static;
+    right: auto;
+    bottom: auto;
+    width: auto;
     align-self: flex-end;
     justify-content: flex-end;
-    margin: 0 var(--home-panel-padding) clamp(1.5rem, 3vh, 2rem);
+    margin: 0 var(--home-panel-padding) clamp(1rem, 2vh, 1.5rem);
     padding: 0.75rem 0 0;
   }
 
@@ -1111,7 +1119,7 @@ body.page-home.is-page-loading {
 /* Short desktop viewports */
 @media (max-height: 760px) and (min-width: 769px) {
   .home-page {
-    --home-header-clearance: clamp(9.5rem, 14vw, 11.5rem);
+    --home-header-clearance: clamp(4.5rem, 7vw, 5.5rem);
   }
 
   .hero-header {
@@ -1122,14 +1130,8 @@ body.page-home.is-page-loading {
     width: clamp(300px, 25vw, 360px);
   }
 
-  .hero-content {
-    padding-top: 0;
-    padding-bottom: 0.5rem;
-  }
-
-  .hero-eyebrow {
-    margin-top: 0;
-    margin-bottom: 1.5rem;
+  .hero-text {
+    gap: clamp(14px, 2vh, 20px);
   }
 
   .hero-heading {
@@ -1137,11 +1139,15 @@ body.page-home.is-page-loading {
   }
 
   .hero-ctas {
-    margin-top: 1.75rem;
+    margin-top: 1.2rem;
   }
 
   .hero-3d {
-    min-height: clamp(380px, 54vh, 460px);
+    min-height: clamp(320px, 48vh, 420px);
+  }
+
+  .hero-social {
+    bottom: clamp(12px, 2vh, 22px);
   }
 }
 
@@ -1291,7 +1297,7 @@ body.page-home.is-page-loading {
   width: auto;
   top: 50%;
   bottom: auto;
-  transform: translateY(-55%);
+  transform: translateY(-50%);
   filter: blur(0);
 }
 
@@ -1555,6 +1561,39 @@ body.page-home.is-page-loading {
 
 .hero-header.is-scrolled .hero-nav-account {
   border-left-color: rgba(255, 255, 255, 0.16);
+}
+
+/* Compact scrolled state — hide username, size cart to match avatar */
+.hero-header.is-scrolled .hero-nav-username {
+  display: none;
+}
+
+.hero-header.is-scrolled .hero-nav-cart {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(147, 235, 13, 0.15);
+  color: #93eb0d;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.hero-header.is-scrolled .hero-nav-cart svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.hero-header.is-scrolled .hero-nav-badge {
+  top: -4px;
+  right: -6px;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.22rem;
+  font-size: 0.58rem;
 }
 
 .hero-nav-username {
@@ -3420,7 +3459,7 @@ html:not(.hero-entrance-pending) body.page-home .hero-bg-glow {
 
 .hero-support {
   max-width: 42ch;
-  margin: clamp(1rem, 2.4vh, 1.6rem) 0 0;
+  margin: 0;
   color: rgba(15, 15, 15, 0.72);
   font-size: clamp(0.92rem, 1.15vw, 1.05rem);
   line-height: 1.65;

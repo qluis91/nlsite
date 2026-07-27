@@ -78,3 +78,67 @@ test('markup exposes one accessible coordinated first-panel sequence', () => {
   assert.equal((page.match(/<h1\b/g) || []).length, 1);
   assert.doesNotMatch(animations, /page-loader/);
 });
+
+test('social icons markup is unconditionally rendered in Panel 1', () => {
+  // Social block must be present and not gated by a CMS conditional
+  assert.match(page, /hero-social-link.*aria-label="Instagram"/);
+  assert.match(page, /hero-social-link.*aria-label="Facebook"/);
+  assert.match(page, /hero-social-link.*aria-label="TikTok"/);
+  assert.match(page, /hero-social-link.*aria-label="WhatsApp"/);
+});
+
+test('desktop Panel 1 uses position:relative containing block for social icons', () => {
+  const heroPanelRules = css.slice(
+    css.indexOf('.home-panel--hero {'),
+    css.indexOf('/* ── 4. Header integration ── */')
+  );
+  assert.match(heroPanelRules, /position:\s*relative/);
+
+  const socialBase = css.slice(
+    css.indexOf('/* ── 7. Social links ── */'),
+    css.indexOf('.hero-social-link {')
+  );
+  assert.match(socialBase, /position:\s*absolute/);
+});
+
+test('desktop hero-text uses flex column with gap for text spacing', () => {
+  const heroTextBlock = css.slice(
+    css.indexOf('.hero-text {'),
+    css.indexOf('.hero-eyebrow {')
+  );
+  assert.match(heroTextBlock, /display:\s*flex/);
+  assert.match(heroTextBlock, /flex-direction:\s*column/);
+  assert.match(heroTextBlock, /gap:/);
+});
+
+test('desktop hero-eyebrow and hero-support have zero margins (gap controls spacing)', () => {
+  const eyebrowBlock = css.slice(
+    css.indexOf('.hero-eyebrow {'),
+    css.indexOf('.hero-eyebrow::after {')
+  );
+  assert.match(eyebrowBlock, /margin-top:\s*0/);
+  assert.match(eyebrowBlock, /margin-bottom:\s*clamp\(0\.4rem,\s*0\.8vh,\s*0\.7rem\)/);
+
+  // .hero-support block: slice from selector through its closing brace (found after text-wrap)
+  const supportStart = css.indexOf('.hero-support {');
+  const textWrapPos = css.indexOf('text-wrap', supportStart);
+  const supportEnd = css.indexOf('}', textWrapPos) + 1;
+  const supportBlock = css.slice(supportStart, supportEnd);
+  assert.match(supportBlock, /margin:\s*0/);
+});
+
+test('mobile restores flow layout for hero-social', () => {
+  const mobileBlock = css.slice(css.indexOf('@media (max-width: 768px)'));
+  const mobileSocial = mobileBlock.slice(mobileBlock.indexOf('.hero-social {'));
+  assert.match(mobileSocial, /position:\s*static/);
+});
+
+test('desktop Panel 1 constrains height to viewport', () => {
+  const heroPanelRules = css.slice(
+    css.indexOf('.home-panel--hero {'),
+    css.indexOf('/* ── 3.1 Background layers ── */')
+  );
+  assert.match(heroPanelRules, /height:\s*100dvh/);
+  assert.match(heroPanelRules, /max-height:\s*100dvh/);
+  assert.match(heroPanelRules, /overflow:\s*hidden/);
+});

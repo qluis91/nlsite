@@ -466,3 +466,45 @@ test('reduced motion and coarse pointers expose content without nonessential loo
   assert.match(home, /if \(!prefersReduced\) \{[\s\S]*splashCursorController = initSplashCursor/);
   assert.match(home, /revealPanelTransitionImmediately\(\)/);
 });
+
+test('Panel 3 services has scroll-driven entrance with staggered elements', () => {
+  // scrollTrigger for Panel 3
+  assert.match(animations, /home-panel-3-entrance/);
+  assert.match(animations, /start: 'top 70%'/);
+  assert.match(animations, /end: 'top 22%'/);
+  assert.match(animations, /scrub/);
+});
+
+test('Panel 3 text enters from left, carousel from right', () => {
+  assert.match(animations, /x: headingX/);
+  assert.match(animations, /x: carouselX/);
+  assert.match(animations, /\.services-kicker/);
+  assert.match(animations, /\.services-title/);
+  assert.match(animations, /\.services-desc/);
+  assert.match(animations, /\.services-carousel/);
+  assert.match(animations, /\.services-controls/);
+});
+
+test('Panel 3 carousel has scale and optional rotationY', () => {
+  assert.match(animations, /carouselScale/);
+  assert.match(animations, /rotationY/);
+  assert.match(animations, /transformOrigin: 'center center'/);
+});
+
+test('Panel 3 respects reduced motion', () => {
+  const panel3Section = animations.slice(animations.indexOf('runPanelThreeAnimations'), animations.indexOf('// ── Public'));
+  assert.match(panel3Section, /reducedMotion\.matches/);
+});
+
+test('Panel 3 has mobile-responsive offsets', () => {
+  const panel3Section = animations.slice(animations.indexOf('runPanelThreeAnimations'), animations.indexOf('// ── Public'));
+  assert.match(panel3Section, /isMobile/);
+  assert.match(panel3Section, /compact/);
+});
+
+test('revealPanelTransitionImmediately resets Panel 3 elements', () => {
+  assert.match(animations, /data-panel="3"\].*services-kicker/);
+  assert.match(animations, /data-panel="3"\].*services-title/);
+  assert.match(animations, /data-panel="3"\].*services-carousel/);
+  assert.match(animations, /data-panel="3"\].*services-controls/);
+});

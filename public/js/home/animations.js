@@ -48,6 +48,16 @@ export function revealPanelTransitionImmediately() {
   if (logoLoopEl) {
     ['opacity', 'transform', 'transform-origin'].forEach((p) => logoLoopEl.style.removeProperty(p));
   }
+  // Reset Panel 3 elements to visible state
+  ['[data-panel="3"] .services-kicker', '[data-panel="3"] .services-title',
+   '[data-panel="3"] .services-desc', '[data-panel="3"] .services-carousel',
+   '[data-panel="3"] .services-controls', '[data-panel="3"] .services-status'].forEach((sel) => {
+    const el = document.querySelector(sel);
+    if (el) {
+      ['opacity', 'transform', 'transform-origin', 'x', 'y', 'scale', 'rotationY']
+        .forEach((p) => el.style.removeProperty(p));
+    }
+  });
   revealBlurTextSegments(document);
 }
 
@@ -443,6 +453,90 @@ async function runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange
 }
 
 /**
+ * Panel 3 — Services section scroll-driven entrance
+ */
+function runPanelThreeAnimations(gsap) {
+  const panelThree = document.querySelector('[data-panel="3"]');
+  if (!panelThree) return () => {};
+
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  if (reducedMotion.matches) return () => {};
+
+  const compact = matchMedia('(max-width: 767px)').matches;
+  const isMobile = compact || matchMedia('(max-width: 1040px)').matches;
+
+  const headingX = isMobile ? -30 : -70;
+  const secondaryX = isMobile ? 20 : 45;
+  const carouselX = isMobile ? 35 : 90;
+  const carouselScale = compact ? 0.92 : 0.88;
+  const carouselRotY = compact ? 0 : -5;
+  const controlsY = compact ? 12 : 24;
+  const controlsScale = 0.94;
+
+  const kickerEl = panelThree.querySelector('.services-kicker');
+  const titleEl = panelThree.querySelector('.services-title');
+  const descEl = panelThree.querySelector('.services-desc');
+  const carouselEl = panelThree.querySelector('.services-carousel');
+  const controlsEl = panelThree.querySelector('.services-controls');
+  const statusEl = panelThree.querySelector('.services-status');
+
+  const targets = [kickerEl, titleEl, descEl, carouselEl, controlsEl, statusEl].filter(Boolean);
+
+  if (!targets.length) return () => {};
+
+  // Set initial hidden state
+  gsap.set([kickerEl, titleEl], {
+    opacity: 0, x: headingX, y: 15, transformOrigin: 'left center',
+  });
+  gsap.set(descEl, {
+    opacity: 0, x: secondaryX, y: 20,
+  });
+  gsap.set(carouselEl, {
+    opacity: 0, x: carouselX, scale: carouselScale,
+    ...(compact ? {} : { rotationY: carouselRotY }),
+    transformOrigin: 'center center',
+  });
+  gsap.set(statusEl, {
+    opacity: 0,
+  });
+  gsap.set(controlsEl, {
+    opacity: 0, y: controlsY, scale: controlsScale, transformOrigin: 'center center',
+  });
+
+  // Staggered entrance tied to scroll
+  const tween = gsap.to([kickerEl, titleEl, descEl, carouselEl, statusEl, controlsEl], {
+    opacity: 1,
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotationY: 0,
+    duration: 0.8,
+    stagger: {
+      each: compact ? 0.03 : 0.05,
+      from: 'start',
+    },
+    ease: 'power2.out',
+    scrollTrigger: {
+      id: 'home-panel-3-entrance',
+      trigger: panelThree,
+      start: 'top 70%',
+      end: 'top 22%',
+      scrub: compact ? 0.35 : 0.5,
+      invalidateOnRefresh: true,
+    },
+  });
+
+  return () => {
+    tween.kill();
+    // Remove inline styles
+    targets.forEach((el) => {
+      ['opacity', 'transform', 'transform-origin', 'scale', 'x', 'y', 'rotationY']
+        .forEach((p) => el.style.removeProperty(p));
+    });
+  };
+}
+
+/**
  * Public initializer
  */
 async function initializeHomeAnimations(options = {}) {
@@ -489,6 +583,9 @@ async function initializeHomeAnimations(options = {}) {
 
     // Run scroll animations
     await runScrollAnimations(gsap, heroPanel, panelTwo, onPanelStateChange);
+
+    // Panel 3 scroll-driven entrance
+    const destroyPanelThree = runPanelThreeAnimations(gsap);
 
     // Refresh ScrollTrigger after layout settles
     if (ScrollTrigger) {

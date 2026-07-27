@@ -135,6 +135,26 @@ describe('Navbar compact-state fixed-height correction', () => {
     assert.match(homeCss, /prefers-reduced-motion[\s\S]*?\.hero-header[\s\S]*?transition-duration:\s*0\.01ms/);
   });
 
+  // ── Compact auth state ──
+  test('scrolled navbar hides username', () => {
+    assert.match(homeCss, /\.hero-header\.is-scrolled\s+\.hero-nav-username\s*\{[^}]*display:\s*none/);
+  });
+
+  test('scrolled navbar has circular cart button matching avatar size', () => {
+    const cartBlock = homeCss.match(/\.hero-header\.is-scrolled\s+\.hero-nav-cart\s*\{[\s\S]*?\}/);
+    assert.ok(cartBlock, 'scrolled cart rule must exist');
+    assert.match(cartBlock[0], /width:\s*34px/);
+    assert.match(cartBlock[0], /height:\s*34px/);
+    assert.match(cartBlock[0], /border-radius:\s*50%/);
+    assert.match(cartBlock[0], /display:\s*inline-flex/);
+  });
+
+  test('scrolled compact logo uses translateY(-50%) for vertical centering', () => {
+    const compactBlock = homeCss.match(/\.hero-header\.is-scrolled\s+\.hero-logo-img--compact\s*\{[\s\S]*?\}/);
+    assert.ok(compactBlock, 'compact logo rule must exist');
+    assert.match(compactBlock[0], /transform:\s*translateY\(-50%\)/);
+  });
+
   // ── Mobile touch target ──
   test('mobile scrolled uses height:auto min-height (touch safe)', () => {
     const mobileScrolled = homeCss.match(/@media\s*\(max-width:\s*1040px\)[\s\S]*?\.hero-header\.is-scrolled\s*\{[\s\S]*?\}/);
