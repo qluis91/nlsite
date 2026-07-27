@@ -249,3 +249,129 @@ describe('Media permanent delete — path safety', () => {
     }
   });
 });
+
+// ──── Library list view actions ────
+
+describe('Media permanent delete — library list', () => {
+  it('index.ejs has Eliminar button for archived items', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
+    assert.ok(code.includes('Eliminar permanentemente'), 'Should have Eliminar button in library list');
+  });
+
+  it('index.ejs Eliminar button only in archived block', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
+    const pdIdx = code.indexOf('permanent-delete');
+    // The is_archived guard appears before permanent-delete in the <% if (asset.is_archived) { %> block
+    const contextStart = Math.max(0, pdIdx - 800);
+    const context = code.substring(contextStart, pdIdx);
+    assert.ok(context.includes('is_archived'), 'Eliminar should only appear for archived items');
+  });
+
+  it('index.ejs Eliminar button includes CSRF', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
+    const pdIdx = code.indexOf('permanent-delete');
+    const block = code.substring(Math.max(0, pdIdx - 500), pdIdx + 200);
+    assert.ok(block.includes('_csrf'), 'Should include CSRF token');
+  });
+
+  it('index.ejs Eliminar button has confirmation', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
+    const pdIdx = code.indexOf('permanent-delete');
+    const block = code.substring(pdIdx - 200, pdIdx + 200);
+    assert.ok(block.includes('data-confirm'), 'Should have confirmation attribute');
+  });
+
+  it('index.ejs Eliminar button gated on media.delete capability', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
+    const pdIdx = code.indexOf('permanent-delete');
+    const block = code.substring(pdIdx - 300, pdIdx);
+    assert.ok(block.includes('media.delete'), 'Should check media.delete capability');
+  });
+
+  it('index.ejs has Archivar button for active items', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
+    assert.ok(code.includes('/archive') && code.includes('Archivar'), 'Should have Archivar button');
+  });
+
+  it('index.ejs has Restaurar button for archived items', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
+    assert.ok(code.includes('/restore') && code.includes('Restaurar'), 'Should have Restaurar button');
+  });
+
+  it('index.ejs Editar button still present', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
+    assert.ok(code.includes('/edit') && code.includes('Editar'), 'Editar button should remain');
+  });
+
+  it('index.ejs Copiar URL button still present', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
+    assert.ok(code.includes('data-copy-url'), 'Copiar URL button should remain');
+  });
+
+  it('index.ejs forms include return_to hidden field', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'index.ejs'), 'utf8');
+    const returnToCount = (code.match(/return_to/g) || []).length;
+    assert.ok(returnToCount >= 3, 'Should have return_to in archive, restore, and delete forms');
+  });
+});
+
+// ──── Controller return_to support ────
+
+describe('Media permanent delete — return_to', () => {
+  it('controller has destinationFor helper', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'adminMediaController.js'), 'utf8');
+    assert.ok(code.includes('function destinationFor'), 'Should have destinationFor helper');
+  });
+
+  it('destinationFor falls back to default when no return_to', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'adminMediaController.js'), 'utf8');
+    const fnIdx = code.indexOf('function destinationFor');
+    const fnBlock = code.substring(fnIdx, fnIdx + 500);
+    assert.ok(fnBlock.includes('return fallback'), 'Should return fallback when no valid return_to');
+  });
+
+  it('destinationFor validates return_to starts with LIBRARY_PATH', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'adminMediaController.js'), 'utf8');
+    const fnIdx = code.indexOf('function destinationFor');
+    const fnBlock = code.substring(fnIdx, fnIdx + 500);
+    assert.ok(fnBlock.includes('startsWith'), 'Should validate path prefix');
+  });
+
+  it('archive handler uses destinationFor', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'adminMediaController.js'), 'utf8');
+    const fnStart = code.indexOf('async function archive');
+    const fnEnd = code.indexOf('\n}', fnStart);
+    const fnBody = code.substring(fnStart, fnEnd);
+    assert.ok(fnBody.includes('destinationFor'), 'Archive should use destinationFor');
+  });
+
+  it('restore handler uses destinationFor', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'adminMediaController.js'), 'utf8');
+    const fnStart = code.indexOf('async function restore');
+    const fnEnd = code.indexOf('\n}', fnStart);
+    const fnBody = code.substring(fnStart, fnEnd);
+    assert.ok(fnBody.includes('destinationFor'), 'Restore should use destinationFor');
+  });
+
+  it('permanentDelete handler uses destinationFor', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'adminMediaController.js'), 'utf8');
+    const fnStart = code.indexOf('async function permanentDelete');
+    const fnEnd = code.indexOf('\n}', fnStart);
+    const fnBody = code.substring(fnStart, fnEnd);
+    assert.ok(fnBody.includes('destinationFor'), 'PermanentDelete should use destinationFor');
+  });
+});
+
+// ──── Detail view still has delete button ────
+
+describe('Media permanent delete — detail view preserved', () => {
+  it('detail.ejs still has Eliminar button', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'detail.ejs'), 'utf8');
+    assert.ok(code.includes('Eliminar permanentemente'), 'Detail view should still have delete button');
+  });
+
+  it('detail.ejs archive form does NOT have return_to', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'media', 'detail.ejs'), 'utf8');
+    assert.ok(!code.includes('return_to'), 'Detail view forms should not include return_to (uses default redirect)');
+  });
+});

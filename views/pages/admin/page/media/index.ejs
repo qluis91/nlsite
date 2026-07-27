@@ -79,6 +79,30 @@
               <a class="btn btn-sm btn-outline" href="/admin/page/media/<%= asset.public_id %>/edit">Editar</a>
               <button class="btn btn-sm btn-outline" type="button"
                       data-copy-url="<%= asset.public_url %>">Copiar URL</button>
+              <% if (asset.is_archived) { %>
+                <form action="/admin/page/media/<%= asset.public_id %>/restore" method="POST" style="display:inline">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <input type="hidden" name="return_to" value="<%= buildLibraryUrl({}) %>">
+                  <button class="btn btn-sm btn-primary" type="submit">Restaurar</button>
+                </form>
+                <% if (typeof capabilities !== 'undefined' && capabilities.includes('media.delete')) { %>
+                  <form action="/admin/page/media/<%= asset.public_id %>/permanent-delete" method="POST"
+                        style="display:inline"
+                        data-confirm="⚠️ ¿Eliminar permanentemente? Esta acción NO se puede deshacer. El archivo y todos sus derivados serán borrados del servidor.">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="return_to" value="<%= buildLibraryUrl({}) %>">
+                    <button class="btn btn-sm btn-danger" type="submit">Eliminar permanentemente</button>
+                  </form>
+                <% } %>
+              <% } else { %>
+                <form action="/admin/page/media/<%= asset.public_id %>/archive" method="POST"
+                      style="display:inline"
+                      data-confirm="¿Archivar este archivo? Podrás restaurarlo después.">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <input type="hidden" name="return_to" value="<%= buildLibraryUrl({}) %>">
+                  <button class="btn btn-sm btn-danger" type="submit">Archivar</button>
+                </form>
+              <% } %>
             </div>
           </div>
         </li>

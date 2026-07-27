@@ -1,0 +1,106 @@
+<div class="page-header">
+  <div>
+    <h1>Diagnóstico de medios</h1>
+    <p>Verificación temporal del despliegue — desactivar después de usar.</p>
+  </div>
+  <div class="cms-actions">
+    <a href="/admin" class="btn btn-outline">Volver</a>
+  </div>
+</div>
+
+<div class="card">
+  <p class="warning-banner">
+    Esta página solo está disponible cuando <code>MEDIA_DIAGNOSTIC_ENABLED=true</code>.
+    Desactívala en cuanto termines la verificación.
+  </p>
+</div>
+
+<div class="card">
+  <h2>Versión</h2>
+  <dl class="cms-meta-list">
+    <dt>APP_VERSION</dt>
+    <dd><%= diagnostics.version %></dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h2>Directorio de uploads</h2>
+  <dl class="cms-meta-list">
+    <dt>UPLOAD_PUBLIC_DIR</dt>
+    <dd><%= diagnostics.upload_dir_env %></dd>
+    <dt>Resuelto a</dt>
+    <dd><code><%= diagnostics.upload_dir_sanitized %></code></dd>
+    <dt>Existe</dt>
+    <dd><span class="badge <%= diagnostics.upload_dir_exists ? 'badge-published' : 'badge-hidden' %>">
+      <%= diagnostics.upload_dir_exists ? 'Sí' : 'No' %>
+    </span></dd>
+    <dt>Escribible</dt>
+    <dd><span class="badge <%= diagnostics.upload_dir_writable ? 'badge-published' : 'badge-hidden' %>">
+      <%= diagnostics.upload_dir_writable ? 'Sí' : 'No' %>
+    </span></dd>
+    <dt>Mount /uploads coincide</dt>
+    <dd><span class="badge <%= diagnostics.uploads_mount_matches ? 'badge-published' : 'badge-hidden' %>">
+      <%= diagnostics.uploads_mount_matches ? 'Sí' : 'No'
+    %></span></dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h2>Rutas</h2>
+  <dl class="cms-meta-list">
+    <dt>Ruta <code>permanent-delete</code> registrada</dt>
+    <dd><span class="badge <%= diagnostics.permanent_delete_route ? 'badge-published' : 'badge-hidden' %>">
+      <%= diagnostics.permanent_delete_route ? 'Sí' : 'No' %>
+    </span></dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h2>Permisos del admin actual</h2>
+  <dl class="cms-meta-list">
+    <dt>MEDIA_DELETE</dt>
+    <dd><span class="badge <%= diagnostics.admin_has_media_delete ? 'badge-published' : 'badge-hidden' %>">
+      <%= diagnostics.admin_has_media_delete ? 'Concedido' : 'Denegado' %>
+    </span></dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h2>Conteo de medios</h2>
+  <dl class="cms-meta-list">
+    <dt>Activos</dt>
+    <dd><strong><%= diagnostics.active_media_count %></strong></dd>
+    <dt>Archivados</dt>
+    <dd><strong><%= diagnostics.archived_media_count %></strong></dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h2>Verificación de archivo</h2>
+  <form method="GET" action="/admin/media-diagnostic" class="cms-filters" style="margin-bottom: 1rem;">
+    <input class="form-control" type="text" name="public_id"
+           value="<%= typeof diagnostics.file_check !== 'undefined' && diagnostics.file_check ? diagnostics.file_check.public_id : '' %>"
+           maxlength="36" placeholder="UUID del medio (ej: 550e8400-e29b-...)" aria-label="Public ID">
+    <button class="btn btn-outline" type="submit">Verificar</button>
+  </form>
+  <% if (diagnostics.file_check) { %>
+    <dl class="cms-meta-list">
+    <% if (diagnostics.file_check.valid_uuid === false) { %>
+      <dt>Error</dt><dd>UUID no válido</dd>
+    <% } else if (diagnostics.file_check.found === false) { %>
+      <dt>Resultado</dt><dd>No se encontró ningún medio con ese identificador.</dd>
+    <% } else { %>
+      <dt>Estado en BD</dt>
+      <dd><span class="badge <%= diagnostics.file_check.status === 'active' ? 'badge-published' : 'badge-hidden' %>">
+        <%= diagnostics.file_check.status %>
+      </span></dd>
+      <dt>Archivo físico en disco</dt>
+      <dd><span class="badge <%= diagnostics.file_check.storage_exists ? 'badge-published' : 'badge-hidden' %>">
+        <%= diagnostics.file_check.storage_exists ? 'Existe' : 'No existe' %>
+      </span></dd>
+    <% } %>
+    </dl>
+  <% } else { %>
+    <p>Ingresa un <code>public_id</code> para verificar si el archivo físico existe en disco.</p>
+  <% } %>
+</div>

@@ -724,6 +724,24 @@ app.get('/admin/proxy-diagnostic', isAuthenticated, isAdmin, (_req, res) => {
   });
 });
 
+// Enable temporarily: MEDIA_DIAGNOSTIC_ENABLED=true
+// Then visit /admin/media-diagnostic as an authenticated admin.
+// Disable afterward by removing or setting to false.
+app.get('/admin/media-diagnostic', isAuthenticated, isAdmin, (req, res, next) => {
+  if (process.env.MEDIA_DIAGNOSTIC_ENABLED !== 'true') {
+    return res.status(404).render('pages/404', {
+      title: 'Página no encontrada',
+      layout: 'layouts/main',
+    });
+  }
+  try {
+    const diagnosticController = require('./controllers/mediaDiagnosticController');
+    return diagnosticController.mediaDiagnostic(req, res, next);
+  } catch (err) {
+    return next(err);
+  }
+});
+
 // ── 404 - Página no encontrada ──
 app.use((req, res) => {
   if (req.accepts('html')) {

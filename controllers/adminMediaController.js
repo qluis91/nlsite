@@ -77,6 +77,15 @@ function actorId(req) {
   return req.session?.user?.id || null;
 }
 
+/** Resolve redirect target from an optional return_to body field. */
+function destinationFor(req, fallback) {
+  const returnTo = String(req.body.return_to || '').trim();
+  if (returnTo && returnTo.startsWith(LIBRARY_PATH) && !returnTo.includes('://')) {
+    return returnTo;
+  }
+  return fallback;
+}
+
 async function library(req, res, next) {
   try {
     const filters = validator.parseLibraryFilters(req.query);
@@ -220,7 +229,7 @@ async function replace(req, res, next) {
 }
 
 async function archive(req, res, next) {
-  const destination = `${LIBRARY_PATH}/${req.params.publicId}`;
+  const destination = destinationFor(req, `${LIBRARY_PATH}/${req.params.publicId}`);
   try {
     await mediaService.archive(req.params.publicId, actorId(req));
     req.session.success_msg = 'Archivo archivado. Puedes restaurarlo cuando lo necesites.';
@@ -232,7 +241,7 @@ async function archive(req, res, next) {
 }
 
 async function restore(req, res, next) {
-  const destination = `${LIBRARY_PATH}/${req.params.publicId}`;
+  const destination = destinationFor(req, `${LIBRARY_PATH}/${req.params.publicId}`);
   try {
     await mediaService.restore(req.params.publicId, actorId(req));
     req.session.success_msg = 'Archivo restaurado correctamente.';
@@ -245,7 +254,7 @@ async function restore(req, res, next) {
 
 // ── HANDLER: permanent delete ──
 async function permanentDelete(req, res, next) {
-  const destination = LIBRARY_PATH;
+  const destination = destinationFor(req, LIBRARY_PATH);
   try {
     await mediaService.permanentDelete(req.params.publicId, actorId(req));
     req.session.success_msg = 'Archivo eliminado permanentemente.';
