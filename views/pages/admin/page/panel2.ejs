@@ -29,7 +29,7 @@
 
 <!-- ═══ General content tab ═══ -->
 <div class="cms-tab-panel is-active" role="tabpanel" data-panel="general">
-  <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form" data-cms-editor-form>
+  <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form" data-cms-editor-form novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <div class="form-group"><label class="field-label"><input type="checkbox" name="isVisible" value="1" <%= c.isVisible !== false ? 'checked' : '' %>> Panel visible al publicar</label></div>
 
@@ -115,7 +115,7 @@
 
   <details class="cms-card">
     <summary class="cms-card-title">Agregar / Editar elemento</summary>
-    <form method="POST" action="/admin/page/home/panel-2/logo-loop/items" class="cms-form" id="logo-form" data-cms-editor-form>
+    <form method="POST" action="/admin/page/home/panel-2/logo-loop/items" class="cms-form" id="logo-form" data-cms-editor-form novalidate>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="public_id" id="logo-edit-id" value="">
       <input type="hidden" name="action" id="logo-action" value="create">
@@ -247,7 +247,7 @@
 
   <details class="cms-card" id="carousel-edit-details">
     <summary class="cms-card-title">Agregar / Editar proyecto</summary>
-    <form method="POST" action="/admin/page/home/panel-2/carousel/items" class="cms-form" id="carousel-form" data-cms-editor-form>
+    <form method="POST" action="/admin/page/home/panel-2/carousel/items" class="cms-form" id="carousel-form" data-cms-editor-form novalidate>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="public_id" id="carousel-edit-id" value="">
 
@@ -354,7 +354,7 @@
 
 <!-- ═══ Style tab ═══ -->
 <div class="cms-tab-panel" role="tabpanel" data-panel="style" hidden>
-  <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form" data-cms-editor-form>
+  <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form" data-cms-editor-form novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
     <div class="form-row">

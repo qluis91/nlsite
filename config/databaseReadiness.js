@@ -3,6 +3,7 @@
  * Always releases the acquired connection. Never exposes raw DB internals.
  */
 const pool = require('./db');
+const { inspectCmsSchema } = require('../services/cmsSchemaReadinessService');
 
 const READINESS_TIMEOUT_MS = 5000;
 
@@ -15,7 +16,8 @@ async function probeDatabase() {
   try {
     connection = await pool.getConnection();
     await connection.query('SELECT 1');
-    return true;
+    const cmsSchema = await inspectCmsSchema(connection, { force: true });
+    return cmsSchema.ready;
   } catch (_err) {
     return false;
   } finally {

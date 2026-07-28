@@ -32,7 +32,7 @@
   <% }); %>
 </nav>
 
-<form action="/admin/page/page-seo/save" method="POST" class="cms-form" data-cms-editor-form>
+<form action="/admin/page/page-seo/save" method="POST" class="cms-form" data-cms-editor-form novalidate>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <input type="hidden" name="page_key" value="<%= activePage %>">
 

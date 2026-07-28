@@ -1,6 +1,7 @@
 /**
  * Navbar & Panel 1 admin controllers — Phase 11B.
  */
+const crypto = require('node:crypto');
 const publishing = require('../services/cmsPublishingService');
 const mediaService = require('../services/mediaService');
 const pool = require('../config/db');
@@ -19,6 +20,29 @@ const NAVBAR_PATH = '/admin/page/navbar';
 const PANEL1_PATH = '/admin/page/home/panel-1';
 
 function actorId(req) { return req.session?.user?.id || null; }
+function safeDiagnosticMessage(value) {
+  return String(value || '').replace(/[\r\n\t]+/g, ' ').slice(0, 180);
+}
+function logPanel1Save(req, event, details = {}) {
+  const payload = {
+    requestId: req.cmsSaveRequestId || null,
+    route: req.originalUrl || PANEL1_PATH,
+    adminId: actorId(req),
+    panelKey: 'home.hero',
+    event,
+    ...details,
+  };
+  const method = event === 'error' || event === 'transaction_rollback' ? 'error' : 'info';
+  console[method]('[cms-save]', JSON.stringify(payload));
+}
+function panel1SaveDiagnostics(req, res, next) {
+  req.cmsSaveRequestId = crypto.randomUUID();
+  res.setHeader('X-Request-ID', req.cmsSaveRequestId);
+  res.once('finish', () => {
+    logPanel1Save(req, 'response', { httpStatus: res.statusCode });
+  });
+  next();
+}
 function consumeEditorState(req) {
   if (!req.session) return null;
   const state = req.session.cms_editor_state || null;
@@ -280,53 +304,64 @@ async function showPanel1(req, res, next) {
 }
 
 function submittedHeroSection(body, storedSection = null) {
+  const storedContent = storedSection?.content || {};
+  const storedStyle = storedSection?.style || {};
+  const storedModel = storedStyle.model || {};
+  const has = (name) => Object.prototype.hasOwnProperty.call(body, name);
   return {
     ...(storedSection || {}),
     status: storedSection?.status || 'draft',
     content: {
-      eyebrow: body.eyebrow || '',
-      heading: body.heading || '',
-      description: body.description || '',
+      ...storedContent,
+      ...(has('eyebrow') ? { eyebrow: body.eyebrow || '' } : {}),
+      ...(has('heading') ? { heading: body.heading || '' } : {}),
+      ...(has('description') ? { description: body.description || '' } : {}),
       primaryButton: {
-        label: body.primary_label || '',
-        url: body.primary_url || '',
-        target: body.primary_target || '_self',
-        visible: body.primary_visible === '1',
+        ...(storedContent.primaryButton || {}),
+        ...(has('primary_label') ? { label: body.primary_label || '' } : {}),
+        ...(has('primary_url') ? { url: body.primary_url || '' } : {}),
+        ...(has('primary_target') ? { target: body.primary_target || '_self' } : {}),
+        ...(has('primary_visible') ? { visible: body.primary_visible === '1' } : {}),
       },
       secondaryButton: {
-        label: body.secondary_label || '',
-        url: body.secondary_url || '',
-        target: body.secondary_target || '_self',
-        visible: body.secondary_visible === '1',
+        ...(storedContent.secondaryButton || {}),
+        ...(has('secondary_label') ? { label: body.secondary_label || '' } : {}),
+        ...(has('secondary_url') ? { url: body.secondary_url || '' } : {}),
+        ...(has('secondary_target') ? { target: body.secondary_target || '_self' } : {}),
+        ...(has('secondary_visible') ? { visible: body.secondary_visible === '1' } : {}),
       },
-      backgroundMedia: body.background_media || null,
-      modelMedia: body.model_media || null,
-      modelFallbackMedia: body.model_fallback || null,
-      modelEnabled: body.model_enabled === '1',
-      isVisible: body.is_visible === '1',
-      heroAriaLabel: body.hero_aria_label || '',
-      loadingAriaLabel: body.loading_aria_label || '',
-      modelErrorText: body.model_error_text || '',
-      retryLabel: body.retry_label || '',
-      modelPosterAlt: body.model_poster_alt || '',
-      modelFallbackAlt: body.model_fallback_alt || '',
-      socialAriaLabel: body.social_aria_label || '',
+      ...(has('background_media') ? { backgroundMedia: body.background_media || null } : {}),
+      ...(has('model_media') ? { modelMedia: body.model_media || null } : {}),
+      ...(has('model_fallback') ? { modelFallbackMedia: body.model_fallback || null } : {}),
+      ...(has('model_enabled') ? { modelEnabled: body.model_enabled === '1' } : {}),
+      ...(has('is_visible') ? { isVisible: body.is_visible === '1' } : {}),
+      ...(has('hero_aria_label') ? { heroAriaLabel: body.hero_aria_label || '' } : {}),
+      ...(has('loading_aria_label') ? { loadingAriaLabel: body.loading_aria_label || '' } : {}),
+      ...(has('model_error_text') ? { modelErrorText: body.model_error_text || '' } : {}),
+      ...(has('retry_label') ? { retryLabel: body.retry_label || '' } : {}),
+      ...(has('model_poster_alt') ? { modelPosterAlt: body.model_poster_alt || '' } : {}),
+      ...(has('model_fallback_alt') ? { modelFallbackAlt: body.model_fallback_alt || '' } : {}),
+      ...(has('social_aria_label') ? { socialAriaLabel: body.social_aria_label || '' } : {}),
     },
     style: {
+      ...storedStyle,
       model: {
-        scale: body.model_scale ?? 1,
+        ...storedModel,
+        ...(has('model_scale') ? { scale: body.model_scale ?? 1 } : {}),
         position: {
-          x: body.model_pos_x ?? 0,
-          y: body.model_pos_y ?? 0,
-          z: body.model_pos_z ?? 0,
+          ...(storedModel.position || {}),
+          ...(has('model_pos_x') ? { x: body.model_pos_x ?? 0 } : {}),
+          ...(has('model_pos_y') ? { y: body.model_pos_y ?? 0 } : {}),
+          ...(has('model_pos_z') ? { z: body.model_pos_z ?? 0 } : {}),
         },
         rotation: {
-          x: body.model_rot_x ?? 0,
-          y: body.model_rot_y ?? 0,
-          z: body.model_rot_z ?? 0,
+          ...(storedModel.rotation || {}),
+          ...(has('model_rot_x') ? { x: body.model_rot_x ?? 0 } : {}),
+          ...(has('model_rot_y') ? { y: body.model_rot_y ?? 0 } : {}),
+          ...(has('model_rot_z') ? { z: body.model_rot_z ?? 0 } : {}),
         },
-        autoRotate: body.auto_rotate === '1',
-        autoRotateSpeed: body.auto_rotate_speed ?? 1,
+        ...(has('auto_rotate') ? { autoRotate: body.auto_rotate === '1' } : {}),
+        ...(has('auto_rotate_speed') ? { autoRotateSpeed: body.auto_rotate_speed ?? 1 } : {}),
       },
     },
   };
@@ -389,6 +424,7 @@ async function savePanel1Draft(req, res, next) {
       ...(!contentValidation.valid ? [contentValidation.error] : []),
       ...(!styleValidation.valid ? [styleValidation.error] : []),
     ];
+    logPanel1Save(req, 'validation', { result: errors.length ? 'failed' : 'passed' });
     if (errors.length) {
       const storedSection = await publishing.getSectionDraft('home', 'hero');
       return renderPanel1Editor(req, res, {
@@ -414,16 +450,23 @@ async function savePanel1Draft(req, res, next) {
     if (content.modelMedia) await verifyMediaRef(content.modelMedia, 'model');
     if (content.modelFallbackMedia) await verifyMediaRef(content.modelFallbackMedia, 'image');
 
-    await publishing.saveSectionDraft('home', 'hero', content, style, { actorId: actorId(req) });
+    await publishing.saveSectionDraft('home', 'hero', content, style, {
+      actorId: actorId(req),
+      onDiagnostic: (event, details) => logPanel1Save(req, event, details),
+    });
     req.session.success_msg = 'Borrador del Panel 1 guardado.';
     req.session.cms_editor_state = 'saved';
     return res.redirect(PANEL1_PATH);
   } catch (error) {
+    logPanel1Save(req, 'error', {
+      code: error.code || 'CMS_SAVE_ERROR',
+      message: safeDiagnosticMessage(error.message || 'Save failed'),
+    });
     try {
       const storedSection = await publishing.getSectionDraft('home', 'hero');
       return renderPanel1Editor(req, res, {
         section: submittedHeroSection(req.body, storedSection),
-        status: error.status === 422 ? 422 : 500,
+        status: error.status === 422 ? 422 : (error.status === 503 ? 503 : 500),
         fieldErrors: [error.message || 'No fue posible guardar el borrador.'],
         editorState: 'error',
         pageAlerts: [{
@@ -653,6 +696,7 @@ module.exports = {
   createNavItem,
   archiveNavItem,
   reorderNavItems,
+  panel1SaveDiagnostics,
   showPanel1,
   savePanel1Draft,
   publishPanel1,

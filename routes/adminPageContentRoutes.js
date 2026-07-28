@@ -24,7 +24,13 @@ router.post('/page/navbar/items/reorder', requireCapability(CAPABILITIES.NAVBAR_
 
 // ── Panel 1 (Hero) ──
 router.get('/page/home/panel-1', requireCapability(CAPABILITIES.HERO_VIEW), controller.showPanel1);
-router.post('/page/home/panel-1/save', requireCapability(CAPABILITIES.HERO_EDIT), csrfSynchronisedProtection, controller.savePanel1Draft);
+router.post(
+  '/page/home/panel-1/save',
+  controller.panel1SaveDiagnostics,
+  requireCapability(CAPABILITIES.HERO_EDIT),
+  csrfSynchronisedProtection,
+  controller.savePanel1Draft
+);
 router.post('/page/home/panel-1/publish', requireCapability(CAPABILITIES.HERO_PUBLISH), csrfSynchronisedProtection, controller.publishPanel1);
 router.post('/page/home/panel-1/social/items', requireCapability(CAPABILITIES.HERO_EDIT), csrfSynchronisedProtection, controller.createSocialItem);
 router.post('/page/home/panel-1/social/items/save', requireCapability(CAPABILITIES.HERO_EDIT), csrfSynchronisedProtection, controller.saveSocialItem);

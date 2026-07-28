@@ -6,9 +6,11 @@
  * publish and keeps drafts from contaminating public reads.
  */
 const crypto = require('crypto');
+const { isDeepStrictEqual } = require('node:util');
 const pool = require('../config/db');
 const revisions = require('./contentRevisionService');
 const usageService = require('./mediaUsageService');
+const { assertCmsSchemaReady } = require('./cmsSchemaReadinessService');
 const { CONTENT_STATUS_VALUES } = require('../config/cmsOptions');
 
 // ── Simple read cache (single‑instance, drafts excluded) ──
@@ -257,9 +259,58 @@ async function publishSettings(keys, { actorId = null } = {}) {
 
 // ── Section content helpers (hero/panel‑1) ──
 
-async function saveSectionDraft(pageKey, sectionKey, content, style, { actorId = null } = {}) {
+function parseJsonObject(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function mergeDraftObjects(stored, submitted, seen = new WeakSet()) {
+  if (submitted && typeof submitted === 'object') {
+    if (seen.has(submitted)) throw new TypeError('Circular draft content is not supported.');
+    seen.add(submitted);
+  }
+  const result = { ...parseJsonObject(stored) };
+  for (const [key, value] of Object.entries(parseJsonObject(submitted))) {
+    result[key] = value && typeof value === 'object' && !Array.isArray(value)
+      ? mergeDraftObjects(result[key], value, seen)
+      : value;
+  }
+  if (submitted && typeof submitted === 'object') seen.delete(submitted);
+  return result;
+}
+
+function emitDiagnostic(callback, event, details = {}) {
+  if (typeof callback !== 'function') return;
+  try {
+    callback(event, details);
+  } catch {
+    // Diagnostics must never alter the save transaction.
+  }
+}
+
+async function saveSectionDraft(pageKey, sectionKey, content, style, {
+  actorId = null,
+  onDiagnostic = null,
+} = {}) {
+  try {
+    const schemaResult = await assertCmsSchemaReady(pool);
+    emitDiagnostic(onDiagnostic, 'schema_capability', { ready: schemaResult.ready });
+  } catch (error) {
+    emitDiagnostic(onDiagnostic, 'schema_capability', {
+      ready: false,
+      code: error.code || 'CMS_SCHEMA_NOT_READY',
+    });
+    throw error;
+  }
   const connection = await pool.getConnection();
   try {
+    emitDiagnostic(onDiagnostic, 'transaction_start');
     await connection.beginTransaction();
     const [rows] = await connection.query(
       `SELECT s.id, s.content_json, s.style_json, s.status, s.is_enabled, s.version
@@ -270,18 +321,27 @@ async function saveSectionDraft(pageKey, sectionKey, content, style, { actorId =
     const section = rows[0];
     if (!section) throw new Error('La sección no existe en la base de datos.');
 
-    const previousContent = JSON.stringify(section.content_json);
-    const previousStyle = JSON.stringify(section.style_json);
-    const newContent = JSON.stringify(content || null);
-    const newStyle = JSON.stringify(style || null);
+    const previousContentObject = parseJsonObject(section.content_json);
+    const previousStyleObject = parseJsonObject(section.style_json);
+    const mergedContent = mergeDraftObjects(previousContentObject, content);
+    const mergedStyle = mergeDraftObjects(previousStyleObject, style);
+    const previousContent = JSON.stringify(previousContentObject);
+    const previousStyle = JSON.stringify(previousStyleObject);
+    const newContent = JSON.stringify(mergedContent);
+    const newStyle = JSON.stringify(mergedStyle);
 
-    await connection.query(
+    const [updateResult] = await connection.query(
       `UPDATE page_sections
           SET content_json = ?, style_json = ?, status = 'draft', is_enabled = 1,
               version = version + 1, updated_by = ?
         WHERE id = ?`,
       [newContent, newStyle, actorId, section.id]
     );
+    if (Number(updateResult.affectedRows) !== 1) {
+      const error = new Error('El borrador no fue actualizado.');
+      error.code = 'CMS_DRAFT_NOT_PERSISTED';
+      throw error;
+    }
 
     await revisions.recordRevision({
       entityType: ENTITY_PAGE_SECTION,
@@ -293,9 +353,35 @@ async function saveSectionDraft(pageKey, sectionKey, content, style, { actorId =
       changedBy: actorId,
     }, connection);
 
+    const [[persisted]] = await connection.query(
+      'SELECT content_json, style_json, status, version FROM page_sections WHERE id = ?',
+      [section.id]
+    );
+    if (
+      !persisted
+      || !isDeepStrictEqual(parseJsonObject(persisted.content_json), mergedContent)
+      || !isDeepStrictEqual(parseJsonObject(persisted.style_json), mergedStyle)
+    ) {
+      const error = new Error('No fue posible confirmar la persistencia del borrador.');
+      error.code = 'CMS_DRAFT_NOT_PERSISTED';
+      throw error;
+    }
+
     await connection.commit();
+    emitDiagnostic(onDiagnostic, 'transaction_commit', { sectionId: section.id });
+    return {
+      sectionId: section.id,
+      content: parseJsonObject(persisted.content_json),
+      style: parseJsonObject(persisted.style_json),
+      status: persisted.status,
+      version: persisted.version,
+    };
   } catch (error) {
     await connection.rollback().catch(() => {});
+    emitDiagnostic(onDiagnostic, 'transaction_rollback', {
+      code: error.code || 'CMS_SAVE_ERROR',
+      message: String(error.message || 'Save failed').slice(0, 180),
+    });
     throw error;
   } finally {
     connection.release();

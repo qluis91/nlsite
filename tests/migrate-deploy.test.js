@@ -14,8 +14,8 @@ after(async () => {
 });
 
 describe('Phase 13 — migrationTracker', () => {
-  it('MIGRATION_REGISTRY has 17 entries', () => {
-    assert.equal(tracker.MIGRATION_REGISTRY.length, 17);
+  it('MIGRATION_REGISTRY has 18 entries', () => {
+    assert.equal(tracker.MIGRATION_REGISTRY.length, 18);
   });
 
   it('each registry entry has name, file, exportName', () => {
@@ -106,8 +106,10 @@ describe('Phase 13 — Migration records', () => {
 describe('Phase 13 — Deploy idempotency', () => {
   it('migrate-deploy skips all on second run', async () => {
     const { execSync } = require('child_process');
-    const out = execSync('node scripts/migrate-deploy.js', { cwd: path.resolve(__dirname, '..'), encoding: 'utf-8' });
-    assert.ok(out.includes('0 ran'), `Expected skip, got: ${out.slice(0, 200)}`);
+    const options = { cwd: path.resolve(__dirname, '..'), encoding: 'utf-8' };
+    execSync('node scripts/migrate-deploy.js', options);
+    const secondRun = execSync('node scripts/migrate-deploy.js', options);
+    assert.ok(secondRun.includes('0 ran'), `Expected skip, got: ${secondRun.slice(0, 200)}`);
   });
 });
 

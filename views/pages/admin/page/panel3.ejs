@@ -28,7 +28,7 @@
 
 <!-- ═══ General content tab ═══ -->
 <div class="cms-tab-panel is-active" role="tabpanel" data-panel="general">
-  <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form" data-cms-editor-form>
+  <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form" data-cms-editor-form novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <div class="form-group"><label class="field-label"><input type="checkbox" name="isVisible" value="1" <%= c.isVisible !== false ? 'checked' : '' %>> Panel visible al publicar</label></div>
 
@@ -108,7 +108,7 @@
 
   <details class="cms-card">
     <summary class="cms-card-title">Agregar / Editar tarjeta</summary>
-    <form method="POST" action="/admin/page/home/panel-3/items" class="cms-form" id="feature-form" data-cms-editor-form>
+    <form method="POST" action="/admin/page/home/panel-3/items" class="cms-form" id="feature-form" data-cms-editor-form novalidate>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="public_id" id="feature-edit-id" value="">
 
@@ -228,7 +228,7 @@
 
 <!-- ═══ Style tab ═══ -->
 <div class="cms-tab-panel" role="tabpanel" data-panel="style" hidden>
-  <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form" data-cms-editor-form>
+  <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form" data-cms-editor-form novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
     <div class="form-row">

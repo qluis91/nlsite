@@ -26,6 +26,7 @@ const MIGRATION_REGISTRY = [
   { name: 'migrateTracking',       file: './migrate-tracking',        exportName: 'migrate' },
   { name: 'migrateCatalogSeo',     file: './migrate-catalog-seo',     exportName: 'migrate' },
   { name: 'migrateGalleryYoutube', file: './migrate-gallery-youtube', exportName: 'migrate' },
+  { name: 'migrateCmsPhase1aSaveRepair', file: './migrate-cms-phase1a-save-repair', exportName: 'migrateCmsPhase1aSaveRepair' },
 ];
 
 async function ensureMigrationsTable(pool) {
@@ -114,10 +115,22 @@ async function runPendingMigrations(pool) {
     if (typeof fn !== 'function') {
       throw new Error(`Migration "${name}" missing export "${exportName}"`);
     }
-    await fn();
-    const durationMs = Date.now() - start;
-    await recordMigration(pool, name, checksum, durationMs);
-    ran++;
+    try {
+      await fn();
+      const durationMs = Math.max(1, Date.now() - start);
+      await recordMigration(pool, name, checksum, durationMs);
+      ran++;
+    } catch (error) {
+      const durationMs = Math.max(1, Date.now() - start);
+      await recordMigrationFailure(
+        pool,
+        name,
+        checksum,
+        durationMs,
+        error.message || error.code || 'Migration failed'
+      );
+      throw error;
+    }
   }
 
   return { ran, skipped };

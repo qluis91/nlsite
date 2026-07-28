@@ -60,6 +60,9 @@
     }
 
     saveForms.forEach(function (form) {
+      // Server validation preserves values and can show NinjaAlerts. Native
+      // constraint validation must not silently block the HTTP request.
+      form.noValidate = true;
       baselines.set(form, formSignature(form));
       if (initialState === 'error') dirtyForms.add(form);
 

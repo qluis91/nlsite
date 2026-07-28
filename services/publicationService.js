@@ -278,6 +278,21 @@ async function publishSingleModule(connection, moduleKey, actorId) {
   }
 }
 
+async function recordPublicationRevision(connection, payload) {
+  const revisionNumber = await revisions.recordRevision(payload, connection);
+  const [[revision]] = await connection.query(
+    `SELECT id
+       FROM content_revisions
+      WHERE entity_type = ? AND entity_id = ? AND revision_number = ?
+      LIMIT 1`,
+    [payload.entityType, Number(payload.entityId), revisionNumber]
+  );
+  if (!revision?.id) {
+    throw new Error('No se pudo confirmar la revisión de publicación.');
+  }
+  return revision.id;
+}
+
 async function publishNavbarInTx(connection, actorId) {
   const settingKeys = [
     'site.logo_primary', 'site.logo_light', 'site.logo_dark', 'site.favicon',
@@ -285,6 +300,13 @@ async function publishNavbarInTx(connection, actorId) {
     'navbar.border_color', 'navbar.opacity', 'navbar.logo_width',
   ];
   const placeholders = settingKeys.map(() => '?').join(',');
+  const [settings] = await connection.query(
+    `SELECT id, setting_key, setting_value, published_value
+       FROM site_settings
+      WHERE setting_key IN (${placeholders}) AND has_unpublished_changes = 1
+      FOR UPDATE`,
+    settingKeys
+  );
   await connection.query(
     `UPDATE site_settings
         SET published_value = setting_value, has_unpublished_changes = 0,
@@ -292,6 +314,18 @@ async function publishNavbarInTx(connection, actorId) {
       WHERE setting_key IN (${placeholders}) AND has_unpublished_changes = 1`,
     [actorId, ...settingKeys]
   );
+  let publishedRevId = null;
+  for (const setting of settings) {
+    publishedRevId = await recordPublicationRevision(connection, {
+      entityType: 'site_setting',
+      entityId: setting.id,
+      action: 'replace',
+      previousData: { setting_key: setting.setting_key, published_value: setting.published_value },
+      newData: { setting_key: setting.setting_key, published_value: setting.setting_value },
+      changeSummary: `Configuración ${setting.setting_key} publicada desde publicación centralizada.`,
+      changedBy: actorId,
+    });
+  }
   const [items] = await connection.query(
     `SELECT * FROM navigation_items
       WHERE location = 'home' AND (status IN ('draft', 'archived') OR published_data IS NULL)
@@ -305,6 +339,15 @@ async function publishNavbarInTx(connection, actorId) {
           WHERE id = ?`,
         [actorId, item.id]
       );
+      publishedRevId = await recordPublicationRevision(connection, {
+        entityType: 'navigation_item',
+        entityId: item.id,
+        action: 'replace',
+        previousData: { status: item.status, published_data: item.published_data },
+        newData: { status: 'archived', published_data: null },
+        changeSummary: 'Elemento de navegación archivado desde publicación centralizada.',
+        changedBy: actorId,
+      });
       continue;
     }
     const snapshot = {
@@ -323,19 +366,22 @@ async function publishNavbarInTx(connection, actorId) {
         WHERE id = ?`,
       [JSON.stringify(snapshot), actorId, item.id]
     );
+    publishedRevId = await recordPublicationRevision(connection, {
+      entityType: 'navigation_item',
+      entityId: item.id,
+      action: 'replace',
+      previousData: { status: item.status, published_data: item.published_data },
+      newData: { status: 'published', published_data: snapshot },
+      changeSummary: 'Elemento de navegación publicado desde publicación centralizada.',
+      changedBy: actorId,
+    });
   }
-  // Record revision
-  const revNum = await revisions.recordRevision({
-    entityType: 'navigation_item',
-    entityId: 0,
-    action: 'replace',
-    previousData: JSON.stringify({ status: 'draft' }),
-    newData: JSON.stringify({ status: 'published' }),
-    changeSummary: 'Navbar publicado desde publicación centralizada.',
-    changedBy: actorId,
-  }, connection);
-  return { publishedRevId: revNum, sourceRevId: null,
-   previousSnapshot: { status: 'draft' }, newSnapshot: { status: 'published' } };
+  if (!settings.length && !items.length) {
+    return { publishedRevId: null, sourceRevId: null, previousSnapshot: null, newSnapshot: null, skipped: true };
+  }
+  return { publishedRevId, sourceRevId: null,
+    previousSnapshot: { settingCount: settings.length, itemCount: items.length },
+    newSnapshot: { status: 'published', settingCount: settings.length, itemCount: items.length } };
 }
 
 async function publishHeroInTx(connection, actorId) {
@@ -360,7 +406,7 @@ async function publishPageSectionInTx(connection, pageKey, sectionKey, actorId) 
     [pageKey, sectionKey]
   );
 
-  const revNum = await revisions.recordRevision({
+  const publishedRevId = await recordPublicationRevision(connection, {
     entityType: 'page_section',
     entityId: before.id,
     action: 'replace',
@@ -368,10 +414,10 @@ async function publishPageSectionInTx(connection, pageKey, sectionKey, actorId) 
     newData: JSON.stringify({ status: 'published', content_json: before.content_json, style_json: before.style_json }),
     changeSummary: `Sección ${sectionKey} publicada desde publicación centralizada.`,
     changedBy: actorId,
-  }, connection);
+  });
 
   return {
-    publishedRevId: revNum,
+    publishedRevId,
     sourceRevId: null,
     previousSnapshot: {
       status: before.status,
@@ -388,8 +434,12 @@ async function publishCollectionInTx(connection, table, entityType, actorId) {
       WHERE status IN ('draft', 'archived') OR published_data IS NULL
       FOR UPDATE`
   );
+  if (!before.length) {
+    return { publishedRevId: null, sourceRevId: null, previousSnapshot: null, newSnapshot: null, skipped: true };
+  }
   const fields = repeatable.PUBLISHED_FIELDS[table];
   if (!fields) throw new Error(`Colección no permitida: ${table}`);
+  let publishedRevId = null;
   for (const item of before) {
     if (item.status === 'archived') {
       await connection.query(
@@ -398,6 +448,15 @@ async function publishCollectionInTx(connection, table, entityType, actorId) {
           WHERE id = ?`,
         [actorId, item.id]
       );
+      publishedRevId = await recordPublicationRevision(connection, {
+        entityType,
+        entityId: item.id,
+        action: 'replace',
+        previousData: { public_id: item.public_id, status: item.status, published_data: item.published_data },
+        newData: { public_id: item.public_id, status: 'archived', published_data: null },
+        changeSummary: `Elemento de ${table} archivado desde publicación centralizada.`,
+        changedBy: actorId,
+      });
       continue;
     }
     const snapshot = Object.fromEntries(fields.map((field) => [field, item[field]]));
@@ -408,24 +467,23 @@ async function publishCollectionInTx(connection, table, entityType, actorId) {
         WHERE id = ?`,
       [JSON.stringify(snapshot), actorId, item.id]
     );
+    publishedRevId = await recordPublicationRevision(connection, {
+      entityType,
+      entityId: item.id,
+      action: 'replace',
+      previousData: { public_id: item.public_id, status: item.status, published_data: item.published_data },
+      newData: { public_id: item.public_id, status: 'published', published_data: snapshot },
+      changeSummary: `Elemento de ${table} publicado desde publicación centralizada.`,
+      changedBy: actorId,
+    });
   }
   const sectionIds = [...new Set(before.map((item) => item.page_section_id).filter(Boolean))];
   for (const sectionId of sectionIds) {
     await connection.query('UPDATE page_sections SET is_enabled = 1 WHERE id = ?', [sectionId]);
   }
 
-  const revNum = await revisions.recordRevision({
-    entityType,
-    entityId: 0,
-    action: 'replace',
-    previousData: JSON.stringify({ items: before.map(r => ({ public_id: r.public_id, status: r.status })) }),
-    newData: JSON.stringify({ items: before.map(r => ({ public_id: r.public_id, status: 'published' })) }),
-    changeSummary: `Colección ${table} publicada desde publicación centralizada.`,
-    changedBy: actorId,
-  }, connection);
-
   return {
-    publishedRevId: revNum,
+    publishedRevId,
     sourceRevId: null,
     previousSnapshot: { status: 'draft', itemCount: before.length },
     newSnapshot: { status: 'published', itemCount: before.length },
