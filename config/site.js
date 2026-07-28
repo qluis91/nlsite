@@ -2,7 +2,7 @@
 require('dotenv').config();
 
 module.exports = {
-  name: process.env.SITE_NAME || 'Mi Sitio Web',
+  name: process.env.SITE_NAME || 'NinjaLab CR',
   description: process.env.SITE_DESCRIPTION || 'Plantilla modular',
   colors: {
     primary: process.env.BRAND_PRIMARY || '#2563eb',
