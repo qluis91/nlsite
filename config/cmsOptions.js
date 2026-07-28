@@ -200,6 +200,7 @@ const REVISION_ENTITY_TYPES = Object.freeze({
   LOGO_LOOP_ITEM: 'logo_loop_item',
   CAROUSEL_ITEM: 'carousel_item',
   FEATURE_ITEM: 'feature_item',
+  SOCIAL_ITEM: 'social_item',
 });
 
 const REVISION_ACTIONS = Object.freeze({

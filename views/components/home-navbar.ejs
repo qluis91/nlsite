@@ -82,7 +82,7 @@
         <% cms.navItems.forEach(function (item) { %>
           <li class="hero-nav-item">
             <a href="<%= item.url %>" class="hero-nav-link"
-               <%= item.target === '_blank' ? 'target="_blank" rel="noopener noreferrer"' : '' %>><%= item.label %></a>
+               <% if (item.target === '_blank') { %>target="_blank" rel="noopener noreferrer"<% } %>><%= item.label %></a>
             <% if (item.url === '/tienda') { %>
               <div class="hero-dropdown-panel"><div class="hero-dropdown-inner">
                 <a href="/tienda" class="hero-dropdown-link"><strong>Explorar productos</strong><span>Conoce el catálogo de NinjaLab.</span></a>

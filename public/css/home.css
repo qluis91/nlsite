@@ -816,6 +816,20 @@ body.page-home.is-page-loading {
   height: 1.1rem;
 }
 
+.hero-social-link .hero-social-icon {
+  width: 1.2rem;
+  height: 1.2rem;
+  object-fit: contain;
+  display: block;
+}
+
+.home-panel[data-cms-accent-color] .showcase-kicker,
+.home-panel[data-cms-accent-color] .services-kicker,
+.home-panel[data-cms-accent-color] .project-carousel__cta,
+.home-panel[data-cms-accent-color] .svc-card__cta {
+  color: var(--cms-panel-accent, currentColor);
+}
+
 .hero-social-link:hover {
   border-color: var(--home-accent);
   color: var(--home-accent);

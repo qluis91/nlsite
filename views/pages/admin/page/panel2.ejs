@@ -31,6 +31,7 @@
 <div class="cms-tab-panel is-active" role="tabpanel" data-panel="general">
   <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form" data-cms-editor-form>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="form-group"><label class="field-label"><input type="checkbox" name="isVisible" value="1" <%= c.isVisible !== false ? 'checked' : '' %>> Panel visible al publicar</label></div>
 
     <div class="form-group">
       <label class="field-label" for="p2-eyebrow">Kicker / Etiqueta superior</label>
@@ -59,6 +60,11 @@
         <label class="field-label" for="p2-loopl-aria">Etiqueta ARIA del LogoLoop</label>
         <input type="text" id="p2-loopl-aria" name="logoLoopAriaLabel" class="form-input" maxlength="160" value="<%= c.logoLoopAriaLabel || '' %>">
       </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="field-label" for="p2-controls-label">Etiqueta de controles</label><input id="p2-controls-label" name="carouselControlsAriaLabel" class="form-input" maxlength="160" value="<%= c.carouselControlsAriaLabel || 'Controles del carrusel' %>"></div>
+      <div class="form-group"><label class="field-label" for="p2-prev-label">Etiqueta anterior</label><input id="p2-prev-label" name="carouselPreviousLabel" class="form-input" maxlength="100" value="<%= c.carouselPreviousLabel || 'Proyecto anterior' %>"></div>
+      <div class="form-group"><label class="field-label" for="p2-next-label">Etiqueta siguiente</label><input id="p2-next-label" name="carouselNextLabel" class="form-input" maxlength="100" value="<%= c.carouselNextLabel || 'Proyecto siguiente' %>"></div>
     </div>
 
     <div class="form-actions">
@@ -301,6 +307,7 @@
           uploadProfile: 'carousel-main',
         }) %>
       </div>
+      <div class="form-group"><label class="field-label" for="carousel-media-alt">Texto alternativo de la imagen</label><input id="carousel-media-alt" name="media_alt" class="form-input" maxlength="250"></div>
 
       <div class="form-group" id="carousel-preview-media-group">
         <%- include('../../../components/media-selector', {
@@ -313,6 +320,7 @@
           uploadProfile: 'carousel-preview',
         }) %>
       </div>
+      <div class="form-group"><label class="field-label" for="carousel-preview-alt">Texto alternativo del preview</label><input id="carousel-preview-alt" name="preview_media_alt" class="form-input" maxlength="250"></div>
 
       <div class="form-group">
         <label class="field-label">Visible</label>
@@ -411,6 +419,8 @@
     preview_media_public_id: item.preview_media_public_id ? 'media://' + item.preview_media_public_id : '',
     preview_media_thumb: item.preview_media_public_id_resolved ? (item.preview_media_public_id_resolved.thumbnail_url || item.preview_media_public_id_resolved.url || '') : '',
     preview_media_title: item.preview_media_public_id_resolved ? (item.preview_media_public_id_resolved.title || '') : '',
+    media_alt: item.media_alt || '',
+    preview_media_alt: item.preview_media_alt || '',
     theme_key: item.theme_key || 'graphite',
     is_visible: item.is_visible,
     status: item.status,

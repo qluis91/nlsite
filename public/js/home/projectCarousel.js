@@ -69,11 +69,13 @@ export function initProjectCarousel(root, options = {}) {
           // Restore main image
           const mainSrc = image.dataset.mainSrc;
           if (mainSrc && image.src !== mainSrc) image.src = mainSrc;
+          if (image.dataset.mainAlt) image.alt = image.dataset.mainAlt;
           if (isActive || index === 2) image.loading = 'eager';
         } else if (isPreview) {
           // Swap to preview image if available
           const previewSrc = slide.dataset.projectPreviewImage;
           if (previewSrc && image.src !== previewSrc) image.src = previewSrc;
+          if (slide.dataset.projectPreviewAlt) image.alt = slide.dataset.projectPreviewAlt;
         }
       }
     });

@@ -9,6 +9,8 @@ const storage = require('../services/mediaStorageService');
 const usageService = require('../services/mediaUsageService');
 const revisionService = require('../services/contentRevisionService');
 const validator = require('../validators/cmsPageValidator');
+const repeatable = require('../services/cmsRepeatableService');
+const publicationService = require('../services/publicationService');
 const { MEDIA_KINDS, REVISION_ENTITY_TYPES } = require('../config/cmsOptions');
 
 const PAGE_STYLES = ['/css/admin-page.css'];
@@ -42,9 +44,15 @@ async function verifyMediaRef(ref, expectedKind = null) {
   if (!ref) return null;
   const publicId = ref.replace('media://', '');
   const asset = await mediaService.getByPublicId(publicId);
-  if (!asset) throw new Error(`El recurso multimedia ${ref} no existe o está archivado.`);
+  if (!asset) {
+    const error = new Error(`El recurso multimedia ${ref} no existe o está archivado.`);
+    error.status = 422;
+    throw error;
+  }
   if (expectedKind && asset.kind !== expectedKind) {
-    throw new Error(`El recurso multimedia debe ser de tipo ${expectedKind === 'model' ? 'modelo 3D' : 'imagen'}.`);
+    const error = new Error(`El recurso multimedia debe ser de tipo ${expectedKind === 'model' ? 'modelo 3D' : 'imagen'}.`);
+    error.status = 422;
+    throw error;
   }
   return asset;
 }
@@ -282,17 +290,27 @@ function submittedHeroSection(body, storedSection = null) {
       primaryButton: {
         label: body.primary_label || '',
         url: body.primary_url || '',
+        target: body.primary_target || '_self',
         visible: body.primary_visible === '1',
       },
       secondaryButton: {
         label: body.secondary_label || '',
         url: body.secondary_url || '',
+        target: body.secondary_target || '_self',
         visible: body.secondary_visible === '1',
       },
       backgroundMedia: body.background_media || null,
       modelMedia: body.model_media || null,
       modelFallbackMedia: body.model_fallback || null,
       modelEnabled: body.model_enabled === '1',
+      isVisible: body.is_visible === '1',
+      heroAriaLabel: body.hero_aria_label || '',
+      loadingAriaLabel: body.loading_aria_label || '',
+      modelErrorText: body.model_error_text || '',
+      retryLabel: body.retry_label || '',
+      modelPosterAlt: body.model_poster_alt || '',
+      modelFallbackAlt: body.model_fallback_alt || '',
+      socialAriaLabel: body.social_aria_label || '',
     },
     style: {
       model: {
@@ -330,6 +348,13 @@ async function renderPanel1Editor(req, res, {
         ? JSON.parse(section.content_json)
         : (section && section.content_json)
     ) || {};
+    const [[heroRow]] = await pool.query(
+      "SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = 'hero' LIMIT 1"
+    );
+    const socialItems = heroRow ? await repeatable.listItems('home_social_items', heroRow.id) : [];
+    await Promise.all(socialItems.map(async (item) => {
+      if (item.media_public_id) item.media_resolved = await resolveMediaData(`media://${item.media_public_id}`);
+    }));
     const [bgMedia, modelMedia, fallbackMedia] = await Promise.all([
       resolveMediaData(heroContent.backgroundMedia),
       resolveMediaData(heroContent.modelMedia),
@@ -346,6 +371,8 @@ async function renderPanel1Editor(req, res, {
       mediaList,
       modelList,
       bgMedia, modelMedia, fallbackMedia,
+      socialItems,
+      submittedSocialItem: req.cmsSubmittedSocialItem || null,
       formatFileSize: mediaService.formatFileSize,
       fieldErrors,
       pageAlerts,
@@ -396,7 +423,7 @@ async function savePanel1Draft(req, res, next) {
       const storedSection = await publishing.getSectionDraft('home', 'hero');
       return renderPanel1Editor(req, res, {
         section: submittedHeroSection(req.body, storedSection),
-        status: 500,
+        status: error.status === 422 ? 422 : 500,
         fieldErrors: [error.message || 'No fue posible guardar el borrador.'],
         editorState: 'error',
         pageAlerts: [{
@@ -416,13 +443,109 @@ async function savePanel1Draft(req, res, next) {
 async function publishPanel1(req, res, next) {
   const destination = PANEL1_PATH;
   try {
-    await publishing.publishSection('home', 'hero', { actorId: actorId(req) });
+    await publicationService.publishModules(['home.hero'], 'module', { actorId: actorId(req) });
     req.session.success_msg = 'Panel 1 publicado. Los cambios ahora son visibles en la página de inicio.';
     req.session.cms_editor_state = 'published';
     return res.redirect(PANEL1_PATH);
   } catch (error) {
     if (error.code?.startsWith('ER_')) return next(error);
     return redirectWithError(req, res, destination, error.message);
+  }
+}
+
+async function heroSectionId() {
+  const [[row]] = await pool.query(
+    "SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = 'hero' LIMIT 1"
+  );
+  if (!row) throw new Error('La sección Hero no existe.');
+  return row.id;
+}
+
+async function markHeroDraft() {
+  await pool.query(
+    "UPDATE page_sections s INNER JOIN pages p ON p.id=s.page_id SET s.status='draft' WHERE p.page_key='home' AND s.section_key='hero'"
+  );
+}
+
+async function renderSocialFailure(req, res, errors, status = 422) {
+  req.cmsSubmittedSocialItem = { values: { ...req.body } };
+  const section = await publishing.getSectionDraft('home', 'hero');
+  return renderPanel1Editor(req, res, {
+    section,
+    status,
+    fieldErrors: errors,
+    editorState: 'error',
+    pageAlerts: [{
+      id: 'hero-social-validation',
+      type: 'error',
+      title: 'No se pudo guardar la red social',
+      description: errors.join(' '),
+      persistent: true,
+    }],
+  });
+}
+
+async function createSocialItem(req, res) {
+  const validation = validator.validateSocialItem(req.body);
+  if (!validation.valid) return renderSocialFailure(req, res, [validation.error]);
+  try {
+    if (validation.value.media_public_id) {
+      await verifyMediaRef(`media://${validation.value.media_public_id}`, 'image');
+    }
+    await repeatable.createItem('home_social_items', await heroSectionId(), {
+      ...validation.value,
+      sort_order: 999,
+      status: 'draft',
+    }, { actorId: actorId(req) });
+    await markHeroDraft();
+    req.session.success_msg = 'Red social agregada al borrador.';
+    req.session.cms_editor_state = 'saved';
+    return res.redirect(PANEL1_PATH);
+  } catch (error) {
+    return renderSocialFailure(req, res, [error.message || 'Error al crear la red social.'], error.status === 422 ? 422 : 500);
+  }
+}
+
+async function saveSocialItem(req, res) {
+  const validation = validator.validateSocialItem(req.body);
+  if (!validation.valid) return renderSocialFailure(req, res, [validation.error]);
+  try {
+    if (validation.value.media_public_id) {
+      await verifyMediaRef(`media://${validation.value.media_public_id}`, 'image');
+    }
+    await repeatable.saveItem('home_social_items', req.body.public_id, validation.value, { actorId: actorId(req) });
+    await markHeroDraft();
+    req.session.success_msg = 'Red social guardada en el borrador.';
+    req.session.cms_editor_state = 'saved';
+    return res.redirect(PANEL1_PATH);
+  } catch (error) {
+    return renderSocialFailure(req, res, [error.message || 'Error al guardar la red social.'], error.status === 422 ? 422 : 500);
+  }
+}
+
+async function archiveSocialItem(req, res) {
+  try {
+    await repeatable.archiveItem('home_social_items', req.body.public_id, { actorId: actorId(req) });
+    await markHeroDraft();
+    req.session.success_msg = 'Red social archivada en el borrador.';
+    req.session.cms_editor_state = 'saved';
+    return res.redirect(PANEL1_PATH);
+  } catch (error) {
+    return redirectWithError(req, res, PANEL1_PATH, error.message);
+  }
+}
+
+async function reorderSocialItems(req, res) {
+  try {
+    const ids = String(req.body.ids || '').split(',').map((id) => id.trim()).filter(Boolean);
+    if (!ids.length) throw new Error('Indique el orden de las redes sociales.');
+    await repeatable.reorderItems('home_social_items', await heroSectionId(), ids, { actorId: actorId(req) });
+    await markHeroDraft();
+    req.session.success_msg = 'Orden de redes sociales guardado en el borrador.';
+    req.session.cms_editor_state = 'saved';
+    return res.redirect(PANEL1_PATH);
+  } catch (error) {
+    return redirectWithError(req, res, PANEL1_PATH, error.message);
   }
 }
 
@@ -445,6 +568,7 @@ async function preview(req, res, next) {
     let logoLoopItems = [];
     let carouselItems = [];
     let featureItems = [];
+    let socialItems = section ? await repeatableSvc.listItems('home_social_items', await heroSectionId()) : [];
 
     if (showcaseSection) {
       const [[sRow]] = await pool.query(
@@ -491,6 +615,9 @@ async function preview(req, res, next) {
         item.media_resolved = await resolveMedia('media://' + item.media_public_id);
       }
     }
+    for (const item of socialItems) {
+      if (item.media_public_id) item.media_resolved = await resolveMedia('media://' + item.media_public_id);
+    }
 
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('X-Robots-Tag', 'noindex, nofollow');
@@ -504,6 +631,7 @@ async function preview(req, res, next) {
       previewNavbar: { settings },
       previewHeroContent: section?.content || null,
       previewHeroStyle: section?.style || null,
+      previewSocialItems: socialItems,
       previewShowcaseContent: showcaseSection?.content || null,
       previewShowcaseStyle: showcaseSection?.style || null,
       previewLogoLoopItems: logoLoopItems,
@@ -528,5 +656,9 @@ module.exports = {
   showPanel1,
   savePanel1Draft,
   publishPanel1,
+  createSocialItem,
+  saveSocialItem,
+  archiveSocialItem,
+  reorderSocialItems,
   preview,
 };

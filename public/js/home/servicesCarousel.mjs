@@ -16,23 +16,64 @@ const ICON_SVG = {
 };
 
 export const SERVICES = [
-  { id: 'diseno-3d', title: 'Diseño 3D', description: 'Modelado y diseño 3D profesional para prototipos y productos personalizados.', icon: ICON_SVG['diseno-3d'], href: '/tienda' },
-  { id: 'escaneo-3d', title: 'Escaneo 3D', description: 'Digitalización precisa de objetos físicos para replicación o modificación.', icon: ICON_SVG['escaneo-3d'], href: '/tienda' },
-  { id: 'diseno-grafico', title: 'Diseño Gráfico', description: 'Identidad visual, branding y piezas gráficas con claridad y estilo.', icon: ICON_SVG['diseno-grafico'], href: '/tienda' },
-  { id: 'desarrollo-web', title: 'Desarrollo Web', description: 'Sitios web y aplicaciones funcionales adaptadas a cada necesidad.', icon: ICON_SVG['desarrollo-web'], href: '/tienda' },
-  { id: 'prendas', title: 'Prendas y Sublimación', description: 'Personalización de camisetas, tazas y más con sublimación de alta calidad.', icon: ICON_SVG['prendas'], href: '/tienda' },
-  { id: 'impresion-3d', title: 'Impresión 3D Gran Formato', description: 'Piezas de gran tamaño con precisión milimétrica y acabados profesionales.', icon: ICON_SVG['impresion-3d'], href: '/tienda' },
+  { id: 'diseno-3d', title: 'Diseño 3D', description: 'Modelado y diseño 3D profesional para prototipos y productos personalizados.', iconKey: 'diseno-3d', href: '/tienda', buttonLabel: 'VER DETALLE' },
+  { id: 'escaneo-3d', title: 'Escaneo 3D', description: 'Digitalización precisa de objetos físicos para replicación o modificación.', iconKey: 'escaneo-3d', href: '/tienda', buttonLabel: 'VER DETALLE' },
+  { id: 'diseno-grafico', title: 'Diseño Gráfico', description: 'Identidad visual, branding y piezas gráficas con claridad y estilo.', iconKey: 'diseno-grafico', href: '/tienda', buttonLabel: 'VER DETALLE' },
+  { id: 'desarrollo-web', title: 'Desarrollo Web', description: 'Sitios web y aplicaciones funcionales adaptadas a cada necesidad.', iconKey: 'desarrollo-web', href: '/tienda', buttonLabel: 'VER DETALLE' },
+  { id: 'prendas', title: 'Prendas y Sublimación', description: 'Personalización de camisetas, tazas y más con sublimación de alta calidad.', iconKey: 'prendas', href: '/tienda', buttonLabel: 'VER DETALLE' },
+  { id: 'impresion-3d', title: 'Impresión 3D Gran Formato', description: 'Piezas de gran tamaño con precisión milimétrica y acabados profesionales.', iconKey: 'impresion-3d', href: '/tienda', buttonLabel: 'VER DETALLE' },
 ];
 
 function renderCard(item) {
+  // Semantic result: <a class="svc-card__cta">, built with DOM APIs for CMS safety.
   const card = document.createElement('div');
   card.setAttribute('role', 'listitem');
   card.setAttribute('aria-label', item.title);
-  card.innerHTML =
-    `<div class="svc-card__badge" aria-hidden="true"><span class="svc-card__badge-icon">${item.icon}</span></div>` +
-    `<h3 class="svc-card__title">${item.title}</h3>` +
-    `<p class="svc-card__desc">${item.description}</p>` +
-    `<a class="svc-card__cta" href="${item.href}" aria-label="Ver detalle de ${item.title}">VER DETALLE <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg></a>`;
+  const badge = document.createElement('div');
+  badge.className = 'svc-card__badge';
+  badge.setAttribute('aria-hidden', 'true');
+  const icon = document.createElement('span');
+  icon.className = 'svc-card__badge-icon';
+  if (item.iconKey && ICON_SVG[item.iconKey]) {
+    icon.innerHTML = ICON_SVG[item.iconKey];
+  } else if (item.mediaUrl) {
+    const image = document.createElement('img');
+    image.src = item.mediaUrl;
+    image.alt = item.mediaAlt || '';
+    image.className = 'svc-card__media-icon';
+    icon.appendChild(image);
+  } else {
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg>';
+  }
+  badge.appendChild(icon);
+  const title = document.createElement('h3');
+  title.className = 'svc-card__title';
+  title.textContent = item.title;
+  const description = document.createElement('p');
+  description.className = 'svc-card__desc';
+  description.textContent = item.description;
+  const link = document.createElement('a');
+  link.className = 'svc-card__cta';
+  link.href = item.href;
+  if (item.target === '_blank') {
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+  }
+  link.setAttribute('aria-label', item.linkAriaLabel || `${item.buttonLabel}: ${item.title}`);
+  link.appendChild(document.createTextNode(`${item.buttonLabel} `));
+  const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  arrow.setAttribute('width', '12');
+  arrow.setAttribute('height', '12');
+  arrow.setAttribute('viewBox', '0 0 24 24');
+  arrow.setAttribute('fill', 'none');
+  arrow.setAttribute('stroke', 'currentColor');
+  arrow.setAttribute('stroke-width', '2.5');
+  arrow.setAttribute('aria-hidden', 'true');
+  const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  arrowPath.setAttribute('d', 'M5 12h14M13 5l7 7-7 7');
+  arrow.appendChild(arrowPath);
+  link.appendChild(arrow);
+  card.append(badge, title, description, link);
   return card;
 }
 
@@ -47,22 +88,17 @@ function resolveServiceItems() {
     const raw = JSON.parse(el.textContent);
     if (!Array.isArray(raw) || raw.length === 0) return SERVICES;
     return raw.map(function(item) {
-      // Resolve icon: builtin → ICON_SVG, media → <img> tag, unknown → fallback
-      let iconHtml;
-      if (item.icon_key && ICON_SVG[item.icon_key]) {
-        iconHtml = ICON_SVG[item.icon_key];
-      } else if (item.media_url) {
-        iconHtml = '<img src="' + item.media_url + '" alt="' + (item.media_alt || item.title || '') + '" class="svc-card__media-icon">';
-      } else {
-        // Safe fallback icon
-        iconHtml = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg>';
-      }
       return {
         id: item.id,
         title: item.title || 'Servicio',
         description: item.description || '',
-        icon: iconHtml,
+        iconKey: item.icon_key && ICON_SVG[item.icon_key] ? item.icon_key : null,
+        mediaUrl: item.media_url || null,
+        mediaAlt: item.media_alt || '',
         href: item.href || '/tienda',
+        target: item.target === '_blank' ? '_blank' : '_self',
+        buttonLabel: item.button_label || 'VER DETALLE',
+        linkAriaLabel: item.link_aria_label || '',
       };
     });
   } catch (_) {

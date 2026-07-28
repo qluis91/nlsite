@@ -30,6 +30,7 @@
 <div class="cms-tab-panel is-active" role="tabpanel" data-panel="general">
   <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form" data-cms-editor-form>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="form-group"><label class="field-label"><input type="checkbox" name="isVisible" value="1" <%= c.isVisible !== false ? 'checked' : '' %>> Panel visible al publicar</label></div>
 
     <div class="form-group">
       <label class="field-label" for="p3-eyebrow">Kicker / Etiqueta superior</label>
@@ -47,6 +48,15 @@
       <label class="field-label" for="p3-desc">Descripción</label>
       <textarea id="p3-desc" name="description" class="form-input" rows="3" maxlength="1200"><%= c.description || '' %></textarea>
       <span class="char-counter"><%= (c.description || '').length %>/1200</span>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="field-label" for="p3-carousel-label">Etiqueta del carrusel</label><input id="p3-carousel-label" name="carouselAriaLabel" class="form-input" maxlength="160" value="<%= c.carouselAriaLabel || 'Servicios de NinjaLab' %>"></div>
+      <div class="form-group"><label class="field-label" for="p3-controls-label">Etiqueta de controles</label><input id="p3-controls-label" name="carouselControlsAriaLabel" class="form-input" maxlength="160" value="<%= c.carouselControlsAriaLabel || 'Controles del carrusel' %>"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="field-label" for="p3-prev-label">Etiqueta anterior</label><input id="p3-prev-label" name="carouselPreviousLabel" class="form-input" maxlength="100" value="<%= c.carouselPreviousLabel || 'Servicio anterior' %>"></div>
+      <div class="form-group"><label class="field-label" for="p3-next-label">Etiqueta siguiente</label><input id="p3-next-label" name="carouselNextLabel" class="form-input" maxlength="100" value="<%= c.carouselNextLabel || 'Servicio siguiente' %>"></div>
+      <div class="form-group"><label class="field-label" for="p3-button-label">Etiqueta CTA predeterminada</label><input id="p3-button-label" name="defaultButtonLabel" class="form-input" maxlength="80" value="<%= c.defaultButtonLabel || 'VER DETALLE' %>"></div>
     </div>
 
     <div class="form-actions">
@@ -116,6 +126,7 @@
         <label class="field-label" for="feature-detail">Texto detallado</label>
         <textarea id="feature-detail" name="detail_text" class="form-input" rows="3" maxlength="1500"></textarea>
       </div>
+      <div class="form-group"><label class="field-label" for="feature-button-label">Etiqueta del botón</label><input id="feature-button-label" name="button_label" class="form-input" maxlength="80" value="VER DETALLE"></div>
 
       <div class="form-row">
         <div class="form-group">
@@ -150,12 +161,14 @@
           uploadProfile: 'feature-icon',
         }) %>
       </div>
+      <div class="form-group"><label class="field-label" for="feature-media-alt">Texto alternativo del icono</label><input id="feature-media-alt" name="media_alt" class="form-input" maxlength="250"></div>
 
       <div class="form-row">
         <div class="form-group">
           <label class="field-label" for="feature-url">URL (opcional)</label>
           <input type="text" id="feature-url" name="url" class="form-input" maxlength="500">
         </div>
+        <div class="form-group"><label class="field-label" for="feature-link-aria">Etiqueta accesible del enlace</label><input id="feature-link-aria" name="link_aria_label" class="form-input" maxlength="180"></div>
         <div class="form-group">
           <label class="field-label">Tipo de enlace</label>
           <select name="link_type" id="feature-link-type" class="form-input">
@@ -255,12 +268,15 @@
     title: item.title || '',
     description: item.description || '',
     detail_text: item.detail_text || '',
+    button_label: item.button_label || 'VER DETALLE',
     icon_type: item.icon_type || 'builtin',
     icon_key: item.icon_key || '',
     media_public_id: item.media_public_id ? 'media://' + item.media_public_id : '',
     media_thumb: item.media_public_id_resolved ? (item.media_public_id_resolved.thumbnail_url || item.media_public_id_resolved.url || '') : '',
     media_title: item.media_public_id_resolved ? (item.media_public_id_resolved.title || '') : '',
+    media_alt: item.media_alt || '',
     url: item.url || '',
+    link_aria_label: item.link_aria_label || '',
     link_type: item.link_type || 'internal',
     target: item.target || '_self',
     style_variant: item.style_variant || '',

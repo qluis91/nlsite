@@ -8,6 +8,7 @@ const mediaService = require('../services/mediaService');
 const validator = require('../validators/cmsPanelsValidator');
 const pool = require('../config/db');
 const cmsContent = require('../services/cmsContentService');
+const publicationService = require('../services/publicationService');
 
 // ── Helpers ──
 
@@ -147,6 +148,10 @@ async function savePanel2Draft(req, res) {
     ...(has('supportText') ? { supportText: req.body.supportText?.trim() || null } : {}),
     ...(has('carouselLabel') ? { carouselLabel: req.body.carouselLabel?.trim() || null } : {}),
     ...(has('logoLoopAriaLabel') ? { logoLoopAriaLabel: req.body.logoLoopAriaLabel?.trim() || null } : {}),
+    ...(has('carouselControlsAriaLabel') ? { carouselControlsAriaLabel: req.body.carouselControlsAriaLabel?.trim() || null } : {}),
+    ...(has('carouselPreviousLabel') ? { carouselPreviousLabel: req.body.carouselPreviousLabel?.trim() || null } : {}),
+    ...(has('carouselNextLabel') ? { carouselNextLabel: req.body.carouselNextLabel?.trim() || null } : {}),
+    ...(has('isVisible') ? { isVisible: req.body.isVisible === '1' } : {}),
   };
   const style = {
     ...storedStyle,
@@ -181,7 +186,11 @@ async function savePanel2Draft(req, res) {
 
 async function publishPanel2(req, res) {
   try {
-    await publishing.publishSection('home', 'showcase', { actorId: actorId(req) });
+    await publicationService.publishModules(
+      ['home.showcase', 'home.logoLoop', 'home.carousel'],
+      'module',
+      { actorId: actorId(req) }
+    );
     return successRedirect(req, res, '/admin/page/home/panel-2', 'Panel 2 publicado.');
   } catch (e) {
     console.error('Panel 2 publish error:', e);
@@ -196,11 +205,12 @@ async function createLogoLoopItem(req, res) {
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'logo', errors);
 
   try {
+    const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
     const section = await getSectionId('home', 'showcase');
     await repeatable.createItem('logo_loop_items', section.id, {
       item_type: req.body.item_type || 'text',
       text_content: req.body.text_content?.trim() || null,
-      media_public_id: (req.body.media_public_id || '').replace('media://', '') || null,
+      media_public_id: mediaPublicId,
       url: req.body.url?.trim() || null,
       link_type: req.body.link_type || 'internal',
       target: req.body.target || '_self',
@@ -212,7 +222,7 @@ async function createLogoLoopItem(req, res) {
     return successRedirect(req, res, '/admin/page/home/panel-2', 'Elemento agregado.');
   } catch (e) {
     console.error('Create logo loop item:', e);
-    return renderItemFailure(req, res, showPanel2, 'logo', ['Error de servidor al crear el elemento.'], 500);
+    return renderItemFailure(req, res, showPanel2, 'logo', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al crear el elemento.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
   }
 }
 
@@ -220,10 +230,11 @@ async function saveLogoLoopItem(req, res) {
   const errors = validator.validateLogoLoopItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'logo', errors);
   try {
+    const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
     await repeatable.saveItem('logo_loop_items', req.body.public_id, {
       item_type: req.body.item_type,
       text_content: req.body.text_content?.trim() || null,
-      media_public_id: (req.body.media_public_id || '').replace('media://', '') || null,
+      media_public_id: mediaPublicId,
       url: req.body.url?.trim() || null,
       link_type: req.body.link_type || 'internal',
       target: req.body.target || '_self',
@@ -233,7 +244,7 @@ async function saveLogoLoopItem(req, res) {
     return successRedirect(req, res, '/admin/page/home/panel-2', 'Elemento guardado.');
   } catch (e) {
     console.error('Save logo loop item:', e);
-    return renderItemFailure(req, res, showPanel2, 'logo', ['Error de servidor al guardar el elemento.'], 500);
+    return renderItemFailure(req, res, showPanel2, 'logo', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al guardar el elemento.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
   }
 }
 
@@ -279,6 +290,8 @@ async function createCarouselItem(req, res) {
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
 
   try {
+    const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
+    const previewMediaPublicId = await verifyImagePublicId(req.body.preview_media_public_id);
     const section = await getSectionId('home', 'showcase');
     await repeatable.createItem('home_carousel_items', section.id, {
       eyebrow: req.body.eyebrow?.trim() || null,
@@ -287,8 +300,10 @@ async function createCarouselItem(req, res) {
       button_label: req.body.button_label?.trim() || null,
       button_url: req.body.button_url?.trim() || null,
       button_target: req.body.button_target || '_self',
-      media_public_id: (req.body.media_public_id || '').replace('media://', '') || null,
-      preview_media_public_id: (req.body.preview_media_public_id || '').replace('media://', '') || null,
+      media_public_id: mediaPublicId,
+      media_alt: req.body.media_alt?.trim() || null,
+      preview_media_public_id: previewMediaPublicId,
+      preview_media_alt: req.body.preview_media_alt?.trim() || null,
       theme_key: req.body.theme_key?.trim() || null,
       is_visible: req.body.is_visible === '0' ? 0 : 1,
       status: 'draft',
@@ -296,7 +311,7 @@ async function createCarouselItem(req, res) {
     }, { actorId: actorId(req) });
     return successRedirect(req, res, '/admin/page/home/panel-2', 'Proyecto agregado.');
   } catch (e) {
-    return renderItemFailure(req, res, showPanel2, 'carousel', ['Error de servidor al crear el proyecto.'], 500);
+    return renderItemFailure(req, res, showPanel2, 'carousel', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al crear el proyecto.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
   }
 }
 
@@ -304,6 +319,8 @@ async function saveCarouselItem(req, res) {
   const errors = validator.validateCarouselItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
   try {
+    const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
+    const previewMediaPublicId = await verifyImagePublicId(req.body.preview_media_public_id);
     await repeatable.saveItem('home_carousel_items', req.body.public_id, {
       eyebrow: req.body.eyebrow?.trim() || null,
       title: req.body.title?.trim(),
@@ -311,14 +328,16 @@ async function saveCarouselItem(req, res) {
       button_label: req.body.button_label?.trim() || null,
       button_url: req.body.button_url?.trim() || null,
       button_target: req.body.button_target || '_self',
-      media_public_id: (req.body.media_public_id || '').replace('media://', '') || null,
-      preview_media_public_id: (req.body.preview_media_public_id || '').replace('media://', '') || null,
+      media_public_id: mediaPublicId,
+      media_alt: req.body.media_alt?.trim() || null,
+      preview_media_public_id: previewMediaPublicId,
+      preview_media_alt: req.body.preview_media_alt?.trim() || null,
       theme_key: req.body.theme_key?.trim() || null,
       is_visible: req.body.is_visible === '0' ? 0 : 1,
     }, { actorId: actorId(req) });
     return successRedirect(req, res, '/admin/page/home/panel-2', 'Proyecto guardado.');
   } catch (e) {
-    return renderItemFailure(req, res, showPanel2, 'carousel', ['Error de servidor al guardar el proyecto.'], 500);
+    return renderItemFailure(req, res, showPanel2, 'carousel', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al guardar el proyecto.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
   }
 }
 
@@ -413,6 +432,12 @@ async function savePanel3Draft(req, res) {
     ...(has('eyebrow') ? { eyebrow: req.body.eyebrow?.trim() || null } : {}),
     ...(has('heading') ? { heading: req.body.heading?.trim() || null } : {}),
     ...(has('description') ? { description: req.body.description?.trim() || null } : {}),
+    ...(has('carouselAriaLabel') ? { carouselAriaLabel: req.body.carouselAriaLabel?.trim() || null } : {}),
+    ...(has('carouselControlsAriaLabel') ? { carouselControlsAriaLabel: req.body.carouselControlsAriaLabel?.trim() || null } : {}),
+    ...(has('carouselPreviousLabel') ? { carouselPreviousLabel: req.body.carouselPreviousLabel?.trim() || null } : {}),
+    ...(has('carouselNextLabel') ? { carouselNextLabel: req.body.carouselNextLabel?.trim() || null } : {}),
+    ...(has('defaultButtonLabel') ? { defaultButtonLabel: req.body.defaultButtonLabel?.trim() || null } : {}),
+    ...(has('isVisible') ? { isVisible: req.body.isVisible === '1' } : {}),
   };
   const style = {
     ...storedStyle,
@@ -444,9 +469,25 @@ async function savePanel3Draft(req, res) {
   }
 }
 
+async function verifyImagePublicId(value) {
+  const publicId = String(value || '').replace(/^media:\/\//, '').trim();
+  if (!publicId) return null;
+  const asset = await mediaService.getByPublicId(publicId);
+  if (!asset || asset.kind !== 'image') {
+    const error = new Error('La referencia multimedia no existe, está archivada o no es una imagen.');
+    error.code = 'CMS_VALIDATION';
+    throw error;
+  }
+  return publicId;
+}
+
 async function publishPanel3(req, res) {
   try {
-    await publishing.publishSection('home', 'services', { actorId: actorId(req) });
+    await publicationService.publishModules(
+      ['home.services', 'home.features'],
+      'module',
+      { actorId: actorId(req) }
+    );
     return successRedirect(req, res, '/admin/page/home/panel-3', 'Panel 3 publicado.');
   } catch (e) {
     return errorRedirect(req, res, '/admin/page/home/panel-3', ['Error al publicar.']);
@@ -459,15 +500,19 @@ async function createFeatureItem(req, res) {
   const errors = validator.validateFeatureItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel3, 'feature', errors);
   try {
+    const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
     const section = await getSectionId('home', 'services');
     await repeatable.createItem('home_feature_items', section.id, {
       title: req.body.title?.trim(),
       description: req.body.description?.trim() || null,
       detail_text: req.body.detail_text?.trim() || null,
+      button_label: req.body.button_label?.trim() || null,
       icon_type: req.body.icon_type || 'builtin',
       icon_key: req.body.icon_key?.trim() || null,
-      media_public_id: (req.body.media_public_id || '').replace('media://', '') || null,
+      media_public_id: mediaPublicId,
+      media_alt: req.body.media_alt?.trim() || null,
       url: req.body.url?.trim() || null,
+      link_aria_label: req.body.link_aria_label?.trim() || null,
       link_type: req.body.link_type || 'internal',
       target: req.body.target || '_self',
       style_variant: req.body.style_variant?.trim() || null,
@@ -477,7 +522,7 @@ async function createFeatureItem(req, res) {
     }, { actorId: actorId(req) });
     return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjeta agregada.');
   } catch (e) {
-    return renderItemFailure(req, res, showPanel3, 'feature', ['Error de servidor al crear la tarjeta.'], 500);
+    return renderItemFailure(req, res, showPanel3, 'feature', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al crear la tarjeta.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
   }
 }
 
@@ -485,14 +530,18 @@ async function saveFeatureItem(req, res) {
   const errors = validator.validateFeatureItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel3, 'feature', errors);
   try {
+    const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
     await repeatable.saveItem('home_feature_items', req.body.public_id, {
       title: req.body.title?.trim(),
       description: req.body.description?.trim() || null,
       detail_text: req.body.detail_text?.trim() || null,
+      button_label: req.body.button_label?.trim() || null,
       icon_type: req.body.icon_type || 'builtin',
       icon_key: req.body.icon_key?.trim() || null,
-      media_public_id: (req.body.media_public_id || '').replace('media://', '') || null,
+      media_public_id: mediaPublicId,
+      media_alt: req.body.media_alt?.trim() || null,
       url: req.body.url?.trim() || null,
+      link_aria_label: req.body.link_aria_label?.trim() || null,
       link_type: req.body.link_type || 'internal',
       target: req.body.target || '_self',
       style_variant: req.body.style_variant?.trim() || null,
@@ -500,7 +549,7 @@ async function saveFeatureItem(req, res) {
     }, { actorId: actorId(req) });
     return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjeta guardada.');
   } catch (e) {
-    return renderItemFailure(req, res, showPanel3, 'feature', ['Error de servidor al guardar la tarjeta.'], 500);
+    return renderItemFailure(req, res, showPanel3, 'feature', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al guardar la tarjeta.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
   }
 }
 

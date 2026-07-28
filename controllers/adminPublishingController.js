@@ -355,6 +355,7 @@ async function restoreRevision(req, res, next) {
           logo_loop_item: 'logo_loop_items',
           carousel_item: 'home_carousel_items',
           feature_item: 'home_feature_items',
+          social_item: 'home_social_items',
         };
         const table = tableMap[rev.entity_type];
         const targetStatus = publishAfter ? 'published' : 'draft';

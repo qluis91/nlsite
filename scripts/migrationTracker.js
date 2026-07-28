@@ -16,6 +16,7 @@ const MIGRATION_REGISTRY = [
   { name: 'migratePanels',         file: './migrate-panels',          exportName: 'migratePanels' },
   { name: 'migratePublishing',     file: './migrate-publishing',      exportName: 'migratePublishing' },
   { name: 'migrateCmsDraftPublish',file: './migrate-cms-draft-publish',exportName: 'migrateCmsDraftPublish' },
+  { name: 'migrateCmsHomepageFields',file: './migrate-cms-homepage-fields',exportName: 'migrateCmsHomepageFields' },
   { name: 'migrateCatalog',        file: './migrate-catalog',         exportName: 'migrateCatalog' },
   { name: 'migrateOrders',         file: './migrate-orders',          exportName: 'migrate' },
   { name: 'migrateTilopay',        file: './migrate-tilopay',         exportName: 'migrate' },

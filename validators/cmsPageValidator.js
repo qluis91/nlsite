@@ -4,6 +4,7 @@
 const { MEDIA_KINDS, MEDIA_CATEGORY_VALUES } = require('../config/cmsOptions');
 
 const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+const SOCIAL_PLATFORMS = new Set(['instagram', 'facebook', 'tiktok', 'whatsapp', 'youtube', 'linkedin', 'x']);
 const ALLOWED_TARGETS = new Set(['_self', '_blank']);
 const COLOR_HEX_PATTERN = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -195,6 +196,11 @@ function validateHeroContent(body = {}) {
   if (body.primary_label) {
     primaryUrl = validateUrl(body.primary_url || '#productos');
     if (!primaryUrl.valid) return primaryUrl;
+    if (body.primary_target !== undefined) {
+      const requestedTarget = validateTarget(body.primary_target);
+      if (!requestedTarget.valid) return requestedTarget;
+      primaryUrl.target = requestedTarget.value;
+    }
     primaryVisible = body.primary_visible === '1' || body.primary_visible === true || body.primary_visible === undefined;
   }
 
@@ -207,6 +213,11 @@ function validateHeroContent(body = {}) {
   if (body.secondary_label) {
     secondaryUrl = validateUrl(body.secondary_url || '#como-trabajamos');
     if (!secondaryUrl.valid) return secondaryUrl;
+    if (body.secondary_target !== undefined) {
+      const requestedTarget = validateTarget(body.secondary_target);
+      if (!requestedTarget.valid) return requestedTarget;
+      secondaryUrl.target = requestedTarget.value;
+    }
     secondaryVisible = body.secondary_visible === '1' || body.secondary_visible === true || body.secondary_visible === undefined;
   }
 
@@ -220,6 +231,22 @@ function validateHeroContent(body = {}) {
   if (!modelFallback.valid) return modelFallback;
 
   const modelEnabled = body.model_enabled !== undefined ? validateBooleanField(body.model_enabled) : true;
+  const isVisible = body.is_visible !== undefined ? validateBooleanField(body.is_visible) : true;
+  const metadata = {};
+  const textFields = [
+    ['hero_aria_label', 'La etiqueta accesible del modelo', 160, 'heroAriaLabel'],
+    ['loading_aria_label', 'La etiqueta de carga', 160, 'loadingAriaLabel'],
+    ['model_error_text', 'El mensaje de error del modelo', 240, 'modelErrorText'],
+    ['retry_label', 'La etiqueta de reintento', 80, 'retryLabel'],
+    ['model_poster_alt', 'El texto alternativo del modelo', 250, 'modelPosterAlt'],
+    ['model_fallback_alt', 'El texto alternativo de respaldo', 250, 'modelFallbackAlt'],
+    ['social_aria_label', 'La etiqueta accesible de redes sociales', 160, 'socialAriaLabel'],
+  ];
+  for (const [input, label, max, output] of textFields) {
+    const result = boundedText(body[input], label, max);
+    if (!result.valid) return result;
+    metadata[output] = result.value || null;
+  }
 
   return {
     valid: true,
@@ -230,19 +257,49 @@ function validateHeroContent(body = {}) {
       primaryButton: {
         label: primaryLabel.value || null,
         url: primaryUrl.value,
-        target: primaryUrl.linkType === 'external' ? '_blank' : '_self',
+        target: primaryUrl.target || (primaryUrl.linkType === 'external' ? '_blank' : '_self'),
         visible: primaryVisible,
       },
       secondaryButton: {
         label: secondaryLabel.value || null,
         url: secondaryUrl.value,
-        target: secondaryUrl.linkType === 'external' ? '_blank' : '_self',
+        target: secondaryUrl.target || (secondaryUrl.linkType === 'external' ? '_blank' : '_self'),
         visible: secondaryVisible,
       },
       backgroundMedia: bgMedia.value,
       modelMedia: modelMedia.value,
       modelFallbackMedia: modelFallback.value,
       modelEnabled,
+      isVisible,
+      ...metadata,
+    },
+  };
+}
+
+function validateSocialItem(body = {}) {
+  const platform = String(body.platform || '').trim().toLowerCase();
+  if (!SOCIAL_PLATFORMS.has(platform)) {
+    return { valid: false, error: 'La plataforma social no está permitida.' };
+  }
+  const label = boundedText(body.label, 'La etiqueta de plataforma', 80, { required: true });
+  if (!label.valid) return label;
+  const ariaLabel = boundedText(body.aria_label, 'La etiqueta accesible', 160, { required: true });
+  if (!ariaLabel.valid) return ariaLabel;
+  const url = validateUrl(body.profile_url, { required: true, allowFragment: false });
+  if (!url.valid || url.linkType !== 'external' || !/^https?:\/\//i.test(url.value)) {
+    return { valid: false, error: url.error || 'El perfil social debe usar una URL externa http o https.' };
+  }
+  const media = validateMediaRef(body.media_public_id, 'icono social');
+  if (!media.valid) return media;
+  return {
+    valid: true,
+    value: {
+      platform,
+      label: label.value,
+      profile_url: url.value,
+      aria_label: ariaLabel.value,
+      media_public_id: media.value?.replace('media://', '') || null,
+      is_visible: body.is_visible === '0' ? 0 : 1,
     },
   };
 }
@@ -299,4 +356,6 @@ module.exports = {
   validateNavItem,
   validateHeroContent,
   validateHeroStyle,
+  validateSocialItem,
+  SOCIAL_PLATFORMS,
 };

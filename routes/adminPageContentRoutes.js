@@ -26,6 +26,10 @@ router.post('/page/navbar/items/reorder', requireCapability(CAPABILITIES.NAVBAR_
 router.get('/page/home/panel-1', requireCapability(CAPABILITIES.HERO_VIEW), controller.showPanel1);
 router.post('/page/home/panel-1/save', requireCapability(CAPABILITIES.HERO_EDIT), csrfSynchronisedProtection, controller.savePanel1Draft);
 router.post('/page/home/panel-1/publish', requireCapability(CAPABILITIES.HERO_PUBLISH), csrfSynchronisedProtection, controller.publishPanel1);
+router.post('/page/home/panel-1/social/items', requireCapability(CAPABILITIES.HERO_EDIT), csrfSynchronisedProtection, controller.createSocialItem);
+router.post('/page/home/panel-1/social/items/save', requireCapability(CAPABILITIES.HERO_EDIT), csrfSynchronisedProtection, controller.saveSocialItem);
+router.post('/page/home/panel-1/social/items/archive', requireCapability(CAPABILITIES.HERO_EDIT), csrfSynchronisedProtection, controller.archiveSocialItem);
+router.post('/page/home/panel-1/social/items/reorder', requireCapability(CAPABILITIES.HERO_EDIT), csrfSynchronisedProtection, controller.reorderSocialItems);
 
 // ── Global Settings & SEO (Phase 12A) ──
 router.get('/page/global-settings', requireCapability(CAPABILITIES.GLOBAL_SETTINGS_VIEW), globalSettingsController.showGlobalSettings);

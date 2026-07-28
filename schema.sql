@@ -511,7 +511,9 @@ CREATE TABLE IF NOT EXISTS home_carousel_items (
   button_url VARCHAR(500) NULL,
   button_target VARCHAR(20) NOT NULL DEFAULT '_self',
   media_public_id CHAR(36) NULL COMMENT 'Main/background image',
+  media_alt VARCHAR(250) NULL,
   preview_media_public_id CHAR(36) NULL,
+  preview_media_alt VARCHAR(250) NULL,
   theme_key VARCHAR(40) NULL COMMENT 'graphite | lime | silver | ink',
   sort_order INT NOT NULL DEFAULT 0,
   is_visible TINYINT(1) NOT NULL DEFAULT 1,
@@ -537,10 +539,13 @@ CREATE TABLE IF NOT EXISTS home_feature_items (
   title VARCHAR(160) NOT NULL,
   description VARCHAR(1000) NULL,
   detail_text VARCHAR(1500) NULL,
+  button_label VARCHAR(80) NULL,
   icon_type VARCHAR(20) NOT NULL DEFAULT 'builtin' COMMENT 'builtin | media',
   icon_key VARCHAR(40) NULL COMMENT 'diseno-3d | escaneo-3d | diseno-grafico | desarrollo-web | prendas | impresion-3d',
   media_public_id CHAR(36) NULL,
+  media_alt VARCHAR(250) NULL,
   url VARCHAR(500) NULL,
+  link_aria_label VARCHAR(180) NULL,
   link_type VARCHAR(20) NOT NULL DEFAULT 'internal',
   target VARCHAR(20) NOT NULL DEFAULT '_self',
   style_variant VARCHAR(40) NULL,
@@ -559,6 +564,32 @@ CREATE TABLE IF NOT EXISTS home_feature_items (
   CONSTRAINT fk_home_feature_items_section FOREIGN KEY (page_section_id) REFERENCES page_sections(id) ON DELETE CASCADE,
   CONSTRAINT fk_home_feature_items_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_home_feature_items_updater FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS home_social_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id CHAR(36) NOT NULL,
+  page_section_id INT NOT NULL,
+  platform VARCHAR(30) NOT NULL,
+  label VARCHAR(80) NOT NULL,
+  profile_url VARCHAR(500) NOT NULL,
+  aria_label VARCHAR(160) NULL,
+  media_public_id CHAR(36) NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_visible TINYINT(1) NOT NULL DEFAULT 1,
+  status VARCHAR(20) NOT NULL DEFAULT 'draft',
+  published_data JSON NULL,
+  published_at DATETIME NULL,
+  created_by INT NULL,
+  updated_by INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  UNIQUE KEY uq_home_social_items_public_id (public_id),
+  KEY idx_home_social_items_section_status (page_section_id, status, deleted_at, sort_order),
+  CONSTRAINT fk_home_social_items_section FOREIGN KEY (page_section_id) REFERENCES page_sections(id) ON DELETE CASCADE,
+  CONSTRAINT fk_home_social_items_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_home_social_items_updater FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Phase 11D: Publication batches ──

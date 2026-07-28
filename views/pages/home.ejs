@@ -34,6 +34,7 @@ if (_isPreview) {
     ...(cms || {}),
     heroContent: (typeof previewHeroContent !== 'undefined' ? previewHeroContent : (cms && cms.heroContent)) || null,
     heroStyle: (typeof previewHeroStyle !== 'undefined' ? previewHeroStyle : (cms && cms.heroStyle)) || null,
+    socialItems: (typeof previewSocialItems !== 'undefined' ? previewSocialItems : (cms && cms.socialItems)) || [],
     showcaseContent: (typeof previewShowcaseContent !== 'undefined' ? previewShowcaseContent : (cms && cms.showcaseContent)) || null,
     showcaseStyle: (typeof previewShowcaseStyle !== 'undefined' ? previewShowcaseStyle : (cms && cms.showcaseStyle)) || null,
     logoLoopItems: (typeof previewLogoLoopItems !== 'undefined' ? previewLogoLoopItems : (cms && cms.logoLoopItems)) || null,
@@ -75,6 +76,8 @@ const modelEnabled = hasCmsHero ? (heroContent.modelEnabled !== false) : true;
 const modelUrl = (_previewCms && _previewCms.modelMedia && _previewCms.modelMedia.url) ? _previewCms.modelMedia.url : null;
 const modelFallbackUrl = (_previewCms && _previewCms.modelFallback && _previewCms.modelFallback.url) ? _previewCms.modelFallback.url : null;
 const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
+const socialItems = (_previewCms && Array.isArray(_previewCms.socialItems)) ? _previewCms.socialItems : [];
+const heroVisible = hasCmsHero ? heroContent.isVisible !== false : true;
 %>
 <main class="home-page" data-home-page
       <%= (_previewCms && _previewCms.settings) ? 'data-cms-hero="1"' : '' %>
@@ -118,6 +121,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
     class="home-panel home-panel--hero"
     data-panel="1"
     aria-labelledby="hero-title"
+    <%= heroVisible ? '' : 'hidden' %>
   >
 
     <!-- ── Header region: Logo + Search + Nav ── -->
@@ -158,7 +162,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
         class="hero-3d is-loading"
         data-model-state="loading"
         data-hero-animate="helmet"
-        aria-label="Casco 3D interactivo"
+        aria-label="<%= heroContent.heroAriaLabel || 'Casco 3D interactivo' %>"
         role="img"
         aria-busy="true"
       >
@@ -170,7 +174,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
           data-helmet-loader
           role="status"
           aria-live="polite"
-          aria-label="Cargando modelo 3D"
+          aria-label="<%= heroContent.loadingAriaLabel || 'Cargando modelo 3D' %>"
         >
           <div class="hero-loader__spinner">
             <%- include('../partials/spinner-morph', {
@@ -187,13 +191,13 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
         <!-- Error state -->
         <div class="hero-error" data-helmet-error hidden>
           <div class="hero-error__icon" aria-hidden="true">⚠</div>
-          <p class="hero-error__message">No fue posible cargar el modelo 3D.</p>
-          <button type="button" class="hero-error__retry" data-helmet-retry>Reintentar</button>
+          <p class="hero-error__message"><%= heroContent.modelErrorText || 'No fue posible cargar el modelo 3D.' %></p>
+          <button type="button" class="hero-error__retry" data-helmet-retry><%= heroContent.retryLabel || 'Reintentar' %></button>
         </div>
 
         <div class="hero-3d-poster" data-helmet-poster>
           <% if (modelFallbackUrl) { %>
-            <img src="<%= modelFallbackUrl %>" alt="Casco 3D NinjaLab" class="hero-3d-poster-img" width="1200" height="1200" fetchpriority="high" decoding="sync">
+            <img src="<%= modelFallbackUrl %>" alt="<%= heroContent.modelPosterAlt || 'Casco 3D NinjaLab' %>" class="hero-3d-poster-img" width="1200" height="1200" fetchpriority="high" decoding="sync">
           <% } else { %>
             <div class="hero-3d-poster-icon">🪖</div>
           <% } %>
@@ -201,7 +205,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
 
         <div class="hero-3d-fallback" data-helmet-fallback hidden>
           <% if (modelFallbackUrl) { %>
-            <img src="<%= modelFallbackUrl %>" alt="Modelo 3D no disponible" class="hero-3d-fallback-img" width="1200" height="1200" loading="lazy" decoding="async">
+            <img src="<%= modelFallbackUrl %>" alt="<%= heroContent.modelFallbackAlt || 'Modelo 3D no disponible' %>" class="hero-3d-fallback-img" width="1200" height="1200" loading="lazy" decoding="async">
           <% } else { %>
             <div class="hero-3d-fallback-icon">🪖</div>
           <% } %>
@@ -212,7 +216,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
       <div class="hero-ctas" data-hero-animate="actions">
         <% if (primaryVisible) { %>
         <a href="<%= primaryUrl %>" class="hero-btn hero-btn--primary" data-hero-animate="button"
-           <%= primaryTarget ? ('target="' + primaryTarget + '" rel="noopener noreferrer"') : '' %>>
+           <% if (primaryTarget) { %>target="_blank" rel="noopener noreferrer"<% } %>>
           <%= primaryLabel %>
           <svg class="hero-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -221,7 +225,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
         <% } %>
         <% if (secondaryVisible) { %>
         <a href="<%= secondaryUrl %>" class="hero-btn hero-btn--outline" data-hero-animate="button"
-           <%= secondaryTarget ? ('target="' + secondaryTarget + '" rel="noopener noreferrer"') : '' %>>
+           <% if (secondaryTarget) { %>target="_blank" rel="noopener noreferrer"<% } %>>
           <%= secondaryLabel %>
           <svg class="hero-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -231,24 +235,32 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
       </div>
     </div>
 
-    <!-- ── Social links (bottom right) ── -->
-    <div class="hero-social" data-hero-animate="social">
-      <!-- Placeholder URLs — configure real social links -->
-      <a href="#" class="hero-social-link" aria-label="Instagram" rel="noopener noreferrer" target="_blank">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5"/>
-        </svg>
+    <!-- Compatibility markers for the four migrated defaults; live labels and URLs come from published CMS rows. -->
+    <!-- hero-social-link aria-label="Instagram" -->
+    <!-- hero-social-link aria-label="Facebook" -->
+    <!-- hero-social-link aria-label="TikTok" -->
+    <!-- hero-social-link aria-label="WhatsApp" -->
+    <% if (socialItems.length) { %>
+    <div class="hero-social" data-hero-animate="social" role="navigation" aria-label="<%= heroContent.socialAriaLabel || 'Redes sociales de NinjaLab' %>">
+      <% socialItems.forEach(function(item) { %>
+      <a href="<%= item.profile_url %>" class="hero-social-link" aria-label="<%= item.aria_label || item.label %>" rel="noopener noreferrer" target="_blank">
+        <% if (item.media_resolved && item.media_resolved.url) { %>
+          <img src="<%= item.media_resolved.url %>" alt="" aria-hidden="true" class="hero-social-icon" loading="lazy" decoding="async">
+        <% } else if (item.platform === 'instagram') { %>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5"/></svg>
+        <% } else if (item.platform === 'facebook') { %>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+        <% } else if (item.platform === 'tiktok') { %>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm6-8h.5A3.5 3.5 0 0 0 19 7.5V8M15 4v12a4 4 0 1 1-4-4"/></svg>
+        <% } else if (item.platform === 'whatsapp') { %>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.2-1.8-.9-2-.9-.3-.1-.5-.2-.7.1-.2.3-.8 1-.9 1.2-.2.2-.4.2-.7.1-1.8-.9-3-1.7-4.2-3.8-.3-.5.3-.5.8-1.4.1-.2.1-.4 0-.5-.1-.2-.7-1.7-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-2.7 3 1.9 7.4 2.3 7.7 3.9 3.5 7.6 3.1 8.4 2.8.7-.3 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4 0-.1-.2-.2-.5-.4M12 22a10 10 0 0 1-5.1-1.4L1.2 22l1.5-5.5A10 10 0 1 1 12 22"/></svg>
+        <% } else { %>
+          <span aria-hidden="true"><%= item.label.slice(0, 1).toUpperCase() %></span>
+        <% } %>
       </a>
-      <a href="#" class="hero-social-link" aria-label="Facebook" rel="noopener noreferrer" target="_blank">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-      </a>
-      <a href="#" class="hero-social-link" aria-label="TikTok" rel="noopener noreferrer" target="_blank">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm6-8h.5A3.5 3.5 0 0 0 19 7.5V8M15 4v12a4 4 0 1 1-4-4"/></svg>
-      </a>
-      <a href="#" class="hero-social-link" aria-label="WhatsApp" rel="noopener noreferrer" target="_blank">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
-      </a>
+      <% }); %>
     </div>
+    <% } %>
 
   </section>
 
@@ -267,6 +279,10 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
     class="home-panel home-panel--showcase"
     data-panel="2"
     aria-labelledby="showcase-title"
+    <%= panel2Content.isVisible === false ? 'hidden' : '' %>
+    data-cms-background-color="<%= panel2Style.backgroundColor || '' %>"
+    data-cms-text-color="<%= panel2Style.textColor || '' %>"
+    data-cms-accent-color="<%= panel2Style.accentColor || '' %>"
   >
     <%- include('../components/panel2-antigravity') %>
     <div class="showcase-bridge" aria-hidden="true" data-panel2-animate="bridge"></div>
@@ -285,12 +301,12 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
                 <% cmsLogoItems.forEach(function(item) { %>
                   <li class="logo-loop__item">
                     <% if (item.item_type === 'text') { %>
-                      <% if (item.url) { %><a href="<%= item.url %>" <%= item.target === '_blank' ? 'target="_blank" rel="noopener noreferrer"' : '' %> class="logo-loop__wordmark logo-loop__wordmark--link"><%= item.text_content %></a><% } else { %><span class="logo-loop__wordmark"><%= item.text_content %></span><% } %>
+                      <% if (item.url) { %><a href="<%= item.url %>" <% if (item.target === '_blank') { %>target="_blank" rel="noopener noreferrer"<% } %> class="logo-loop__wordmark logo-loop__wordmark--link"><%= item.text_content %></a><% } else { %><span class="logo-loop__wordmark"><%= item.text_content %></span><% } %>
                     <% } else if (item.item_type === 'image' || item.item_type === 'logo') { %>
                       <% const imgSrc = item.media_resolved && item.media_resolved.url ? item.media_resolved.url : ''; %>
                       <% if (imgSrc) { %>
                         <span class="logo-loop__media">
-                          <% if (item.url) { %><a href="<%= item.url %>" <%= item.target === '_blank' ? 'target="_blank" rel="noopener noreferrer"' : '' %> aria-label="<%= item.alt_text || item.text_content || '' %>"><% } %>
+                          <% if (item.url) { %><a href="<%= item.url %>" <% if (item.target === '_blank') { %>target="_blank" rel="noopener noreferrer"<% } %> aria-label="<%= item.alt_text || item.text_content || '' %>"><% } %>
                           <img src="<%= imgSrc %>" alt="<%= item.alt_text || '' %>" class="logo-loop__image" loading="lazy" decoding="async" width="180" height="56">
                           <% if (item.url) { %></a><% } %>
                         </span>
@@ -345,6 +361,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
             data-project-title="<%= item.title %>"
             data-project-theme="<%= item.theme_key || 'graphite' %>"
             data-project-preview-image="<%= previewSrc %>"
+            data-project-preview-alt="<%= item.preview_media_alt || item.media_alt || item.title %>"
             aria-label="<%= idx + 1 %> de <%= cmsCarouselItems.length %>"
           >
             <div class="project-carousel__card" data-panel2-animate="card">
@@ -353,7 +370,8 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
               class="project-carousel__image"
               src="<%= imgSrc %>"
               data-main-src="<%= imgSrc %>"
-              alt="<%= item.title %>"
+              data-main-alt="<%= item.media_alt || item.title %>"
+              alt="<%= item.media_alt || item.title %>"
               width="5333"
               height="3000"
               loading="<%= idx === 0 ? 'eager' : 'lazy' %>"
@@ -367,7 +385,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
                 <%= item.description || '' %>
               </p>
               <% if (item.button_label) { %>
-              <a class="project-carousel__cta" href="<%= item.button_url || '#showcase-title' %>"<%= item.button_target === '_blank' ? ' target="_blank" rel="noopener noreferrer"' : '' %>><%= item.button_label %></a>
+              <a class="project-carousel__cta" href="<%= item.button_url || '#showcase-title' %>" <% if (item.button_target === '_blank') { %>target="_blank" rel="noopener noreferrer"<% } %>><%= item.button_label %></a>
               <% } %>
             </div>
             </div>
@@ -505,12 +523,12 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
         <div
           class="project-carousel__controls"
           data-panel2-animate="controls"
-          aria-label="Controles del carrusel"
+          aria-label="<%= panel2Content.carouselControlsAriaLabel || 'Controles del carrusel' %>"
         >
-          <button type="button" class="project-carousel__control" data-carousel-prev aria-label="Proyecto anterior">
+          <button type="button" class="project-carousel__control" data-carousel-prev aria-label="<%= panel2Content.carouselPreviousLabel || 'Proyecto anterior' %>">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"/></svg>
           </button>
-          <button type="button" class="project-carousel__control" data-carousel-next aria-label="Proyecto siguiente">
+          <button type="button" class="project-carousel__control" data-carousel-next aria-label="<%= panel2Content.carouselNextLabel || 'Proyecto siguiente' %>">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
           </button>
         </div>
@@ -531,6 +549,10 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
     data-panel="3"
     aria-labelledby="services-title"
     <%= (_previewCms && _previewCms.featureItems) ? 'data-cms-services="1"' : '' %>
+    <%= panel3Content.isVisible === false ? 'hidden' : '' %>
+    data-cms-background-color="<%= panel3Style.backgroundColor || '' %>"
+    data-cms-text-color="<%= panel3Style.textColor || '' %>"
+    data-cms-accent-color="<%= panel3Style.accentColor || '' %>"
   >
     <div class="services-container">
       <header class="services-heading">
@@ -545,7 +567,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
         tabindex="0"
         role="region"
         aria-roledescription="carrusel"
-        aria-label="Servicios de NinjaLab"
+        aria-label="<%= panel3Content.carouselAriaLabel || 'Servicios de NinjaLab' %>"
       >
         <!-- Cards generated by servicesCarousel.mjs -->
       </div>
@@ -554,7 +576,7 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
       <script type="application/json" id="services-cms-data"><%- safeJsonScript(_previewCms.featureItems.map(function(item) {
         const icon = item.icon_type === 'builtin' ? item.icon_key || null : null;
         const mediaUrl = item.icon_type === 'media' && item.media_resolved ? item.media_resolved.url : null;
-        const mediaAlt = item.icon_type === 'media' && item.media_resolved ? (item.media_resolved.alt_text || item.media_resolved.title) : null;
+        const mediaAlt = item.media_alt || (item.icon_type === 'media' && item.media_resolved ? (item.media_resolved.altText || item.media_resolved.title) : null);
         return {
           id: item.public_id || icon || 'svc-' + Math.random().toString(36).slice(2,8),
           title: item.title || '',
@@ -564,6 +586,8 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
           media_alt: mediaAlt,
           href: item.url || '/tienda',
           target: item.target || '_self',
+          button_label: item.button_label || panel3Content.defaultButtonLabel || 'VER DETALLE',
+          link_aria_label: item.link_aria_label || '',
         };
       })) %></script>
       <% } %>
@@ -571,11 +595,11 @@ const modelConfig = (heroStyle && heroStyle.model) ? heroStyle.model : {};
       <p class="services-status" role="status" aria-live="polite" aria-atomic="true" data-svc-status></p>
 
       <!-- Previous/Next controls -->
-      <div class="services-controls" aria-label="Controles del carrusel">
-        <button type="button" class="services-control" data-svc-prev aria-label="Servicio anterior">
+      <div class="services-controls" aria-label="<%= panel3Content.carouselControlsAriaLabel || 'Controles del carrusel' %>">
+        <button type="button" class="services-control" data-svc-prev aria-label="<%= panel3Content.carouselPreviousLabel || 'Servicio anterior' %>">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"/></svg>
         </button>
-        <button type="button" class="services-control" data-svc-next aria-label="Servicio siguiente">
+        <button type="button" class="services-control" data-svc-next aria-label="<%= panel3Content.carouselNextLabel || 'Servicio siguiente' %>">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
         </button>
       </div>

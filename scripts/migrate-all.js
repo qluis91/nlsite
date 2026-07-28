@@ -11,6 +11,7 @@ const { migrateNavigationItems } = require('./migrate-nav-items');
 const { migratePanels } = require('./migrate-panels');
 const { migratePublishing } = require('./migrate-publishing');
 const { migrateCmsDraftPublish } = require('./migrate-cms-draft-publish');
+const { migrateCmsHomepageFields } = require('./migrate-cms-homepage-fields');
 
 (async () => {
   try {
@@ -21,6 +22,7 @@ const { migrateCmsDraftPublish } = require('./migrate-cms-draft-publish');
     await migratePanels();
     await migratePublishing();
     await migrateCmsDraftPublish();
+    await migrateCmsHomepageFields();
     console.log('All migrations complete.');
     process.exit(0);
   } catch (err) {

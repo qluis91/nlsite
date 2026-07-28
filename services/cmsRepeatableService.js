@@ -10,18 +10,33 @@ const { invalidateNamespace } = require('./cmsPublishingService');
 
 function serialize(value) { return value === null || value === undefined ? null : JSON.stringify(value); }
 
+function entityTypeFor(table) {
+  return {
+    home_social_items: 'social_item',
+    logo_loop_items: 'logo_loop_item',
+    home_carousel_items: 'carousel_item',
+    home_feature_items: 'feature_item',
+  }[table] || 'repeatable_item';
+}
+
 const PUBLISHED_FIELDS = Object.freeze({
+  home_social_items: Object.freeze([
+    'platform', 'label', 'profile_url', 'aria_label', 'media_public_id',
+    'sort_order', 'is_visible',
+  ]),
   logo_loop_items: Object.freeze([
     'item_type', 'text_content', 'media_public_id', 'url', 'link_type', 'target',
     'alt_text', 'sort_order', 'is_visible',
   ]),
   home_carousel_items: Object.freeze([
     'eyebrow', 'title', 'description', 'button_label', 'button_url', 'button_target',
-    'media_public_id', 'preview_media_public_id', 'theme_key', 'sort_order', 'is_visible',
+    'media_public_id', 'media_alt', 'preview_media_public_id', 'preview_media_alt',
+    'theme_key', 'sort_order', 'is_visible',
   ]),
   home_feature_items: Object.freeze([
-    'title', 'description', 'detail_text', 'icon_type', 'icon_key', 'media_public_id',
-    'url', 'link_type', 'target', 'style_variant', 'sort_order', 'is_visible',
+    'title', 'description', 'detail_text', 'button_label', 'icon_type', 'icon_key',
+    'media_public_id', 'media_alt', 'url', 'link_aria_label', 'link_type', 'target',
+    'style_variant', 'sort_order', 'is_visible',
   ]),
 });
 
@@ -84,7 +99,7 @@ async function createItem(table, sectionId, data, { actorId = null } = {}) {
       [publicId, sectionId, ...values]
     );
     await revisions.recordRevision({
-      entityType: table === 'logo_loop_items' ? 'logo_loop_item' : table === 'home_carousel_items' ? 'carousel_item' : 'feature_item',
+      entityType: entityTypeFor(table),
       entityId: result.insertId,
       action: 'upload',
       newData: data,
@@ -118,7 +133,7 @@ async function saveItem(table, publicId, data, { actorId = null } = {}) {
       [...values, actorId, publicId]
     );
     await revisions.recordRevision({
-      entityType: table === 'logo_loop_items' ? 'logo_loop_item' : table === 'home_carousel_items' ? 'carousel_item' : 'feature_item',
+      entityType: entityTypeFor(table),
       entityId: rows[0].id,
       action: 'metadata_edit',
       previousData: JSON.stringify(rows[0]),
@@ -144,7 +159,7 @@ async function archiveItem(table, publicId, { actorId = null } = {}) {
       [actorId, publicId]
     );
     await revisions.recordRevision({
-      entityType: table === 'logo_loop_items' ? 'logo_loop_item' : table === 'home_carousel_items' ? 'carousel_item' : 'feature_item',
+      entityType: entityTypeFor(table),
       entityId: rows[0].id,
       action: 'archive',
       previousData: { public_id: rows[0].public_id },
@@ -222,6 +237,17 @@ async function publishCollection(table, sectionId, cacheNs, { actorId = null } =
 // ── Media usage sources for Phase 11C ──
 
 function registerPanelUsageSources() {
+  usageService.registerUsageSource('home_social_items', async (reference) => {
+    const publicId = reference.replace('media://', '');
+    const [rows] = await pool.query(
+      `SELECT label, id FROM home_social_items
+        WHERE media_public_id = ? AND deleted_at IS NULL AND status != 'archived'
+        LIMIT 50`,
+      [publicId]
+    );
+    return rows.map(r => ({ source: 'home_social_items', label: 'Redes sociales', location: `Red social: ${r.label}` }));
+  });
+
   usageService.registerUsageSource('logo_loop_items', async (reference) => {
     const publicId = reference.replace('media://', '');
     const [rows] = await pool.query(

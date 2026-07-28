@@ -256,7 +256,7 @@ async function publishSingleModule(connection, moduleKey, actorId) {
       return publishNavbarInTx(connection, actorId);
 
     case MODULE_KEYS.HERO:
-      return publishPageSectionInTx(connection, 'home', 'hero', actorId);
+      return publishHeroInTx(connection, actorId);
 
     case MODULE_KEYS.SHOWCASE:
       return publishPageSectionInTx(connection, 'home', 'showcase', actorId);
@@ -336,6 +336,12 @@ async function publishNavbarInTx(connection, actorId) {
   }, connection);
   return { publishedRevId: revNum, sourceRevId: null,
    previousSnapshot: { status: 'draft' }, newSnapshot: { status: 'published' } };
+}
+
+async function publishHeroInTx(connection, actorId) {
+  const result = await publishPageSectionInTx(connection, 'home', 'hero', actorId);
+  await publishCollectionInTx(connection, 'home_social_items', 'social_item', actorId);
+  return result;
 }
 
 async function publishPageSectionInTx(connection, pageKey, sectionKey, actorId) {

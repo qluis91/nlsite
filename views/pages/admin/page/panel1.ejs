@@ -1,4 +1,6 @@
 <% const cmsEditorState = typeof editorState !== 'undefined' ? editorState : null; %>
+<% const submittedSocialValues = (typeof submittedSocialItem !== 'undefined' && submittedSocialItem && submittedSocialItem.values) ? submittedSocialItem.values : {}; %>
+<% const adminSocialItems = typeof socialItems !== 'undefined' && Array.isArray(socialItems) ? socialItems : []; %>
 <div data-cms-editor data-editor-state="<%= cmsEditorState || 'clean' %>">
 <div class="page-header">
   <div>
@@ -38,6 +40,9 @@
 
   <div class="card">
     <h2>Textos</h2>
+    <div class="form-group form-check">
+      <label><input type="checkbox" name="is_visible" value="1" <%= heroContent.isVisible !== false ? 'checked' : '' %>> Panel visible al publicar</label>
+    </div>
     <div class="form-group">
       <label for="eyebrow">Texto destacado (eyebrow)</label>
       <input class="form-control" id="eyebrow" name="eyebrow" type="text" maxlength="120"
@@ -71,6 +76,7 @@
         <input class="form-control" id="primary_url" name="primary_url" type="text" maxlength="500"
                value="<%= (heroContent.primaryButton && heroContent.primaryButton.url) || '' %>" placeholder="#productos">
       </div>
+      <div class="form-group"><label for="primary_target">Abrir en</label><select class="form-control" id="primary_target" name="primary_target"><option value="_self" <%= heroContent.primaryButton?.target !== '_blank' ? 'selected' : '' %>>Misma pestaña</option><option value="_blank" <%= heroContent.primaryButton?.target === '_blank' ? 'selected' : '' %>>Nueva pestaña</option></select></div>
     </div>
     <div class="form-group form-check">
       <label>
@@ -91,6 +97,7 @@
         <input class="form-control" id="secondary_url" name="secondary_url" type="text" maxlength="500"
                value="<%= (heroContent.secondaryButton && heroContent.secondaryButton.url) || '' %>" placeholder="#como-trabajamos">
       </div>
+      <div class="form-group"><label for="secondary_target">Abrir en</label><select class="form-control" id="secondary_target" name="secondary_target"><option value="_self" <%= heroContent.secondaryButton?.target !== '_blank' ? 'selected' : '' %>>Misma pestaña</option><option value="_blank" <%= heroContent.secondaryButton?.target === '_blank' ? 'selected' : '' %>>Nueva pestaña</option></select></div>
     </div>
     <div class="form-group form-check">
       <label>
@@ -233,10 +240,90 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2>Accesibilidad y estados</h2>
+    <div class="form-row">
+      <div class="form-group"><label for="hero_aria_label">Etiqueta accesible del modelo</label><input class="form-control" id="hero_aria_label" name="hero_aria_label" maxlength="160" value="<%= heroContent.heroAriaLabel || 'Casco 3D interactivo' %>"></div>
+      <div class="form-group"><label for="loading_aria_label">Etiqueta durante la carga</label><input class="form-control" id="loading_aria_label" name="loading_aria_label" maxlength="160" value="<%= heroContent.loadingAriaLabel || 'Cargando modelo 3D' %>"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="model_error_text">Mensaje si el modelo falla</label><input class="form-control" id="model_error_text" name="model_error_text" maxlength="240" value="<%= heroContent.modelErrorText || 'No fue posible cargar el modelo 3D.' %>"></div>
+      <div class="form-group"><label for="retry_label">Etiqueta del botón de reintento</label><input class="form-control" id="retry_label" name="retry_label" maxlength="80" value="<%= heroContent.retryLabel || 'Reintentar' %>"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="model_poster_alt">Texto alternativo del póster</label><input class="form-control" id="model_poster_alt" name="model_poster_alt" maxlength="250" value="<%= heroContent.modelPosterAlt || 'Casco 3D NinjaLab' %>"></div>
+      <div class="form-group"><label for="model_fallback_alt">Texto alternativo de respaldo</label><input class="form-control" id="model_fallback_alt" name="model_fallback_alt" maxlength="250" value="<%= heroContent.modelFallbackAlt || 'Modelo 3D no disponible' %>"></div>
+    </div>
+    <div class="form-group"><label for="social_aria_label">Etiqueta accesible del grupo de redes sociales</label><input class="form-control" id="social_aria_label" name="social_aria_label" maxlength="160" value="<%= heroContent.socialAriaLabel || 'Redes sociales de NinjaLab' %>"></div>
+  </div>
+
   <div class="cms-actions">
     <button class="btn btn-primary" type="submit">Guardar cambios</button>
   </div>
 </form>
+
+<section class="card">
+  <h2>Redes sociales</h2>
+  <p>Los iconos integrados se eligen desde una lista segura. Los cambios quedan como borrador hasta publicar el Panel 1.</p>
+  <% adminSocialItems.forEach(function(item) { %>
+    <form method="POST" action="/admin/page/home/panel-1/social/items/save" class="cms-form cms-repeatable-item" data-cms-editor-form>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="public_id" value="<%= item.public_id %>">
+      <div class="form-row">
+        <div class="form-group"><label>Plataforma</label><select name="platform" class="form-control"><% ['instagram','facebook','tiktok','whatsapp','youtube','linkedin','x'].forEach(function(platform) { %><option value="<%= platform %>" <%= item.platform === platform ? 'selected' : '' %>><%= platform %></option><% }); %></select></div>
+        <div class="form-group"><label>Etiqueta</label><input name="label" class="form-control" maxlength="80" required value="<%= item.label || '' %>"></div>
+        <div class="form-group"><label>Visible</label><select name="is_visible" class="form-control"><option value="1" <%= item.is_visible ? 'selected' : '' %>>Sí</option><option value="0" <%= !item.is_visible ? 'selected' : '' %>>No</option></select></div>
+      </div>
+      <div class="form-group"><label>URL del perfil</label><input name="profile_url" class="form-control" type="url" maxlength="500" required value="<%= item.profile_url || '' %>" placeholder="https://..."></div>
+      <div class="form-group"><label>Etiqueta accesible</label><input name="aria_label" class="form-control" maxlength="160" required value="<%= item.aria_label || '' %>"></div>
+      <div class="form-group">
+        <%- include('../../../components/media-selector', {
+          fieldName: 'media_public_id',
+          currentValue: item.media_public_id ? 'media://' + item.media_public_id : '',
+          label: 'Icono personalizado (opcional)',
+          kindLabel: 'Icono',
+          allowedTypes: ['image/png','image/jpeg','image/webp'],
+          allowedCategories: ['icon','logo'],
+          uploadProfile: 'feature-icon',
+          thumbnailUrl: item.media_resolved ? item.media_resolved.thumbnail_url : null,
+          selectedTitle: item.media_resolved ? item.media_resolved.title : null,
+        }) %>
+      </div>
+      <div class="cms-actions"><button type="submit" class="btn btn-primary">Guardar red social</button><button type="submit" class="btn btn-danger" formaction="/admin/page/home/panel-1/social/items/archive">Archivar</button></div>
+    </form>
+  <% }); %>
+  <details class="cms-card">
+    <summary>Agregar red social</summary>
+    <form method="POST" action="/admin/page/home/panel-1/social/items" class="cms-form" data-cms-editor-form>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="form-row">
+        <div class="form-group"><label>Plataforma</label><select name="platform" class="form-control"><% ['instagram','facebook','tiktok','whatsapp','youtube','linkedin','x'].forEach(function(platform) { %><option value="<%= platform %>"><%= platform %></option><% }); %></select></div>
+        <div class="form-group"><label>Etiqueta</label><input name="label" class="form-control" maxlength="80" required value="<%= submittedSocialValues.label || '' %>"></div>
+      </div>
+      <div class="form-group"><label>URL del perfil</label><input name="profile_url" class="form-control" type="url" maxlength="500" required value="<%= submittedSocialValues.profile_url || '' %>" placeholder="https://www.instagram.com/..."></div>
+      <div class="form-group"><label>Etiqueta accesible</label><input name="aria_label" class="form-control" maxlength="160" required value="<%= submittedSocialValues.aria_label || '' %>"></div>
+      <div class="form-group">
+        <%- include('../../../components/media-selector', {
+          fieldName: 'media_public_id',
+          currentValue: submittedSocialValues.media_public_id || '',
+          label: 'Icono personalizado (opcional)',
+          kindLabel: 'Icono',
+          allowedTypes: ['image/png','image/jpeg','image/webp'],
+          allowedCategories: ['icon','logo'],
+          uploadProfile: 'feature-icon',
+        }) %>
+      </div>
+      <input type="hidden" name="is_visible" value="1">
+      <button type="submit" class="btn btn-primary">Agregar red social</button>
+    </form>
+  </details>
+  <form method="POST" action="/admin/page/home/panel-1/social/items/reorder" class="cms-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>Orden (identificadores separados por coma)</label>
+    <input class="form-control" name="ids" value="<%= adminSocialItems.map(function(item) { return item.public_id; }).join(',') %>">
+    <button type="submit" class="btn btn-outline">Guardar orden</button>
+  </form>
+</section>
 
 <section class="card">
   <h2>Biblioteca multimedia</h2>

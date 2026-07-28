@@ -146,6 +146,8 @@
     el('carousel-btn-label').value = item.button_label || '';
     el('carousel-btn-url').value = item.button_url || '';
     el('carousel-btn-target').value = item.button_target || '_self';
+    el('carousel-media-alt').value = item.media_alt || '';
+    el('carousel-preview-alt').value = item.preview_media_alt || '';
     var selectors = form.querySelectorAll('[data-media-selector]');
     if (selectors.length >= 1) {
       selectors[0].dispatchEvent(new CustomEvent('media-selector:load', {
@@ -254,6 +256,8 @@
         button_target: values.button_target,
         media_public_id: values.media_public_id || '',
         preview_media_public_id: values.preview_media_public_id || '',
+        media_alt: values.media_alt,
+        preview_media_alt: values.preview_media_alt,
         theme_key: values.theme_key,
         is_visible: values.is_visible !== '0',
       });

@@ -84,6 +84,7 @@
     el('feature-title').value = item.title || '';
     el('feature-desc').value = item.description || '';
     el('feature-detail').value = item.detail_text || '';
+    el('feature-button-label').value = item.button_label || 'VER DETALLE';
     if (iconTypeSel) iconTypeSel.value = item.icon_type || 'builtin';
     el('feature-icon-key').value = item.icon_key || '';
     var selector = form.querySelector('[data-media-selector]');
@@ -99,6 +100,8 @@
       }));
     }
     el('feature-url').value = item.url || '';
+    el('feature-media-alt').value = item.media_alt || '';
+    el('feature-link-aria').value = item.link_aria_label || '';
     el('feature-link-type').value = item.link_type || 'internal';
     el('feature-target').value = item.target || '_self';
     el('feature-style').value = item.style_variant || '';
@@ -154,10 +157,13 @@
       title: values.title,
       description: values.description,
       detail_text: values.detail_text,
+      button_label: values.button_label,
       icon_type: values.icon_type,
       icon_key: values.icon_key,
       media_public_id: values.media_public_id || '',
+      media_alt: values.media_alt,
       url: values.url,
+      link_aria_label: values.link_aria_label,
       link_type: values.link_type,
       target: values.target,
       style_variant: values.style_variant,

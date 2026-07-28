@@ -48,6 +48,17 @@ function reducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+function applyPublishedPanelAppearance() {
+  document.querySelectorAll('.home-panel[data-cms-background-color]').forEach((panel) => {
+    const background = panel.dataset.cmsBackgroundColor;
+    const text = panel.dataset.cmsTextColor;
+    const accent = panel.dataset.cmsAccentColor;
+    if (background) panel.style.backgroundColor = background;
+    if (text) panel.style.color = text;
+    if (accent) panel.style.setProperty('--cms-panel-accent', accent);
+  });
+}
+
 function safeLifecycleCall(controller, method, label) {
   if (!controller) return;
   try {
@@ -249,6 +260,7 @@ async function init() {
   }
 
   const prefersReduced = reducedMotion();
+  applyPublishedPanelAppearance();
 
   // ── Reduced-motion: pause SVG SMIL animations ──
   if (prefersReduced) {

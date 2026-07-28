@@ -599,6 +599,14 @@ app.get('/', async (req, res) => {
     let logoLoopItems = [];
     let carouselItems = [];
     let featureItems = [];
+    let socialItems = [];
+
+    {
+      const section = await resolveSection('hero');
+      if (section?.has_published_version && Number(section.is_enabled) === 1) {
+        socialItems = await repeatableSvc.getPublishedItems('home_social_items', section.id);
+      }
+    }
 
     {
       const section = await resolveSection('showcase');
@@ -655,6 +663,11 @@ app.get('/', async (req, res) => {
         item.media_resolved = await resolveMedia('media://' + item.media_public_id);
       }
     }
+    for (const item of socialItems) {
+      if (item.media_public_id) {
+        item.media_resolved = await resolveMedia('media://' + item.media_public_id);
+      }
+    }
 
     const [logoPrimary, logoLight, logoDark, favicon, modelMedia, modelFallback, bgMedia] = await Promise.all([
       resolveMedia(settings['site.logo_primary']),
@@ -677,6 +690,7 @@ app.get('/', async (req, res) => {
       logoLoopItems: logoLoopItems.length ? logoLoopItems : null,
       carouselItems: carouselItems.length ? carouselItems : null,
       featureItems: featureItems.length ? featureItems : null,
+      socialItems,
       settings,
       logos: {
         primary: logoPrimary,

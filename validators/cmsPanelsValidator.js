@@ -33,9 +33,8 @@ function validateUrl(value, { required = false, allowFragment = true } = {}) {
   if (allowFragment && str.startsWith('#') && str.length > 2) return null;
   // Internal path
   if (str.startsWith('/') && str.length > 1) return null;
-  // mailto:/tel:
+  // Existing contact links remain supported; new social fields use a stricter validator.
   if (/^(mailto|tel):/i.test(str)) return null;
-
   try {
     const parsed = new URL(str);
     if (!SAFE_URL_PROTOCOLS.has(parsed.protocol)) return 'Protocolo de URL no permitido.';
@@ -77,6 +76,9 @@ function validatePanel2Content(body = {}) {
   e(boundedText(body.supportText, 'Texto de apoyo', 1200));
   e(boundedText(body.carouselLabel, 'Etiqueta del carrusel', 120));
   e(boundedText(body.logoLoopAriaLabel, 'Etiqueta ARIA del LogoLoop', 160));
+  e(boundedText(body.carouselControlsAriaLabel, 'Etiqueta ARIA de controles', 160));
+  e(boundedText(body.carouselPreviousLabel, 'Etiqueta anterior', 100));
+  e(boundedText(body.carouselNextLabel, 'Etiqueta siguiente', 100));
 
   return errors;
 }
@@ -130,6 +132,8 @@ function validateCarouselItem(body = {}) {
   e(boundedText(body.title, 'Título', 180, { required: true }));
   e(boundedText(body.description, 'Descripción', 1200));
   e(boundedText(body.button_label, 'Etiqueta del botón', 80));
+  e(boundedText(body.media_alt, 'Texto alternativo de imagen', 250));
+  e(boundedText(body.preview_media_alt, 'Texto alternativo de preview', 250));
 
   if (body.button_url && String(body.button_url).trim()) {
     e(validateUrl(body.button_url));
@@ -151,6 +155,11 @@ function validatePanel3Content(body = {}) {
   e(boundedText(body.eyebrow, 'Kicker', 120));
   e(boundedText(body.heading, 'Encabezado', 220, { required: true }));
   e(boundedText(body.description, 'Descripción', 1200));
+  e(boundedText(body.carouselAriaLabel, 'Etiqueta ARIA del carrusel', 160));
+  e(boundedText(body.carouselControlsAriaLabel, 'Etiqueta ARIA de controles', 160));
+  e(boundedText(body.carouselPreviousLabel, 'Etiqueta anterior', 100));
+  e(boundedText(body.carouselNextLabel, 'Etiqueta siguiente', 100));
+  e(boundedText(body.defaultButtonLabel, 'Etiqueta predeterminada del botón', 80));
 
   return errors;
 }
@@ -175,6 +184,9 @@ function validateFeatureItem(body = {}) {
   e(boundedText(body.title, 'Título', 160, { required: true }));
   e(boundedText(body.description, 'Descripción', 1000));
   e(boundedText(body.detail_text, 'Texto detallado', 1500));
+  e(boundedText(body.button_label, 'Etiqueta del botón', 80));
+  e(boundedText(body.media_alt, 'Texto alternativo del icono', 250));
+  e(boundedText(body.link_aria_label, 'Etiqueta accesible del enlace', 180));
 
   const iconType = String(body.icon_type || 'builtin').trim();
   if (!ICON_TYPES.has(iconType)) e('Tipo de icono no permitido.');

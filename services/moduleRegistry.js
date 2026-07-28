@@ -72,7 +72,10 @@ const MODULES = Object.freeze({
       const [[row]] = await pool.query(
         "SELECT s.status FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key='home' AND s.section_key='hero'"
       );
-      return row && row.status === 'draft';
+      const [[{ cnt }]] = await pool.query(
+        "SELECT COUNT(*) cnt FROM home_social_items WHERE status IN ('draft', 'archived')"
+      );
+      return Boolean(row && row.status === 'draft') || cnt > 0;
     },
   }),
 
