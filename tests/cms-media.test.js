@@ -161,8 +161,10 @@ test('migration creates every Phase 11A table, key and index and is idempotent',
 test('home page and section seeds are idempotent and never overwrite existing content', async () => {
   const [[page]] = await pool.query('SELECT id FROM pages WHERE page_key = ?', ['home']);
   assert.ok(page, 'la página home debe existir');
+  // Reset hero section to canonical seed state so prior test runs do not
+  // interfere with the idempotency contract.
   await pool.query(
-    "UPDATE page_sections SET content_json = ? WHERE page_id = ? AND section_key = 'hero'",
+    "UPDATE page_sections SET status = 'draft', is_enabled = 0, content_json = ? WHERE page_id = ? AND section_key = 'hero'",
     [JSON.stringify({ preserved: marker }), page.id]
   );
 
