@@ -825,6 +825,7 @@ let _started = false;
 async function startServer() {
   if (_started) return;
   _started = true;
+  console.log('[startup] Application startup beginning.');
 
   try {
     await sessionStore.onReady();
@@ -842,6 +843,7 @@ async function startServer() {
   }
 
   server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[startup] Server listening on 0.0.0.0:${PORT}.`);
     console.log('═══════════════════════════════════════');
     console.log('  🚀 Servidor corriendo en:');
     console.log('  ➜ http://localhost:' + PORT);

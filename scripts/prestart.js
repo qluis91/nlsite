@@ -1,24 +1,46 @@
 /**
- * Phase 13 — Pre-start hook: runs migrations automatically in production.
- *
- * In production, awaits migrate:deploy before the app starts.
- * If migration fails, the process exits non-zero, preventing app start.
- *
- * In development, does nothing (migrations run manually via npm run migrate).
- *
- * Wired as the "prestart" script in package.json.
+ * Production npm prestart hook. A successful process exit allows npm to launch
+ * the separate `node app.js` start process with a fresh database pool.
  */
-if (process.env.NODE_ENV === 'production') {
-  const { run } = require('./migrate-deploy');
-  run()
-    .then(() => {
-      console.log('[prestart] Migrations complete. Starting application...');
-      process.exit(0);
-    })
-    .catch(err => {
-      console.error('[prestart] Migration failed — application will not start:', err.message);
-      process.exit(1);
-    });
-} else {
-  process.exit(0);
+async function runPrestart({
+  environment = process.env.NODE_ENV,
+  migrate,
+  closeMigrationPool,
+} = {}) {
+  if (environment !== 'production') {
+    console.log('[prestart] Non-production environment; deploy migrations skipped.');
+    return { skipped: true };
+  }
+
+  const deploy = migrate && closeMigrationPool
+    ? { run: migrate, closePool: closeMigrationPool }
+    : require('./migrate-deploy');
+  let migrationError;
+
+  try {
+    console.log('[prestart] Production migration lifecycle beginning.');
+    await deploy.run();
+    console.log('[prestart] Migrations complete; application startup may begin.');
+    return { skipped: false };
+  } catch (error) {
+    migrationError = error;
+    console.error('[prestart] Migration failed — application will not start:', error.message);
+    throw error;
+  } finally {
+    try {
+      await deploy.closePool();
+      console.log('[prestart] Migration database pool closed.');
+    } catch (closeError) {
+      if (!migrationError) throw closeError;
+      console.error('[prestart] Migration pool cleanup also failed:', closeError.message);
+    }
+  }
 }
+
+if (require.main === module) {
+  runPrestart().catch(() => {
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { runPrestart };

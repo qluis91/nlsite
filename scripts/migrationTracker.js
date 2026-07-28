@@ -17,14 +17,22 @@ const MIGRATION_REGISTRY = [
   { name: 'migratePublishing',     file: './migrate-publishing',      exportName: 'migratePublishing' },
   { name: 'migrateCmsDraftPublish',file: './migrate-cms-draft-publish',exportName: 'migrateCmsDraftPublish' },
   { name: 'migrateCmsHomepageFields',file: './migrate-cms-homepage-fields',exportName: 'migrateCmsHomepageFields' },
-  { name: 'migrateCatalog',        file: './migrate-catalog',         exportName: 'migrateCatalog' },
+  { name: 'migrateCatalog', file: './migrate-catalog', exportName: 'migrateCatalog', capability: 'catalog' },
+  {
+    name: 'migrateCatalogSchemaRepair',
+    file: './migrate-catalog-schema-repair',
+    exportName: 'migrateCatalogSchemaRepair',
+    capability: 'catalog',
+    passPool: true,
+    reconcileOnDrift: true,
+  },
   { name: 'migrateOrders',         file: './migrate-orders',          exportName: 'migrate' },
   { name: 'migrateTilopay',        file: './migrate-tilopay',         exportName: 'migrate' },
-  { name: 'migrateCategoryHero',   file: './migrate-category-hero',   exportName: 'migrateCategoryHero' },
+  { name: 'migrateCategoryHero', file: './migrate-category-hero', exportName: 'migrateCategoryHero', capability: 'catalog' },
   { name: 'migrateGallery',        file: './migrate-gallery',         exportName: 'migrateGallery' },
   { name: 'migratePaymentProofs',  file: './migrate-payment-proofs',  exportName: 'migrate' },
   { name: 'migrateTracking',       file: './migrate-tracking',        exportName: 'migrate' },
-  { name: 'migrateCatalogSeo',     file: './migrate-catalog-seo',     exportName: 'migrate' },
+  { name: 'migrateCatalogSeo', file: './migrate-catalog-seo', exportName: 'migrate', capability: 'catalog' },
   { name: 'migrateGalleryYoutube', file: './migrate-gallery-youtube', exportName: 'migrate' },
   { name: 'migrateCmsPhase1aSaveRepair', file: './migrate-cms-phase1a-save-repair', exportName: 'migrateCmsPhase1aSaveRepair' },
 ];
@@ -82,7 +90,13 @@ async function recordMigrationFailure(pool, name, checksum, durationMs, error) {
   );
 }
 
-async function runPendingMigrations(pool) {
+async function runPendingMigrations(pool, {
+  registry = MIGRATION_REGISTRY,
+  checksumFor = computeChecksum,
+  loadMigration = (file) => require(file),
+  inspectCatalog,
+  formatCatalogIssues,
+} = {}) {
   await ensureMigrationsTable(pool);
 
   const executed = await getExecutedMigrations(pool);
@@ -90,11 +104,13 @@ async function runPendingMigrations(pool) {
 
   let ran = 0;
   let skipped = 0;
+  let reconciled = 0;
+  console.log(`[migrate:deploy] Migration registry loaded (${registry.length} entries).`);
 
-  for (const entry of MIGRATION_REGISTRY) {
+  for (const entry of registry) {
     const { name, file, exportName } = entry;
     const filePath = path.resolve(__dirname, file + '.js');
-    const checksum = computeChecksum(filePath);
+    const checksum = checksumFor(filePath);
     const existing = executedMap.get(name);
 
     if (existing) {
@@ -105,21 +121,48 @@ async function runPendingMigrations(pool) {
           `Manual review required.`
         );
       }
+      if (entry.capability === 'catalog') {
+        const readiness = require('../services/catalogSchemaReadinessService');
+        const inspectCatalogSchema = inspectCatalog || readiness.inspectCatalogSchema;
+        const formatCatalogSchemaIssues = formatCatalogIssues || readiness.formatCatalogSchemaIssues;
+        const capabilities = await inspectCatalogSchema(pool, { force: true });
+        if (!capabilities.ready) {
+          console.warn(
+            `[migrate:deploy] ${name} is recorded ok but catalog capabilities are incomplete: `
+            + formatCatalogSchemaIssues(capabilities)
+          );
+          if (entry.reconcileOnDrift) {
+            console.log(`[migrate:deploy] Reconciling ${name} because physical schema drift was detected.`);
+            const mod = loadMigration(file);
+            const fn = mod[exportName];
+            if (typeof fn !== 'function') {
+              throw new Error(`Migration "${name}" missing export "${exportName}"`);
+            }
+            await fn(pool);
+            reconciled++;
+            console.log(`[migrate:deploy] Reconciled ${name}.`);
+            continue;
+          }
+        }
+      }
       skipped++;
+      console.log(`[migrate:deploy] Skipped ${name} (already ok).`);
       continue;
     }
 
     const start = Date.now();
-    const mod = require(file);
+    console.log(`[migrate:deploy] Starting ${name}.`);
+    const mod = loadMigration(file);
     const fn = mod[exportName];
     if (typeof fn !== 'function') {
       throw new Error(`Migration "${name}" missing export "${exportName}"`);
     }
     try {
-      await fn();
+      await fn(entry.passPool ? pool : undefined);
       const durationMs = Math.max(1, Date.now() - start);
       await recordMigration(pool, name, checksum, durationMs);
       ran++;
+      console.log(`[migrate:deploy] Completed ${name} (${durationMs}ms).`);
     } catch (error) {
       const durationMs = Math.max(1, Date.now() - start);
       await recordMigrationFailure(
@@ -133,7 +176,7 @@ async function runPendingMigrations(pool) {
     }
   }
 
-  return { ran, skipped };
+  return { ran, skipped, reconciled };
 }
 
 module.exports = {

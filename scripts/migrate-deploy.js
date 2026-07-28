@@ -1,17 +1,6 @@
 /**
- * Phase 13 — Production migration deployer.
- *
- * Usage:
- *   node scripts/migrate-deploy.js    (direct, exits 0/1/2)
- *   const { run } = require('./migrate-deploy'); await run();  (programmatic, throws on failure)
- *
- * Behaviour:
- * 1. Acquires a MySQL advisory lock (GET_LOCK).
- * 2. Creates schema_migrations if missing.
- * 3. Runs pending migrations from the registry.
- * 4. Skips already-executed migrations (checksum-verified).
- * 5. Records each execution in schema_migrations.
- * 6. Releases the lock in finally.
+ * Production migration deployer. Pending migrations run under one advisory
+ * lock; required capabilities are verified only after the registry completes.
  */
 require('dotenv').config();
 const pool = require('../config/db');
@@ -24,27 +13,37 @@ async function run() {
   let locked = false;
   try {
     locked = await tracker.acquireLock(conn);
-    if (!locked) {
-      throw new Error('LOCKED: Another migration is already running.');
-    }
+    if (!locked) throw new Error('LOCKED: Another migration is already running.');
+    console.log('[migrate:deploy] Advisory lock acquired.');
 
-    const { ran, skipped } = await tracker.runPendingMigrations(pool);
+    const result = await tracker.runPendingMigrations(pool);
+    console.log('[migrate:deploy] Registry complete; verifying required schema capabilities.');
     await assertCmsSchemaReady(pool, { force: true });
     await assertCatalogSchemaReady(pool, { force: true });
-    console.log(`[migrate:deploy] Done — ${ran} ran, ${skipped} skipped.`);
+    console.log('[migrate:deploy] Post-migration readiness passed.');
+    console.log(
+      `[migrate:deploy] Done — ${result.ran} ran, ${result.skipped} skipped, `
+      + `${result.reconciled} reconciled.`
+    );
+    return result;
   } finally {
     if (locked) await tracker.releaseLock(conn).catch(() => {});
     conn.release();
   }
 }
 
+async function closePool() {
+  await pool.end();
+}
+
 if (require.main === module) {
   run()
-    .then(() => pool.end().catch(() => {}).finally(() => process.exit(0)))
-    .catch(err => {
-      console.error('[migrate:deploy] Failed:', err.message);
-      pool.end().catch(() => {}).finally(() => process.exit(err.message.startsWith('LOCKED') ? 2 : 1));
+    .then(() => closePool())
+    .catch(async (error) => {
+      console.error('[migrate:deploy] Failed:', error.message);
+      await closePool().catch(() => {});
+      process.exitCode = error.message.startsWith('LOCKED') ? 2 : 1;
     });
 }
 
-module.exports = { run };
+module.exports = { run, closePool };

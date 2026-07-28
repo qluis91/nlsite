@@ -14,8 +14,12 @@ after(async () => {
 });
 
 describe('Phase 13 — migrationTracker', () => {
-  it('MIGRATION_REGISTRY has 18 entries', () => {
-    assert.equal(tracker.MIGRATION_REGISTRY.length, 18);
+  it('MIGRATION_REGISTRY has 19 stable entries including catalog reconciliation', () => {
+    assert.equal(tracker.MIGRATION_REGISTRY.length, 19);
+    assert.equal(
+      tracker.MIGRATION_REGISTRY.filter((entry) => entry.name === 'migrateCatalogSchemaRepair').length,
+      1
+    );
   });
 
   it('each registry entry has name, file, exportName', () => {

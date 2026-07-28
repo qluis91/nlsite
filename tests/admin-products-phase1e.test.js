@@ -9,6 +9,8 @@ const pool = require('../config/db');
 const catalog = require('../services/adminCatalogService');
 const {
   CATALOG_SCHEMA_REQUIREMENTS,
+  CATALOG_INDEX_REQUIREMENTS,
+  CATALOG_FOREIGN_KEY_REQUIREMENTS,
   inspectCatalogSchema,
   assertCatalogSchemaReady,
 } = require('../services/catalogSchemaReadinessService');
@@ -241,7 +243,34 @@ describe('Catalog readiness and safe diagnostics', () => {
         rows.push({ tableName: table, columnName: column, dataType: columns[column][0] });
       }
     }
-    const db = { query: async () => [rows] };
+    const db = {
+      async query(sql) {
+        if (sql.includes('information_schema.COLUMNS')) return [rows];
+        if (sql.includes('information_schema.STATISTICS')) {
+          return [CATALOG_INDEX_REQUIREMENTS.flatMap((index, indexPosition) => (
+            index.columns.map((column, columnPosition) => ({
+              tableName: index.table,
+              indexName: `fixture_index_${indexPosition}`,
+              nonUnique: index.unique ? 0 : 1,
+              columnName: column,
+              sequenceInIndex: columnPosition + 1,
+            }))
+          ))];
+        }
+        if (sql.includes('information_schema.KEY_COLUMN_USAGE')) {
+          return [CATALOG_FOREIGN_KEY_REQUIREMENTS.flatMap((foreignKey, keyPosition) => (
+            foreignKey.columns.map((column, columnPosition) => ({
+              tableName: foreignKey.table,
+              constraintName: `fixture_fk_${keyPosition}`,
+              columnName: column,
+              referencedTable: foreignKey.referencedTable,
+              referencedColumn: foreignKey.referencedColumns[columnPosition],
+            }))
+          ))];
+        }
+        throw new Error('unexpected readiness query');
+      },
+    };
     const result = await inspectCatalogSchema(db, { force: true });
     assert.equal(result.ready, false);
     assert.deepEqual(result.missing, ['products.stock_quantity']);
@@ -281,7 +310,7 @@ describe('Catalog readiness and safe diagnostics', () => {
     assert.equal(sanitizeLogText('one\n two').includes('\n'), false);
   });
 
-  it('wires catalog readiness into deployment and /ready without adding a fake migration', () => {
+  it('wires catalog readiness and the additive repair into deployment and /ready', () => {
     const deploy = fs.readFileSync(path.join(__dirname, '../scripts/migrate-deploy.js'), 'utf8');
     const readiness = fs.readFileSync(path.join(__dirname, '../config/databaseReadiness.js'), 'utf8');
     const tracker = require('../scripts/migrationTracker');
@@ -290,7 +319,12 @@ describe('Catalog readiness and safe diagnostics', () => {
     assert.ok(tracker.MIGRATION_REGISTRY.some((entry) => entry.name === 'migrateCatalog'));
     assert.ok(tracker.MIGRATION_REGISTRY.some((entry) => entry.name === 'migrateCategoryHero'));
     assert.ok(tracker.MIGRATION_REGISTRY.some((entry) => entry.name === 'migrateCatalogSeo'));
-    assert.equal(tracker.MIGRATION_REGISTRY.some((entry) => /phase1e/i.test(entry.name)), false);
+    const baseIndex = tracker.MIGRATION_REGISTRY.findIndex((entry) => entry.name === 'migrateCatalog');
+    const repairIndex = tracker.MIGRATION_REGISTRY.findIndex(
+      (entry) => entry.name === 'migrateCatalogSchemaRepair'
+    );
+    assert.equal(repairIndex, baseIndex + 1);
+    assert.equal(tracker.MIGRATION_REGISTRY[repairIndex].reconcileOnDrift, true);
   });
 });
 
