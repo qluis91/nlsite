@@ -17,6 +17,12 @@ const NAVBAR_PATH = '/admin/page/navbar';
 const PANEL1_PATH = '/admin/page/home/panel-1';
 
 function actorId(req) { return req.session?.user?.id || null; }
+function consumeEditorState(req) {
+  if (!req.session) return null;
+  const state = req.session.cms_editor_state || null;
+  delete req.session.cms_editor_state;
+  return state;
+}
 function redirectWithError(req, res, destination, message) {
   req.session.error_msg = message || 'No fue posible completar la operación.';
   return res.redirect(destination);
@@ -65,11 +71,12 @@ async function resolveMediaData(ref) {
 async function showNavbar(req, res, next) {
   try {
     const navItems = await publishing.listNavItems('home');
-    const settings = await publishing.getPublishedSettings([
+    const storedSettings = await publishing.getDraftSettings([
       'site.logo_primary', 'site.logo_light', 'site.logo_dark',
       'site.favicon', 'navbar.bg_color', 'navbar.text_color',
       'navbar.accent_color', 'navbar.border_color', 'navbar.opacity', 'navbar.logo_width',
     ]);
+    const settings = { ...storedSettings, ...(req.cmsSettingsOverride || {}) };
     const mediaList = await listPickableMedia({ kind: 'image' });
 
     // Resolve current media refs for visual selector pre-population
@@ -80,16 +87,26 @@ async function showNavbar(req, res, next) {
       resolveMediaData(settings['site.favicon']),
     ]);
 
-    res.render('pages/admin/page/navbar', {
+    res.status(req.cmsEditorStatus || 200).render('pages/admin/page/navbar', {
       title: 'Navbar y branding',
       layout: 'layouts/admin',
       pageStyles: PAGE_STYLES,
-      pageScripts: ['/js/admin/media-selector.js'],
+      pageScripts: ['/js/admin/media-selector.js', '/js/admin/cms-editor-state.js'],
       pageModule: PAGE_MODULE,
       navItems,
       settings,
       mediaList,
       logoPrimary, logoLight, logoDark, favicon,
+      editorState: req.cmsEditorErrors?.length ? 'error' : consumeEditorState(req),
+      fieldErrors: req.cmsEditorErrors || [],
+      submittedNavItem: req.cmsSubmittedNavItem || null,
+      pageAlerts: req.cmsEditorErrors?.length ? [{
+        id: 'navbar-validation',
+        type: 'error',
+        title: 'No se pudo guardar el borrador',
+        description: req.cmsEditorErrors.join(' '),
+        persistent: true,
+      }] : [],
       formatFileSize: mediaService.formatFileSize,
     });
   } catch (error) { next(error); }
@@ -97,9 +114,26 @@ async function showNavbar(req, res, next) {
 
 async function saveNavbarSettings(req, res, next) {
   const destination = NAVBAR_PATH;
+  const rawSettings = {
+    'site.logo_primary': req.body.logo_primary || '',
+    'site.logo_light': req.body.logo_light || '',
+    'site.logo_dark': req.body.logo_dark || '',
+    'site.favicon': req.body.favicon || '',
+    'navbar.bg_color': req.body.bg_color || '',
+    'navbar.text_color': req.body.text_color || '',
+    'navbar.accent_color': req.body.accent_color || '',
+    'navbar.border_color': req.body.border_color || '',
+    'navbar.opacity': req.body.opacity || '',
+    'navbar.logo_width': req.body.logo_width || '',
+  };
   try {
     const validation = validator.validateNavbarSettings(req.body);
-    if (!validation.valid) return redirectWithError(req, res, destination, validation.error);
+    if (!validation.valid) {
+      req.cmsSettingsOverride = rawSettings;
+      req.cmsEditorErrors = [validation.error];
+      req.cmsEditorStatus = 422;
+      return showNavbar(req, res, next);
+    }
 
     const vals = validation.value;
     const settings = [
@@ -115,24 +149,31 @@ async function saveNavbarSettings(req, res, next) {
       ['navbar.logo_width', vals.logo_width === null ? null : String(vals.logo_width), 'number', 'navbar'],
     ];
 
-    for (const [key, value, type, group] of settings) {
-      await publishing.upsertSetting(key, value, type, { settingGroup: group, isPublic: true, actorId: actorId(req) });
-    }
+    await publishing.saveSettingsDraft(settings, { actorId: actorId(req) });
 
     req.session.success_msg = 'Configuración del navbar guardada como borrador.';
+    req.session.cms_editor_state = 'saved';
     return res.redirect(NAVBAR_PATH);
   } catch (error) {
-    if (error.code?.startsWith('ER_')) return next(error);
-    return redirectWithError(req, res, destination, error.message);
+    req.cmsSettingsOverride = rawSettings;
+    req.cmsEditorErrors = [error.message || 'Error de servidor o base de datos.'];
+    req.cmsEditorStatus = 500;
+    return showNavbar(req, res, next);
   }
 }
 
 async function publishNavbar(req, res, next) {
   const destination = NAVBAR_PATH;
   try {
-    // Publish settings (mark as published)
+    const navbarSettingKeys = [
+      'site.logo_primary', 'site.logo_light', 'site.logo_dark', 'site.favicon',
+      'navbar.bg_color', 'navbar.text_color', 'navbar.accent_color',
+      'navbar.border_color', 'navbar.opacity', 'navbar.logo_width',
+    ];
+    await publishing.publishSettings(navbarSettingKeys, { actorId: actorId(req) });
     const publishedItems = await publishing.publishNavItems({ location: 'home', actorId: actorId(req) });
     req.session.success_msg = `${publishedItems} enlace(s) publicados. La barra de navegación ahora muestra los cambios en el sitio.`;
+    req.session.cms_editor_state = 'published';
     return res.redirect(NAVBAR_PATH);
   } catch (error) {
     if (error.code?.startsWith('ER_')) return next(error);
@@ -146,13 +187,21 @@ async function saveNavItem(req, res, next) {
   const destination = NAVBAR_PATH;
   try {
     const validation = validator.validateNavItem(req.body);
-    if (!validation.valid) return redirectWithError(req, res, destination, validation.error);
+    if (!validation.valid) {
+      req.cmsSubmittedNavItem = { values: { ...req.body } };
+      req.cmsEditorErrors = [validation.error];
+      req.cmsEditorStatus = 422;
+      return showNavbar(req, res, next);
+    }
     await publishing.saveNavItem(req.body.public_id, validation.value, { actorId: actorId(req) });
     req.session.success_msg = 'Enlace de navegación actualizado.';
+    req.session.cms_editor_state = 'saved';
     return res.redirect(NAVBAR_PATH);
   } catch (error) {
-    if (error.code?.startsWith('ER_')) return next(error);
-    return redirectWithError(req, res, destination, error.message);
+    req.cmsSubmittedNavItem = { values: { ...req.body } };
+    req.cmsEditorErrors = [error.message || 'Error de servidor o base de datos.'];
+    req.cmsEditorStatus = 500;
+    return showNavbar(req, res, next);
   }
 }
 
@@ -160,13 +209,21 @@ async function createNavItem(req, res, next) {
   const destination = NAVBAR_PATH;
   try {
     const validation = validator.validateNavItem(req.body);
-    if (!validation.valid) return redirectWithError(req, res, destination, validation.error);
+    if (!validation.valid) {
+      req.cmsSubmittedNavItem = { values: { ...req.body } };
+      req.cmsEditorErrors = [validation.error];
+      req.cmsEditorStatus = 422;
+      return showNavbar(req, res, next);
+    }
     await publishing.createNavItem(validation.value, { actorId: actorId(req) });
     req.session.success_msg = 'Enlace de navegación creado.';
+    req.session.cms_editor_state = 'saved';
     return res.redirect(NAVBAR_PATH);
   } catch (error) {
-    if (error.code?.startsWith('ER_')) return next(error);
-    return redirectWithError(req, res, destination, error.message);
+    req.cmsSubmittedNavItem = { values: { ...req.body } };
+    req.cmsEditorErrors = [error.message || 'Error de servidor o base de datos.'];
+    req.cmsEditorStatus = 500;
+    return showNavbar(req, res, next);
   }
 }
 
@@ -175,6 +232,7 @@ async function archiveNavItem(req, res, next) {
   try {
     await publishing.archiveNavItem(req.body.public_id, { actorId: actorId(req) });
     req.session.success_msg = 'Enlace de navegación archivado.';
+    req.session.cms_editor_state = 'saved';
     return res.redirect(NAVBAR_PATH);
   } catch (error) {
     if (error.code?.startsWith('ER_')) return next(error);
@@ -196,6 +254,7 @@ async function reorderNavItems(req, res, next) {
     }
     await publishing.reorderNavItems(ids, { location: 'home', actorId: actorId(req) });
     req.session.success_msg = 'Orden de navegación actualizado.';
+    req.session.cms_editor_state = 'saved';
     return res.redirect(NAVBAR_PATH);
   } catch (error) {
     if (error.code?.startsWith('ER_')) return next(error);
@@ -208,40 +267,117 @@ async function reorderNavItems(req, res, next) {
 async function showPanel1(req, res, next) {
   try {
     const section = await publishing.getSectionDraft('home', 'hero');
+    return renderPanel1Editor(req, res, { section });
+  } catch (error) { next(error); }
+}
+
+function submittedHeroSection(body, storedSection = null) {
+  return {
+    ...(storedSection || {}),
+    status: storedSection?.status || 'draft',
+    content: {
+      eyebrow: body.eyebrow || '',
+      heading: body.heading || '',
+      description: body.description || '',
+      primaryButton: {
+        label: body.primary_label || '',
+        url: body.primary_url || '',
+        visible: body.primary_visible === '1',
+      },
+      secondaryButton: {
+        label: body.secondary_label || '',
+        url: body.secondary_url || '',
+        visible: body.secondary_visible === '1',
+      },
+      backgroundMedia: body.background_media || null,
+      modelMedia: body.model_media || null,
+      modelFallbackMedia: body.model_fallback || null,
+      modelEnabled: body.model_enabled === '1',
+    },
+    style: {
+      model: {
+        scale: body.model_scale ?? 1,
+        position: {
+          x: body.model_pos_x ?? 0,
+          y: body.model_pos_y ?? 0,
+          z: body.model_pos_z ?? 0,
+        },
+        rotation: {
+          x: body.model_rot_x ?? 0,
+          y: body.model_rot_y ?? 0,
+          z: body.model_rot_z ?? 0,
+        },
+        autoRotate: body.auto_rotate === '1',
+        autoRotateSpeed: body.auto_rotate_speed ?? 1,
+      },
+    },
+  };
+}
+
+async function renderPanel1Editor(req, res, {
+  section,
+  status = 200,
+  fieldErrors = [],
+  pageAlerts = [],
+  editorState = null,
+} = {}) {
     const mediaList = await listPickableMedia();
     const modelList = await listPickableMedia({ kind: 'model' });
 
     // Resolve current media refs for visual selector pre-population
-    const heroContent = (section && typeof section.content_json === 'string' ? JSON.parse(section.content_json) : (section && section.content_json)) || {};
+    const heroContent = section?.content || (
+      section && typeof section.content_json === 'string'
+        ? JSON.parse(section.content_json)
+        : (section && section.content_json)
+    ) || {};
     const [bgMedia, modelMedia, fallbackMedia] = await Promise.all([
       resolveMediaData(heroContent.backgroundMedia),
       resolveMediaData(heroContent.modelMedia),
       resolveMediaData(heroContent.modelFallbackMedia),
     ]);
 
-    res.render('pages/admin/page/panel1', {
+    return res.status(status).render('pages/admin/page/panel1', {
       title: 'Panel 1 — Hero',
       layout: 'layouts/admin',
       pageStyles: PAGE_STYLES,
-      pageScripts: ['/js/admin/media-selector.js'],
+      pageScripts: ['/js/admin/media-selector.js', '/js/admin/cms-editor-state.js'],
       pageModule: PAGE_MODULE,
       section,
       mediaList,
       modelList,
       bgMedia, modelMedia, fallbackMedia,
       formatFileSize: mediaService.formatFileSize,
+      fieldErrors,
+      pageAlerts,
+      editorState: editorState || consumeEditorState(req),
     });
-  } catch (error) { next(error); }
 }
 
 async function savePanel1Draft(req, res, next) {
   const destination = PANEL1_PATH;
   try {
     const contentValidation = validator.validateHeroContent(req.body);
-    if (!contentValidation.valid) return redirectWithError(req, res, destination, contentValidation.error);
-
     const styleValidation = validator.validateHeroStyle(req.body);
-    if (!styleValidation.valid) return redirectWithError(req, res, destination, styleValidation.error);
+    const errors = [
+      ...(!contentValidation.valid ? [contentValidation.error] : []),
+      ...(!styleValidation.valid ? [styleValidation.error] : []),
+    ];
+    if (errors.length) {
+      const storedSection = await publishing.getSectionDraft('home', 'hero');
+      return renderPanel1Editor(req, res, {
+        section: submittedHeroSection(req.body, storedSection),
+        status: 422,
+        fieldErrors: errors,
+        editorState: 'error',
+        pageAlerts: [{
+          id: 'panel-1-validation',
+          type: 'error',
+          title: 'No se pudo guardar el borrador',
+          description: errors.join(' '),
+          persistent: true,
+        }],
+      });
+    }
 
     const content = contentValidation.value;
     const style = styleValidation.value;
@@ -253,10 +389,27 @@ async function savePanel1Draft(req, res, next) {
 
     await publishing.saveSectionDraft('home', 'hero', content, style, { actorId: actorId(req) });
     req.session.success_msg = 'Borrador del Panel 1 guardado.';
+    req.session.cms_editor_state = 'saved';
     return res.redirect(PANEL1_PATH);
   } catch (error) {
-    if (error.code?.startsWith('ER_')) return next(error);
-    return redirectWithError(req, res, destination, error.message);
+    try {
+      const storedSection = await publishing.getSectionDraft('home', 'hero');
+      return renderPanel1Editor(req, res, {
+        section: submittedHeroSection(req.body, storedSection),
+        status: 500,
+        fieldErrors: [error.message || 'No fue posible guardar el borrador.'],
+        editorState: 'error',
+        pageAlerts: [{
+          id: 'panel-1-save-error',
+          type: 'error',
+          title: 'Error al guardar',
+          description: 'No se modificó el borrador almacenado.',
+          persistent: true,
+        }],
+      });
+    } catch {
+      return next(error);
+    }
   }
 }
 
@@ -265,6 +418,7 @@ async function publishPanel1(req, res, next) {
   try {
     await publishing.publishSection('home', 'hero', { actorId: actorId(req) });
     req.session.success_msg = 'Panel 1 publicado. Los cambios ahora son visibles en la página de inicio.';
+    req.session.cms_editor_state = 'published';
     return res.redirect(PANEL1_PATH);
   } catch (error) {
     if (error.code?.startsWith('ER_')) return next(error);

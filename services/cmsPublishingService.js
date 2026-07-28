@@ -19,7 +19,8 @@ function cacheKey(namespace, discriminator) {
 }
 
 function cacheGet(namespace, discriminator) {
-  return cache.get(cacheKey(namespace, discriminator)) || null;
+  const key = cacheKey(namespace, discriminator);
+  return cache.has(key) ? cache.get(key) : null;
 }
 
 function cacheSet(namespace, discriminator, value) {
@@ -58,15 +59,21 @@ async function upsertSetting(settingKey, value, valueType, {
 
     if (previous) {
       await connection.query(
-        'UPDATE site_settings SET setting_value = ?, value_type = ?, setting_group = ?, is_public = ?, updated_by = ? WHERE id = ?',
-        [serialized, valueType, settingGroup, isPublic ? 1 : 0, actorId, previous.id]
+        `UPDATE site_settings
+            SET setting_value = ?, value_type = ?, setting_group = ?, is_public = ?,
+                published_value = ?, has_unpublished_changes = 0,
+                published_at = NOW(), updated_by = ?
+          WHERE id = ?`,
+        [serialized, valueType, settingGroup, isPublic ? 1 : 0, serialized, actorId, previous.id]
       );
     } else {
-      const [result] = await connection.query(
-        'INSERT INTO site_settings (setting_key, setting_value, value_type, setting_group, is_public, updated_by) VALUES (?, ?, ?, ?, ?, ?)',
-        [settingKey, serialized, valueType, settingGroup, isPublic ? 1 : 0, actorId]
+      await connection.query(
+        `INSERT INTO site_settings
+           (setting_key, setting_value, value_type, setting_group, is_public,
+            published_value, has_unpublished_changes, published_at, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, 0, NOW(), ?)`,
+        [settingKey, serialized, valueType, settingGroup, isPublic ? 1 : 0, serialized, actorId]
       );
-      previous && (previous.id = result.insertId);
     }
 
     const [[current]] = await connection.query(
@@ -93,6 +100,58 @@ async function upsertSetting(settingKey, value, valueType, {
   }
 }
 
+async function saveSettingsDraft(entries, { actorId = null } = {}) {
+  if (!Array.isArray(entries) || !entries.length) return 0;
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    for (const [settingKey, value, valueType, settingGroup = 'general', isPublic = true] of entries) {
+      const [existing] = await connection.query(
+        'SELECT id, setting_value FROM site_settings WHERE setting_key = ? FOR UPDATE',
+        [settingKey]
+      );
+      const previous = existing[0] || null;
+      const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+      let entityId;
+      if (previous) {
+        entityId = previous.id;
+        await connection.query(
+          `UPDATE site_settings
+              SET setting_value = ?, value_type = ?, setting_group = ?, is_public = ?,
+                  has_unpublished_changes = 1, updated_by = ?
+            WHERE id = ?`,
+          [serialized, valueType, settingGroup, isPublic ? 1 : 0, actorId, entityId]
+        );
+      } else {
+        const [result] = await connection.query(
+          `INSERT INTO site_settings
+             (setting_key, setting_value, value_type, setting_group, is_public,
+              has_unpublished_changes, updated_by)
+           VALUES (?, ?, ?, ?, ?, 1, ?)`,
+          [settingKey, serialized, valueType, settingGroup, isPublic ? 1 : 0, actorId]
+        );
+        entityId = result.insertId;
+      }
+      await revisions.recordRevision({
+        entityType: ENTITY_SITE_SETTING,
+        entityId,
+        action: previous ? 'metadata_edit' : 'upload',
+        previousData: previous ? { setting_value: previous.setting_value } : null,
+        newData: { setting_value: serialized },
+        changeSummary: previous ? 'Configuración actualizada.' : 'Configuración creada.',
+        changedBy: actorId,
+      }, connection);
+    }
+    await connection.commit();
+    return entries.length;
+  } catch (error) {
+    await connection.rollback().catch(() => {});
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 async function getPublishedSettings(keys) {
   const cacheNS = 'siteSettings';
   const result = {};
@@ -106,7 +165,9 @@ async function getPublishedSettings(keys) {
   if (missing.length) {
     const placeholders = missing.map(() => '?').join(',');
     const [rows] = await pool.query(
-      `SELECT setting_key, setting_value, value_type FROM site_settings WHERE setting_key IN (${placeholders})`,
+      `SELECT setting_key, published_value AS setting_value, value_type
+         FROM site_settings
+        WHERE setting_key IN (${placeholders}) AND published_value IS NOT NULL`,
       missing
     );
     for (const row of rows) {
@@ -121,6 +182,77 @@ async function getPublishedSettings(keys) {
     }
   }
   return result;
+}
+
+function parseSettingValue(value, valueType) {
+  if (valueType === 'number') return Number(value);
+  if (valueType === 'boolean' || valueType === 'flag') {
+    return value === '1' || value === 'true' || value === 1 || value === true;
+  }
+  if (valueType === 'json' && typeof value === 'string') {
+    try { return JSON.parse(value); } catch { return null; }
+  }
+  return value;
+}
+
+async function getDraftSettings(keys) {
+  if (!Array.isArray(keys) || !keys.length) return {};
+  const placeholders = keys.map(() => '?').join(',');
+  const [rows] = await pool.query(
+    `SELECT setting_key, setting_value, value_type, has_unpublished_changes
+       FROM site_settings
+      WHERE setting_key IN (${placeholders})`,
+    keys
+  );
+  const result = Object.fromEntries(keys.map((key) => [key, null]));
+  for (const row of rows) {
+    result[row.setting_key] = parseSettingValue(row.setting_value, row.value_type);
+  }
+  return result;
+}
+
+async function publishSettings(keys, { actorId = null } = {}) {
+  if (!Array.isArray(keys) || !keys.length) return 0;
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const placeholders = keys.map(() => '?').join(',');
+    const [rows] = await connection.query(
+      `SELECT id, setting_key, setting_value, published_value
+         FROM site_settings
+        WHERE setting_key IN (${placeholders}) AND has_unpublished_changes = 1
+        FOR UPDATE`,
+      keys
+    );
+    if (rows.length) {
+      await connection.query(
+        `UPDATE site_settings
+            SET published_value = setting_value, has_unpublished_changes = 0,
+                published_at = NOW(), updated_by = ?
+          WHERE setting_key IN (${placeholders})`,
+        [actorId, ...keys]
+      );
+      for (const row of rows) {
+        await revisions.recordRevision({
+          entityType: ENTITY_SITE_SETTING,
+          entityId: row.id,
+          action: 'replace',
+          previousData: { published_value: row.published_value },
+          newData: { published_value: row.setting_value },
+          changeSummary: 'Configuración publicada.',
+          changedBy: actorId,
+        }, connection);
+      }
+    }
+    await connection.commit();
+    invalidateNamespace('siteSettings');
+    return rows.length;
+  } catch (error) {
+    await connection.rollback().catch(() => {});
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 // ── Section content helpers (hero/panel‑1) ──
@@ -175,7 +307,8 @@ async function publishSection(pageKey, sectionKey, { actorId = null } = {}) {
   try {
     await connection.beginTransaction();
     const [rows] = await connection.query(
-      `SELECT s.id, s.content_json, s.style_json, s.status, s.version
+      `SELECT s.id, s.content_json, s.style_json, s.published_content_json,
+              s.published_style_json, s.status, s.is_enabled, s.version
          FROM page_sections s INNER JOIN pages p ON p.id = s.page_id
         WHERE p.page_key = ? AND s.section_key = ? FOR UPDATE`,
       [pageKey, sectionKey]
@@ -183,7 +316,8 @@ async function publishSection(pageKey, sectionKey, { actorId = null } = {}) {
     const section = rows[0];
     if (!section) throw new Error('La sección no existe en la base de datos.');
     if (section.status === 'published' && Number(section.is_enabled) === 1) {
-      throw new Error('El borrador ya está publicado.');
+      await connection.commit();
+      return section;
     }
 
     const previousContent = JSON.stringify(section.content_json);
@@ -191,7 +325,9 @@ async function publishSection(pageKey, sectionKey, { actorId = null } = {}) {
 
     await connection.query(
       `UPDATE page_sections
-          SET status = 'published', is_enabled = 1, updated_by = ?
+          SET published_content_json = content_json,
+              published_style_json = style_json,
+              published_at = NOW(), status = 'published', is_enabled = 1, updated_by = ?
         WHERE id = ?`,
       [actorId, section.id]
     );
@@ -241,9 +377,10 @@ async function getPublishedHeroContent(pageKey, sectionKey, fallback = null) {
   if (cached !== null) return cached === 'FALLBACK' ? fallback : cached;
 
   const [rows] = await pool.query(
-    `SELECT s.content_json
-       FROM page_sections s INNER JOIN pages p ON p.id = s.page_id
-      WHERE p.page_key = ? AND s.section_key = ? AND s.is_enabled = 1 AND s.status = 'published'
+      `SELECT s.published_content_json AS content_json
+         FROM page_sections s INNER JOIN pages p ON p.id = s.page_id
+       WHERE p.page_key = ? AND s.section_key = ? AND s.is_enabled = 1
+         AND s.published_content_json IS NOT NULL
       LIMIT 1`,
     [pageKey, sectionKey]
   );
@@ -279,14 +416,22 @@ async function getPublishedNavItems(location = 'home') {
   if (cached !== null) return cached;
 
   const [rows] = await pool.query(
-    `SELECT id, public_id, label, url, link_type, target, media_public_id, sort_order, is_visible
+    `SELECT id, public_id, published_data
        FROM navigation_items
-      WHERE location = ? AND status = 'published' AND is_visible = 1 AND deleted_at IS NULL
-      ORDER BY sort_order ASC, id ASC`,
+      WHERE location = ? AND published_data IS NOT NULL`,
     [location]
   );
-  cacheSet(cacheNS, 'published', rows);
-  return rows;
+  const published = rows
+    .map((row) => {
+      const data = typeof row.published_data === 'string'
+        ? JSON.parse(row.published_data)
+        : row.published_data;
+      return { id: row.id, public_id: row.public_id, ...data };
+    })
+    .filter((row) => Number(row.is_visible) === 1)
+    .sort((a, b) => Number(a.sort_order) - Number(b.sort_order) || Number(a.id) - Number(b.id));
+  cacheSet(cacheNS, 'published', published);
+  return published;
 }
 
 async function saveNavItem(publicId, data, { actorId = null } = {}) {
@@ -370,7 +515,7 @@ async function archiveNavItem(publicId, { actorId = null } = {}) {
     if (!item) throw new Error('El enlace de navegación no existe.');
 
     await connection.query(
-      "UPDATE navigation_items SET status = 'archived', deleted_at = CURRENT_TIMESTAMP, updated_by = ? WHERE public_id = ?",
+      "UPDATE navigation_items SET status = 'archived', deleted_at = NOW(), updated_by = ? WHERE public_id = ?",
       [actorId, publicId]
     );
     await revisions.recordRevision({
@@ -396,15 +541,36 @@ async function publishNavItems({ location = 'home', actorId = null } = {}) {
   try {
     await connection.beginTransaction();
     const [items] = await connection.query(
-      "SELECT id, public_id, label, status FROM navigation_items WHERE location = ? AND status = 'draft'",
+      `SELECT * FROM navigation_items
+        WHERE location = ? AND (status IN ('draft', 'archived') OR published_data IS NULL)
+        FOR UPDATE`,
       [location]
     );
-    const previousState = items.map((row) => ({ id: row.id, label: row.label, status: row.status }));
-
-    if (items.length) {
+    for (const item of items) {
+      if (item.status === 'archived') {
+        await connection.query(
+          `UPDATE navigation_items
+              SET published_data = NULL, published_at = NOW(), deleted_at = NOW(), updated_by = ?
+            WHERE id = ?`,
+          [actorId, item.id]
+        );
+        continue;
+      }
+      const snapshot = {
+        label: item.label,
+        url: item.url,
+        link_type: item.link_type,
+        target: item.target,
+        media_public_id: item.media_public_id,
+        sort_order: item.sort_order,
+        is_visible: item.is_visible,
+      };
       await connection.query(
-        "UPDATE navigation_items SET status = 'published', updated_by = ? WHERE location = ? AND status = 'draft'",
-        [actorId, location]
+        `UPDATE navigation_items
+            SET published_data = ?, published_at = NOW(), status = 'published',
+                deleted_at = NULL, updated_by = ?
+          WHERE id = ?`,
+        [JSON.stringify(snapshot), actorId, item.id]
       );
     }
 
@@ -413,8 +579,8 @@ async function publishNavItems({ location = 'home', actorId = null } = {}) {
         entityType: ENTITY_NAV_ITEM,
         entityId: item.id,
         action: 'replace',
-        previousData: { status: 'draft' },
-        newData: { status: 'published' },
+        previousData: { status: item.status, published_data: item.published_data },
+        newData: { status: item.status === 'archived' ? 'archived' : 'published' },
         changeSummary: 'Enlace de navegación publicado.',
         changedBy: actorId,
       }, connection);
@@ -436,7 +602,10 @@ async function reorderNavItems(orderedIds, { location = 'home', actorId = null }
     await connection.beginTransaction();
     for (let index = 0; index < orderedIds.length; index += 1) {
       await connection.query(
-        "UPDATE navigation_items SET sort_order = ?, updated_by = ? WHERE public_id = ? AND location = ?",
+        `UPDATE navigation_items
+            SET sort_order = ?, status = CASE WHEN status = 'archived' THEN status ELSE 'draft' END,
+                updated_by = ?
+          WHERE public_id = ? AND location = ?`,
         [index, actorId, orderedIds[index], location]
       );
     }
@@ -473,7 +642,10 @@ module.exports = {
   invalidateNamespace,
   flushCache,
   upsertSetting,
+  saveSettingsDraft,
+  getDraftSettings,
   getPublishedSettings,
+  publishSettings,
   saveSectionDraft,
   publishSection,
   getSectionDraft,

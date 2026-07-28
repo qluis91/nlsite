@@ -344,3 +344,62 @@
 
 /* ── Badge draft ── */
 .badge-draft { background: #fef3c7; color: #92400e; }
+.cms-editor-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 999px;
+  color: #475569;
+  background: rgba(255, 255, 255, 0.82);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.cms-editor-state::before {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #64748b;
+  content: "";
+}
+
+.cms-editor-state[data-state="dirty"]::before,
+.cms-editor-state[data-state="saving"]::before {
+  background: #f59e0b;
+}
+
+.cms-editor-state[data-state="saved"]::before,
+.cms-editor-state[data-state="published"]::before {
+  background: #16a34a;
+}
+
+.cms-editor-state[data-state="error"]::before {
+  background: #dc2626;
+}
+
+.cms-field-errors {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #b91c1c;
+}
+
+.cms-field-errors li + li {
+  margin-top: 0.35rem;
+}
+
+.cms-editor-state[data-state="saving"]::before {
+  animation: cms-editor-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes cms-editor-pulse {
+  to { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cms-editor-state[data-state="saving"]::before {
+    animation: none;
+  }
+}

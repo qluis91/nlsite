@@ -19,9 +19,26 @@ const GLOBAL_SETTING_KEYS = [
   'global.google_verification',
 ];
 
+function settingsFromSubmission(vals) {
+  return {
+    'global.site_name': vals.site_name || '',
+    'global.seo_title': vals.seo_title || '',
+    'global.seo_description': vals.seo_description || '',
+    'global.og_image': vals.og_image || '',
+    'global.canonical_url': vals.canonical_url || '',
+    'global.indexing_mode': vals.indexing_mode || '',
+    'site.favicon': vals.favicon || '',
+    'global.ga_measurement_id': vals.ga_measurement_id || '',
+    'global.ga_enabled': vals.ga_enabled === '1' ? '1' : '0',
+    'global.ga_consent_enabled': vals.ga_consent_enabled === '1' ? '1' : '0',
+    'global.google_verification': vals.google_verification || '',
+  };
+}
+
 async function showGlobalSettings(req, res, next) {
   try {
-    const settings = await publishing.getPublishedSettings(GLOBAL_SETTING_KEYS);
+    const storedSettings = await publishing.getDraftSettings(GLOBAL_SETTING_KEYS);
+    const settings = { ...storedSettings, ...(req.cmsSettingsOverride || {}) };
 
     const resolveMedia = async (ref) => {
       if (!ref) return null;
@@ -33,14 +50,28 @@ async function showGlobalSettings(req, res, next) {
       resolveMedia(settings['site.favicon']),
     ]);
 
-    res.render('pages/admin/page/global-settings', {
+    res.status(req.cmsEditorStatus || 200).render('pages/admin/page/global-settings', {
       title: 'Configuración global y SEO',
       layout: 'layouts/admin',
       pageStyles: ['/css/admin-page.css'],
-      pageScripts: ['/js/admin/media-selector.js'],
+      pageScripts: ['/js/admin/media-selector.js', '/js/admin/cms-editor-state.js'],
       settings,
       ogImage,
       favicon,
+      editorState: req.cmsEditorErrors?.length ? 'error' : (() => {
+        if (!req.session) return null;
+        const state = req.session.cms_editor_state || null;
+        delete req.session.cms_editor_state;
+        return state;
+      })(),
+      fieldErrors: req.cmsEditorErrors || [],
+      pageAlerts: req.cmsEditorErrors?.length ? [{
+        id: 'global-settings-validation',
+        type: 'error',
+        title: 'No se pudo guardar el borrador',
+        description: req.cmsEditorErrors.join(' '),
+        persistent: true,
+      }] : [],
       indexingModes: [
         { value: 'index,follow', label: 'Indexar y seguir enlaces (completo)' },
         { value: 'noindex,nofollow', label: 'No indexar ni seguir (oculto)' },
@@ -59,15 +90,35 @@ async function saveGlobalSettings(req, res, next) {
 
     const errors = validateGlobalSettings(vals);
     if (errors.length) {
-      return res.render('pages/admin/page/global-settings', {
+      return res.status(422).render('pages/admin/page/global-settings', {
         title: 'Configuración global y SEO',
         layout: 'layouts/admin',
         pageStyles: ['/css/admin-page.css'],
-        pageScripts: ['/js/admin/media-selector.js'],
-        settings: await publishing.getPublishedSettings(GLOBAL_SETTING_KEYS),
+        pageScripts: ['/js/admin/media-selector.js', '/js/admin/cms-editor-state.js'],
+        settings: Object.fromEntries([
+          ['global.site_name', vals.site_name || ''],
+          ['global.seo_title', vals.seo_title || ''],
+          ['global.seo_description', vals.seo_description || ''],
+          ['global.og_image', vals.og_image || ''],
+          ['global.canonical_url', vals.canonical_url || ''],
+          ['global.indexing_mode', vals.indexing_mode || ''],
+          ['site.favicon', vals.favicon || ''],
+          ['global.ga_measurement_id', vals.ga_measurement_id || ''],
+          ['global.ga_enabled', vals.ga_enabled === '1' ? '1' : '0'],
+          ['global.ga_consent_enabled', vals.ga_consent_enabled === '1' ? '1' : '0'],
+          ['global.google_verification', vals.google_verification || ''],
+        ]),
         ogImage: null,
         favicon: null,
-        error_msg: errors.join('<br>'),
+        fieldErrors: errors,
+        pageAlerts: [{
+          id: 'global-settings-validation',
+          type: 'error',
+          title: 'No se pudo guardar el borrador',
+          description: errors.join(' '),
+          persistent: true,
+        }],
+        editorState: 'error',
         indexingModes: [
           { value: 'index,follow', label: 'Indexar y seguir enlaces (completo)' },
           { value: 'noindex,nofollow', label: 'No indexar ni seguir (oculto)' },
@@ -92,33 +143,32 @@ async function saveGlobalSettings(req, res, next) {
       ['global.google_verification', (vals.google_verification || '').trim().slice(0, 128), 'string', 'analytics'],
     ];
 
-    for (const [key, value, type, group] of entries) {
-      await publishing.upsertSetting(key, value, type, {
-        settingGroup: group,
-        isPublic: true,
-        actorId,
-      });
-    }
+    await publishing.saveSettingsDraft(entries, { actorId });
 
     req.session.success_msg = 'Configuración global guardada como borrador.';
+    req.session.cms_editor_state = 'saved';
     return res.redirect('/admin/page/global-settings');
   } catch (error) {
-    next(error);
+    req.cmsSettingsOverride = settingsFromSubmission(req.body || {});
+    req.cmsEditorErrors = ['Error de servidor o base de datos. El borrador anterior no fue modificado.'];
+    req.cmsEditorStatus = 500;
+    return showGlobalSettings(req, res, next);
   }
 }
 
 async function publishGlobalSettings(req, res, next) {
   try {
-    // Publish all global settings: upsert each setting (already in DB as draft),
-    // then invalidate the siteSettings cache so public pages pick up new values.
-    // The act of calling upsertSetting already invalidates per-key cache.
-    // Re-invalidate the full namespace for safety.
-    publishing.flushCache();
+    await publishing.publishSettings(GLOBAL_SETTING_KEYS, {
+      actorId: req.session.user?.id || null,
+    });
 
     req.session.success_msg = 'Configuración global publicada.';
+    req.session.cms_editor_state = 'published';
     return res.redirect('/admin/page/global-settings');
   } catch (error) {
-    next(error);
+    req.cmsEditorErrors = ['Error de servidor o base de datos al publicar la configuración global.'];
+    req.cmsEditorStatus = 500;
+    return showGlobalSettings(req, res, next);
   }
 }
 

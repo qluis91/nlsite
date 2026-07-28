@@ -153,6 +153,10 @@
 .account-quick-links { display: grid; gap: .65rem; }
 .account-quick-links a { display: grid; gap: .15rem; min-height: 64px; padding: .75rem; border: 1px solid var(--account-border); border-radius: 10px; background: rgba(148, 163, 184, .04); }
 .account-quick-links a:hover { border-color: rgba(74, 222, 128, .35); background: rgba(34, 197, 94, .07); }
+.account-quick-links a.account-quick-links__admin {
+  border-color: rgba(74, 222, 128, .42);
+  background: rgba(34, 197, 94, .1);
+}
 .account-quick-links strong { color: var(--account-text); font-size: .88rem; }
 .account-quick-links span { color: var(--account-muted); font-size: .75rem; }
 

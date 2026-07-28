@@ -580,9 +580,10 @@ app.get('/', async (req, res) => {
     if (heroContent || showcaseContent || servicesContent) {
       const db = require('./config/db');
       const [rows] = await db.query(
-        `SELECT s.section_key, s.style_json FROM page_sections s INNER JOIN pages p ON p.id = s.page_id
+        `SELECT s.section_key, s.published_style_json AS style_json
+           FROM page_sections s INNER JOIN pages p ON p.id = s.page_id
           WHERE p.page_key = ? AND s.section_key IN ('hero', 'showcase', 'services')
-            AND s.is_enabled = 1 AND s.status = 'published'`,
+            AND s.is_enabled = 1 AND s.published_content_json IS NOT NULL`,
         ['home']
       );
       for (const row of rows) {
@@ -601,7 +602,7 @@ app.get('/', async (req, res) => {
 
     {
       const section = await resolveSection('showcase');
-      if (section?.status === 'published' && Number(section.is_enabled) === 1) {
+      if (section?.has_published_version && Number(section.is_enabled) === 1) {
         [logoLoopItems, carouselItems] = await Promise.all([
           repeatableSvc.getPublishedItems('logo_loop_items', section.id),
           repeatableSvc.getPublishedItems('home_carousel_items', section.id),
@@ -611,7 +612,7 @@ app.get('/', async (req, res) => {
 
     {
       const section = await resolveSection('services');
-      if (section?.status === 'published' && Number(section.is_enabled) === 1) {
+      if (section?.has_published_version && Number(section.is_enabled) === 1) {
         featureItems = await repeatableSvc.getPublishedItems('home_feature_items', section.id);
       }
     }
@@ -625,7 +626,10 @@ app.get('/', async (req, res) => {
     async function resolveSection(sectionKey) {
       const db = require('./config/db');
       const [[row]] = await db.query(
-        "SELECT s.id, s.status, s.is_enabled FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = ?",
+        `SELECT s.id, s.status, s.is_enabled,
+                (s.published_content_json IS NOT NULL) AS has_published_version
+           FROM page_sections s INNER JOIN pages p ON p.id = s.page_id
+          WHERE p.page_key = 'home' AND s.section_key = ?`,
         [sectionKey]
       );
       return row || null;

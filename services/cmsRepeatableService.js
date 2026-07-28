@@ -10,6 +10,27 @@ const { invalidateNamespace } = require('./cmsPublishingService');
 
 function serialize(value) { return value === null || value === undefined ? null : JSON.stringify(value); }
 
+const PUBLISHED_FIELDS = Object.freeze({
+  logo_loop_items: Object.freeze([
+    'item_type', 'text_content', 'media_public_id', 'url', 'link_type', 'target',
+    'alt_text', 'sort_order', 'is_visible',
+  ]),
+  home_carousel_items: Object.freeze([
+    'eyebrow', 'title', 'description', 'button_label', 'button_url', 'button_target',
+    'media_public_id', 'preview_media_public_id', 'theme_key', 'sort_order', 'is_visible',
+  ]),
+  home_feature_items: Object.freeze([
+    'title', 'description', 'detail_text', 'icon_type', 'icon_key', 'media_public_id',
+    'url', 'link_type', 'target', 'style_variant', 'sort_order', 'is_visible',
+  ]),
+});
+
+function publishedSnapshot(table, row) {
+  const fields = PUBLISHED_FIELDS[table];
+  if (!fields) throw new Error('Colección CMS no permitida.');
+  return Object.fromEntries(fields.map((field) => [field, row[field] ?? null]));
+}
+
 async function getSectionId(connection, pageKey, sectionKey) {
   const [[row]] = await connection.query(
     "SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = ? AND s.section_key = ?",
@@ -33,10 +54,20 @@ async function listItems(table, sectionId, { includeArchived = false } = {}) {
 
 async function getPublishedItems(table, sectionId) {
   const [rows] = await pool.query(
-    `SELECT * FROM ${table} WHERE page_section_id = ? AND status = 'published' AND is_visible = 1 AND deleted_at IS NULL ORDER BY sort_order ASC, id ASC`,
+    `SELECT id, public_id, page_section_id, published_data
+       FROM ${table}
+      WHERE page_section_id = ? AND published_data IS NOT NULL`,
     [sectionId]
   );
-  return rows;
+  return rows
+    .map((row) => {
+      const data = typeof row.published_data === 'string'
+        ? JSON.parse(row.published_data)
+        : row.published_data;
+      return { id: row.id, public_id: row.public_id, page_section_id: row.page_section_id, status: 'published', ...data };
+    })
+    .filter((row) => Number(row.is_visible) === 1)
+    .sort((a, b) => Number(a.sort_order) - Number(b.sort_order) || Number(a.id) - Number(b.id));
 }
 
 async function createItem(table, sectionId, data, { actorId = null } = {}) {
@@ -75,7 +106,7 @@ async function saveItem(table, publicId, data, { actorId = null } = {}) {
     const [rows] = await connection.query(`SELECT * FROM ${table} WHERE public_id = ? FOR UPDATE`, [publicId]);
     if (!rows[0]) throw new Error('Elemento no encontrado.');
 
-    const entries = Object.entries(data);
+    const entries = Object.entries({ ...data, status: 'draft' });
     if (!entries.length) {
       await connection.commit();
       return rows[0];
@@ -83,7 +114,7 @@ async function saveItem(table, publicId, data, { actorId = null } = {}) {
     const setClauses = entries.map(([k]) => `${k} = ?`).join(', ');
     const values = entries.map(([, v]) => v);
     await connection.query(
-      `UPDATE ${table} SET ${setClauses}, updated_by = ? WHERE public_id = ?`,
+      `UPDATE ${table} SET ${setClauses}, deleted_at = NULL, updated_by = ? WHERE public_id = ?`,
       [...values, actorId, publicId]
     );
     await revisions.recordRevision({
@@ -91,7 +122,7 @@ async function saveItem(table, publicId, data, { actorId = null } = {}) {
       entityId: rows[0].id,
       action: 'metadata_edit',
       previousData: JSON.stringify(rows[0]),
-      newData: JSON.stringify({ ...rows[0], ...data }),
+      newData: JSON.stringify({ ...rows[0], ...data, status: 'draft' }),
       changeSummary: 'Elemento actualizado.',
       changedBy: actorId,
     }, connection);
@@ -109,7 +140,7 @@ async function archiveItem(table, publicId, { actorId = null } = {}) {
     const [rows] = await connection.query(`SELECT * FROM ${table} WHERE public_id = ? FOR UPDATE`, [publicId]);
     if (!rows[0]) throw new Error('Elemento no encontrado.');
     await connection.query(
-      `UPDATE ${table} SET status = 'archived', deleted_at = CURRENT_TIMESTAMP, updated_by = ? WHERE public_id = ?`,
+      `UPDATE ${table} SET status = 'archived', deleted_at = NOW(), updated_by = ? WHERE public_id = ?`,
       [actorId, publicId]
     );
     await revisions.recordRevision({
@@ -133,7 +164,10 @@ async function reorderItems(table, sectionId, orderedIds, { actorId = null } = {
     await connection.beginTransaction();
     for (let i = 0; i < orderedIds.length; i++) {
       await connection.query(
-        `UPDATE ${table} SET sort_order = ?, updated_by = ? WHERE public_id = ? AND page_section_id = ?`,
+        `UPDATE ${table}
+            SET sort_order = ?, status = CASE WHEN status = 'archived' THEN status ELSE 'draft' END,
+                updated_by = ?
+          WHERE public_id = ? AND page_section_id = ?`,
         [i, actorId, orderedIds[i], sectionId]
       );
     }
@@ -148,13 +182,37 @@ async function publishCollection(table, sectionId, cacheNs, { actorId = null } =
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    // Publish items: move draft to published, keep published as-is
+    const [items] = await connection.query(
+      `SELECT * FROM ${table}
+        WHERE page_section_id = ? AND (status IN ('draft', 'archived') OR published_data IS NULL)
+        FOR UPDATE`,
+      [sectionId]
+    );
+    for (const item of items) {
+      if (item.status === 'archived') {
+        await connection.query(
+          `UPDATE ${table}
+              SET published_data = NULL, published_at = NOW(), deleted_at = NOW(), updated_by = ?
+            WHERE id = ?`,
+          [actorId, item.id]
+        );
+        continue;
+      }
+      await connection.query(
+        `UPDATE ${table}
+            SET published_data = ?, published_at = NOW(), status = 'published',
+                deleted_at = NULL, updated_by = ?
+          WHERE id = ?`,
+        [JSON.stringify(publishedSnapshot(table, item)), actorId, item.id]
+      );
+    }
     await connection.query(
-      `UPDATE ${table} SET status = 'published', updated_by = ? WHERE page_section_id = ? AND status = 'draft' AND deleted_at IS NULL`,
-      [actorId, sectionId]
+      'UPDATE page_sections SET is_enabled = 1 WHERE id = ?',
+      [sectionId]
     );
     await connection.commit();
     invalidateNamespace(cacheNs);
+    return items.length;
   } catch (e) {
     await connection.rollback().catch(() => {});
     throw e;
@@ -207,5 +265,6 @@ module.exports = {
   archiveItem,
   reorderItems,
   publishCollection,
+  PUBLISHED_FIELDS,
   registerPanelUsageSources,
 };

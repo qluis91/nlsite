@@ -26,6 +26,7 @@
 
   var logoItems = loadItemsData('panel2-logo-items-data');
   var carouselItems = loadItemsData('panel2-carousel-items-data');
+  var submittedItem = loadItemsData('panel2-submitted-item-data');
 
   function findLogoItem(id) {
     for (var i = 0; i < logoItems.length; i++) {
@@ -226,4 +227,37 @@
       return;
     }
   });
+
+  if (submittedItem && submittedItem.kind && submittedItem.values) {
+    var values = submittedItem.values;
+    if (submittedItem.kind === 'logo') {
+      editLogoItem({
+        id: values.public_id || '',
+        item_type: values.item_type,
+        text_content: values.text_content,
+        media: values.media_public_id || '',
+        url: values.url,
+        link_type: values.link_type,
+        target: values.target,
+        alt_text: values.alt_text,
+        is_visible: values.is_visible !== '0',
+      });
+      if (!values.public_id) document.getElementById('logo-form').action = '/admin/page/home/panel-2/logo-loop/items';
+    } else if (submittedItem.kind === 'carousel') {
+      editCarouselItem({
+        id: values.public_id || '',
+        eyebrow: values.eyebrow,
+        title: values.title,
+        description: values.description,
+        button_label: values.button_label,
+        button_url: values.button_url,
+        button_target: values.button_target,
+        media_public_id: values.media_public_id || '',
+        preview_media_public_id: values.preview_media_public_id || '',
+        theme_key: values.theme_key,
+        is_visible: values.is_visible !== '0',
+      });
+      if (!values.public_id) document.getElementById('carousel-form').action = '/admin/page/home/panel-2/carousel/items';
+    }
+  }
 })();

@@ -10,6 +10,7 @@ const { migrateCms } = require('./migrate-cms');
 const { migrateNavigationItems } = require('./migrate-nav-items');
 const { migratePanels } = require('./migrate-panels');
 const { migratePublishing } = require('./migrate-publishing');
+const { migrateCmsDraftPublish } = require('./migrate-cms-draft-publish');
 
 (async () => {
   try {
@@ -19,6 +20,7 @@ const { migratePublishing } = require('./migrate-publishing');
     await migrateNavigationItems();
     await migratePanels();
     await migratePublishing();
+    await migrateCmsDraftPublish();
     console.log('All migrations complete.');
     process.exit(0);
   } catch (err) {

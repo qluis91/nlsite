@@ -25,6 +25,11 @@
   }
 
   var featureItems = loadItemsData();
+  var submittedItem = (function () {
+    var node = document.getElementById('panel3-submitted-item-data');
+    if (!node) return null;
+    try { return JSON.parse(node.textContent || 'null'); } catch (_) { return null; }
+  })();
 
   function findFeatureItem(id) {
     for (var i = 0; i < featureItems.length; i++) {
@@ -141,4 +146,23 @@
       resetFeatureForm();
     }
   });
+
+  if (submittedItem && submittedItem.kind === 'feature' && submittedItem.values) {
+    var values = submittedItem.values;
+    editFeatureItem({
+      id: values.public_id || '',
+      title: values.title,
+      description: values.description,
+      detail_text: values.detail_text,
+      icon_type: values.icon_type,
+      icon_key: values.icon_key,
+      media_public_id: values.media_public_id || '',
+      url: values.url,
+      link_type: values.link_type,
+      target: values.target,
+      style_variant: values.style_variant,
+      is_visible: values.is_visible !== '0',
+    });
+    if (!values.public_id) document.getElementById('feature-form').action = '/admin/page/home/panel-3/items';
+  }
 })();

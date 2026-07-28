@@ -1,16 +1,26 @@
+<% const cmsEditorState = typeof editorState !== 'undefined' ? editorState : null; %>
+<div data-cms-editor data-editor-state="<%= cmsEditorState || 'clean' %>">
 <div class="page-header">
   <div>
     <h1>SEO por página</h1>
     <p>Configura el título SEO, descripción, imagen Open Graph, URL canónica y modo de indexación para cada página pública.</p>
   </div>
   <div class="cms-actions">
+    <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>"><%= ({ dirty: 'Cambios sin guardar', saving: 'Guardando', saved: 'Borrador guardado', published: 'Publicado', error: 'Error' })[cmsEditorState] || 'Sin cambios' %></span>
     <a href="/admin/page" class="btn btn-outline">Administrar página</a>
-    <form action="/admin/page/page-seo/publish" method="POST" style="display:inline">
+    <form action="/admin/page/page-seo/publish" method="POST" style="display:inline" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit" class="btn btn-primary">Publicar SEO</button>
+      <input type="hidden" name="page_key" value="<%= activePage %>">
+      <button type="submit" class="btn btn-primary">Publicar</button>
     </form>
   </div>
 </div>
+
+<% if (typeof fieldErrors !== 'undefined' && fieldErrors.length) { %>
+  <div class="card" role="group" aria-label="Errores de validación">
+    <ul class="cms-field-errors"><% fieldErrors.forEach(function (message) { %><li><%= message %></li><% }); %></ul>
+  </div>
+<% } %>
 
 <!-- Page tabs -->
 <nav class="cms-tabs" role="tablist">
@@ -22,7 +32,7 @@
   <% }); %>
 </nav>
 
-<form action="/admin/page/page-seo/save" method="POST" class="cms-form">
+<form action="/admin/page/page-seo/save" method="POST" class="cms-form" data-cms-editor-form>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <input type="hidden" name="page_key" value="<%= activePage %>">
 
@@ -91,7 +101,8 @@
   </div>
 
   <div class="form-group">
-    <button type="submit" class="btn btn-primary">Guardar como borrador</button>
+    <button type="submit" class="btn btn-primary">Guardar cambios</button>
     <a href="/admin/page" class="btn btn-outline">Cancelar</a>
   </div>
 </form>
+</div>

@@ -279,10 +279,51 @@ async function publishSingleModule(connection, moduleKey, actorId) {
 }
 
 async function publishNavbarInTx(connection, actorId) {
-  // Publish navigation items
+  const settingKeys = [
+    'site.logo_primary', 'site.logo_light', 'site.logo_dark', 'site.favicon',
+    'navbar.bg_color', 'navbar.text_color', 'navbar.accent_color',
+    'navbar.border_color', 'navbar.opacity', 'navbar.logo_width',
+  ];
+  const placeholders = settingKeys.map(() => '?').join(',');
   await connection.query(
-    "UPDATE navigation_items SET status='published' WHERE location='home' AND status='draft' AND deleted_at IS NULL"
+    `UPDATE site_settings
+        SET published_value = setting_value, has_unpublished_changes = 0,
+            published_at = NOW(), updated_by = ?
+      WHERE setting_key IN (${placeholders}) AND has_unpublished_changes = 1`,
+    [actorId, ...settingKeys]
   );
+  const [items] = await connection.query(
+    `SELECT * FROM navigation_items
+      WHERE location = 'home' AND (status IN ('draft', 'archived') OR published_data IS NULL)
+      FOR UPDATE`
+  );
+  for (const item of items) {
+    if (item.status === 'archived') {
+      await connection.query(
+        `UPDATE navigation_items
+            SET published_data = NULL, published_at = NOW(), deleted_at = NOW(), updated_by = ?
+          WHERE id = ?`,
+        [actorId, item.id]
+      );
+      continue;
+    }
+    const snapshot = {
+      label: item.label,
+      url: item.url,
+      link_type: item.link_type,
+      target: item.target,
+      media_public_id: item.media_public_id,
+      sort_order: item.sort_order,
+      is_visible: item.is_visible,
+    };
+    await connection.query(
+      `UPDATE navigation_items
+          SET published_data = ?, published_at = NOW(), status = 'published',
+              deleted_at = NULL, updated_by = ?
+        WHERE id = ?`,
+      [JSON.stringify(snapshot), actorId, item.id]
+    );
+  }
   // Record revision
   const revNum = await revisions.recordRevision({
     entityType: 'navigation_item',
@@ -299,7 +340,7 @@ async function publishNavbarInTx(connection, actorId) {
 
 async function publishPageSectionInTx(connection, pageKey, sectionKey, actorId) {
   const [[before]] = await connection.query(
-    "SELECT s.id, s.content_json, s.style_json, s.status, s.is_enabled FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = ? AND s.section_key = ? FOR UPDATE",
+    "SELECT s.id, s.content_json, s.style_json, s.published_content_json, s.published_style_json, s.status, s.is_enabled FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = ? AND s.section_key = ? FOR UPDATE",
     [pageKey, sectionKey]
   );
   if (!before) throw new Error(`Sección ${sectionKey} no encontrada.`);
@@ -309,7 +350,7 @@ async function publishPageSectionInTx(connection, pageKey, sectionKey, actorId) 
   }
 
   await connection.query(
-    "UPDATE page_sections s INNER JOIN pages p ON p.id = s.page_id SET s.status = 'published', s.is_enabled = 1, s.version = s.version + 1 WHERE p.page_key = ? AND s.section_key = ?",
+    "UPDATE page_sections s INNER JOIN pages p ON p.id = s.page_id SET s.published_content_json = s.content_json, s.published_style_json = s.style_json, s.published_at = NOW(), s.status = 'published', s.is_enabled = 1, s.version = s.version + 1 WHERE p.page_key = ? AND s.section_key = ?",
     [pageKey, sectionKey]
   );
 
@@ -326,27 +367,46 @@ async function publishPageSectionInTx(connection, pageKey, sectionKey, actorId) 
   return {
     publishedRevId: revNum,
     sourceRevId: null,
-    previousSnapshot: { status: before.status },
-    newSnapshot: { status: 'published' },
+    previousSnapshot: {
+      status: before.status,
+      content_json: before.published_content_json,
+      style_json: before.published_style_json,
+    },
+    newSnapshot: { status: 'published', content_json: before.content_json, style_json: before.style_json },
   };
 }
 
 async function publishCollectionInTx(connection, table, entityType, actorId) {
   const [before] = await connection.query(
-    `SELECT id, public_id, status FROM \`${table}\` WHERE status='draft' AND deleted_at IS NULL`
+    `SELECT * FROM \`${table}\`
+      WHERE status IN ('draft', 'archived') OR published_data IS NULL
+      FOR UPDATE`
   );
-
-  await connection.query(
-    `UPDATE \`${table}\` SET status='published' WHERE status='draft' AND deleted_at IS NULL`
-  );
-  await connection.query(
-    `UPDATE page_sections
-        SET status = 'published', is_enabled = 1
-      WHERE id IN (
-        SELECT DISTINCT page_section_id FROM \`${table}\`
-         WHERE status = 'published' AND deleted_at IS NULL
-      )`
-  );
+  const fields = repeatable.PUBLISHED_FIELDS[table];
+  if (!fields) throw new Error(`Colección no permitida: ${table}`);
+  for (const item of before) {
+    if (item.status === 'archived') {
+      await connection.query(
+        `UPDATE \`${table}\`
+            SET published_data = NULL, published_at = NOW(), deleted_at = NOW(), updated_by = ?
+          WHERE id = ?`,
+        [actorId, item.id]
+      );
+      continue;
+    }
+    const snapshot = Object.fromEntries(fields.map((field) => [field, item[field]]));
+    await connection.query(
+      `UPDATE \`${table}\`
+          SET published_data = ?, published_at = NOW(), status = 'published',
+              deleted_at = NULL, updated_by = ?
+        WHERE id = ?`,
+      [JSON.stringify(snapshot), actorId, item.id]
+    );
+  }
+  const sectionIds = [...new Set(before.map((item) => item.page_section_id).filter(Boolean))];
+  for (const sectionId of sectionIds) {
+    await connection.query('UPDATE page_sections SET is_enabled = 1 WHERE id = ?', [sectionId]);
+  }
 
   const revNum = await revisions.recordRevision({
     entityType,

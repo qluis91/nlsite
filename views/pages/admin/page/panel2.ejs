@@ -1,10 +1,20 @@
-<% const c = content || {}; const s = style || {}; %>
+<% const c = content || {}; const s = style || {}; const cmsEditorState = typeof editorState !== 'undefined' ? editorState : null; %>
+<div data-cms-editor data-editor-state="<%= cmsEditorState || 'clean' %>">
 <div class="page-header">
   <div>
     <h1>Panel 2 — Showcase de proyectos</h1>
     <p>LogoLoop, carrusel de proyectos y contenido del showcase.</p>
   </div>
+  <div class="cms-actions">
+    <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>"><%= ({ dirty: 'Cambios sin guardar', saving: 'Guardando', saved: 'Borrador guardado', published: 'Publicado', error: 'Error' })[cmsEditorState] || 'Sin cambios' %></span>
+  </div>
 </div>
+
+<% if (typeof fieldErrors !== 'undefined' && fieldErrors.length) { %>
+  <div class="card" role="group" aria-label="Errores de validación">
+    <ul class="cms-field-errors"><% fieldErrors.forEach(function (message) { %><li><%= message %></li><% }); %></ul>
+  </div>
+<% } %>
 
 <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 <% if (saved) { %><div class="alert alert-success"><%= saved %></div><% } %>
@@ -19,7 +29,7 @@
 
 <!-- ═══ General content tab ═══ -->
 <div class="cms-tab-panel is-active" role="tabpanel" data-panel="general">
-  <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form">
+  <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form" data-cms-editor-form>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
     <div class="form-group">
@@ -52,7 +62,7 @@
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar borrador</button>
+      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar cambios</button>
     </div>
   </form>
 </div>
@@ -99,7 +109,7 @@
 
   <details class="cms-card">
     <summary class="cms-card-title">Agregar / Editar elemento</summary>
-    <form method="POST" action="/admin/page/home/panel-2/logo-loop/items" class="cms-form" id="logo-form">
+    <form method="POST" action="/admin/page/home/panel-2/logo-loop/items" class="cms-form" id="logo-form" data-cms-editor-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="public_id" id="logo-edit-id" value="">
       <input type="hidden" name="action" id="logo-action" value="create">
@@ -180,7 +190,7 @@
   </details>
 
   <div class="cms-section-footer">
-    <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/publish" class="cms-form">
+    <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/publish" class="cms-form" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <button type="submit" class="btn btn-success">Publicar LogoLoop</button>
     </form>
@@ -231,7 +241,7 @@
 
   <details class="cms-card" id="carousel-edit-details">
     <summary class="cms-card-title">Agregar / Editar proyecto</summary>
-    <form method="POST" action="/admin/page/home/panel-2/carousel/items" class="cms-form" id="carousel-form">
+    <form method="POST" action="/admin/page/home/panel-2/carousel/items" class="cms-form" id="carousel-form" data-cms-editor-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="public_id" id="carousel-edit-id" value="">
 
@@ -327,7 +337,7 @@
   </details>
 
   <div class="cms-section-footer">
-    <form method="POST" action="/admin/page/home/panel-2/carousel/items/publish" class="cms-form">
+    <form method="POST" action="/admin/page/home/panel-2/carousel/items/publish" class="cms-form" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <button type="submit" class="btn btn-success">Publicar carrusel</button>
     </form>
@@ -336,7 +346,7 @@
 
 <!-- ═══ Style tab ═══ -->
 <div class="cms-tab-panel" role="tabpanel" data-panel="style" hidden>
-  <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form">
+  <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form" data-cms-editor-form>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
     <div class="form-row">
@@ -355,12 +365,12 @@
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar borrador</button>
+      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar cambios</button>
     </div>
   </form>
 
   <div class="cms-section-footer">
-    <form method="POST" action="/admin/page/home/panel-2/publish" class="cms-form">
+    <form method="POST" action="/admin/page/home/panel-2/publish" class="cms-form" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <p style="margin-bottom:0.5rem">Publica el contenido general, LogoLoop y carrusel.</p>
       <button type="submit" class="btn btn-success">Publicar Panel 2</button>
@@ -368,6 +378,7 @@
   </div>
 </div>
 
+<script type="application/json" id="panel2-submitted-item-data"><%- safeJsonScript(typeof submittedItem !== 'undefined' ? submittedItem : null) %></script>
 <script type="application/json" id="panel2-logo-items-data"><%- safeJsonScript(logoItems.map(function(item) {
   return {
     id: item.public_id,
@@ -384,6 +395,7 @@
     status: item.status,
   };
 })) %></script>
+</div>
 <script type="application/json" id="panel2-carousel-items-data"><%- safeJsonScript(carouselItems.map(function(item) {
   return {
     id: item.public_id,

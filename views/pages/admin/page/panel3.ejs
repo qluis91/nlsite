@@ -1,10 +1,20 @@
-<% const c = content || {}; const s = style || {}; %>
+<% const c = content || {}; const s = style || {}; const cmsEditorState = typeof editorState !== 'undefined' ? editorState : null; %>
+<div data-cms-editor data-editor-state="<%= cmsEditorState || 'clean' %>">
 <div class="page-header">
   <div>
     <h1>Panel 3 — Servicios</h1>
     <p>Contenido general y tarjetas de servicios del panel de cierre.</p>
   </div>
+  <div class="cms-actions">
+    <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>"><%= ({ dirty: 'Cambios sin guardar', saving: 'Guardando', saved: 'Borrador guardado', published: 'Publicado', error: 'Error' })[cmsEditorState] || 'Sin cambios' %></span>
+  </div>
 </div>
+
+<% if (typeof fieldErrors !== 'undefined' && fieldErrors.length) { %>
+  <div class="card" role="group" aria-label="Errores de validación">
+    <ul class="cms-field-errors"><% fieldErrors.forEach(function (message) { %><li><%= message %></li><% }); %></ul>
+  </div>
+<% } %>
 
 <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 <% if (saved) { %><div class="alert alert-success"><%= saved %></div><% } %>
@@ -18,7 +28,7 @@
 
 <!-- ═══ General content tab ═══ -->
 <div class="cms-tab-panel is-active" role="tabpanel" data-panel="general">
-  <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form">
+  <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form" data-cms-editor-form>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
     <div class="form-group">
@@ -40,7 +50,7 @@
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar borrador</button>
+      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar cambios</button>
     </div>
   </form>
 </div>
@@ -88,7 +98,7 @@
 
   <details class="cms-card">
     <summary class="cms-card-title">Agregar / Editar tarjeta</summary>
-    <form method="POST" action="/admin/page/home/panel-3/items" class="cms-form" id="feature-form">
+    <form method="POST" action="/admin/page/home/panel-3/items" class="cms-form" id="feature-form" data-cms-editor-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="public_id" id="feature-edit-id" value="">
 
@@ -196,7 +206,7 @@
   </details>
 
   <div class="cms-section-footer">
-    <form method="POST" action="/admin/page/home/panel-3/items/publish" class="cms-form">
+    <form method="POST" action="/admin/page/home/panel-3/items/publish" class="cms-form" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <button type="submit" class="btn btn-success">Publicar tarjetas</button>
     </form>
@@ -205,7 +215,7 @@
 
 <!-- ═══ Style tab ═══ -->
 <div class="cms-tab-panel" role="tabpanel" data-panel="style" hidden>
-  <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form">
+  <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form" data-cms-editor-form>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
     <div class="form-row">
@@ -224,12 +234,12 @@
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar borrador</button>
+      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar cambios</button>
     </div>
   </form>
 
   <div class="cms-section-footer">
-    <form method="POST" action="/admin/page/home/panel-3/publish" class="cms-form">
+    <form method="POST" action="/admin/page/home/panel-3/publish" class="cms-form" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <p style="margin-bottom:0.5rem">Publica contenido general y tarjetas de servicios.</p>
       <button type="submit" class="btn btn-success">Publicar Panel 3</button>
@@ -238,6 +248,7 @@
 </div>
 </div>
 
+<script type="application/json" id="panel3-submitted-item-data"><%- safeJsonScript(typeof submittedItem !== 'undefined' ? submittedItem : null) %></script>
 <script type="application/json" id="panel3-feature-items-data"><%- safeJsonScript(items.map(function(item) {
   return {
     id: item.public_id,
@@ -257,3 +268,4 @@
     status: item.status,
   };
 })) %></script>
+</div>

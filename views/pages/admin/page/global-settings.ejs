@@ -1,18 +1,27 @@
+<% const cmsEditorState = typeof editorState !== 'undefined' ? editorState : null; %>
+<div data-cms-editor data-editor-state="<%= cmsEditorState || 'clean' %>">
 <div class="page-header">
   <div>
     <h1>Configuración global y SEO</h1>
     <p>Nombre del sitio, metadatos para buscadores, imagen Open Graph, favicon, URL canónica y modo de indexación.</p>
   </div>
   <div class="cms-actions">
+    <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>"><%= ({ dirty: 'Cambios sin guardar', saving: 'Guardando', saved: 'Borrador guardado', published: 'Publicado', error: 'Error' })[cmsEditorState] || 'Sin cambios' %></span>
     <a href="/admin/page" class="btn btn-outline">Administrar página</a>
-    <form action="/admin/page/global-settings/publish" method="POST" style="display:inline">
+    <form action="/admin/page/global-settings/publish" method="POST" style="display:inline" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit" class="btn btn-primary">Publicar configuración</button>
+      <button type="submit" class="btn btn-primary">Publicar</button>
     </form>
   </div>
 </div>
 
-<form action="/admin/page/global-settings/save" method="POST" class="cms-form">
+<% if (typeof fieldErrors !== 'undefined' && fieldErrors.length) { %>
+  <div class="card" role="group" aria-label="Errores de validación">
+    <ul class="cms-field-errors"><% fieldErrors.forEach(function (message) { %><li><%= message %></li><% }); %></ul>
+  </div>
+<% } %>
+
+<form action="/admin/page/global-settings/save" method="POST" class="cms-form" data-cms-editor-form>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
   <div class="card">
@@ -131,7 +140,8 @@
   </div>
 
   <div class="form-group">
-    <button type="submit" class="btn btn-primary">Guardar como borrador</button>
+    <button type="submit" class="btn btn-primary">Guardar cambios</button>
     <a href="/admin/page" class="btn btn-outline">Cancelar</a>
   </div>
 </form>
+</div>

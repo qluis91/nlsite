@@ -53,12 +53,13 @@ async function listSections(pageKey) {
  */
 async function getPublishedSectionContent(pageKey, sectionKey, fallback = null) {
   const [rows] = await pool.query(
-    `SELECT s.content_json
+    `SELECT s.published_content_json AS content_json
        FROM page_sections s
        INNER JOIN pages p ON p.id = s.page_id
-      WHERE p.page_key = ? AND s.section_key = ? AND s.is_enabled = 1 AND s.status = ?
+      WHERE p.page_key = ? AND s.section_key = ? AND s.is_enabled = 1
+        AND s.published_content_json IS NOT NULL
       LIMIT 1`,
-    [String(pageKey || ''), String(sectionKey || ''), CONTENT_STATUSES.PUBLISHED]
+    [String(pageKey || ''), String(sectionKey || '')]
   );
   const content = parseJsonColumn(rows[0]?.content_json);
   return content === null ? fallback : content;
@@ -66,7 +67,7 @@ async function getPublishedSectionContent(pageKey, sectionKey, fallback = null) 
 
 async function getSetting(settingKey, fallback = null) {
   const [rows] = await pool.query(
-    'SELECT setting_value, value_type FROM site_settings WHERE setting_key = ? LIMIT 1',
+    'SELECT published_value AS setting_value, value_type FROM site_settings WHERE setting_key = ? LIMIT 1',
     [String(settingKey || '')]
   );
   const row = rows[0];
@@ -93,7 +94,8 @@ async function getPublicSettings(group = null) {
     params.push(String(group));
   }
   const [rows] = await pool.query(
-    `SELECT setting_key, setting_value, value_type, setting_group FROM site_settings ${where}`,
+    `SELECT setting_key, published_value AS setting_value, value_type, setting_group
+       FROM site_settings ${where} AND published_value IS NOT NULL`,
     params
   );
   return rows;

@@ -1,3 +1,5 @@
+<% const cmsEditorState = typeof editorState !== 'undefined' ? editorState : null; %>
+<div data-cms-editor data-editor-state="<%= cmsEditorState || 'clean' %>">
 <div class="page-header">
   <div>
     <h1>Panel 1 — Hero</h1>
@@ -9,14 +11,21 @@
     </p>
   </div>
   <div class="cms-actions">
+    <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>"><%= ({ dirty: 'Cambios sin guardar', saving: 'Guardando', saved: 'Borrador guardado', published: 'Publicado', error: 'Error' })[cmsEditorState] || 'Sin cambios' %></span>
     <a href="/admin/page" class="btn btn-outline">Administrar página</a>
     <a href="/admin/page/preview" target="_blank" class="btn btn-outline">Vista previa</a>
-    <form action="/admin/page/home/panel-1/publish" method="POST" style="display:inline" data-confirm="¿Publicar el Panel 1? Los cambios serán visibles en el sitio.">
+    <form action="/admin/page/home/panel-1/publish" method="POST" style="display:inline" data-cms-publish-form data-confirm="¿Publicar el Panel 1? Los cambios serán visibles en el sitio.">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit" class="btn btn-primary">Publicar panel</button>
+      <button type="submit" class="btn btn-primary">Publicar</button>
     </form>
   </div>
 </div>
+
+<% if (typeof fieldErrors !== 'undefined' && fieldErrors.length) { %>
+  <div class="card" role="group" aria-label="Errores de validación">
+    <ul class="cms-field-errors"><% fieldErrors.forEach(function (message) { %><li><%= message %></li><% }); %></ul>
+  </div>
+<% } %>
 
 <%
   const heroContent = section ? section.content : {};
@@ -24,7 +33,7 @@
   const modelStyle = (heroStyle && heroStyle.model) ? heroStyle.model : {};
 %>
 
-<form action="/admin/page/home/panel-1/save" method="POST" class="cms-form">
+<form action="/admin/page/home/panel-1/save" method="POST" class="cms-form" data-cms-editor-form>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
   <div class="card">
@@ -225,7 +234,7 @@
   </div>
 
   <div class="cms-actions">
-    <button class="btn btn-primary" type="submit">Guardar borrador</button>
+    <button class="btn btn-primary" type="submit">Guardar cambios</button>
   </div>
 </form>
 
@@ -244,3 +253,4 @@
     <% }); %>
   </ul>
 </section>
+</div>

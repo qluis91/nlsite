@@ -29,11 +29,13 @@ function allKeys() {
 
 async function showPageSeo(req, res, next) {
   try {
-    const activePage = (req.query.page && PAGES.some(p => p.key === req.query.page))
-      ? req.query.page
+    const requestedPage = req.cmsActivePage || req.query.page;
+    const activePage = (requestedPage && PAGES.some(p => p.key === requestedPage))
+      ? requestedPage
       : 'home';
 
-    const settings = await publishing.getPublishedSettings(allKeys());
+    const storedSettings = await publishing.getDraftSettings(allKeys());
+    const settings = { ...storedSettings, ...(req.cmsSeoOverride || {}) };
     const resolveMedia = async (ref) => {
       if (!ref) return null;
       return cmsContent.resolveMediaReference(ref, null);
@@ -46,15 +48,29 @@ async function showPageSeo(req, res, next) {
       ogMedia[p.key] = ogRef ? await resolveMedia(ogRef) : null;
     }
 
-    res.render('pages/admin/page/page-seo', {
+    res.status(req.cmsEditorStatus || 200).render('pages/admin/page/page-seo', {
       title: 'SEO por página',
       layout: 'layouts/admin',
       pageStyles: ['/css/admin-page.css'],
-      pageScripts: ['/js/admin/media-selector.js'],
+      pageScripts: ['/js/admin/media-selector.js', '/js/admin/cms-editor-state.js'],
       pages: PAGES,
       activePage,
       settings,
       ogMedia,
+      editorState: req.cmsEditorErrors?.length ? 'error' : (() => {
+        if (!req.session) return null;
+        const state = req.session.cms_editor_state || null;
+        delete req.session.cms_editor_state;
+        return state;
+      })(),
+      fieldErrors: req.cmsEditorErrors || [],
+      pageAlerts: req.cmsEditorErrors?.length ? [{
+        id: `page-seo-error-${activePage}`,
+        type: 'error',
+        title: 'No se pudo guardar el borrador',
+        description: req.cmsEditorErrors.join(' '),
+        persistent: true,
+      }] : [],
       indexingModes: [
         { value: 'index,follow', label: 'Indexar y seguir (completo)' },
         { value: 'noindex,nofollow', label: 'No indexar ni seguir (oculto)' },
@@ -67,15 +83,61 @@ async function showPageSeo(req, res, next) {
 }
 
 async function savePageSeo(req, res, next) {
+  const vals = { ...req.body };
+  delete vals._csrf;
+  const pageKey = vals.page_key;
+  delete vals.page_key;
   try {
-    const vals = { ...req.body };
-    delete vals._csrf;
-    const pageKey = vals.page_key;
-    delete vals.page_key;
-
     if (!PAGES.some(p => p.key === pageKey)) {
       req.session.error_msg = 'Página no válida.';
       return res.redirect('/admin/page/page-seo');
+    }
+
+    const errors = [];
+    if (String(vals.title || '').length > 120) errors.push('El título SEO no debe exceder 120 caracteres.');
+    if (String(vals.description || '').length > 300) errors.push('La descripción SEO no debe exceder 300 caracteres.');
+    if (String(vals.canonical || '').length > 500) errors.push('La URL canónica no debe exceder 500 caracteres.');
+    if (vals.canonical) {
+      try {
+        const parsed = new URL(String(vals.canonical));
+        if (!['http:', 'https:'].includes(parsed.protocol)) errors.push('La URL canónica debe usar HTTP o HTTPS.');
+      } catch {
+        errors.push('La URL canónica no es válida.');
+      }
+    }
+    const allowedRobots = new Set(['', 'index,follow', 'noindex,nofollow', 'index,nofollow']);
+    if (!allowedRobots.has(String(vals.robots || ''))) errors.push('El modo de indexación no es válido.');
+    if (errors.length) {
+      const settings = await publishing.getDraftSettings(allKeys());
+      settings[pageSettingKey(pageKey, 'title')] = vals.title || '';
+      settings[pageSettingKey(pageKey, 'description')] = vals.description || '';
+      settings[pageSettingKey(pageKey, 'og_image')] = vals.og_image || '';
+      settings[pageSettingKey(pageKey, 'canonical')] = vals.canonical || '';
+      settings[pageSettingKey(pageKey, 'robots')] = vals.robots || '';
+      return res.status(422).render('pages/admin/page/page-seo', {
+        title: 'SEO por página',
+        layout: 'layouts/admin',
+        pageStyles: ['/css/admin-page.css'],
+        pageScripts: ['/js/admin/media-selector.js', '/js/admin/cms-editor-state.js'],
+        pages: PAGES,
+        activePage: pageKey,
+        settings,
+        ogMedia: Object.fromEntries(PAGES.map((page) => [page.key, null])),
+        indexingModes: [
+          { value: 'index,follow', label: 'Indexar y seguir (completo)' },
+          { value: 'noindex,nofollow', label: 'No indexar ni seguir (oculto)' },
+          { value: 'index,nofollow', label: 'Indexar pero no seguir' },
+        ],
+        fieldErrors: errors,
+        editorState: 'error',
+        pageAlerts: [{
+          id: `page-seo-validation-${pageKey}`,
+          type: 'error',
+          title: 'No se pudo guardar el borrador',
+          description: errors.join(' '),
+          persistent: true,
+        }],
+      });
     }
 
     const actorId = req.session.user?.id || null;
@@ -87,28 +149,44 @@ async function savePageSeo(req, res, next) {
       [pageSettingKey(pageKey, 'robots'), vals.robots || '', 'string', 'seo'],
     ];
 
-    for (const [key, value, type, group] of entries) {
-      await publishing.upsertSetting(key, value, type, {
-        settingGroup: group,
-        isPublic: true,
-        actorId,
-      });
-    }
+    await publishing.saveSettingsDraft(entries, { actorId });
 
     req.session.success_msg = `SEO de "${PAGES.find(p => p.key === pageKey).label}" guardado como borrador.`;
+    req.session.cms_editor_state = 'saved';
     return res.redirect(`/admin/page/page-seo?page=${pageKey}`);
   } catch (error) {
-    next(error);
+    req.cmsActivePage = PAGES.some((page) => page.key === pageKey) ? pageKey : 'home';
+    req.cmsSeoOverride = {
+      [pageSettingKey(req.cmsActivePage, 'title')]: vals.title || '',
+      [pageSettingKey(req.cmsActivePage, 'description')]: vals.description || '',
+      [pageSettingKey(req.cmsActivePage, 'og_image')]: vals.og_image || '',
+      [pageSettingKey(req.cmsActivePage, 'canonical')]: vals.canonical || '',
+      [pageSettingKey(req.cmsActivePage, 'robots')]: vals.robots || '',
+    };
+    req.cmsEditorErrors = ['Error de servidor o base de datos. El borrador anterior no fue modificado.'];
+    req.cmsEditorStatus = 500;
+    return showPageSeo(req, res, next);
   }
 }
 
 async function publishPageSeo(req, res, next) {
+  const requestedPage = String(req.body.page_key || '');
   try {
-    publishing.flushCache();
-    req.session.success_msg = 'Configuración de SEO por página publicada.';
-    return res.redirect('/admin/page/page-seo');
+    const pageKey = requestedPage;
+    if (!PAGES.some((page) => page.key === pageKey)) {
+      req.session.error_msg = 'Página no válida.';
+      return res.redirect('/admin/page/page-seo');
+    }
+    const keys = FIELDS.map((field) => pageSettingKey(pageKey, field));
+    await publishing.publishSettings(keys, { actorId: req.session.user?.id || null });
+    req.session.success_msg = `SEO de "${PAGES.find((page) => page.key === pageKey).label}" publicado.`;
+    req.session.cms_editor_state = 'published';
+    return res.redirect(`/admin/page/page-seo?page=${pageKey}`);
   } catch (error) {
-    next(error);
+    req.cmsActivePage = PAGES.some((page) => page.key === requestedPage) ? requestedPage : 'home';
+    req.cmsEditorErrors = ['Error de servidor o base de datos al publicar el SEO.'];
+    req.cmsEditorStatus = 500;
+    return showPageSeo(req, res, next);
   }
 }
 

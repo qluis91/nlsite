@@ -40,6 +40,12 @@
     <section class="account-section" aria-labelledby="quick-actions-title">
       <div class="account-section__heading"><div><p>Accesos</p><h2 id="quick-actions-title">Acciones rápidas</h2></div></div>
       <div class="account-quick-links">
+        <% if (Number(accountUser.role_id) === 1) { %>
+          <a class="account-quick-links__admin" href="/admin">
+            <strong>Ir al panel administrativo</strong>
+            <span>Administrar contenido, catálogo y configuración.</span>
+          </a>
+        <% } %>
         <a href="/cuenta/perfil"><strong>Editar perfil</strong><span>Actualiza tus datos personales.</span></a>
         <a href="/cuenta/seguridad"><strong>Cambiar contraseña</strong><span>Protege el acceso a tu cuenta.</span></a>
         <a href="/tienda"><strong>Explorar la tienda</strong><span>Descubre productos de NinjaLab.</span></a>

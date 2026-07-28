@@ -1,21 +1,43 @@
+<%
+  const cmsEditorState = typeof editorState !== 'undefined' ? editorState : null;
+  const submittedNavValues = (typeof submittedNavItem !== 'undefined' && submittedNavItem && submittedNavItem.values)
+    ? submittedNavItem.values
+    : null;
+  function navDraftValue(item, field, fallback) {
+    const itemId = item && item.public_id ? String(item.public_id) : '';
+    const submittedId = submittedNavValues && submittedNavValues.public_id ? String(submittedNavValues.public_id) : '';
+    if (submittedNavValues && itemId === submittedId && Object.prototype.hasOwnProperty.call(submittedNavValues, field)) {
+      return submittedNavValues[field];
+    }
+    return item && Object.prototype.hasOwnProperty.call(item, field) ? item[field] : fallback;
+  }
+%>
+<div data-cms-editor data-editor-state="<%= cmsEditorState || 'clean' %>">
 <div class="page-header">
   <div>
     <h1>Navbar y branding</h1>
     <p>Logotipo, colores, favicon y enlaces de navegación de la página de inicio.</p>
   </div>
   <div class="cms-actions">
+    <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>"><%= ({ dirty: 'Cambios sin guardar', saving: 'Guardando', saved: 'Borrador guardado', published: 'Publicado', error: 'Error' })[cmsEditorState] || 'Sin cambios' %></span>
     <a href="/admin/page" class="btn btn-outline">Administrar página</a>
     <a href="/admin/page/preview" target="_blank" class="btn btn-outline">Vista previa</a>
-    <form action="/admin/page/navbar/publish" method="POST" style="display:inline">
+    <form action="/admin/page/navbar/publish" method="POST" style="display:inline" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit" class="btn btn-primary">Publicar navbar</button>
+      <button type="submit" class="btn btn-primary">Publicar</button>
     </form>
   </div>
 </div>
 
+<% if (typeof fieldErrors !== 'undefined' && fieldErrors.length) { %>
+  <div class="card" role="group" aria-label="Errores de validación">
+    <ul class="cms-field-errors"><% fieldErrors.forEach(function (message) { %><li><%= message %></li><% }); %></ul>
+  </div>
+<% } %>
+
 <div class="card">
   <h2>Logotipos, favicon y colores</h2>
-  <form action="/admin/page/navbar/save" method="POST" class="cms-form">
+  <form action="/admin/page/navbar/save" method="POST" class="cms-form" data-cms-editor-form>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
     <div class="form-group">
@@ -132,7 +154,7 @@
     </div>
 
     <div class="cms-actions">
-      <button class="btn btn-primary" type="submit">Guardar borrador</button>
+      <button class="btn btn-primary" type="submit">Guardar cambios</button>
     </div>
   </form>
 </div>
@@ -143,25 +165,25 @@
     <button class="btn btn-outline" type="button" data-toggle="nav-item-form" aria-expanded="false">Agregar enlace</button>
   </header>
 
-  <form id="nav-item-form" class="cms-form cms-form--inline" action="/admin/page/navbar/items" method="POST" style="display:none;margin-bottom:1rem">
+  <form id="nav-item-form" class="cms-form cms-form--inline" action="/admin/page/navbar/items" method="POST" style="display:none;margin-bottom:1rem" data-cms-editor-form>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="location" value="home">
     <div class="form-row">
       <div class="form-group" style="flex:1">
         <label for="nav-label">Etiqueta</label>
-        <input class="form-control" id="nav-label" name="label" type="text" maxlength="100" required placeholder="Tienda">
+        <input class="form-control" id="nav-label" name="label" type="text" maxlength="100" required placeholder="Tienda" value="<%= submittedNavValues && !submittedNavValues.public_id ? submittedNavValues.label || '' : '' %>">
       </div>
       <div class="form-group" style="flex:2">
         <label for="nav-url">URL</label>
-        <input class="form-control" id="nav-url" name="url" type="text" maxlength="500" required placeholder="/tienda o #servicios">
+        <input class="form-control" id="nav-url" name="url" type="text" maxlength="500" required placeholder="/tienda o #servicios" value="<%= submittedNavValues && !submittedNavValues.public_id ? submittedNavValues.url || '' : '' %>">
       </div>
       <div class="form-group">
         <label for="nav-sort">Orden</label>
-        <input class="form-control" id="nav-sort" name="sort_order" type="number" min="0" max="100000" value="<%= (navItems || []).length %>">
+        <input class="form-control" id="nav-sort" name="sort_order" type="number" min="0" max="100000" value="<%= submittedNavValues && !submittedNavValues.public_id ? submittedNavValues.sort_order || 0 : (navItems || []).length %>">
       </div>
     </div>
     <div class="cms-actions">
-      <button class="btn btn-primary" type="submit">Crear enlace</button>
+      <button class="btn btn-primary" type="submit">Guardar cambios</button>
     </div>
   </form>
 
@@ -194,43 +216,43 @@
               </form>
             </td>
           </tr>
-          <tr id="nav-edit-<%= item.public_id %>" style="display:none">
+          <tr id="nav-edit-<%= item.public_id %>" style="<%= submittedNavValues && String(submittedNavValues.public_id || '') === String(item.public_id) ? '' : 'display:none' %>">
             <td colspan="7">
-              <form action="/admin/page/navbar/items/save" method="POST" class="cms-form cms-form--inline">
+              <form action="/admin/page/navbar/items/save" method="POST" class="cms-form cms-form--inline" data-cms-editor-form>
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <input type="hidden" name="public_id" value="<%= item.public_id %>">
                 <div class="form-row">
                   <div class="form-group" style="flex:1">
                     <label>Etiqueta</label>
-                    <input class="form-control" name="label" type="text" maxlength="100" required value="<%= item.label %>">
+                    <input class="form-control" name="label" type="text" maxlength="100" required value="<%= navDraftValue(item, 'label', '') %>">
                   </div>
                   <div class="form-group" style="flex:2">
                     <label>URL</label>
-                    <input class="form-control" name="url" type="text" maxlength="500" required value="<%= item.url %>">
+                    <input class="form-control" name="url" type="text" maxlength="500" required value="<%= navDraftValue(item, 'url', '') %>">
                   </div>
                 </div>
                 <div class="form-row">
                   <div class="form-group">
                     <label>Orden</label>
-                    <input class="form-control" name="sort_order" type="number" min="0" value="<%= item.sort_order %>">
+                    <input class="form-control" name="sort_order" type="number" min="0" value="<%= navDraftValue(item, 'sort_order', 0) %>">
                   </div>
                   <div class="form-group">
                     <label>Visible</label>
                     <select class="form-control" name="is_visible">
-                      <option value="1" <%= item.is_visible ? 'selected' : '' %>>Sí</option>
-                      <option value="0" <%= !item.is_visible ? 'selected' : '' %>>No</option>
+                      <option value="1" <%= String(navDraftValue(item, 'is_visible', 1)) !== '0' ? 'selected' : '' %>>Sí</option>
+                      <option value="0" <%= String(navDraftValue(item, 'is_visible', 1)) === '0' ? 'selected' : '' %>>No</option>
                     </select>
                   </div>
                   <div class="form-group">
                     <label>Destino</label>
                     <select class="form-control" name="target">
-                      <option value="_self" <%= item.target === '_self' ? 'selected' : '' %>>Misma pestaña</option>
-                      <option value="_blank" <%= item.target === '_blank' ? 'selected' : '' %>>Nueva pestaña</option>
+                      <option value="_self" <%= navDraftValue(item, 'target', '_self') === '_self' ? 'selected' : '' %>>Misma pestaña</option>
+                      <option value="_blank" <%= navDraftValue(item, 'target', '_self') === '_blank' ? 'selected' : '' %>>Nueva pestaña</option>
                     </select>
                   </div>
                 </div>
                 <div class="cms-actions">
-                  <button class="btn btn-primary" type="submit">Guardar</button>
+                  <button class="btn btn-primary" type="submit">Guardar cambios</button>
                   <button class="btn btn-outline" type="button" data-toggle="nav-edit-<%= item.public_id %>">Cancelar</button>
                 </div>
               </form>
@@ -241,6 +263,7 @@
     </table>
   <% } %>
 </section>
+</div>
 
 <section class="card">
   <h2>Biblioteca multimedia (referencia rápida)</h2>

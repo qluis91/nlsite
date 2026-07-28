@@ -14,8 +14,8 @@ after(async () => {
 });
 
 describe('Phase 13 — migrationTracker', () => {
-  it('MIGRATION_REGISTRY has 15 entries', () => {
-    assert.equal(tracker.MIGRATION_REGISTRY.length, 15);
+  it('MIGRATION_REGISTRY has 16 entries', () => {
+    assert.equal(tracker.MIGRATION_REGISTRY.length, 16);
   });
 
   it('each registry entry has name, file, exportName', () => {

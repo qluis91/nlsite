@@ -11,12 +11,33 @@ const cmsContent = require('../services/cmsContentService');
 
 // ── Helpers ──
 
-function errorRedirect(res, url, errors) {
-  return res.redirect(url + '?error=' + encodeURIComponent(errors.join('; ')));
+function actorId(req) {
+  return req.session?.user?.id || null;
 }
 
-function successRedirect(res, url, msg) {
-  return res.redirect(url + '?saved=' + encodeURIComponent(msg));
+function errorRedirect(req, res, url, errors) {
+  req.session.error_msg = errors.join('; ');
+  return res.redirect(url);
+}
+
+function successRedirect(req, res, url, msg) {
+  req.session.success_msg = msg;
+  req.session.cms_editor_state = /publicad/i.test(msg) ? 'published' : 'saved';
+  return res.redirect(url);
+}
+
+function consumeEditorState(req) {
+  if (!req.session) return null;
+  const state = req.session.cms_editor_state || null;
+  delete req.session.cms_editor_state;
+  return state;
+}
+
+function renderItemFailure(req, res, renderer, kind, errors, status = 422) {
+  req.cmsSubmittedItem = { kind, values: { ...req.body } };
+  req.cmsEditorErrors = errors;
+  req.cmsEditorStatus = status;
+  return renderer(req, res, () => {});
 }
 
 async function getSectionId(pageKey, sectionKey) {
@@ -66,8 +87,10 @@ async function showPanel2(req, res, next) {
       return next(err);
     }
 
-    const content = (typeof section.content_json === 'string' ? JSON.parse(section.content_json) : section.content_json) || {};
-    const style = (typeof section.style_json === 'string' ? JSON.parse(section.style_json) : section.style_json) || {};
+    const storedContent = (typeof section.content_json === 'string' ? JSON.parse(section.content_json) : section.content_json) || {};
+    const storedStyle = (typeof section.style_json === 'string' ? JSON.parse(section.style_json) : section.style_json) || {};
+    const content = { ...storedContent, ...(req.cmsEditorOverride?.content || {}) };
+    const style = { ...storedStyle, ...(req.cmsEditorOverride?.style || {}) };
 
     const [logoItems, carouselItems] = await Promise.all([
       repeatable.listItems('logo_loop_items', section.id),
@@ -83,18 +106,28 @@ async function showPanel2(req, res, next) {
     let bgMedia = null;
     if (style.backgroundMedia) bgMedia = await resolveMediaData(style.backgroundMedia);
 
-    res.render('pages/admin/page/panel2', {
+    res.status(req.cmsEditorStatus || 200).render('pages/admin/page/panel2', {
       title: 'Panel 2 — Showcase',
       layout: 'layouts/admin',
       pageStyles: ['/css/admin-page.css'],
-      pageScripts: ['/js/admin/media-selector.js', '/js/admin/panel2-editor.js'],
+      pageScripts: ['/js/admin/media-selector.js', '/js/admin/panel2-editor.js', '/js/admin/cms-editor-state.js'],
       content,
       style,
       bgMedia,
       logoItems,
       carouselItems,
-      error: req.query.error,
-      saved: req.query.saved,
+      error: null,
+      saved: null,
+      fieldErrors: req.cmsEditorErrors || [],
+      editorState: req.cmsEditorErrors?.length ? 'error' : consumeEditorState(req),
+      pageAlerts: req.cmsEditorErrors?.length ? [{
+        id: 'panel-2-validation',
+        type: 'error',
+        title: 'No se pudo guardar el borrador',
+        description: req.cmsEditorErrors.join(' '),
+        persistent: true,
+      }] : [],
+      submittedItem: req.cmsSubmittedItem || null,
     });
   } catch (e) {
     console.error('Panel 2 editor error:', e);
@@ -103,46 +136,56 @@ async function showPanel2(req, res, next) {
 }
 
 async function savePanel2Draft(req, res) {
-  const { eyebrow, heading, supportText, carouselLabel, logoLoopAriaLabel, backgroundColor, textColor, accentColor, backgroundMedia } = req.body;
+  const section = await getSectionId('home', 'showcase');
+  const storedContent = (typeof section.content_json === 'string' ? JSON.parse(section.content_json) : section.content_json) || {};
+  const storedStyle = (typeof section.style_json === 'string' ? JSON.parse(section.style_json) : section.style_json) || {};
+  const has = (name) => Object.prototype.hasOwnProperty.call(req.body, name);
+  const content = {
+    ...storedContent,
+    ...(has('eyebrow') ? { eyebrow: req.body.eyebrow?.trim() || null } : {}),
+    ...(has('heading') ? { heading: req.body.heading?.trim() || null } : {}),
+    ...(has('supportText') ? { supportText: req.body.supportText?.trim() || null } : {}),
+    ...(has('carouselLabel') ? { carouselLabel: req.body.carouselLabel?.trim() || null } : {}),
+    ...(has('logoLoopAriaLabel') ? { logoLoopAriaLabel: req.body.logoLoopAriaLabel?.trim() || null } : {}),
+  };
+  const style = {
+    ...storedStyle,
+    ...(has('backgroundColor') ? { backgroundColor: req.body.backgroundColor?.trim() || null } : {}),
+    ...(has('textColor') ? { textColor: req.body.textColor?.trim() || null } : {}),
+    ...(has('accentColor') ? { accentColor: req.body.accentColor?.trim() || null } : {}),
+    ...(has('backgroundMedia') ? { backgroundMedia: req.body.backgroundMedia?.trim() || null } : {}),
+  };
 
-  const contentErrors = validator.validatePanel2Content({ eyebrow, heading, supportText: supportText, carouselLabel, logoLoopAriaLabel });
-  const styleErrors = validator.validatePanel2Style({ backgroundColor, textColor, accentColor });
+  const contentErrors = validator.validatePanel2Content(content);
+  const styleErrors = validator.validatePanel2Style(style);
 
   if (contentErrors.length || styleErrors.length) {
-    return errorRedirect(res, '/admin/page/home/panel-2', [...contentErrors, ...styleErrors]);
+    req.cmsEditorOverride = { content, style };
+    req.cmsEditorErrors = [...contentErrors, ...styleErrors];
+    req.cmsEditorStatus = 422;
+    return showPanel2(req, res, () => {});
   }
 
   try {
-    const content = {
-      eyebrow: eyebrow?.trim() || null,
-      heading: heading?.trim() || null,
-      supportText: supportText?.trim() || null,
-      carouselLabel: carouselLabel?.trim() || null,
-      logoLoopAriaLabel: logoLoopAriaLabel?.trim() || null,
-    };
-    const style = {
-      backgroundColor: backgroundColor?.trim() || null,
-      textColor: textColor?.trim() || null,
-      accentColor: accentColor?.trim() || null,
-      backgroundMedia: backgroundMedia?.trim() || null,
-    };
+    await publishing.saveSectionDraft('home', 'showcase', content, style, { actorId: actorId(req) });
 
-    await publishing.saveSectionDraft('home', 'showcase', content, style, { actorId: req.user?.id });
-
-    return successRedirect(res, '/admin/page/home/panel-2', 'Borrador guardado.');
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Borrador del Panel 2 guardado.');
   } catch (e) {
     console.error('Panel 2 save error:', e);
-    return errorRedirect(res, '/admin/page/home/panel-2', ['Error al guardar.']);
+    req.cmsEditorOverride = { content, style };
+    req.cmsEditorErrors = ['Error de servidor o base de datos. El borrador anterior no fue modificado.'];
+    req.cmsEditorStatus = 500;
+    return showPanel2(req, res, () => {});
   }
 }
 
 async function publishPanel2(req, res) {
   try {
-    await publishing.publishSection('home', 'showcase', { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-2', 'Panel 2 publicado.');
+    await publishing.publishSection('home', 'showcase', { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Panel 2 publicado.');
   } catch (e) {
     console.error('Panel 2 publish error:', e);
-    return errorRedirect(res, '/admin/page/home/panel-2', ['Error al publicar.']);
+    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al publicar.']);
   }
 }
 
@@ -150,7 +193,7 @@ async function publishPanel2(req, res) {
 
 async function createLogoLoopItem(req, res) {
   const errors = validator.validateLogoLoopItem(req.body);
-  if (errors.length) return errorRedirect(res, '/admin/page/home/panel-2', errors);
+  if (errors.length) return renderItemFailure(req, res, showPanel2, 'logo', errors);
 
   try {
     const section = await getSectionId('home', 'showcase');
@@ -165,17 +208,17 @@ async function createLogoLoopItem(req, res) {
       is_visible: req.body.is_visible === '0' ? 0 : 1,
       status: 'draft',
       sort_order: 999,
-    }, { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-2', 'Elemento agregado.');
+    }, { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Elemento agregado.');
   } catch (e) {
     console.error('Create logo loop item:', e);
-    return errorRedirect(res, '/admin/page/home/panel-2', ['Error al crear elemento.']);
+    return renderItemFailure(req, res, showPanel2, 'logo', ['Error de servidor al crear el elemento.'], 500);
   }
 }
 
 async function saveLogoLoopItem(req, res) {
   const errors = validator.validateLogoLoopItem(req.body);
-  if (errors.length) return errorRedirect(res, '/admin/page/home/panel-2', errors);
+  if (errors.length) return renderItemFailure(req, res, showPanel2, 'logo', errors);
   try {
     await repeatable.saveItem('logo_loop_items', req.body.public_id, {
       item_type: req.body.item_type,
@@ -186,20 +229,20 @@ async function saveLogoLoopItem(req, res) {
       target: req.body.target || '_self',
       alt_text: req.body.alt_text?.trim() || null,
       is_visible: req.body.is_visible === '0' ? 0 : 1,
-    }, { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-2', 'Elemento guardado.');
+    }, { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Elemento guardado.');
   } catch (e) {
     console.error('Save logo loop item:', e);
-    return errorRedirect(res, '/admin/page/home/panel-2', ['Error al guardar elemento.']);
+    return renderItemFailure(req, res, showPanel2, 'logo', ['Error de servidor al guardar el elemento.'], 500);
   }
 }
 
 async function archiveLogoLoopItem(req, res) {
   try {
-    await repeatable.archiveItem('logo_loop_items', req.body.public_id, { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-2', 'Elemento archivado.');
+    await repeatable.archiveItem('logo_loop_items', req.body.public_id, { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Elemento archivado.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-2', ['Error al archivar.']);
+    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al archivar.']);
   }
 }
 
@@ -212,24 +255,20 @@ async function reorderLogoLoopItems(req, res) {
     } else if (!Array.isArray(ids)) {
       try { ids = JSON.parse(ids || '[]'); } catch { ids = []; }
     }
-    await repeatable.reorderItems('logo_loop_items', section.id, ids, { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-2', 'Orden actualizado.');
+    await repeatable.reorderItems('logo_loop_items', section.id, ids, { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Orden actualizado.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-2', ['Error al reordenar.']);
+    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al reordenar.']);
   }
 }
 
 async function publishLogoLoop(req, res) {
   try {
     const section = await getSectionId('home', 'showcase');
-    await repeatable.publishCollection('logo_loop_items', section.id, 'logoLoop_home', { actorId: req.user?.id });
-    // Ensure the section itself is published so items appear on the public homepage
-    if (section.status !== 'published' || Number(section.is_enabled) !== 1) {
-      await publishing.publishSection('home', 'showcase', { actorId: req.user?.id });
-    }
-    return successRedirect(res, '/admin/page/home/panel-2', 'LogoLoop publicado.');
+    await repeatable.publishCollection('logo_loop_items', section.id, 'logoLoop_home', { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'LogoLoop publicado.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-2', ['Error al publicar.']);
+    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al publicar.']);
   }
 }
 
@@ -237,7 +276,7 @@ async function publishLogoLoop(req, res) {
 
 async function createCarouselItem(req, res) {
   const errors = validator.validateCarouselItem(req.body);
-  if (errors.length) return errorRedirect(res, '/admin/page/home/panel-2', errors);
+  if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
 
   try {
     const section = await getSectionId('home', 'showcase');
@@ -254,16 +293,16 @@ async function createCarouselItem(req, res) {
       is_visible: req.body.is_visible === '0' ? 0 : 1,
       status: 'draft',
       sort_order: 999,
-    }, { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-2', 'Proyecto agregado.');
+    }, { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Proyecto agregado.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-2', ['Error al crear proyecto.']);
+    return renderItemFailure(req, res, showPanel2, 'carousel', ['Error de servidor al crear el proyecto.'], 500);
   }
 }
 
 async function saveCarouselItem(req, res) {
   const errors = validator.validateCarouselItem(req.body);
-  if (errors.length) return errorRedirect(res, '/admin/page/home/panel-2', errors);
+  if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
   try {
     await repeatable.saveItem('home_carousel_items', req.body.public_id, {
       eyebrow: req.body.eyebrow?.trim() || null,
@@ -276,19 +315,19 @@ async function saveCarouselItem(req, res) {
       preview_media_public_id: (req.body.preview_media_public_id || '').replace('media://', '') || null,
       theme_key: req.body.theme_key?.trim() || null,
       is_visible: req.body.is_visible === '0' ? 0 : 1,
-    }, { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-2', 'Proyecto guardado.');
+    }, { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Proyecto guardado.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-2', ['Error al guardar proyecto.']);
+    return renderItemFailure(req, res, showPanel2, 'carousel', ['Error de servidor al guardar el proyecto.'], 500);
   }
 }
 
 async function archiveCarouselItem(req, res) {
   try {
-    await repeatable.archiveItem('home_carousel_items', req.body.public_id, { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-2', 'Proyecto archivado.');
+    await repeatable.archiveItem('home_carousel_items', req.body.public_id, { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Proyecto archivado.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-2', ['Error al archivar.']);
+    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al archivar.']);
   }
 }
 
@@ -301,24 +340,20 @@ async function reorderCarouselItems(req, res) {
     } else if (!Array.isArray(ids)) {
       try { ids = JSON.parse(ids || '[]'); } catch { ids = []; }
     }
-    await repeatable.reorderItems('home_carousel_items', section.id, ids, { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-2', 'Orden actualizado.');
+    await repeatable.reorderItems('home_carousel_items', section.id, ids, { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Orden actualizado.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-2', ['Error al reordenar.']);
+    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al reordenar.']);
   }
 }
 
 async function publishCarousel(req, res) {
   try {
     const section = await getSectionId('home', 'showcase');
-    await repeatable.publishCollection('home_carousel_items', section.id, 'carousel_home', { actorId: req.user?.id });
-    // Ensure the section itself is published so items appear on the public homepage
-    if (section.status !== 'published' || Number(section.is_enabled) !== 1) {
-      await publishing.publishSection('home', 'showcase', { actorId: req.user?.id });
-    }
-    return successRedirect(res, '/admin/page/home/panel-2', 'Carrusel publicado.');
+    await repeatable.publishCollection('home_carousel_items', section.id, 'carousel_home', { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Carrusel publicado.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-2', ['Error al publicar.']);
+    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al publicar.']);
   }
 }
 
@@ -333,8 +368,10 @@ async function showPanel3(req, res, next) {
       return next(err);
     }
 
-    const content = (typeof section.content_json === 'string' ? JSON.parse(section.content_json) : section.content_json) || {};
-    const style = (typeof section.style_json === 'string' ? JSON.parse(section.style_json) : section.style_json) || {};
+    const storedContent = (typeof section.content_json === 'string' ? JSON.parse(section.content_json) : section.content_json) || {};
+    const storedStyle = (typeof section.style_json === 'string' ? JSON.parse(section.style_json) : section.style_json) || {};
+    const content = { ...storedContent, ...(req.cmsEditorOverride?.content || {}) };
+    const style = { ...storedStyle, ...(req.cmsEditorOverride?.style || {}) };
 
     const items = await repeatable.listItems('home_feature_items', section.id);
     await resolveItemMediaData(items, ['media_public_id']);
@@ -343,12 +380,22 @@ async function showPanel3(req, res, next) {
       title: 'Panel 3 — Servicios',
       layout: 'layouts/admin',
       pageStyles: ['/css/admin-page.css'],
-      pageScripts: ['/js/admin/media-selector.js', '/js/admin/panel3-editor.js'],
+      pageScripts: ['/js/admin/media-selector.js', '/js/admin/panel3-editor.js', '/js/admin/cms-editor-state.js'],
       content,
       style,
       items,
-      error: req.query.error,
-      saved: req.query.saved,
+      error: null,
+      saved: null,
+      fieldErrors: req.cmsEditorErrors || [],
+      editorState: req.cmsEditorErrors?.length ? 'error' : consumeEditorState(req),
+      pageAlerts: req.cmsEditorErrors?.length ? [{
+        id: 'panel-3-validation',
+        type: 'error',
+        title: 'No se pudo guardar el borrador',
+        description: req.cmsEditorErrors.join(' '),
+        persistent: true,
+      }] : [],
+      submittedItem: req.cmsSubmittedItem || null,
     });
   } catch (e) {
     console.error('Panel 3 editor error:', e);
@@ -357,41 +404,52 @@ async function showPanel3(req, res, next) {
 }
 
 async function savePanel3Draft(req, res) {
-  const { eyebrow, heading, description, backgroundColor, textColor, accentColor } = req.body;
+  const section = await getSectionId('home', 'services');
+  const storedContent = (typeof section.content_json === 'string' ? JSON.parse(section.content_json) : section.content_json) || {};
+  const storedStyle = (typeof section.style_json === 'string' ? JSON.parse(section.style_json) : section.style_json) || {};
+  const has = (name) => Object.prototype.hasOwnProperty.call(req.body, name);
+  const content = {
+    ...storedContent,
+    ...(has('eyebrow') ? { eyebrow: req.body.eyebrow?.trim() || null } : {}),
+    ...(has('heading') ? { heading: req.body.heading?.trim() || null } : {}),
+    ...(has('description') ? { description: req.body.description?.trim() || null } : {}),
+  };
+  const style = {
+    ...storedStyle,
+    ...(has('backgroundColor') ? { backgroundColor: req.body.backgroundColor?.trim() || null } : {}),
+    ...(has('textColor') ? { textColor: req.body.textColor?.trim() || null } : {}),
+    ...(has('accentColor') ? { accentColor: req.body.accentColor?.trim() || null } : {}),
+  };
 
-  const contentErrors = validator.validatePanel3Content({ eyebrow, heading, description });
-  const styleErrors = validator.validatePanel3Style({ backgroundColor, textColor, accentColor });
+  const contentErrors = validator.validatePanel3Content(content);
+  const styleErrors = validator.validatePanel3Style(style);
 
   if (contentErrors.length || styleErrors.length) {
-    return errorRedirect(res, '/admin/page/home/panel-3', [...contentErrors, ...styleErrors]);
+    req.cmsEditorOverride = { content, style };
+    req.cmsEditorErrors = [...contentErrors, ...styleErrors];
+    req.cmsEditorStatus = 422;
+    return showPanel3(req, res, () => {});
   }
 
   try {
-    const content = {
-      eyebrow: eyebrow?.trim() || null,
-      heading: heading?.trim() || null,
-      description: description?.trim() || null,
-    };
-    const style = {
-      backgroundColor: backgroundColor?.trim() || null,
-      textColor: textColor?.trim() || null,
-      accentColor: accentColor?.trim() || null,
-    };
+    await publishing.saveSectionDraft('home', 'services', content, style, { actorId: actorId(req) });
 
-    await publishing.saveSectionDraft('home', 'services', content, style, { actorId: req.user?.id });
-
-    return successRedirect(res, '/admin/page/home/panel-3', 'Borrador guardado.');
+    return successRedirect(req, res, '/admin/page/home/panel-3', 'Borrador del Panel 3 guardado.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-3', ['Error al guardar.']);
+    console.error('Panel 3 save error:', e);
+    req.cmsEditorOverride = { content, style };
+    req.cmsEditorErrors = ['Error de servidor o base de datos. El borrador anterior no fue modificado.'];
+    req.cmsEditorStatus = 500;
+    return showPanel3(req, res, () => {});
   }
 }
 
 async function publishPanel3(req, res) {
   try {
-    await publishing.publishSection('home', 'services', { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-3', 'Panel 3 publicado.');
+    await publishing.publishSection('home', 'services', { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-3', 'Panel 3 publicado.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-3', ['Error al publicar.']);
+    return errorRedirect(req, res, '/admin/page/home/panel-3', ['Error al publicar.']);
   }
 }
 
@@ -399,7 +457,7 @@ async function publishPanel3(req, res) {
 
 async function createFeatureItem(req, res) {
   const errors = validator.validateFeatureItem(req.body);
-  if (errors.length) return errorRedirect(res, '/admin/page/home/panel-3', errors);
+  if (errors.length) return renderItemFailure(req, res, showPanel3, 'feature', errors);
   try {
     const section = await getSectionId('home', 'services');
     await repeatable.createItem('home_feature_items', section.id, {
@@ -416,16 +474,16 @@ async function createFeatureItem(req, res) {
       is_visible: req.body.is_visible === '0' ? 0 : 1,
       status: 'draft',
       sort_order: 999,
-    }, { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-3', 'Tarjeta agregada.');
+    }, { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjeta agregada.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-3', ['Error al crear tarjeta.']);
+    return renderItemFailure(req, res, showPanel3, 'feature', ['Error de servidor al crear la tarjeta.'], 500);
   }
 }
 
 async function saveFeatureItem(req, res) {
   const errors = validator.validateFeatureItem(req.body);
-  if (errors.length) return errorRedirect(res, '/admin/page/home/panel-3', errors);
+  if (errors.length) return renderItemFailure(req, res, showPanel3, 'feature', errors);
   try {
     await repeatable.saveItem('home_feature_items', req.body.public_id, {
       title: req.body.title?.trim(),
@@ -439,19 +497,19 @@ async function saveFeatureItem(req, res) {
       target: req.body.target || '_self',
       style_variant: req.body.style_variant?.trim() || null,
       is_visible: req.body.is_visible === '0' ? 0 : 1,
-    }, { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-3', 'Tarjeta guardada.');
+    }, { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjeta guardada.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-3', ['Error al guardar tarjeta.']);
+    return renderItemFailure(req, res, showPanel3, 'feature', ['Error de servidor al guardar la tarjeta.'], 500);
   }
 }
 
 async function archiveFeatureItem(req, res) {
   try {
-    await repeatable.archiveItem('home_feature_items', req.body.public_id, { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-3', 'Tarjeta archivada.');
+    await repeatable.archiveItem('home_feature_items', req.body.public_id, { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjeta archivada.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-3', ['Error al archivar.']);
+    return errorRedirect(req, res, '/admin/page/home/panel-3', ['Error al archivar.']);
   }
 }
 
@@ -464,20 +522,20 @@ async function reorderFeatureItems(req, res) {
     } else if (!Array.isArray(ids)) {
       try { ids = JSON.parse(ids || '[]'); } catch { ids = []; }
     }
-    await repeatable.reorderItems('home_feature_items', section.id, ids, { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-3', 'Orden actualizado.');
+    await repeatable.reorderItems('home_feature_items', section.id, ids, { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-3', 'Orden actualizado.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-3', ['Error al reordenar.']);
+    return errorRedirect(req, res, '/admin/page/home/panel-3', ['Error al reordenar.']);
   }
 }
 
 async function publishFeatureItems(req, res) {
   try {
     const section = await getSectionId('home', 'services');
-    await repeatable.publishCollection('home_feature_items', section.id, 'features_home', { actorId: req.user?.id });
-    return successRedirect(res, '/admin/page/home/panel-3', 'Tarjetas publicadas.');
+    await repeatable.publishCollection('home_feature_items', section.id, 'features_home', { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjetas publicadas.');
   } catch (e) {
-    return errorRedirect(res, '/admin/page/home/panel-3', ['Error al publicar.']);
+    return errorRedirect(req, res, '/admin/page/home/panel-3', ['Error al publicar.']);
   }
 }
 
