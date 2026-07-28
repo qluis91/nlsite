@@ -110,7 +110,8 @@ const helmetConfig = {
         'https://www.googletagmanager.com',
         'https://www.google-analytics.com',
       ],
-      imgSrc: ["'self'", 'data:', 'https://www.google-analytics.com', 'https://www.googletagmanager.com'],
+      imgSrc: ["'self'", 'data:', 'https://www.google-analytics.com', 'https://www.googletagmanager.com', 'https://img.youtube.com'],
+      
       connectSrc: [
         "'self'",
         'blob:',
@@ -124,6 +125,7 @@ const helmetConfig = {
       fontSrc: ["'self'", 'data:'],
       mediaSrc: ["'self'"],
       frameAncestors: ["'self'"],
+      frameSrc: ["'self'", 'https://www.youtube.com'],
       formAction: ["'self'"],
     },
   },

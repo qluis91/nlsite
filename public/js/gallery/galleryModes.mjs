@@ -8,23 +8,40 @@ function prefersReducedMotion() {
 }
 
 const SAFE_VIDEO_SOURCE = /^\/uploads\/gallery\/videos\/[a-zA-Z0-9._-]+$/;
+const SAFE_YOUTUBE_EMBED = /^https:\/\/www\.youtube\.com\/embed\/[a-zA-Z0-9_-]{11}$/;
 
 export function normalizeGalleryView(value) {
   return value === 'grid' ? 'grid' : 'infinite';
 }
 
+export function stableGalleryItemKey(item, index = 0) {
+  const id = Number(item?.id);
+  if (Number.isSafeInteger(id) && id > 0) return `gallery:${id}`;
+  const publicId = String(item?.publicId || '').trim();
+  if (publicId) return `gallery-public:${publicId}`;
+  return `gallery-index:${index}`;
+}
+
 export function selectVideoGalleryItems(items = []) {
   if (!Array.isArray(items)) return [];
-  return items.filter((item) => (
-    item?.type === 'video'
-    && typeof item.source === 'string'
-    && SAFE_VIDEO_SOURCE.test(item.source)
-  ));
+  return items
+    .filter((item) => (
+      item?.type === 'video'
+      && typeof item.source === 'string'
+      && SAFE_VIDEO_SOURCE.test(item.source)
+    ) || (
+      item?.type === 'youtube'
+      && typeof item.source === 'string'
+      && SAFE_YOUTUBE_EMBED.test(item.source)
+    ))
+    .map((item, index) => ({
+      ...item,
+      key: stableGalleryItemKey(item, index),
+    }));
 }
 
 export function supportsCircularGallery(items = []) {
   if (!Array.isArray(items) || items.length === 0) return { supported: false, reason: 'empty' };
-  if (prefersReducedMotion()) return { supported: false, reason: 'reduced-motion' };
   if (
     (Number.isFinite(navigator.deviceMemory) && navigator.deviceMemory < 2)
     || (Number.isFinite(navigator.hardwareConcurrency) && navigator.hardwareConcurrency < 2)
@@ -63,11 +80,12 @@ export function supportsInfiniteGallery(items = []) {
 export function setupGalleryModes({
   page,
   items,
+  videoItems: carouselSourceItems = items,
   openGalleryItemById,
   dependencies = {},
 }) {
   if (galleryModeInstances.has(page)) return galleryModeInstances.get(page);
-  const videoItems = selectVideoGalleryItems(items);
+  const videoItems = selectVideoGalleryItems(carouselSourceItems);
   const grid = page.querySelector('[data-gallery-grid]');
   const primaryModes = {
     grid: page.querySelector('[data-gallery-primary-mode="grid"]'),
@@ -80,6 +98,8 @@ export function setupGalleryModes({
     title: page.querySelector('[data-gallery-circular-title]'),
     meta: page.querySelector('[data-gallery-circular-meta]'),
     action: page.querySelector('[data-gallery-circular-action]'),
+    previous: page.querySelector('[data-gallery-circular-previous]'),
+    next: page.querySelector('[data-gallery-circular-next]'),
     fallback: page.querySelector('[data-gallery-circular-fallback]'),
     live: page.querySelector('[data-gallery-circular-live]'),
   };
@@ -99,6 +119,8 @@ export function setupGalleryModes({
     || !primaryModes.grid
     || !primaryModes.infinite
     || !circular.stage
+    || !circular.previous
+    || !circular.next
     || !infinite.stage
     || viewLinks.length !== 2
   ) return () => {};
@@ -125,6 +147,7 @@ export function setupGalleryModes({
   let infiniteLiveTimer = null;
   let activeCircularItem = videoItems[0] || null;
   let activeInfiniteItem = items[0] || null;
+  const viewerModal = page.querySelector('[data-gallery-modal]');
   const removers = [];
 
   function listen(target, name, handler, options) {
@@ -164,7 +187,8 @@ export function setupGalleryModes({
     if (!item) return;
     activeCircularItem = item;
     circular.title.textContent = item.title || 'Proyecto';
-    circular.meta.textContent = [item.category, 'Video'].filter(Boolean).join(' · ');
+    const label = item.type === 'youtube' ? 'YouTube' : 'Video';
+    circular.meta.textContent = [item.category, label].filter(Boolean).join(' · ');
     announce(circular, 'circular', item, index, length);
   }
 
@@ -231,6 +255,12 @@ export function setupGalleryModes({
     transitions.revealCarousel(circular.stage);
   }
 
+  function syncViewerAutoplay() {
+    if (!circularRenderer || !viewerModal) return;
+    if (viewerModal.hidden) circularRenderer.resumeAutoplay('viewer');
+    else circularRenderer.pauseAutoplay('viewer');
+  }
+
   async function ensureVideoCarousel(generation) {
     if (generation !== activationGeneration || destroyed) return false;
     circular.stage.hidden = false;
@@ -258,6 +288,7 @@ export function setupGalleryModes({
     try {
       candidate = createCircularRenderer(circular.stage, videoItems, {
         bend: 0,
+        autoplay: !prefersReducedMotion(),
         onActiveChange: updateCircular,
         onSelect: (item) => openGalleryItemById(item.id, circular.action),
         onContextLost: () => {
@@ -273,6 +304,7 @@ export function setupGalleryModes({
         return false;
       }
       circularRenderer = candidate;
+      syncViewerAutoplay();
       circular.loader.hidden = true;
       circular.overlay.hidden = false;
       circular.stage.classList.add('is-ready');
@@ -426,6 +458,17 @@ export function setupGalleryModes({
   listen(circular.action, 'click', () => {
     if (activeCircularItem) openGalleryItemById(activeCircularItem.id, circular.action);
   });
+  listen(circular.previous, 'click', () => circularRenderer?.step(-1));
+  listen(circular.next, 'click', () => circularRenderer?.step(1));
+  const canStepCircular = videoItems.length > 1;
+  circular.previous.disabled = !canStepCircular;
+  circular.next.disabled = !canStepCircular;
+
+  let viewerObserver = null;
+  if (viewerModal && 'MutationObserver' in window) {
+    viewerObserver = new MutationObserver(syncViewerAutoplay);
+    viewerObserver.observe(viewerModal, { attributes: true, attributeFilter: ['hidden'] });
+  }
   listen(infinite.action, 'click', () => {
     if (activeInfiniteItem) openGalleryItemById(activeInfiniteItem.id, infinite.action);
   });
@@ -446,6 +489,7 @@ export function setupGalleryModes({
     activationGeneration += 1;
     window.clearTimeout(circularLiveTimer);
     window.clearTimeout(infiniteLiveTimer);
+    viewerObserver?.disconnect();
     removers.splice(0).forEach((remove) => remove());
     Object.values(primaryModes).forEach((container) => transitions.reset(container));
     destroyActiveRenderer();

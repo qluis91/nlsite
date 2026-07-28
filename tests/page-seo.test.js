@@ -6,8 +6,9 @@ const { describe, before, after, it } = require('node:test');
 const assert = require('node:assert');
 const http = require('http');
 const pool = require('../config/db');
+const { startTestServer, stopTestServer } = require('./testServer');
 
-const BASE = { hostname: 'localhost', port: 3000 };
+const BASE = { hostname: '127.0.0.1', port: 0 };
 
 function fetch(path) {
   return new Promise((resolve, reject) => {
@@ -19,9 +20,13 @@ function fetch(path) {
   });
 }
 
-before(async () => {});
+before(async () => {
+  const server = await startTestServer();
+  BASE.port = server.port;
+});
 
 after(async () => {
+  await stopTestServer();
   await pool.end();
 });
 

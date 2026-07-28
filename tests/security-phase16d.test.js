@@ -2,13 +2,14 @@
  * Phase 16D tests — Production hardening, headers, secrets, logging, health.
  * Run: node --test tests/security-phase16d.test.js
  */
-const { describe, it } = require('node:test');
+const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { startTestServer, stopTestServer } = require('./testServer');
 
-const BASE = { hostname: 'localhost', port: 3000 };
+const BASE = { hostname: '127.0.0.1', port: 0 };
 
 function httpReq(method, path) {
   return new Promise((resolve, reject) => {
@@ -21,6 +22,16 @@ function httpReq(method, path) {
     req.end();
   });
 }
+
+before(async () => {
+  const server = await startTestServer();
+  BASE.port = server.port;
+});
+
+after(async () => {
+  http.globalAgent.destroy();
+  await stopTestServer();
+});
 
 // ──── Security headers ────
 describe('Phase 16D — Security headers', () => {

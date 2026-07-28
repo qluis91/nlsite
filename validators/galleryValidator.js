@@ -84,7 +84,16 @@ function validateItem(body = {}, availableCategoryIds = []) {
   const firstError = [title, description, altText, order, category].find((result) => !result.valid);
   if (firstError) return firstError;
   if (!Object.values(MEDIA_TYPES).includes(mediaType)) {
-    return { valid: false, error: 'El tipo de medio debe ser imagen o video.' };
+    return { valid: false, error: 'El tipo de medio debe ser imagen, video o YouTube.' };
+  }
+  if (mediaType === MEDIA_TYPES.YOUTUBE) {
+    const youtubeUrl = String(body.youtubeUrl || '').trim();
+    if (!youtubeUrl) {
+      return { valid: false, error: 'La URL de YouTube es obligatoria para videos de YouTube.' };
+    }
+    if (youtubeUrl.length > 500) {
+      return { valid: false, error: 'La URL de YouTube no debe exceder 500 caracteres.' };
+    }
   }
   if (category.value !== null && !availableCategoryIds.includes(category.value)) {
     return { valid: false, error: 'La categoría seleccionada no es válida.' };
@@ -99,6 +108,7 @@ function validateItem(body = {}, availableCategoryIds = []) {
       slug,
       description: description.value,
       mediaType,
+      youtubeUrl: mediaType === MEDIA_TYPES.YOUTUBE ? String(body.youtubeUrl || '').trim() : null,
       altText: altText.value,
       sortOrder: order.value,
       isFeatured: booleanField(body.isFeatured),

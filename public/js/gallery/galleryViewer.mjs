@@ -59,6 +59,14 @@ export function createGalleryViewer({
     video.hidden = true;
   }
 
+  function removeYoutubeFrame() {
+    const existing = stage.querySelector('[data-gallery-youtube]');
+    if (existing) {
+      existing.removeAttribute('src');
+      existing.remove();
+    }
+  }
+
   function clearImage() {
     image.removeAttribute('src');
     image.alt = '';
@@ -77,6 +85,7 @@ export function createGalleryViewer({
     currentIndex = (index + items.length) % items.length;
     const item = items[currentIndex];
     pauseAndClearVideo();
+    removeYoutubeFrame();
     clearImage();
     showStatus('Cargando medio…');
     if (title) title.textContent = item.title || '';
@@ -105,6 +114,26 @@ export function createGalleryViewer({
       listenMedia(video, 'error', () => {
         pauseAndClearVideo();
         showStatus('No fue posible cargar este video.', true);
+      });
+    } else if (item.type === 'youtube' && item.youtubeId) {
+      video.hidden = true;
+      image.hidden = true;
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('data-gallery-youtube', '');
+      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(item.youtubeId)}?rel=0&modestbranding=1`;
+      iframe.setAttribute('frameborder', '0');
+      iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+      iframe.setAttribute('allowfullscreen', '');
+      iframe.className = 'gallery-modal__youtube';
+      iframe.title = item.title || 'YouTube video';
+      stage.appendChild(iframe);
+      listenMedia(iframe, 'load', () => {
+        status.hidden = true;
+        stage.classList.remove('has-error');
+      });
+      listenMedia(iframe, 'error', () => {
+        removeYoutubeFrame();
+        showStatus('No fue posible cargar este video de YouTube.', true);
       });
     } else {
       image.alt = item.alt || '';
@@ -152,6 +181,7 @@ export function createGalleryViewer({
       if (destroyed || generation !== transitionGeneration) return;
       clearMediaListeners();
       pauseAndClearVideo();
+      removeYoutubeFrame();
       clearImage();
       modal.hidden = true;
       document.body.classList.remove('is-gallery-modal-open');
@@ -227,6 +257,7 @@ export function createGalleryViewer({
       clearMediaListeners();
       removers.splice(0).forEach((remove) => remove());
       pauseAndClearVideo();
+      removeYoutubeFrame();
       clearImage();
       modal.hidden = true;
       document.body.classList.remove('is-gallery-modal-open');

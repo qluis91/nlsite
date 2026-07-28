@@ -90,15 +90,19 @@ async function getItemById(id) {
 }
 
 async function createItem(data) {
+  const publishedAt = data.isPublished ? new Date() : null;
   const [result] = await pool.query(
     `INSERT INTO gallery_items
       (category_id, title, slug, description, media_type, media_path, thumbnail_path,
-       poster_path, alt_text, sort_order, is_featured, is_published, published_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END)`,
+       poster_path, youtube_url, custom_cover_path, alt_text, sort_order, is_featured, is_published, published_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.categoryId, data.title, data.slug, data.description, data.mediaType,
-      data.mediaPath, data.thumbnailPath, data.posterPath, data.altText, data.sortOrder,
-      data.isFeatured ? 1 : 0, data.isPublished ? 1 : 0, data.isPublished ? 1 : 0,
+      data.mediaPath, data.thumbnailPath, data.posterPath || null,
+      data.youtubeUrl || null, data.customCoverPath || null,
+      data.altText, data.sortOrder,
+      data.isFeatured ? 1 : 0, data.isPublished ? 1 : 0,
+      publishedAt,
     ]
   );
   return result.insertId;
@@ -110,17 +114,23 @@ async function updateItem(id, data) {
     await connection.beginTransaction();
     const [locked] = await connection.query('SELECT id FROM gallery_items WHERE id = ? FOR UPDATE', [id]);
     if (!locked[0]) throw new Error('Elemento de galería no encontrado.');
+    const publishedAt = data.isPublished ? new Date() : null;
     await connection.query(
       `UPDATE gallery_items
           SET category_id = ?, title = ?, slug = ?, description = ?, media_type = ?,
-              media_path = ?, thumbnail_path = ?, poster_path = ?, alt_text = ?,
+              media_path = ?, thumbnail_path = ?, poster_path = ?, youtube_url = ?, custom_cover_path = ?,
+              alt_text = ?,
               sort_order = ?, is_featured = ?, is_published = ?,
-              published_at = CASE WHEN ? = 1 THEN COALESCE(published_at, CURRENT_TIMESTAMP) ELSE NULL END
+              published_at = ?
         WHERE id = ?`,
       [
         data.categoryId, data.title, data.slug, data.description, data.mediaType,
-        data.mediaPath, data.thumbnailPath, data.posterPath, data.altText, data.sortOrder,
-        data.isFeatured ? 1 : 0, data.isPublished ? 1 : 0, data.isPublished ? 1 : 0, id,
+        data.mediaPath, data.thumbnailPath, data.posterPath || null,
+        data.youtubeUrl || null, data.customCoverPath || null,
+        data.altText, data.sortOrder,
+        data.isFeatured ? 1 : 0, data.isPublished ? 1 : 0,
+        publishedAt,
+        id,
       ]
     );
     await connection.commit();
@@ -225,7 +235,8 @@ async function listPublic(filters) {
   const offset = (filters.page - 1) * filters.limit;
   const [items] = await pool.query(
     `SELECT i.id, i.slug, i.title, i.description, i.media_type, i.media_path,
-            i.thumbnail_path, i.poster_path, i.alt_text, i.is_featured,
+            i.thumbnail_path, i.poster_path, i.youtube_url, i.custom_cover_path,
+            i.alt_text, i.is_featured,
             c.name AS category_name, c.slug AS category_slug
        FROM gallery_items i
        LEFT JOIN gallery_categories c ON c.id = i.category_id
@@ -250,6 +261,22 @@ async function listPublic(filters) {
   };
 }
 
+async function listPublishedVideoItems() {
+  const [items] = await pool.query(
+    `SELECT i.id, i.slug, i.title, i.description, i.media_type, i.media_path,
+            i.thumbnail_path, i.poster_path, i.youtube_url, i.custom_cover_path,
+            i.alt_text, i.is_featured,
+            c.name AS category_name, c.slug AS category_slug
+       FROM gallery_items i
+       LEFT JOIN gallery_categories c ON c.id = i.category_id
+      WHERE i.is_published = 1
+        AND i.media_type IN ('video', 'youtube')
+        AND (i.category_id IS NULL OR c.is_active = 1)
+      ORDER BY i.is_featured DESC, i.sort_order ASC, i.published_at DESC, i.id DESC`
+  );
+  return items;
+}
+
 module.exports = {
   listCategories,
   getCategoryById,
@@ -266,4 +293,5 @@ module.exports = {
   setFeatured,
   listAdmin,
   listPublic,
+  listPublishedVideoItems,
 };

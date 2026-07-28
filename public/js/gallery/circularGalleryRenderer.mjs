@@ -49,17 +49,6 @@ const IMAGE_FRAGMENT_SHADER = `
   }
 `;
 
-const LABEL_FRAGMENT_SHADER = `
-  precision highp float;
-  uniform sampler2D tMap;
-  varying vec2 vUv;
-  void main() {
-    vec4 color = texture2D(tMap, vUv);
-    if (color.a < 0.02) discard;
-    gl_FragColor = color;
-  }
-`;
-
 function lerp(start, end, ease) {
   return start + (end - start) * ease;
 }
@@ -101,33 +90,23 @@ function createPlaceholderCanvas() {
   context.fillStyle = '#161b18';
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = '#7cf03d';
-  context.font = '700 22px system-ui, sans-serif';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText('Imagen no disponible', canvas.width / 2, canvas.height / 2);
-  return canvas;
-}
-
-function createLabelCanvas(text) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 112;
-  const context = canvas.getContext('2d');
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = '#f6f8f5';
-  context.font = '700 38px system-ui, sans-serif';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  const value = String(text || 'Proyecto');
-  const clipped = value.length > 48 ? `${value.slice(0, 45)}…` : value;
-  context.fillText(clipped, canvas.width / 2, canvas.height / 2, canvas.width - 40);
+  context.beginPath();
+  context.arc(canvas.width / 2, canvas.height / 2, 72, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = '#101713';
+  context.beginPath();
+  context.moveTo(canvas.width / 2 - 18, canvas.height / 2 - 34);
+  context.lineTo(canvas.width / 2 + 38, canvas.height / 2);
+  context.lineTo(canvas.width / 2 - 18, canvas.height / 2 + 34);
+  context.closePath();
+  context.fill();
   return canvas;
 }
 
 function createTexture(gl, source) {
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -136,21 +115,82 @@ function createTexture(gl, source) {
   return texture;
 }
 
-function isSafeThumbnail(value) {
+const SAFE_LOCAL_THUMBNAIL = /^\/uploads\/gallery\/thumbnails\/[a-zA-Z0-9._-]+$/;
+const SAFE_YOUTUBE_THUMBNAIL = /^https:\/\/img\.youtube\.com\/vi\/[a-zA-Z0-9_-]{11}\/(?:hq|mq)default\.jpg$/;
+const SAFE_LOCAL_PLACEHOLDER = '/images/gallery-video-placeholder.svg';
+
+export function isSafeThumbnail(value) {
   return typeof value === 'string'
-    && /^\/uploads\/gallery\/thumbnails\/[a-zA-Z0-9._-]+$/.test(value);
+    && (
+      SAFE_LOCAL_THUMBNAIL.test(value)
+      || SAFE_YOUTUBE_THUMBNAIL.test(value)
+      || value === SAFE_LOCAL_PLACEHOLDER
+    );
+}
+
+export function thumbnailCandidates(item = {}) {
+  return [
+    item.thumbnail,
+    ...(Array.isArray(item.thumbnailFallbacks) ? item.thumbnailFallbacks : []),
+    SAFE_LOCAL_PLACEHOLDER,
+  ].filter((candidate, index, candidates) => (
+    isSafeThumbnail(candidate) && candidates.indexOf(candidate) === index
+  ));
+}
+
+export function carouselItemKey(item, index = 0) {
+  const id = Number(item?.id);
+  if (Number.isSafeInteger(id) && id > 0) return `gallery:${id}`;
+  const publicId = String(item?.publicId || '').trim();
+  if (publicId) return `gallery-public:${publicId}`;
+  return `gallery-index:${index}`;
+}
+
+export function calculateCarouselPositions(itemCount, spacing, scroll, width) {
+  const count = Math.max(0, Math.trunc(itemCount) || 0);
+  if (!count) return [];
+  const center = width / 2;
+  if (count === 1) return [{ index: 0, x: center }];
+  const total = spacing * count;
+  const phase = count === 2 ? -spacing / 2 : 0;
+  return Array.from({ length: count }, (_, index) => {
+    const rawOffset = index * spacing - scroll + phase;
+    let wrapped = ((rawOffset + total / 2) % total + total) % total - total / 2;
+    if (count === 2 && wrapped === -total / 2 && rawOffset > 0) wrapped = total / 2;
+    return { index, x: center + wrapped };
+  });
+}
+
+export function advanceAutoplayTarget(target, spacing, elapsedMs, itemDurationMs = 32000) {
+  if (
+    !Number.isFinite(target)
+    || !Number.isFinite(spacing)
+    || !Number.isFinite(elapsedMs)
+    || !Number.isFinite(itemDurationMs)
+    || spacing <= 0
+    || elapsedMs <= 0
+    || itemDurationMs <= 0
+  ) return target;
+  return target + (spacing * elapsedMs) / itemDurationMs;
 }
 
 export class CircularGalleryRenderer {
   constructor(container, options = {}) {
     if (!container) throw new Error('Circular Gallery requires a container.');
     this.container = container;
-    this.items = Array.isArray(options.items) ? options.items.slice() : [];
+    this.items = Array.isArray(options.items)
+      ? options.items.map((item, index) => ({
+        ...item,
+        key: item?.key || carouselItemKey(item, index),
+      }))
+      : [];
     if (!this.items.length) throw new Error('Circular Gallery requires at least one item.');
     this.options = {
       bend: 0,
       scrollEase: 0.075,
       scrollSpeed: 1,
+      autoplay: true,
+      autoplayItemDuration: 32000,
       onActiveChange: () => {},
       onSelect: () => {},
       onContextLost: () => {},
@@ -159,12 +199,23 @@ export class CircularGalleryRenderer {
     this.destroyed = false;
     this.rafId = null;
     this.pauseReasons = new Set();
+    this.autoplayPauseReasons = new Set();
+    this.lastFrameTime = null;
+    this.interactionResumeTimer = null;
     this.scroll = { current: 0, target: 0, last: 0 };
     this.activeIndex = -1;
-    this.pointer = { active: false, moved: false, id: null, startX: 0, startTarget: 0 };
+    this.pointer = {
+      active: false,
+      moved: false,
+      id: null,
+      axis: null,
+      startX: 0,
+      startY: 0,
+      startTarget: 0,
+    };
     this.drawBounds = [];
     this.resources = [];
-    this.textureRecords = [];
+    this.textureRecords = new Map();
     this.glTextures = new Set();
     this.glBuffers = new Set();
     this.canvas = document.createElement('canvas');
@@ -195,11 +246,9 @@ export class CircularGalleryRenderer {
   createScene() {
     const gl = this.gl;
     this.imageProgram = createProgram(gl, IMAGE_FRAGMENT_SHADER);
-    this.labelProgram = createProgram(gl, LABEL_FRAGMENT_SHADER);
-    this.resources.push(this.imageProgram, this.labelProgram);
+    this.resources.push(this.imageProgram);
     this.buffer = gl.createBuffer();
     this.glBuffers.add(this.buffer);
-    this.resources.push(this.buffer);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
       -1, -1, 0, 0,
@@ -218,8 +267,11 @@ export class CircularGalleryRenderer {
     this.onPointerDown = this.onPointerDown.bind(this);
     this.onPointerMove = this.onPointerMove.bind(this);
     this.onPointerUp = this.onPointerUp.bind(this);
-    this.onWheel = this.onWheel.bind(this);
     this.onKeyDown = this.onKeyDown.bind(this);
+    this.onMouseEnter = this.onMouseEnter.bind(this);
+    this.onMouseLeave = this.onMouseLeave.bind(this);
+    this.onFocusIn = this.onFocusIn.bind(this);
+    this.onFocusOut = this.onFocusOut.bind(this);
     this.onVisibilityChange = this.onVisibilityChange.bind(this);
     this.onContextLost = this.onContextLost.bind(this);
     this.onContextRestored = this.onContextRestored.bind(this);
@@ -232,8 +284,11 @@ export class CircularGalleryRenderer {
     this.container.addEventListener('pointermove', this.onPointerMove);
     this.container.addEventListener('pointerup', this.onPointerUp);
     this.container.addEventListener('pointercancel', this.onPointerUp);
-    this.container.addEventListener('wheel', this.onWheel, { passive: false });
     this.container.addEventListener('keydown', this.onKeyDown);
+    this.container.addEventListener('mouseenter', this.onMouseEnter);
+    this.container.addEventListener('mouseleave', this.onMouseLeave);
+    this.container.addEventListener('focusin', this.onFocusIn);
+    this.container.addEventListener('focusout', this.onFocusOut);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.canvas.addEventListener('webglcontextlost', this.onContextLost);
     this.canvas.addEventListener('webglcontextrestored', this.onContextRestored);
@@ -261,19 +316,12 @@ export class CircularGalleryRenderer {
     const jobs = this.items.map((item) => new Promise((resolve) => {
       const record = {
         image: createTexture(this.gl, placeholder),
-        label: createTexture(this.gl, createLabelCanvas(item.title)),
         width: placeholder.width,
         height: placeholder.height,
       };
-      this.textureRecords.push(record);
+      this.textureRecords.set(item.key, record);
       this.glTextures.add(record.image);
-      this.glTextures.add(record.label);
-      this.resources.push(record.image, record.label);
-      if (!isSafeThumbnail(item.thumbnail)) {
-        resolve(record);
-        return;
-      }
-      const image = new Image();
+      const candidates = thumbnailCandidates(item);
       let settled = false;
       const finish = () => {
         if (settled) return;
@@ -282,23 +330,40 @@ export class CircularGalleryRenderer {
         resolve(record);
       };
       const timeoutId = window.setTimeout(finish, 8000);
-      image.onload = () => {
-        if (!this.destroyed) {
-          this.gl.bindTexture(this.gl.TEXTURE_2D, record.image);
-          this.gl.texImage2D(
-            this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA,
-            this.gl.UNSIGNED_BYTE, image
-          );
-          record.width = image.naturalWidth || 1;
-          record.height = image.naturalHeight || 1;
+      const tryCandidate = (candidateIndex) => {
+        if (settled || candidateIndex >= candidates.length) {
+          finish();
+          return;
         }
-        finish();
+        const source = candidates[candidateIndex];
+        const image = new Image();
+        if (SAFE_YOUTUBE_THUMBNAIL.test(source)) image.crossOrigin = 'anonymous';
+        image.onload = () => {
+          if (this.destroyed) {
+            finish();
+            return;
+          }
+          try {
+            this.gl.bindTexture(this.gl.TEXTURE_2D, record.image);
+            this.gl.pixelStorei(this.gl.UNPACK_FLIP_Y_WEBGL, false);
+            this.gl.texImage2D(
+              this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA,
+              this.gl.UNSIGNED_BYTE, image
+            );
+            record.width = image.naturalWidth || 1;
+            record.height = image.naturalHeight || 1;
+            finish();
+          } catch {
+            tryCandidate(candidateIndex + 1);
+          }
+        };
+        image.onerror = () => tryCandidate(candidateIndex + 1);
+        image.src = source;
       };
-      image.onerror = finish;
-      image.src = item.thumbnail;
+      tryCandidate(0);
     }));
     await Promise.all(jobs);
-    return this.textureRecords;
+    return [...this.textureRecords.values()];
   }
 
   resize() {
@@ -309,9 +374,19 @@ export class CircularGalleryRenderer {
     this.width = width;
     this.height = height;
     this.dpr = dpr;
-    this.cardHeight = Math.min(height * 0.58, width < 600 ? 300 : 390);
-    this.cardWidth = Math.min(this.cardHeight * 0.82, width * 0.72);
-    this.spacing = this.cardWidth + Math.max(30, width * 0.035);
+    const maximumCardHeight = Math.min(height * 0.58, width < 600 ? 300 : 390);
+    if (this.items.length === 2) {
+      this.cardWidth = Math.min(maximumCardHeight * 0.82, width * 0.4);
+      this.cardHeight = this.cardWidth / 0.82;
+      this.spacing = Math.max(1, Math.min(
+        this.cardWidth + Math.max(24, width * 0.025),
+        width - this.cardWidth - 24
+      ));
+    } else {
+      this.cardHeight = maximumCardHeight;
+      this.cardWidth = Math.min(this.cardHeight * 0.82, width * 0.72);
+      this.spacing = this.cardWidth + Math.max(30, width * 0.035);
+    }
     this.canvas.width = Math.round(width * dpr);
     this.canvas.height = Math.round(height * dpr);
     this.canvas.style.width = `${width}px`;
@@ -325,25 +400,36 @@ export class CircularGalleryRenderer {
     this.pointer.active = true;
     this.pointer.moved = false;
     this.pointer.id = event.pointerId;
+    this.pointer.axis = null;
     this.pointer.startX = event.clientX;
+    this.pointer.startY = event.clientY;
     this.pointer.startTarget = this.scroll.target;
+    this.pauseAutoplay('drag');
     this.container.setPointerCapture?.(event.pointerId);
   }
 
   onPointerMove(event) {
     if (!this.pointer.active || event.pointerId !== this.pointer.id || this.items.length === 1) return;
-    const distance = event.clientX - this.pointer.startX;
-    if (Math.abs(distance) > 5) this.pointer.moved = true;
-    this.scroll.target = this.pointer.startTarget - distance * this.options.scrollSpeed;
+    const distanceX = event.clientX - this.pointer.startX;
+    const distanceY = event.clientY - this.pointer.startY;
+    if (!this.pointer.axis && Math.max(Math.abs(distanceX), Math.abs(distanceY)) > 7) {
+      this.pointer.axis = Math.abs(distanceX) > Math.abs(distanceY) ? 'horizontal' : 'vertical';
+      this.pointer.moved = true;
+    }
+    if (this.pointer.axis !== 'horizontal') return;
+    this.scroll.target = this.pointer.startTarget - distanceX * this.options.scrollSpeed;
     this.schedule();
   }
 
   onPointerUp(event) {
     if (!this.pointer.active || event.pointerId !== this.pointer.id) return;
     this.container.releasePointerCapture?.(event.pointerId);
-    const shouldSelect = !this.pointer.moved && event.type !== 'pointercancel';
+    const shouldSelect = !this.pointer.moved
+      && this.pointer.axis !== 'vertical'
+      && event.type !== 'pointercancel';
     this.pointer.active = false;
     this.pointer.id = null;
+    this.pointer.axis = null;
     if (shouldSelect) {
       const rect = this.container.getBoundingClientRect();
       const x = event.clientX - rect.left;
@@ -358,18 +444,7 @@ export class CircularGalleryRenderer {
     } else {
       this.snap();
     }
-  }
-
-  onWheel(event) {
-    const focused = this.container.contains(document.activeElement);
-    const hovered = event.target === this.container || this.container.contains(event.target);
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-    if (this.items.length === 1 || (!focused && !hovered) || !Number.isFinite(delta) || delta === 0) return;
-    event.preventDefault();
-    this.scroll.target += Math.sign(delta) * Math.min(120, Math.abs(delta)) * 0.55;
-    window.clearTimeout(this.wheelTimer);
-    this.wheelTimer = window.setTimeout(() => this.snap(), 140);
-    this.schedule();
+    this.resumeAutoplay('drag');
   }
 
   onKeyDown(event) {
@@ -380,10 +455,12 @@ export class CircularGalleryRenderer {
     }
     if (event.key === 'ArrowRight') {
       event.preventDefault();
-      this.scroll.target += this.spacing;
+      this.step(1);
+      return;
     } else if (event.key === 'ArrowLeft') {
       event.preventDefault();
-      this.scroll.target -= this.spacing;
+      this.step(-1);
+      return;
     } else if (event.key === 'Home') {
       event.preventDefault();
       this.scroll.target = 0;
@@ -396,6 +473,60 @@ export class CircularGalleryRenderer {
     }
     this.snap();
     this.schedule();
+  }
+
+  onMouseEnter() {
+    this.pauseAutoplay('hover');
+  }
+
+  onMouseLeave() {
+    this.resumeAutoplay('hover');
+  }
+
+  onFocusIn() {
+    this.pauseAutoplay('focus');
+  }
+
+  onFocusOut(event) {
+    if (!this.container.contains(event.relatedTarget)) this.resumeAutoplay('focus');
+  }
+
+  step(direction) {
+    if (!this.spacing || this.items.length <= 1) return;
+    const stepDirection = direction < 0 ? -1 : 1;
+    const snappedTarget = Math.round(this.scroll.target / this.spacing) * this.spacing;
+    this.scroll.target = snappedTarget + stepDirection * this.spacing;
+    this.updateActive();
+    this.pauseAutoplayBriefly();
+    this.schedule();
+  }
+
+  pauseAutoplayBriefly() {
+    this.pauseAutoplay('interaction');
+    window.clearTimeout(this.interactionResumeTimer);
+    this.interactionResumeTimer = window.setTimeout(() => {
+      this.interactionResumeTimer = null;
+      this.resumeAutoplay('interaction');
+    }, 1200);
+  }
+
+  pauseAutoplay(reason = 'manual') {
+    if (this.destroyed) return;
+    this.autoplayPauseReasons.add(reason);
+    this.lastFrameTime = null;
+  }
+
+  resumeAutoplay(reason = 'manual') {
+    if (this.destroyed) return;
+    this.autoplayPauseReasons.delete(reason);
+    this.lastFrameTime = null;
+    this.schedule();
+  }
+
+  canAutoplay() {
+    return this.options.autoplay
+      && this.items.length > 1
+      && this.autoplayPauseReasons.size === 0;
   }
 
   snap() {
@@ -461,15 +592,16 @@ export class CircularGalleryRenderer {
     gl.clear(gl.COLOR_BUFFER_BIT);
     const speed = (this.scroll.current - this.scroll.last) / Math.max(1, this.spacing);
     const centerY = this.height * 0.44;
-    const total = this.spacing * this.items.length;
     this.drawBounds = [];
-    const firstCycle = this.items.length === 1 ? 0 : -1;
-    const lastCycle = this.items.length === 1 ? 0 : 1;
-    for (let cycle = firstCycle; cycle <= lastCycle; cycle += 1) {
-      this.items.forEach((item, index) => {
-        const x = this.width / 2 + index * this.spacing + cycle * total - this.scroll.current;
+    calculateCarouselPositions(
+      this.items.length,
+      this.spacing,
+      this.scroll.current,
+      this.width
+    ).forEach(({ index, x }) => {
+        const item = this.items[index];
         if (x + this.cardWidth < 0 || x - this.cardWidth > this.width) return;
-        const record = this.textureRecords[index];
+        const record = this.textureRecords.get(item.key);
         if (!record) return;
         let curvedY = centerY;
         if (this.options.bend !== 0) {
@@ -484,10 +616,6 @@ export class CircularGalleryRenderer {
           this.imageProgram, record.image, x, curvedY,
           this.cardWidth, this.cardHeight, speed, [record.width, record.height]
         );
-        this.useProgram(
-          this.labelProgram, record.label, x, curvedY + this.cardHeight * 0.59,
-          this.cardWidth, Math.max(36, this.cardHeight * 0.11), 0
-        );
         this.drawBounds.push({
           index,
           center: x,
@@ -495,12 +623,23 @@ export class CircularGalleryRenderer {
           right: x + this.cardWidth / 2,
         });
       });
-    }
   }
 
-  frame() {
+  frame(timestamp) {
     this.rafId = null;
     if (this.destroyed || this.pauseReasons.size) return;
+    const elapsed = this.lastFrameTime === null
+      ? 0
+      : Math.min(64, Math.max(0, timestamp - this.lastFrameTime));
+    this.lastFrameTime = timestamp;
+    if (this.canAutoplay()) {
+      this.scroll.target = advanceAutoplayTarget(
+        this.scroll.target,
+        this.spacing,
+        elapsed,
+        this.options.autoplayItemDuration
+      );
+    }
     this.scroll.current = lerp(this.scroll.current, this.scroll.target, this.options.scrollEase);
     if (Math.abs(this.scroll.current - this.scroll.target) < 0.02) {
       this.scroll.current = this.scroll.target;
@@ -508,8 +647,14 @@ export class CircularGalleryRenderer {
     this.render();
     this.scroll.last = this.scroll.current;
     this.updateActive();
-    if (Math.abs(this.scroll.current - this.scroll.target) > 0.001 || this.pointer.active) {
+    if (
+      this.canAutoplay()
+      || Math.abs(this.scroll.current - this.scroll.target) > 0.001
+      || this.pointer.active
+    ) {
       this.schedule();
+    } else {
+      this.lastFrameTime = null;
     }
   }
 
@@ -521,6 +666,7 @@ export class CircularGalleryRenderer {
   pause(reason = 'manual') {
     if (this.destroyed) return;
     this.pauseReasons.add(reason);
+    this.lastFrameTime = null;
     if (this.rafId !== null) {
       window.cancelAnimationFrame(this.rafId);
       this.rafId = null;
@@ -552,7 +698,7 @@ export class CircularGalleryRenderer {
     if (this.destroyed) return;
     this.destroyed = true;
     if (this.rafId !== null) window.cancelAnimationFrame(this.rafId);
-    window.clearTimeout(this.wheelTimer);
+    window.clearTimeout(this.interactionResumeTimer);
     this.resizeObserver?.disconnect();
     this.intersectionObserver?.disconnect();
     window.removeEventListener('resize', this.resize);
@@ -561,8 +707,11 @@ export class CircularGalleryRenderer {
     this.container.removeEventListener('pointermove', this.onPointerMove);
     this.container.removeEventListener('pointerup', this.onPointerUp);
     this.container.removeEventListener('pointercancel', this.onPointerUp);
-    this.container.removeEventListener('wheel', this.onWheel);
     this.container.removeEventListener('keydown', this.onKeyDown);
+    this.container.removeEventListener('mouseenter', this.onMouseEnter);
+    this.container.removeEventListener('mouseleave', this.onMouseLeave);
+    this.container.removeEventListener('focusin', this.onFocusIn);
+    this.container.removeEventListener('focusout', this.onFocusOut);
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
 
@@ -579,7 +728,7 @@ export class CircularGalleryRenderer {
     this.glTextures.clear();
     this.glBuffers.clear();
 
-    // Delete programs from resources collection (guarded)
+    // Delete programs from the program-only resources collection.
     for (const resource of this.resources) {
       if (!resource) continue;
       try {
@@ -587,7 +736,7 @@ export class CircularGalleryRenderer {
       } catch (_) { /* best-effort */ }
     }
     this.resources.length = 0;
-    this.textureRecords.length = 0;
+    this.textureRecords.clear();
     this.canvas.remove();
     this.container.classList.remove('is-dragging');
     this.container = null;

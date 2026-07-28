@@ -5,7 +5,7 @@
       type="button"
       data-gallery-open
       data-gallery-id="<%= item.id %>"
-      aria-label="<%= item.media_type === 'video' ? 'Ver video: ' : 'Ampliar imagen: ' %><%= item.title %>"
+      aria-label="<%= item.media_type === 'video' ? 'Ver video: ' : item.media_type === 'youtube' ? 'Ver video de YouTube: ' : 'Ampliar imagen: ' %><%= item.title %>"
     >
       <span class="gallery-card__media">
         <img
@@ -23,6 +23,11 @@
             <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
           </span>
           <span class="gallery-card__action">Ver video</span>
+        <% } else if (item.media_type === 'youtube') { %>
+          <span class="gallery-card__play gallery-card__play--youtube" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+          </span>
+          <span class="gallery-card__action">Ver en YouTube</span>
         <% } else { %>
           <span class="gallery-card__action">Ver imagen</span>
         <% } %>

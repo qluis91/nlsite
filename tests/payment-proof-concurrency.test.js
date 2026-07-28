@@ -9,10 +9,10 @@ const pool = require('../config/db');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { startTestServer, stopTestServer, getPort } = require('./testServer');
+const { startTestServer, stopTestServer } = require('./testServer');
 
 const JPEG = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAAA//EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8Af8D/2Q==', 'base64');
-let BASE = 'http://localhost:3000';
+let BASE = '';
 
 function get(url, ck) {
   return new Promise(R => h.get(BASE+url, ck?{headers:{Cookie:ck}}:{}, resp=>{let d='';const sc=resp.headers['set-cookie'];resp.on('data',c=>d+=c);resp.on('end',()=>{const nc=(sc&&sc.length>0)?sc.map(c=>c.split(';')[0]).join('; '):(ck||'');R({s:resp.statusCode,b:d,ck:nc})})}));
@@ -72,8 +72,8 @@ const testProductIds = [];
 
 describe('Payment Proof CSRF & Concurrency', () => {
   before(async () => {
-    await startTestServer();
-    BASE = `http://127.0.0.1:${getPort()}`;
+    const server = await startTestServer();
+    BASE = server.baseUrl;
   });
   after(async () => {
     for (const pid of testProductIds) {
@@ -90,8 +90,8 @@ describe('Payment Proof CSRF & Concurrency', () => {
         }
       } catch(_){}
     }
-    try { await pool.end(); } catch (_) {}
-    stopTestServer();
+    await stopTestServer();
+    await pool.end();
   });
 
   // ── CSRF architecture validation ──

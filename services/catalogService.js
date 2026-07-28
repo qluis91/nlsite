@@ -10,8 +10,8 @@ try {
 }
 
 const CATALOG_PATH = path.join(__dirname, '..', 'data', 'catalog.json');
-const DEFAULT_LIMIT = 12;
-const MAX_LIMIT = 36;
+const DEFAULT_LIMIT = 48;
+const MAX_LIMIT = 48;
 const MAX_SEARCH_LENGTH = 100;
 const ALLOWED_SORTS = new Set(['featured', 'newest', 'price-asc', 'price-desc', 'name-asc', 'name-desc']);
 

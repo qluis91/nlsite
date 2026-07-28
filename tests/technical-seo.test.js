@@ -5,10 +5,10 @@
 const { describe, before, after, it } = require('node:test');
 const assert = require('node:assert');
 const http = require('http');
-const pool = require('../config/db');
+const { startTestServer, stopTestServer } = require('./testServer');
 const { buildProductLd, buildBreadcrumbLd, buildOrganizationLd, buildWebSiteLd, jsonLdScript, makeAbsolute } = require('../config/jsonLdHelper');
 
-const BASE = { hostname: 'localhost', port: 3000 };
+const BASE = { hostname: '127.0.0.1', port: 0 };
 
 function fetch(path) {
   return new Promise((resolve, reject) => {
@@ -20,22 +20,27 @@ function fetch(path) {
   });
 }
 
+before(async () => {
+  const server = await startTestServer();
+  BASE.port = server.port;
+});
+
 after(async () => {
-  await pool.end();
+  await stopTestServer();
 });
 
 // ──── Unit tests: jsonLdHelper ────
 describe('Phase 12D — jsonLdHelper unit tests', () => {
   it('makeAbsolute prepends baseUrl to relative path', () => {
-    assert.equal(makeAbsolute('/tienda', 'http://localhost:3000'), 'http://localhost:3000/tienda');
+    assert.equal(makeAbsolute('/tienda', 'https://example.test'), 'https://example.test/tienda');
   });
 
   it('makeAbsolute passes through absolute URLs', () => {
-    assert.equal(makeAbsolute('https://example.com/tienda', 'http://localhost:3000'), 'https://example.com/tienda');
+    assert.equal(makeAbsolute('https://example.com/tienda', 'https://example.test'), 'https://example.com/tienda');
   });
 
   it('makeAbsolute returns empty for falsy input', () => {
-    assert.equal(makeAbsolute('', 'http://localhost:3000'), '');
+    assert.equal(makeAbsolute('', 'https://example.test'), '');
   });
 
   it('buildOrganizationLd has correct structure', () => {
@@ -69,7 +74,7 @@ describe('Phase 12D — jsonLdHelper unit tests', () => {
   });
 
   it('buildProductLd returns null for missing product', () => {
-    assert.equal(buildProductLd(null, 'http://localhost:3000'), null);
+    assert.equal(buildProductLd(null, 'https://example.test'), null);
   });
 
   it('buildProductLd has correct structure for valid product', () => {
@@ -80,7 +85,7 @@ describe('Phase 12D — jsonLdHelper unit tests', () => {
       displayPrice: 5000, hasPromotion: false,
       inStock: true,
     };
-    const ld = buildProductLd(p, 'http://localhost:3000');
+    const ld = buildProductLd(p, 'https://example.test');
     assert.equal(ld['@type'], 'Product');
     assert.equal(ld.name, 'Test Product');
     assert.equal(ld.sku, 'test-product');
@@ -92,7 +97,7 @@ describe('Phase 12D — jsonLdHelper unit tests', () => {
 
   it('buildProductLd shows OutOfStock when not in stock', () => {
     const p = { id: 2, title: 'Sold Out', slug: 'sold', url: '/tienda/sold', displayPrice: 0, inStock: false };
-    const ld = buildProductLd(p, 'http://localhost:3000');
+    const ld = buildProductLd(p, 'https://example.test');
     assert.ok(ld.offers.availability.includes('OutOfStock'));
   });
 
@@ -215,7 +220,7 @@ describe('Phase 16A — JSON-LD script-breakout prevention', () => {
     const ld = buildOrganizationLd({
       siteName: 'NinjaLab <3D>',
       siteDescription: 'Best </script> shop',
-      baseUrl: 'http://localhost:3000',
+      baseUrl: 'https://example.test',
     });
     const script = jsonLdScript(ld);
     const body = jsonBody(script);
@@ -228,7 +233,7 @@ describe('Phase 16A — JSON-LD script-breakout prevention', () => {
 
   it('WebSite JSON-LD is safe', () => {
     const { buildWebSiteLd } = require('../config/jsonLdHelper');
-    const ld = buildWebSiteLd({ siteName: 'Test', baseUrl: 'http://localhost:3000' });
+    const ld = buildWebSiteLd({ siteName: 'Test', baseUrl: 'https://example.test' });
     const script = jsonLdScript(ld);
     const jsonText = script.slice(script.indexOf('>') + 1, script.lastIndexOf('</'));
     const parsed = JSON.parse(jsonText);

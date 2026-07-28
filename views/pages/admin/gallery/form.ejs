@@ -1,7 +1,7 @@
 <div class="page-header">
   <div>
     <h1><%= item ? 'Editar elemento' : 'Nuevo elemento' %></h1>
-    <p>Las imágenes se optimizan y los videos requieren un póster.</p>
+    <p>Las imágenes se optimizan, los videos requieren un póster y YouTube usa una URL.</p>
   </div>
 </div>
 
@@ -42,26 +42,46 @@
           <label for="gallery-media-type">Tipo <span class="required">*</span></label>
           <select id="gallery-media-type" class="form-control" name="mediaType" required>
             <option value="image" <%= !item || item.media_type === 'image' ? 'selected' : '' %>>Imagen</option>
-            <option value="video" <%= item && item.media_type === 'video' ? 'selected' : '' %>>Video</option>
+            <option value="video" <%= item && item.media_type === 'video' ? 'selected' : '' %>>Video local</option>
+            <option value="youtube" <%= item && item.media_type === 'youtube' ? 'selected' : '' %>>YouTube</option>
           </select>
         </div>
-        <div class="form-group">
-          <label for="gallery-media"><%= item ? 'Reemplazar medio' : 'Archivo principal' %> <%= item ? '' : '*' %></label>
+
+        <div class="form-group gallery-field-file">
+          <label for="gallery-media"><%= item ? 'Reemplazar medio' : 'Archivo principal' %> <span class="gallery-required-local"><%= item ? '' : '*' %></span></label>
           <input id="gallery-media" class="form-control" type="file" name="media" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" <%= item ? '' : 'required' %>>
           <span class="form-hint">Imagen: JPG/PNG/WebP, 10 MB. Video: MP4/WebM, 100 MB.</span>
         </div>
-        <div class="form-group">
-          <label for="gallery-poster">Póster de video <%= item ? '' : '(obligatorio para video)' %></label>
+
+        <div class="form-group gallery-field-youtube">
+          <label for="gallery-youtube-url">URL de YouTube <span class="gallery-required-yt">*</span></label>
+          <input id="gallery-youtube-url" class="form-control" type="url" name="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." maxlength="500" value="<%= item && item.youtube_url ? item.youtube_url : '' %>">
+          <span class="form-hint">Formatos aceptados: youtube.com/watch?v=, youtu.be/, youtube.com/shorts/, youtube.com/embed/</span>
+        </div>
+
+        <div class="form-group gallery-field-poster">
+          <label for="gallery-poster"><span class="gallery-poster-label"><%= item ? '' : '(obligatorio para video)' %></span></label>
           <input id="gallery-poster" class="form-control" type="file" name="poster" accept="image/jpeg,image/png,image/webp">
-          <span class="form-hint">JPG/PNG/WebP. Se genera también la miniatura cuadrada.</span>
+          <span class="form-hint gallery-poster-hint">JPG/PNG/WebP. Se genera también la miniatura cuadrada.</span>
         </div>
       </div>
-      <% if (item) { %>
-        <div class="gallery-admin-current-media">
-          <img src="<%= item.thumbnail_path %>" alt="" width="120" height="120">
-          <p>Si no cargas reemplazos, se conservan los archivos actuales. Cambiar el tipo exige archivos compatibles nuevos.</p>
+        <div
+          class="gallery-admin-current-media"
+          data-gallery-thumbnail-preview-container
+          <% if (!item) { %>hidden<% } %>
+        >
+          <img
+            src="<%= item ? item.thumbnail_path : '/images/gallery-video-placeholder.svg' %>"
+            alt="Vista previa de la miniatura"
+            width="120"
+            height="120"
+            data-gallery-thumbnail-preview
+            data-initial-source="<%= item ? item.thumbnail_path : '' %>"
+            data-initial-custom-cover="<%= item && item.custom_cover_path ? item.custom_cover_path : '' %>"
+          >
+          <p>Si no cargas reemplazos, se conservan los archivos actuales. Cambiar el tipo exige archivos compatibles nuevos.
+          <% if (item && item.media_type === 'youtube') { %>Para YouTube, la miniatura se obtiene automáticamente o puedes cargar una portada personalizada.<% } %></p>
         </div>
-      <% } %>
     </fieldset>
 
     <div class="form-row">
@@ -81,3 +101,171 @@
     </div>
   </form>
 </div>
+
+<script nonce="<%= cspNonce %>">
+(function() {
+  var typeSelect = document.getElementById('gallery-media-type');
+  var fileField = document.querySelector('.gallery-field-file');
+  var ytField = document.querySelector('.gallery-field-youtube');
+  var posterField = document.querySelector('.gallery-field-poster');
+  var posterLabel = document.querySelector('.gallery-poster-label');
+  var posterHint = document.querySelector('.gallery-poster-hint');
+  var mediaInput = document.getElementById('gallery-media');
+  var ytInput = document.getElementById('gallery-youtube-url');
+  var posterInput = document.getElementById('gallery-poster');
+  var previewContainer = document.querySelector('[data-gallery-thumbnail-preview-container]');
+  var previewImage = document.querySelector('[data-gallery-thumbnail-preview]');
+  var requiredStarLocal = document.querySelector('.gallery-required-local');
+  var requiredStarYt = document.querySelector('.gallery-required-yt');
+  var placeholder = '/images/gallery-video-placeholder.svg';
+  var youtubeIdPattern = /^[a-zA-Z0-9_-]{11}$/;
+  var localCoverPattern = /^\/uploads\/gallery\/thumbnails\/[a-zA-Z0-9._-]+$/;
+  var previewSources = [];
+  var previewSourceIndex = 0;
+  var objectUrl = null;
+
+  // Remember whether the file input was originally required in HTML
+  var mediaWasRequired = mediaInput ? mediaInput.hasAttribute('required') : false;
+  var initialSource = previewImage ? previewImage.dataset.initialSource : '';
+  var initialCustomCover = previewImage ? previewImage.dataset.initialCustomCover : '';
+
+  function validatedYoutubeId(raw) {
+    var input = String(raw || '').trim();
+    if (youtubeIdPattern.test(input)) return input;
+    if (!input) return null;
+    var parsed;
+    try {
+      parsed = new URL(/^https?:\/\//i.test(input) ? input : 'https://' + input);
+    } catch (_) {
+      return null;
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+    var host = parsed.hostname.toLowerCase();
+    var segments = parsed.pathname.split('/').filter(Boolean);
+    if (host === 'youtu.be') {
+      return segments.length === 1 && youtubeIdPattern.test(segments[0]) ? segments[0] : null;
+    }
+    if (['youtube.com', 'www.youtube.com', 'm.youtube.com'].indexOf(host) === -1) return null;
+    if (parsed.pathname === '/watch') {
+      var watchId = parsed.searchParams.get('v') || '';
+      return youtubeIdPattern.test(watchId) ? watchId : null;
+    }
+    if (
+      segments.length === 2
+      && ['shorts', 'embed'].indexOf(segments[0]) !== -1
+      && youtubeIdPattern.test(segments[1])
+    ) return segments[1];
+    return null;
+  }
+
+  function setPreviewSources(sources) {
+    previewSources = sources.filter(function(source, index, values) {
+      return source && values.indexOf(source) === index;
+    });
+    previewSourceIndex = 0;
+    if (previewImage) previewImage.src = previewSources[0] || placeholder;
+  }
+
+  function updateYoutubePreview() {
+    if (!previewContainer || !previewImage) return;
+    if (typeSelect.value !== 'youtube') {
+      previewContainer.hidden = !initialSource;
+      if (initialSource) setPreviewSources([initialSource]);
+      return;
+    }
+    previewContainer.hidden = false;
+    if (posterInput && posterInput.files && posterInput.files[0]) {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(posterInput.files[0]);
+      setPreviewSources([objectUrl, placeholder]);
+      return;
+    }
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+      objectUrl = null;
+    }
+    var videoId = validatedYoutubeId(ytInput ? ytInput.value : '');
+    var sources = [];
+    if (localCoverPattern.test(initialCustomCover)) sources.push(initialCustomCover);
+    if (videoId) {
+      sources.push(
+        'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg',
+        'https://img.youtube.com/vi/' + videoId + '/mqdefault.jpg'
+      );
+    }
+    sources.push(placeholder);
+    setPreviewSources(sources);
+  }
+
+  if (previewImage) {
+    previewImage.addEventListener('error', function() {
+      previewSourceIndex += 1;
+      if (previewSourceIndex < previewSources.length) {
+        previewImage.src = previewSources[previewSourceIndex];
+      } else {
+        previewImage.hidden = true;
+      }
+    });
+    previewImage.addEventListener('load', function() {
+      previewImage.hidden = false;
+    });
+  }
+  if (ytInput) ytInput.addEventListener('input', updateYoutubePreview);
+  if (posterInput) posterInput.addEventListener('change', updateYoutubePreview);
+
+  function updateFields() {
+    var val = typeSelect.value;
+    if (val === 'youtube') {
+      // Show YouTube URL, hide local file, keep poster as optional cover
+      if (fileField) fileField.style.display = 'none';
+      if (ytField) ytField.style.display = '';
+      if (posterField) posterField.style.display = '';
+      if (posterLabel) posterLabel.textContent = 'Portada personalizada (opcional)';
+      if (posterHint) posterHint.textContent = 'Imagen opcional para la miniatura. Si no se carga, se usa la de YouTube.';
+      // Deactivate local file input completely
+      if (mediaInput) {
+        mediaInput.removeAttribute('required');
+        mediaInput.disabled = true;
+      }
+      // Activate YouTube URL input
+      if (ytInput) {
+        ytInput.setAttribute('required', '');
+        ytInput.disabled = false;
+      }
+      if (requiredStarLocal) requiredStarLocal.textContent = '';
+      if (requiredStarYt) requiredStarYt.textContent = '*';
+    } else {
+      // Hide YouTube URL, show local file, show poster
+      if (fileField) fileField.style.display = '';
+      if (ytField) ytField.style.display = 'none';
+      if (posterField) posterField.style.display = '';
+      // Reactivate local file input
+      if (mediaInput) {
+        mediaInput.disabled = false;
+        if (mediaWasRequired) {
+          mediaInput.setAttribute('required', '');
+        }
+      }
+      // Deactivate YouTube URL input
+      if (ytInput) {
+        ytInput.removeAttribute('required');
+        ytInput.disabled = true;
+      }
+      if (requiredStarLocal) requiredStarLocal.textContent = mediaWasRequired ? '*' : '';
+      if (requiredStarYt) requiredStarYt.textContent = '';
+      // Poster label
+      if (posterLabel && val === 'video') {
+        posterLabel.textContent = 'Póster de video';
+        if (posterHint) posterHint.textContent = 'JPG/PNG/WebP. Se genera también la miniatura cuadrada.';
+      } else if (posterLabel && val === 'image') {
+        posterLabel.textContent = '';
+        if (posterHint) posterHint.textContent = 'Póster no aplica a imágenes.';
+      }
+    }
+    updateYoutubePreview();
+  }
+
+  typeSelect.addEventListener('change', updateFields);
+  updateFields();
+})();
+</script>

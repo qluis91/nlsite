@@ -5,8 +5,9 @@
 const { describe, before, after, it } = require('node:test');
 const assert = require('node:assert');
 const http = require('http');
+const { startTestServer, stopTestServer } = require('./testServer');
 
-const BASE = { hostname: 'localhost', port: 3000 };
+const BASE = { hostname: '127.0.0.1', port: 0 };
 
 function httpReq(method, path, body, cookie) {
   return new Promise((resolve, reject) => {
@@ -33,6 +34,16 @@ async function getCsrf(path) {
   const r = await httpReq('GET', path);
   return { token: extractCsrf(r.body), cookie: r.headers['set-cookie'] ? r.headers['set-cookie'][0] : null };
 }
+
+before(async () => {
+  const server = await startTestServer();
+  BASE.port = server.port;
+});
+
+after(async () => {
+  http.globalAgent.destroy();
+  await stopTestServer();
+});
 
 // ──── Authorization: normal user cannot access admin ────
 describe('Phase 16C — Authorization: admin-route protection', () => {

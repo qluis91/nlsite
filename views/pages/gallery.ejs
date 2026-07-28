@@ -35,9 +35,7 @@
     <section class="gallery-results" aria-labelledby="gallery-results-title">
       <div class="gallery-results__header">
         <div data-gallery-animate="entry">
-          <h2 id="gallery-results-title">
-          <%= activeCategory ? activeCategory.name : (filters.type === 'video' ? 'Videos' : filters.type === 'image' ? 'Imágenes' : 'Todos los proyectos') %>
-          </h2>
+          <h2 id="gallery-results-title"><%= activeCategory ? activeCategory.name : 'Imágenes' %></h2>
           <p>Selecciona un elemento para abrir el visor.</p>
         </div>
         <nav class="gallery-view-switcher" aria-label="Visualización de galería" data-gallery-animate="entry">
@@ -108,12 +106,27 @@
             >
               <div class="gallery-circular__viewport" data-gallery-circular-viewport></div>
               <div class="gallery-circular__loader" data-gallery-circular-loader role="status">Preparando videos…</div>
+              <button
+                class="gallery-circular__nav gallery-circular__nav--previous"
+                type="button"
+                data-gallery-circular-previous
+                aria-label="Video anterior"
+              >
+                <span aria-hidden="true">‹</span>
+              </button>
+              <button
+                class="gallery-circular__nav gallery-circular__nav--next"
+                type="button"
+                data-gallery-circular-next
+                aria-label="Video siguiente"
+              >
+                <span aria-hidden="true">›</span>
+              </button>
               <div class="gallery-circular__overlay" data-gallery-circular-overlay hidden>
                 <p class="gallery-circular__meta" data-gallery-circular-meta></p>
                 <h3 class="gallery-circular__title" data-gallery-circular-title></h3>
                 <button class="gallery-circular__action" type="button" data-gallery-circular-action>Ver proyecto</button>
               </div>
-              <p class="gallery-circular__hint">Videos solamente. Arrastra horizontalmente o usa las flechas; el desplazamiento vertical permanece disponible.</p>
               <p class="gallery-circular__fallback" data-gallery-circular-fallback role="status" hidden></p>
               <p class="gallery-visually-hidden" data-gallery-circular-live aria-live="polite"></p>
             </section>
@@ -160,5 +173,6 @@
   </div>
 
   <script type="application/json" id="gallery-data"><%- galleryJson %></script>
+  <script type="application/json" id="gallery-video-data"><%- typeof videoGalleryJson === 'string' ? videoGalleryJson : '[]' %></script>
   <%- include('../partials/gallery-lightbox') %>
 </main>

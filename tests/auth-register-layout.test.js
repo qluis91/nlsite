@@ -2,11 +2,13 @@
  * Auth register route test — verifies register uses same dark auth layout as login.
  * Run: node --test tests/auth-register-layout.test.js
  */
-const { describe, it, before } = require('node:test');
+const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
 const http = require('http');
 
-const OPTIONS = { hostname: 'localhost', port: 3000 };
+const { startTestServer, stopTestServer } = require('./testServer');
+
+const OPTIONS = { hostname: '127.0.0.1', port: 0 };
 
 function get(path) {
   return new Promise((resolve, reject) => {
@@ -23,8 +25,14 @@ describe('Auth register layout matches login', () => {
   let register = null;
 
   before(async () => {
+    const server = await startTestServer();
+    OPTIONS.port = server.port;
     login = await get('/auth/login');
     register = await get('/auth/register');
+  });
+
+  after(async () => {
+    await stopTestServer();
   });
 
   it('both return 200', () => {

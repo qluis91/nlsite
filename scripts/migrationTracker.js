@@ -23,6 +23,7 @@ const MIGRATION_REGISTRY = [
   { name: 'migratePaymentProofs',  file: './migrate-payment-proofs',  exportName: 'migrate' },
   { name: 'migrateTracking',       file: './migrate-tracking',        exportName: 'migrate' },
   { name: 'migrateCatalogSeo',     file: './migrate-catalog-seo',     exportName: 'migrate' },
+  { name: 'migrateGalleryYoutube', file: './migrate-gallery-youtube', exportName: 'migrate' },
 ];
 
 async function ensureMigrationsTable(pool) {

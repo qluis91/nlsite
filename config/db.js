@@ -17,7 +17,10 @@ const pool = mysql.createPool({
 const db = pool.promise();
 
 // Prueba rápida de conexión
-pool.getConnection((err, connection) => {
+// Test workers must not open a socket merely because a pure unit imported a service.
+const isTestProcess = process.env.NODE_ENV === 'test'
+  || typeof process.env.NODE_TEST_CONTEXT === 'string';
+if (!isTestProcess) pool.getConnection((err, connection) => {
   if (err) {
     console.error('❌ Error al conectar a la base de datos en XAMPP:', err.message);
   } else {

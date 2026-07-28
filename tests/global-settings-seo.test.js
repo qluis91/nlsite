@@ -6,8 +6,9 @@ const { describe, before, after, it } = require('node:test');
 const assert = require('node:assert');
 const http = require('http');
 const pool = require('../config/db');
+const { startTestServer, stopTestServer } = require('./testServer');
 
-const BASE = { hostname: 'localhost', port: 3000 };
+const BASE = { hostname: '127.0.0.1', port: 0 };
 
 // Helpers
 function fetch(path, { method = 'GET', body } = {}) {
@@ -35,9 +36,12 @@ before(async () => {
     await pool.query("INSERT INTO site_settings (setting_key, setting_value, value_type, setting_group, is_public) VALUES (?,?,?,?,?)",
       ['global.site_name', 'TestSite', 'string', 'global', 1]);
   }
+  const server = await startTestServer();
+  BASE.port = server.port;
 });
 
 after(async () => {
+  await stopTestServer();
   await pool.end();
 });
 

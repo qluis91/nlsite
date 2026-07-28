@@ -7,9 +7,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 
-const { startTestServer, stopTestServer, getPort } = require('./testServer');
+const { startTestServer, stopTestServer } = require('./testServer');
 
-let BASE = 'http://localhost:3000';
+let BASE = '';
 
 function httpGet(path, cookie) {
   return new Promise((resolve, reject) => {
@@ -36,11 +36,11 @@ const storeJs = fs.readFileSync(path.resolve(__dirname, '../public/js/store/stor
 
 describe('Store Layout — Phase 1', () => {
   before(async () => {
-    await startTestServer();
-    BASE = `http://127.0.0.1:${getPort()}`;
+    const server = await startTestServer();
+    BASE = server.baseUrl;
   });
-  after(() => {
-    stopTestServer();
+  after(async () => {
+    await stopTestServer();
   });
 
   let storeHtml = '';
@@ -204,6 +204,53 @@ describe('Store Layout — Phase 1', () => {
 
   test('store JS has no filter toggle DOM references', () => {
     assert.doesNotMatch(storeJs, /data-store-filter/);
+  });
+
+  // ── Pagination (Phase: store-48-per-page) ──
+  test('/tienda defaults to 48 products per page', () => {
+    const catalogService = require('../services/catalogService');
+    assert.strictEqual(catalogService.DEFAULT_LIMIT, 48);
+    assert.strictEqual(catalogService.MAX_LIMIT, 48);
+  });
+
+  test('normalizeStoreQuery defaults limit to 48', () => {
+    const { normalizeStoreQuery } = require('../services/catalogService');
+    const filters = normalizeStoreQuery({});
+    assert.strictEqual(filters.limit, 48);
+  });
+
+  test('normalizeStoreQuery caps limit at 48', () => {
+    const { normalizeStoreQuery } = require('../services/catalogService');
+    const filters = normalizeStoreQuery({ limit: '999' });
+    assert.strictEqual(filters.limit, 48);
+  });
+
+  test('buildStoreUrl omits limit when equal to 48', () => {
+    const { buildStoreUrl } = require('../controllers/storeController');
+    const filters = { search: '', category: '', inStock: '', sort: 'featured', page: 1, limit: 48 };
+    const url = buildStoreUrl(filters);
+    assert.doesNotMatch(url, /limit/);
+  });
+
+  test('buildStoreUrl preserves search/category/sort in pagination link', () => {
+    const { buildStoreUrl } = require('../controllers/storeController');
+    const filters = { search: 'figura', category: 'figuras-3d', inStock: 'true', sort: 'newest', page: 1, limit: 48 };
+    const url = buildStoreUrl(filters, { page: 2 });
+    assert.match(url, /page=2/);
+    assert.match(url, /search=figura/);
+    assert.match(url, /category=figuras-3d/);
+    assert.match(url, /inStock=true/);
+    assert.match(url, /sort=newest/);
+    assert.doesNotMatch(url, /limit/);
+  });
+
+  test('/tienda renders totalPages from service result', () => {
+    // The controller accesses catalog.totalPages, which is computed from total/limit
+    const showStoreSource = fs.readFileSync(
+      path.resolve(__dirname, '../controllers/storeController.js'), 'utf8'
+    );
+    assert.match(showStoreSource, /catalog\.totalPages/);
+    assert.match(showStoreSource, /DEFAULT_LIMIT/);
   });
 });
 

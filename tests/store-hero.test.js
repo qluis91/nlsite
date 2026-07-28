@@ -23,16 +23,9 @@ const {
 } = require('../validators/catalogValidator');
 const { HERO_COLUMNS } = require('../scripts/migrate-category-hero');
 
-let pool;
-try {
-  pool = require('../config/db');
-} catch {
-  pool = null;
-}
+const { startTestServer, stopTestServer } = require('./testServer');
 
-const { startTestServer, stopTestServer, getPort } = require('./testServer');
-
-let BASE = 'http://localhost:3000';
+let BASE = '';
 
 function httpGet(urlPath) {
   return new Promise((resolve, reject) => {
@@ -279,11 +272,11 @@ describe('light theme CSS contract', () => {
 
 describe('rendered /tienda hero behavior', () => {
   before(async () => {
-    await startTestServer();
-    BASE = `http://127.0.0.1:${getPort()}`;
+    const server = await startTestServer();
+    BASE = server.baseUrl;
   });
-  after(() => {
-    stopTestServer();
+  after(async () => {
+    await stopTestServer();
   });
 
   test('GET /tienda renders default hero', async () => {
@@ -302,10 +295,4 @@ describe('rendered /tienda hero behavior', () => {
     assert.match(r.data, /Resultados para/);
     assert.match(r.data, /ninja/);
   });
-});
-
-test('cleanup db pool', async () => {
-  if (pool && typeof pool.end === 'function') {
-    await pool.end();
-  }
 });

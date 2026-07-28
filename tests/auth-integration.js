@@ -14,8 +14,9 @@
  * Reads credentials from environment variables. No hardcoded credentials.
  */
 const http = require('http');
+const { startTestServer, stopTestServer } = require('./testServer');
 
-const BASE = 'http://localhost:3000';
+let BASE = '';
 const ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL;
 const ADMIN_PASS = process.env.TEST_ADMIN_PASSWORD;
 const USER_EMAIL = process.env.TEST_USER_EMAIL;
@@ -81,6 +82,8 @@ function hasText(html, text) {
 }
 
 async function main() {
+  const server = await startTestServer();
+  BASE = server.baseUrl;
   console.log('\n═══════════════════════════════════');
   console.log('  nlSite — Auth + CSRF Tests');
   console.log('═══════════════════════════════════\n');
@@ -386,10 +389,16 @@ async function main() {
   console.log(`\n═══════════════════════════════════`);
   console.log(`  Results: ${passed} passed, ${failed} failed, ${skipped} skipped`);
   console.log(`═══════════════════════════════════\n`);
+  await stopTestServer();
   process.exit(failed > 0 ? 1 : 0);
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
+  try {
+    await stopTestServer();
+  } catch (cleanupError) {
+    console.error('Test server cleanup error:', cleanupError.message);
+  }
   console.error('Test error:', err.message);
   process.exit(1);
 });

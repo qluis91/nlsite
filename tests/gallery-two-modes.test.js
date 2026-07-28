@@ -86,6 +86,8 @@ function createModeEnvironment() {
     title: new MockElement(),
     meta: new MockElement(),
     action: new MockElement(),
+    previous: new MockElement(),
+    next: new MockElement(),
     fallback: new MockElement(),
     live: new MockElement(),
   };
@@ -103,6 +105,8 @@ function createModeEnvironment() {
     ['[data-gallery-circular-title]', circular.title],
     ['[data-gallery-circular-meta]', circular.meta],
     ['[data-gallery-circular-action]', circular.action],
+    ['[data-gallery-circular-previous]', circular.previous],
+    ['[data-gallery-circular-next]', circular.next],
     ['[data-gallery-circular-fallback]', circular.fallback],
     ['[data-gallery-circular-live]', circular.live],
     ['[data-gallery-infinite]', infinite.stage],

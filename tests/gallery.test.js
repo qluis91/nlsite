@@ -288,10 +288,12 @@ test('admin accepts signed local video with a required processed poster and reje
   assert.match(item.thumbnail_path, /^\/uploads\/gallery\/thumbnails\/[a-f0-9-]+\.webp$/);
   assert.equal(await media.galleryPathExists(item.poster_path, 'posters'), true);
 
-  const publicVideo = await request('GET', '/galeria?tipo=video');
-  assert.match(publicVideo.data, /Ver video/);
-  assert.match(publicVideo.data, new RegExp(item.poster_path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  assert.doesNotMatch(publicVideo.data, /<video[^>]*autoplay/);
+  // Video items appear in the video-carousel JSON data, not the main image listing
+  const videoGalleryPage = await request('GET', '/galeria');
+  assert.match(videoGalleryPage.data, /id="gallery-video-data"/);
+  assert.match(videoGalleryPage.data, new RegExp(videoTitle));
+  assert.match(videoGalleryPage.data, new RegExp(item.poster_path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.doesNotMatch(videoGalleryPage.data, /<video[^>]*autoplay/);
 
   const missingPosterForm = await request('GET', '/admin/galeria/nuevo', null, adminJar);
   const missingPoster = multipart({
@@ -460,4 +462,114 @@ test('unpublishing and deletion hide public data and remove only controlled file
   fixture.itemIds = [];
   await gallery.deleteCategory(item.category_id);
   fixture.categoryIds = fixture.categoryIds.filter((id) => id !== item.category_id);
+});
+
+test('admin creates a YouTube item using only a URL without any file upload', async () => {
+  const form = await request('GET', '/admin/galeria/nuevo', null, adminJar);
+  // Confirm the YouTube URL input exists in rendered HTML
+  assert.match(form.data, /gallery-youtube-url/, 'YouTube URL input must exist in form');
+  assert.match(form.data, /name="youtubeUrl"/, 'field name must be youtubeUrl');
+  assert.match(form.data, /value="youtube"/, 'YouTube option must exist in mediaType select');
+
+  const ytTitle = `${marker} youtube`;
+  const ytUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  // Submit with NO files — only URL and text fields
+  const payload = multipart({
+    _csrf: csrf(form.data),
+    title: ytTitle,
+    description: 'Proyecto de YouTube',
+    mediaType: 'youtube',
+    youtubeUrl: ytUrl,
+    altText: 'Video de YouTube de prueba',
+    sortOrder: '10',
+    isPublished: '1',
+  }, []); // zero files
+  const response = await request('POST', '/admin/galeria', payload.body, adminJar, payload.headers);
+  assert.equal(response.status, 302, 'must redirect on success');
+  assert.equal(response.location, '/admin/galeria', 'must redirect to gallery list');
+
+  const [rows] = await pool.query('SELECT * FROM gallery_items WHERE title = ?', [ytTitle]);
+  assert.equal(rows.length, 1, 'YouTube item must be created in DB');
+  const item = rows[0];
+  fixture.itemIds.push(item.id);
+  assert.strictEqual(item.media_type, 'youtube');
+  assert.strictEqual(item.youtube_url, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  assert.strictEqual(item.media_path, 'https://www.youtube.com/embed/dQw4w9WgXcQ');
+  assert.ok(item.thumbnail_path, 'must have a thumbnail');
+  assert.match(item.thumbnail_path, /^https:\/\/img\.youtube\.com\/vi\//);
+  assert.strictEqual(item.poster_path, null);
+  assert.strictEqual(item.custom_cover_path, null);
+
+  // YouTube item appears in the video-carousel JSON, not the main image listing
+  const publicPage = await request('GET', '/galeria');
+  assert.match(publicPage.data, /id="gallery-video-data"/);
+  assert.match(publicPage.data, new RegExp(ytTitle));
+  // YouTube items appear in the video-data JSON, not the grid card HTML
+  assert.match(publicPage.data, /"type":"youtube"/);
+
+  // Verify the edit form preloads the YouTube URL
+  const edit = await request('GET', `/admin/galeria/${item.id}/editar`, null, adminJar);
+  assert.match(edit.data, /dQw4w9WgXcQ/);
+  assert.match(edit.data, /value="youtube"[^>]*selected/);
+});
+
+test('admin rejects invalid YouTube URL and requires URL for youtube mediaType', async () => {
+  const form = await request('GET', '/admin/galeria/nuevo', null, adminJar);
+  const invalidTitle = `${marker} yt_invalid`;
+
+  const payload = multipart({
+    _csrf: csrf(form.data),
+    title: invalidTitle,
+    mediaType: 'youtube',
+    youtubeUrl: 'https://vimeo.com/invalid',
+    altText: 'URL inválida',
+    sortOrder: '10',
+  }, []);
+  const response = await request('POST', '/admin/galeria', payload.body, adminJar, payload.headers);
+  assert.equal(response.status, 302);
+  assert.equal(response.location, '/admin/galeria/nuevo');
+  const [rows] = await pool.query('SELECT COUNT(*) total FROM gallery_items WHERE title = ?', [invalidTitle]);
+  assert.equal(rows[0].total, 0, 'invalid YouTube URL must not create item');
+});
+
+test('YouTube field toggles correctly in form HTML: URL visible, files hidden and disabled', async () => {
+  const form = await request('GET', '/admin/galeria/nuevo', null, adminJar);
+  // YouTube field group is present
+  assert.match(form.data, /gallery-field-youtube/);
+  // JS toggle stores original required state
+  assert.match(form.data, /mediaWasRequired/);
+  // JS toggle disables file inputs for YouTube
+  assert.match(form.data, /gallery-required-yt/);
+  // JS toggle has disable logic
+  assert.match(form.data, /\.disabled\s*=\s*true/);
+});
+
+test('Infinite Menu and Grid receive only images; video carousel receives only videos and YouTube', async () => {
+  const page = await request('GET', '/galeria');
+  assert.equal(page.status, 200);
+
+  // gallery-data (images only) must NOT contain video or youtube items
+  const dataMatch = page.data.match(/id="gallery-data">([\s\S]*?)<\/script>/);
+  assert.ok(dataMatch, 'gallery-data JSON must exist');
+  const galleryData = JSON.parse(dataMatch[1]);
+  const imageOnly = galleryData.every((item) => item.type === 'image');
+  assert.ok(imageOnly, 'gallery-data must contain only image items');
+  assert.ok(galleryData.every((item) => item.type !== 'video' && item.type !== 'youtube'),
+    'no video or youtube items in gallery-data');
+
+  // gallery-video-data must contain only video and youtube items
+  const videoMatch = page.data.match(/id="gallery-video-data">([\s\S]*?)<\/script>/);
+  assert.ok(videoMatch, 'gallery-video-data JSON must exist');
+  const videoData = JSON.parse(videoMatch[1]);
+  const videoOnly = videoData.every((item) => item.type === 'video' || item.type === 'youtube');
+  assert.ok(videoOnly, 'gallery-video-data must contain only video and youtube items');
+  assert.ok(videoData.every((item) => item.type !== 'image'),
+    'no image items in gallery-video-data');
+
+  // Grid cards must only render images
+  const gridCards = page.data.match(/gallery-card__play/g);
+  assert.ok(!gridCards || gridCards.length === 0, 'grid must not render video play icons');
+
+  // Section header must say "Imágenes"
+  assert.match(page.data, /Imágenes/);
 });

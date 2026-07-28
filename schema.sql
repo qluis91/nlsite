@@ -205,6 +205,8 @@ CREATE TABLE IF NOT EXISTS gallery_items (
   media_path VARCHAR(500) NOT NULL,
   thumbnail_path VARCHAR(500) NOT NULL,
   poster_path VARCHAR(500) NULL,
+  youtube_url VARCHAR(500) NULL,
+  custom_cover_path VARCHAR(500) NULL,
   alt_text VARCHAR(300) NOT NULL,
   sort_order INT NOT NULL DEFAULT 0,
   is_featured TINYINT(1) NOT NULL DEFAULT 0,

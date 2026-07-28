@@ -20,14 +20,26 @@ if (page) {
   let animationController = null;
   let pageDestroyed = false;
 
-  const dataNode = document.getElementById('gallery-data');
-  let items = [];
-  try {
-    const parsed = JSON.parse(dataNode?.textContent || '[]');
-    if (Array.isArray(parsed)) items = parsed;
-  } catch {
-    items = [];
+  function parseGalleryData(id) {
+    try {
+      const parsed = JSON.parse(document.getElementById(id)?.textContent || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   }
+
+  const items = parseGalleryData('gallery-data');
+  const videoItems = parseGalleryData('gallery-video-data');
+  const viewerItems = items.slice();
+  const viewerIds = new Set(viewerItems.map((item) => Number(item.id)));
+  videoItems.forEach((item) => {
+    const id = Number(item.id);
+    if (!viewerIds.has(id)) {
+      viewerIds.add(id);
+      viewerItems.push(item);
+    }
+  });
 
   const animationProxy = {
     openViewer: (options) => animationController?.openViewer(options),
@@ -36,7 +48,7 @@ if (page) {
   };
   const viewer = createGalleryViewer({
     page,
-    items,
+    items: viewerItems,
     animations: animationProxy,
   });
 
@@ -61,6 +73,7 @@ if (page) {
       cleanupModes = setupGalleryModes({
         page,
         items: items.slice(),
+        videoItems: videoItems.slice(),
         openGalleryItemById: viewer.openGalleryItemById,
         dependencies: {
           transitions: animations.modeTransitions,

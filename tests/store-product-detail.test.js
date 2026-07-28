@@ -7,9 +7,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 
-const { startTestServer, stopTestServer, getPort } = require('./testServer');
+const { startTestServer, stopTestServer } = require('./testServer');
 
-let BASE = 'http://localhost:3000';
+let BASE = '';
 
 function httpGet(urlPath) {
   return new Promise((resolve, reject) => {
@@ -146,11 +146,11 @@ describe('Product detail — accessibility and scope', () => {
 
 describe('Product detail — rendered pages', () => {
   before(async () => {
-    await startTestServer();
-    BASE = `http://127.0.0.1:${getPort()}`;
+    const server = await startTestServer();
+    BASE = server.baseUrl;
   });
-  after(() => {
-    stopTestServer();
+  after(async () => {
+    await stopTestServer();
   });
 
   let sampleSlug = '';

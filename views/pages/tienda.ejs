@@ -1,6 +1,23 @@
 <main class="st-layout">
   <%- include('../components/store-sidebar') %>
 
+  <div class="st-mobile-menu-trigger" aria-hidden="true">
+    <button type="button" class="st-menu-btn" id="store-menu-toggle"
+      aria-expanded="false" aria-controls="store-mobile-drawer"
+      aria-label="Abrir menú de navegación">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22">
+        <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="3" y1="18" x2="21" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>Menú</span>
+    </button>
+  </div>
+
+  <%- include('../components/store-mobile-drawer') %>
+
+  <div class="st-mobile-backdrop" id="store-mobile-backdrop" aria-hidden="true"></div>
+
   <div class="st-main">
     <header class="st-header">
       <div class="st-header__row">

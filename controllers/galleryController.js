@@ -1,21 +1,42 @@
 const gallery = require('../services/galleryService');
 const validator = require('../validators/galleryValidator');
 const { buildGalleryUrl } = require('../utils/galleryUrl');
+const {
+  extractVideoId,
+  resolveYoutubeThumbnailCandidates,
+} = require('../utils/youtubeUrl');
 
 function safeGalleryJson(items) {
-  return JSON.stringify(items.map((item) => ({
-    id: Number(item.id),
-    slug: item.slug,
-    type: item.media_type,
-    title: item.title,
-    description: item.description || '',
-    category: item.category_name || '',
-    thumbnail: item.thumbnail_path,
-    source: item.media_path,
-    poster: item.poster_path || null,
-    alt: item.alt_text,
-    featured: Boolean(item.is_featured),
-  })))
+  return JSON.stringify(items.map((item) => {
+    const youtubeId = item.media_type === 'youtube' ? extractVideoId(item.youtube_url) : null;
+    const thumbnailCandidates = youtubeId
+      ? resolveYoutubeThumbnailCandidates({
+        customCoverPath: item.custom_cover_path,
+        videoId: youtubeId,
+      })
+      : [item.thumbnail_path].filter(Boolean);
+    return {
+      id: Number(item.id),
+      key: `gallery:${Number(item.id)}`,
+      slug: item.slug,
+      type: item.media_type,
+      title: item.title,
+      description: item.description || '',
+      category: item.category_name || '',
+      thumbnail: thumbnailCandidates[0] || null,
+      thumbnailFallbacks: thumbnailCandidates.slice(1),
+      source: youtubeId
+        ? `https://www.youtube.com/embed/${youtubeId}`
+        : item.media_path,
+      poster: item.poster_path || null,
+      alt: item.alt_text,
+      featured: Boolean(item.is_featured),
+      ...(youtubeId ? {
+        youtubeId,
+        customCover: item.custom_cover_path || null,
+      } : {}),
+    };
+  }))
     .replace(/&/g, '\\u0026')
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
@@ -38,16 +59,20 @@ function paginationWindow(currentPage, totalPages) {
 async function showGallery(req, res, next) {
   try {
     const filters = validator.parsePublicFilters(req.query);
+    filters.type = 'image';
     const categories = await gallery.listCategories({ activeOnly: true });
     const categoryExists = !filters.category || categories.some((category) => category.slug === filters.category);
     const invalidCategory = Boolean(filters.category && !categoryExists);
     if (invalidCategory) filters.category = '';
-    const result = await gallery.listPublic(filters);
+    const [result, videoItems] = await Promise.all([
+      gallery.listPublic(filters),
+      gallery.listPublishedVideoItems(),
+    ]);
     const activeCategory = categories.find((category) => category.slug === filters.category) || null;
     res.render('pages/gallery', {
       title: 'Nuestra galería',
       metaDescription: 'Explora proyectos, productos y procesos creados por NinjaLabCR.',
-      robots: filters.category || filters.type || filters.page > 1 ? 'noindex,follow' : 'index,follow',
+      robots: filters.category || filters.page > 1 ? 'noindex,follow' : 'index,follow',
       layout: 'layouts/main',
       pageClass: 'page-gallery',
       pageStyles: ['/css/home.css', '/css/gallery.css'],
@@ -61,6 +86,7 @@ async function showGallery(req, res, next) {
       invalidCategory,
       ...result,
       galleryJson: safeGalleryJson(result.items),
+      videoGalleryJson: safeGalleryJson(videoItems),
       buildGalleryUrl: (overrides) => buildGalleryUrl(filters, overrides),
       paginationPages: paginationWindow(result.page, result.totalPages),
     });

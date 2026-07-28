@@ -18,9 +18,15 @@ const h = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { startTestServer, stopTestServer } = require('./testServer');
 
-const BASE = 'http://localhost:3000';
+let BASE = '';
 let serverOk = false;
+
+before(async () => {
+  const server = await startTestServer();
+  BASE = server.baseUrl;
+});
 
 // ── HTTP helpers (3s timeout, error-safe) ──
 function httpGet(url, cookie) {
@@ -596,6 +602,7 @@ describe('Tilopay Regression', () => {
 
 // ── Cleanup: close MySQL pool ──
 after(async () => {
+  await stopTestServer();
   try {
     const pool = require('../config/db');
     if (pool && typeof pool.end === 'function') await pool.end();

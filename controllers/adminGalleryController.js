@@ -3,6 +3,10 @@ const media = require('../services/galleryMediaService');
 const validator = require('../validators/galleryValidator');
 const { MEDIA_TYPES } = require('../config/galleryOptions');
 const { parsePositiveId } = require('../validators/addressValidator');
+const {
+  validateAndNormalize,
+  resolveYoutubeThumbnailCandidates,
+} = require('../utils/youtubeUrl');
 
 function redirectWithError(req, res, destination, error) {
   req.session.error_msg = error?.message || 'No fue posible completar la operación de galería.';
@@ -81,7 +85,25 @@ async function createItem(req, res, next) {
     }
 
     const files = uploadFiles(req);
-    if (data.mediaType === MEDIA_TYPES.IMAGE) {
+    if (data.mediaType === MEDIA_TYPES.YOUTUBE) {
+      const yt = validateAndNormalize(data.youtubeUrl);
+      if (!yt.valid) throw new Error(yt.error);
+      const coverPath = files.poster
+        ? (await media.processImagePair(files.poster, { poster: true }))
+        : null;
+      if (coverPath) createdPaths.push(...coverPath.createdPaths);
+      const customCoverPath = coverPath?.thumbnailPath || null;
+      Object.assign(data, {
+        mediaPath: yt.embedUrl,
+        thumbnailPath: resolveYoutubeThumbnailCandidates({
+          customCoverPath,
+          videoId: yt.videoId,
+        })[0],
+        posterPath: null,
+        youtubeUrl: yt.canonicalUrl,
+        customCoverPath,
+      });
+    } else if (data.mediaType === MEDIA_TYPES.IMAGE) {
       if (!files.media) throw new Error('La imagen principal es obligatoria.');
       if (files.poster) throw new Error('Una imagen no debe incluir un póster de video.');
       const processed = await media.processImagePair(files.media);
@@ -104,7 +126,7 @@ async function createItem(req, res, next) {
       });
     }
 
-    if (data.isPublished) {
+    if (data.isPublished && data.mediaType !== MEDIA_TYPES.YOUTUBE) {
       await media.assertPublishable({
         title: data.title,
         alt_text: data.altText,
@@ -159,6 +181,8 @@ async function updateItem(req, res, next) {
       mediaPath: existing.media_path,
       thumbnailPath: existing.thumbnail_path,
       posterPath: existing.poster_path,
+      youtubeUrl: existing.youtube_url || null,
+      customCoverPath: existing.custom_cover_path || null,
     });
     const files = uploadFiles(req);
 
@@ -173,6 +197,26 @@ async function updateItem(req, res, next) {
       } else if (existing.media_type !== MEDIA_TYPES.IMAGE) {
         throw new Error('Al cambiar de video a imagen debe cargar una imagen nueva.');
       }
+    } else if (data.mediaType === MEDIA_TYPES.YOUTUBE) {
+      const yt = validateAndNormalize(data.youtubeUrl);
+      if (!yt.valid) throw new Error(yt.error);
+      const coverFile = files.poster || null;
+      let coverPaths = null;
+      if (coverFile) {
+        coverPaths = await media.processImagePair(coverFile, { poster: true });
+        createdPaths.push(...coverPaths.createdPaths);
+      }
+      const customCoverPath = coverPaths?.thumbnailPath || data.customCoverPath || null;
+      Object.assign(data, {
+        mediaPath: yt.embedUrl,
+        thumbnailPath: resolveYoutubeThumbnailCandidates({
+          customCoverPath,
+          videoId: yt.videoId,
+        })[0],
+        posterPath: null,
+        youtubeUrl: yt.canonicalUrl,
+        customCoverPath,
+      });
     } else {
       if (files.media) {
         const video = await media.saveVideo(files.media);
@@ -191,7 +235,7 @@ async function updateItem(req, res, next) {
       }
     }
 
-    if (data.isPublished) {
+    if (data.isPublished && data.mediaType !== MEDIA_TYPES.YOUTUBE) {
       await media.assertPublishable({
         title: data.title,
         alt_text: data.altText,
@@ -202,7 +246,12 @@ async function updateItem(req, res, next) {
       });
     }
     await gallery.updateItem(existing.id, data);
-    const retained = new Set([data.mediaPath, data.thumbnailPath, data.posterPath].filter(Boolean));
+    const retained = new Set([
+      data.mediaPath,
+      data.thumbnailPath,
+      data.posterPath,
+      data.customCoverPath,
+    ].filter(Boolean));
     await media.deleteGalleryPaths(itemFilePaths(existing).filter((filePath) => !retained.has(filePath)));
     req.session.success_msg = 'Elemento de galería actualizado correctamente.';
     return res.redirect('/admin/galeria');
@@ -216,7 +265,9 @@ async function updateItem(req, res, next) {
 async function deleteItem(req, res, next) {
   try {
     const deleted = await gallery.deleteItem(parsePositiveId(req.params.id));
-    await media.deleteGalleryPaths(itemFilePaths(deleted));
+    if (deleted.media_type !== 'youtube') {
+      await media.deleteGalleryPaths(itemFilePaths(deleted));
+    }
     req.session.success_msg = 'Elemento de galería eliminado correctamente.';
     res.redirect('/admin/galeria');
   } catch (error) {
@@ -230,7 +281,7 @@ async function togglePublished(req, res, next) {
     const item = await gallery.getItemById(parsePositiveId(req.params.id));
     if (!item) return redirectWithError(req, res, '/admin/galeria', new Error('Elemento de galería no encontrado.'));
     const publish = !Boolean(item.is_published);
-    if (publish) await media.assertPublishable(item);
+    if (publish && item.media_type !== 'youtube') await media.assertPublishable(item);
     await gallery.setPublished(item.id, publish);
     req.session.success_msg = publish ? 'Elemento publicado.' : 'Elemento retirado de la galería pública.';
     res.redirect('/admin/galeria');

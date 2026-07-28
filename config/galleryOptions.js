@@ -3,6 +3,7 @@ const path = require('path');
 const MEDIA_TYPES = Object.freeze({
   IMAGE: 'image',
   VIDEO: 'video',
+  YOUTUBE: 'youtube',
 });
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
