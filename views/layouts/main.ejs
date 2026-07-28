@@ -128,14 +128,6 @@
     typeof usesPanel2Background !== 'undefined'
       ? Boolean(usesPanel2Background)
       : false;
-  const layoutSuccessMessage =
-    typeof success_msg !== 'undefined' && success_msg
-      ? String(success_msg)
-      : '';
-  const layoutErrorMessage =
-    typeof error_msg !== 'undefined' && error_msg
-      ? String(error_msg)
-      : '';
   const layoutUser =
     typeof user !== 'undefined' && user && typeof user === 'object'
       ? user
@@ -221,6 +213,7 @@
   </script>
   <% } %>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/ninja-alerts.css">
   <% if (!layoutHideFooter) { %>
     <link rel="stylesheet" href="/css/footer.css">
   <% } %>
@@ -266,6 +259,7 @@
   <% } %>
 </head>
 <body class="<%= layoutPageClass %>">
+  <%- include('../partials/ninja-alerts') %>
   <% if (layoutPageClass !== 'page-home' && !layoutUsesHeroNavbar) { %>
     <%- include('../components/navbar', {
       site: layoutSite,
@@ -274,13 +268,6 @@
       csrfToken: layoutCsrfToken,
       cartItemCount: layoutCartItemCount
     }) %>
-  <% } %>
-
-  <% if (layoutSuccessMessage) { %>
-    <div class="alert alert-success"><%= layoutSuccessMessage %></div>
-  <% } %>
-  <% if (layoutErrorMessage) { %>
-    <div class="alert alert-danger"><%= layoutErrorMessage %></div>
   <% } %>
 
   <%- layoutContent %>
@@ -295,6 +282,7 @@
   <% if (!layoutHideFooter) { %>
   <script type="module" src="/js/footerMagicRings.mjs"></script>
   <% } %>
+  <script src="/js/ninja-alerts.js"></script>
 
   <% if (layoutPageClass === 'page-home') { %>
     <script type="module" src="/js/home/home.js"></script>

@@ -117,16 +117,6 @@
 .account-header h1 { margin: 0; color: var(--account-text); font-size: clamp(1.9rem, 4vw, 3rem); line-height: 1.1; }
 .account-header > p:last-child { max-width: 650px; margin: .75rem 0 0; color: var(--account-muted); }
 
-.account-flash {
-  width: min(720px, calc(100% - 2rem));
-  margin: 1rem auto 0;
-  padding: .85rem 1rem;
-  border: 1px solid;
-  border-radius: 10px;
-}
-.account-flash--success { border-color: rgba(74, 222, 128, .4); background: #0c2b1c; color: #bbf7d0; }
-.account-flash--error { border-color: rgba(248, 113, 113, .4); background: #351417; color: #fecaca; }
-
 .account-dashboard__stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

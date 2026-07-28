@@ -789,6 +789,12 @@ app.use((err, req, res, _next) => {
     return res.status(500).render('pages/500', {
       title: 'Error del servidor',
       layout: 'layouts/main',
+      pageAlerts: [{
+        id: 'server-error',
+        type: 'error',
+        title: 'Error del servidor',
+        description: 'No fue posible completar la solicitud. Inténtalo nuevamente.',
+      }],
     });
   }
   return res.status(500).json({ error: 'Internal server error' });

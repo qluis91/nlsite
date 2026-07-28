@@ -10,6 +10,7 @@
     <link rel="shortcut icon" href="<%= globalFavicon %>">
   <% } %>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/ninja-alerts.css">
   <% if (typeof pageStyles !== 'undefined' && Array.isArray(pageStyles)) { %>
     <% pageStyles.forEach(function(stylePath) { %>
       <link rel="stylesheet" href="<%= stylePath %>">
@@ -32,17 +33,11 @@
   </style>
 </head>
 <body class="admin-layout">
+  <%- include('../partials/ninja-alerts') %>
   <%- include('../components/sidebar') %>
 
   <div class="admin-main">
     <%- include('../components/navbar-admin') %>
-
-    <% if (success_msg) { %>
-      <div class="alert alert-success"><%= success_msg %></div>
-    <% } %>
-    <% if (error_msg) { %>
-      <div class="alert alert-danger"><%= error_msg %></div>
-    <% } %>
 
     <main class="admin-content">
       <%- body %>
@@ -50,6 +45,7 @@
   </div>
 
   <script src="/js/main.js"></script>
+  <script src="/js/ninja-alerts.js"></script>
   <% if (typeof pageModule !== 'undefined' && pageModule) { %>
     <script type="module" src="<%= pageModule %>"></script>
   <% } %>

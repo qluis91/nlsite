@@ -3,16 +3,17 @@
  */
 
 const siteConfig = require('../config/site');
+const { normalizeFlashMessages } = require('../utils/alertMessages');
 
 // ── Inyectar variables globales en todas las vistas ──
 function setLocals(req, res, next) {
   res.locals.user = req.session.user || null;
   res.locals.site = res.locals.site || siteConfig;
   res.locals.currentPath = req.path;
-  res.locals.success_msg = req.session.success_msg || null;
-  res.locals.error_msg = req.session.error_msg || null;
-  delete req.session.success_msg;
-  delete req.session.error_msg;
+  res.locals.ninjaAlerts = normalizeFlashMessages(req.session, { consume: true });
+  // Kept as empty compatibility locals while templates migrate to NinjaAlerts.
+  res.locals.success_msg = null;
+  res.locals.error_msg = null;
   // Cart badge count (light: counts session quantities only)
   const cart = req.session.cart;
   res.locals.cartItemCount = cart && Array.isArray(cart.items)

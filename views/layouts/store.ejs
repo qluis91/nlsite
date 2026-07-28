@@ -70,6 +70,7 @@
   <link rel="dns-prefetch" href="https://www.google-analytics.com">
   <% } %>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/ninja-alerts.css">
   <link rel="stylesheet" href="/css/footer.css">
   <% if (typeof pageStyles !== 'undefined' && Array.isArray(pageStyles)) { %>
     <% pageStyles.forEach(function(s) { %>
@@ -90,12 +91,7 @@
   </style>
 </head>
 <body class="<%= typeof pageClass !== 'undefined' ? pageClass : '' %>">
-  <% if (success_msg) { %>
-    <div class="alert alert-success"><%= success_msg %></div>
-  <% } %>
-  <% if (error_msg) { %>
-    <div class="alert alert-danger"><%= error_msg %></div>
-  <% } %>
+  <%- include('../partials/ninja-alerts') %>
 
   <%- body || '' %>
 
@@ -103,6 +99,7 @@
 
   <script type="module" src="/js/footerMagicRings.mjs"></script>
   <script src="/js/main.js"></script>
+  <script src="/js/ninja-alerts.js"></script>
   <% if (typeof pageModule !== 'undefined' && pageModule) { %>
     <script type="module" src="<%= pageModule %>"></script>
   <% } %>

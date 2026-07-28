@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/css/footer.css">
   <link rel="stylesheet" href="/css/account-orders.css">
   <link rel="stylesheet" href="/css/account.css">
+  <link rel="stylesheet" href="/css/ninja-alerts.css">
   <style nonce="<%= cspNonce %>">
     :root {
       --color-primary: <%= site.colors.primary %>;
@@ -24,14 +25,8 @@
   </style>
 </head>
 <body class="account-page">
+  <%- include('../partials/ninja-alerts') %>
   <%- include('../components/navbar') %>
-
-  <% if (success_msg) { %>
-    <div class="account-flash account-flash--success" role="status"><%= success_msg %></div>
-  <% } %>
-  <% if (error_msg) { %>
-    <div class="account-flash account-flash--error" role="alert"><%= error_msg %></div>
-  <% } %>
 
   <div class="account-shell">
     <%- include('../components/account-sidebar') %>
@@ -44,5 +39,6 @@
     <%- include('../components/footer') %>
   <% } %>
   <script src="/js/main.js"></script>
+  <script src="/js/ninja-alerts.js"></script>
 </body>
 </html>
