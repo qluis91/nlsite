@@ -1,34 +1,22 @@
 /**
- * Safe production migration runner.
- * All individual migration scripts must be idempotent.
- *
- * Usage: npm run migrate
- *   or:  node scripts/migrate-all.js
+ * Manual migration entrypoint. It deliberately uses the same complete,
+ * checksum-verified registry and advisory lock as production prestart so
+ * `npm run migrate` cannot omit catalog or other registered capabilities.
  */
-const { migrateUserAddresses } = require('./migrate-user-addresses');
-const { migrateCms } = require('./migrate-cms');
-const { migrateNavigationItems } = require('./migrate-nav-items');
-const { migratePanels } = require('./migrate-panels');
-const { migratePublishing } = require('./migrate-publishing');
-const { migrateCmsDraftPublish } = require('./migrate-cms-draft-publish');
-const { migrateCmsHomepageFields } = require('./migrate-cms-homepage-fields');
-const { migrateCmsPhase1aSaveRepair } = require('./migrate-cms-phase1a-save-repair');
+const pool = require('../config/db');
+const { run } = require('./migrate-deploy');
 
-(async () => {
-  try {
-    console.log('Running safe migrations...');
-    await migrateUserAddresses();
-    await migrateCms();
-    await migrateNavigationItems();
-    await migratePanels();
-    await migratePublishing();
-    await migrateCmsDraftPublish();
-    await migrateCmsHomepageFields();
-    await migrateCmsPhase1aSaveRepair();
-    console.log('All migrations complete.');
-    process.exit(0);
-  } catch (err) {
-    console.error('Migration failed:', err.message);
-    process.exit(1);
-  }
-})();
+if (require.main === module) {
+  run()
+    .then(() => pool.end())
+    .then(() => {
+      console.log('All migrations complete.');
+    })
+    .catch(async (error) => {
+      console.error('Migration failed:', error.message);
+      await pool.end().catch(() => {});
+      process.exitCode = error.message.startsWith('LOCKED') ? 2 : 1;
+    });
+}
+
+module.exports = { run };

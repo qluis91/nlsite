@@ -17,6 +17,7 @@ require('dotenv').config();
 const pool = require('../config/db');
 const tracker = require('./migrationTracker');
 const { assertCmsSchemaReady } = require('../services/cmsSchemaReadinessService');
+const { assertCatalogSchemaReady } = require('../services/catalogSchemaReadinessService');
 
 async function run() {
   const conn = await pool.getConnection();
@@ -29,6 +30,7 @@ async function run() {
 
     const { ran, skipped } = await tracker.runPendingMigrations(pool);
     await assertCmsSchemaReady(pool, { force: true });
+    await assertCatalogSchemaReady(pool, { force: true });
     console.log(`[migrate:deploy] Done — ${ran} ran, ${skipped} skipped.`);
   } finally {
     if (locked) await tracker.releaseLock(conn).catch(() => {});

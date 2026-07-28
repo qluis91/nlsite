@@ -4,17 +4,86 @@
 const pool = require('../config/db');
 const { slugify } = require('../validators/catalogValidator');
 
+const ADMIN_PRODUCT_PAGE_SIZE = 20;
+const MAX_ADMIN_PRODUCT_PAGE_SIZE = 100;
+const MAX_ADMIN_PRODUCT_PAGE = 1000000;
+const MAX_ADMIN_PRODUCT_SEARCH_LENGTH = 100;
+const PRODUCT_IMAGE_PATH = /^\/uploads\/products\/[1-9]\d*\/[a-z0-9][a-z0-9_.-]*$/i;
+
+function normalizePositiveInteger(value, fallback, maximum) {
+  const raw = String(value ?? '').trim();
+  if (!/^\d+$/.test(raw)) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, maximum);
+}
+
+function normalizeAdminProductQuery(search = '', categoryId = '', page = 1, limit = ADMIN_PRODUCT_PAGE_SIZE) {
+  const normalizedCategory = normalizePositiveInteger(categoryId, null, Number.MAX_SAFE_INTEGER);
+  return {
+    search: String(search ?? '').replace(/\0/g, '').trim().slice(0, MAX_ADMIN_PRODUCT_SEARCH_LENGTH),
+    categoryId: normalizedCategory,
+    page: normalizePositiveInteger(page, 1, MAX_ADMIN_PRODUCT_PAGE),
+    limit: normalizePositiveInteger(limit, ADMIN_PRODUCT_PAGE_SIZE, MAX_ADMIN_PRODUCT_PAGE_SIZE),
+  };
+}
+
+async function catalogQuery(db, stage, sql, params = []) {
+  try {
+    return await db.query(sql, params);
+  } catch (error) {
+    error.catalogStage = stage;
+    throw error;
+  }
+}
+
+function normalizeLegacyBoolean(value, fallback, warnings, productId, field) {
+  if (value === true || value === 1 || value === '1') return 1;
+  if (value === false || value === 0 || value === '0') return 0;
+  warnings.push({ productId, field, issue: 'invalid_boolean' });
+  return fallback;
+}
+
+function normalizeListedProduct(product, categoryNames, warnings) {
+  const id = Number(product.id);
+  const stock = Number(product.stock_quantity);
+  const primaryImage = typeof product.primary_image === 'string'
+    && PRODUCT_IMAGE_PATH.test(product.primary_image)
+    ? product.primary_image
+    : null;
+
+  if (product.primary_image && !primaryImage) {
+    warnings.push({ productId: id, field: 'primary_image', issue: 'invalid_media_path' });
+  }
+  if (product.stock_quantity === null || !Number.isSafeInteger(stock) || stock < 0) {
+    warnings.push({ productId: id, field: 'stock_quantity', issue: 'invalid_number' });
+  }
+
+  return {
+    ...product,
+    stock_quantity: product.stock_quantity !== null && Number.isSafeInteger(stock) && stock >= 0
+      ? stock
+      : 0,
+    is_active: normalizeLegacyBoolean(product.is_active, 0, warnings, id, 'is_active'),
+    is_published: normalizeLegacyBoolean(product.is_published, 0, warnings, id, 'is_published'),
+    primary_image: primaryImage,
+    categoryNames: Array.isArray(categoryNames) ? categoryNames : [],
+  };
+}
+
 // ══════════════════════════════════════
 //  CATEGORIES
 // ══════════════════════════════════════
 
-async function listCategories() {
-  const [rows] = await pool.query(
+async function listCategories(db = pool) {
+  const [rows] = await catalogQuery(
+    db,
+    'categories.list',
     `SELECT c.id, c.name, c.slug, c.created_at,
-            COUNT(pc.product_id) AS product_count
+            (SELECT COUNT(*)
+               FROM product_categories pc
+              WHERE pc.category_id = c.id) AS product_count
      FROM categories c
-     LEFT JOIN product_categories pc ON c.id = pc.category_id
-     GROUP BY c.id
      ORDER BY c.name ASC`
   );
   return rows;
@@ -110,19 +179,45 @@ async function isCategorySlugTaken(slug, excludeId = null) {
 //  PRODUCTS
 // ══════════════════════════════════════
 
-async function listProducts(search = '', categoryId = '', page = 1, limit = 20) {
-  const offset = (page - 1) * limit;
-  let where = '1=1';
-  const params = [];
+async function listProducts(
+  search = '',
+  categoryId = '',
+  page = 1,
+  limit = ADMIN_PRODUCT_PAGE_SIZE,
+  db = pool
+) {
+  const filters = normalizeAdminProductQuery(search, categoryId, page, limit);
+  const whereParts = [];
+  const filterParams = [];
 
-  if (search) {
-    where += ' AND p.name LIKE ?';
-    params.push(`%${search}%`);
+  if (filters.search) {
+    whereParts.push('p.name LIKE ?');
+    filterParams.push(`%${filters.search}%`);
   }
-  if (categoryId) {
-    where += ' AND pc2.category_id = ?';
-    params.push(parseInt(categoryId, 10));
+  if (filters.categoryId) {
+    whereParts.push(
+      'EXISTS (SELECT 1 FROM product_categories pc_filter'
+      + ' WHERE pc_filter.product_id = p.id AND pc_filter.category_id = ?)'
+    );
+    filterParams.push(filters.categoryId);
   }
+  const where = whereParts.length ? whereParts.join(' AND ') : '1=1';
+
+  const countSql = `
+    SELECT COUNT(*) AS total
+    FROM products p
+    WHERE ${where}
+  `;
+  const [countResult] = await catalogQuery(
+    db,
+    'products.count',
+    countSql,
+    [...filterParams]
+  );
+  const total = Number(countResult[0]?.total) || 0;
+  const totalPages = Math.max(1, Math.ceil(total / filters.limit));
+  const effectivePage = Math.min(filters.page, totalPages);
+  const offset = (effectivePage - 1) * filters.limit;
 
   const sql = `
     SELECT p.id, p.name, p.slug, p.regular_price, p.promotional_price,
@@ -130,33 +225,31 @@ async function listProducts(search = '', categoryId = '', page = 1, limit = 20) 
            p.created_at,
            pi.file_path AS primary_image
     FROM products p
-    LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-    ${categoryId ? 'JOIN product_categories pc2 ON pc2.product_id = p.id' : ''}
+    LEFT JOIN product_images pi
+      ON pi.id = (
+        SELECT MIN(pi_primary.id)
+        FROM product_images pi_primary
+        WHERE pi_primary.product_id = p.id
+          AND pi_primary.is_primary = 1
+      )
     WHERE ${where}
-    GROUP BY p.id
-    ORDER BY p.created_at DESC
+    ORDER BY p.created_at DESC, p.id DESC
     LIMIT ? OFFSET ?
   `;
-  params.push(limit, offset);
-
-  const [products] = await pool.query(sql, params);
-
-  // Count total
-  const countSql = `
-    SELECT COUNT(DISTINCT p.id) AS total
-    FROM products p
-    ${categoryId ? 'JOIN product_categories pc2 ON pc2.product_id = p.id' : ''}
-    WHERE ${where}
-  `;
-  const countParams = categoryId ? [parseInt(categoryId, 10)] : search ? [`%${search}%`] : [];
-  const [countResult] = await pool.query(countSql, countParams);
-  const total = countResult[0].total;
+  const [products] = await catalogQuery(
+    db,
+    'products.list',
+    sql,
+    [...filterParams, filters.limit, offset]
+  );
 
   // Get categories for each product
   const productIds = products.map(p => p.id);
-  let catMap = new Map();
+  const catMap = new Map();
   if (productIds.length) {
-    const [cats] = await pool.query(
+    const [cats] = await catalogQuery(
+      db,
+      'products.categories',
       `SELECT pc.product_id, c.name
        FROM product_categories pc
        JOIN categories c ON c.id = pc.category_id
@@ -169,14 +262,16 @@ async function listProducts(search = '', categoryId = '', page = 1, limit = 20) 
     }
   }
 
+  const warnings = [];
   return {
-    products: products.map(p => ({
-      ...p,
-      categoryNames: catMap.get(p.id) || [],
-    })),
+    products: products.map((product) =>
+      normalizeListedProduct(product, catMap.get(product.id), warnings)
+    ),
     total,
-    page,
-    totalPages: Math.max(1, Math.ceil(total / limit)),
+    page: effectivePage,
+    totalPages,
+    filters,
+    warnings,
   };
 }
 
@@ -186,8 +281,17 @@ async function getProductById(id) {
   const product = rows[0];
 
   // Parse tags
-  if (product.tags) {
-    try { product.tags = JSON.parse(product.tags); } catch { product.tags = []; }
+  if (Array.isArray(product.tags)) {
+    product.tags = product.tags.filter((tag) => typeof tag === 'string');
+  } else if (product.tags) {
+    try {
+      const parsedTags = JSON.parse(product.tags);
+      product.tags = Array.isArray(parsedTags)
+        ? parsedTags.filter((tag) => typeof tag === 'string')
+        : [];
+    } catch {
+      product.tags = [];
+    }
   } else {
     product.tags = [];
   }
@@ -207,9 +311,14 @@ async function getProductById(id) {
     'SELECT * FROM product_images WHERE product_id = ? ORDER BY is_primary DESC, position ASC',
     [id]
   );
-  product.images = images;
-  product.primaryImage = images.find(img => img.is_primary) || null;
-  product.secondaryImages = images.filter(img => !img.is_primary);
+  product.images = images.map((image) => ({
+    ...image,
+    display_path: typeof image.file_path === 'string' && PRODUCT_IMAGE_PATH.test(image.file_path)
+      ? image.file_path
+      : null,
+  }));
+  product.primaryImage = product.images.find(img => img.is_primary) || null;
+  product.secondaryImages = product.images.filter(img => !img.is_primary);
 
   return product;
 }
@@ -286,15 +395,15 @@ async function updateProduct(id, data) {
   }
 }
 
-async function deleteProduct(id) {
+async function deleteProduct(id, db = pool) {
   // Try physical delete first
   try {
-    await pool.query('DELETE FROM products WHERE id = ?', [id]);
+    await db.query('DELETE FROM products WHERE id = ?', [id]);
     return { action: 'deleted' };
   } catch (err) {
     // If FK violation from future order/quote tables, archive instead
     if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.errno === 1217) {
-      await pool.query(
+      await db.query(
         'UPDATE products SET is_active = 0, is_published = 0 WHERE id = ?',
         [id]
       );
@@ -423,4 +532,7 @@ module.exports = {
   getProductImages,
   reorderImages,
   ensurePrimaryImage,
+  normalizeAdminProductQuery,
+  ADMIN_PRODUCT_PAGE_SIZE,
+  PRODUCT_IMAGE_PATH,
 };

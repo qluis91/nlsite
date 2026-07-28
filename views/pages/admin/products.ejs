@@ -3,101 +3,110 @@
   <a href="/admin/catalogo/productos/nuevo" class="btn btn-primary">Nuevo Producto</a>
 </div>
 
-<!-- Filters -->
-<div class="card filters-bar">
-  <form method="GET" action="/admin/catalogo/productos" class="inline-filters">
-    <div class="form-group">
-      <input type="text" name="search" value="<%= search %>" placeholder="Buscar producto…" class="form-control">
-    </div>
-    <div class="form-group">
-      <select name="category" class="form-control">
-        <option value="">Todas las categorías</option>
-        <% categories.forEach(function(cat) { %>
-          <option value="<%= cat.id %>" <%= categoryFilter == String(cat.id) ? 'selected' : '' %>><%= cat.name %></option>
-        <% }); %>
-      </select>
-    </div>
-    <button type="submit" class="btn btn-outline">Filtrar</button>
-  </form>
-</div>
-
-<div class="card">
-  <% if (products.length === 0) { %>
-    <div class="empty-state">
-      <p>No hay productos registrados.</p>
-      <a href="/admin/catalogo/productos/nuevo" class="btn btn-primary">Crear primer producto</a>
-    </div>
-  <% } else { %>
-    <p><strong><%= total %></strong> producto(s) — Página <%= page %> de <%= totalPages %></p>
-    <table class="table">
-      <thead>
-        <tr>
-          <th></th>
-          <th>ID</th>
-          <th>Nombre</th>
-          <th>Categorías</th>
-          <th>Estado</th>
-          <th>Precio regular</th>
-          <th>Promoción</th>
-          <th>Web</th>
-          <th>Stock</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% products.forEach(function(prod) { %>
-          <tr>
-            <td>
-              <% if (prod.primary_image) { %>
-                <img src="<%= prod.primary_image %>" alt="" class="thumb-sm" loading="lazy">
-              <% } %>
-            </td>
-            <td><%= prod.id %></td>
-            <td>
-              <strong><%= prod.name %></strong>
-              <% if (!prod.is_active) { %><span class="badge badge-danger">Inactivo</span><% } %>
-              <% if (!prod.is_published) { %><span class="badge badge-warning">Borrador</span><% } %>
-            </td>
-            <td><%= prod.categoryNames.join(', ') %></td>
-            <td>
-              <% if (!prod.is_active) { %>
-                <span class="badge badge-archived">Archivado</span>
-              <% } else if (!prod.is_published) { %>
-                <span class="badge badge-hidden">Oculto</span>
-              <% } else { %>
-                <span class="badge badge-published">Publicado</span>
-              <% } %>
-            </td>
-            <td>₡<%= Number(prod.regular_price).toLocaleString('es-CR') %></td>
-            <td><%= prod.promotional_price ? '₡' + Number(prod.promotional_price).toLocaleString('es-CR') : '—' %></td>
-            <td><%= prod.web_price ? '₡' + Number(prod.web_price).toLocaleString('es-CR') : '—' %></td>
-            <td><%= prod.stock_quantity %></td>
-            <td class="actions">
-              <a href="/admin/catalogo/productos/<%= prod.id %>/editar" class="btn btn-sm btn-outline">Editar</a>
-              <form action="/admin/catalogo/productos/<%= prod.id %>/eliminar" method="POST" class="inline-form" onsubmit="return confirm('¿Eliminar este producto?')">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
-              </form>
-            </td>
-          </tr>
-        <% }); %>
-      </tbody>
-    </table>
-
-    <!-- Pagination -->
-    <% if (totalPages > 1) { %>
-      <div class="pagination">
-        <% for (let p = 1; p <= totalPages; p++) { %>
-          <% if (p === page) { %>
-            <span class="page-current"><%= p %></span>
-          <% } else { %>
-            <a href="/admin/catalogo/productos?page=<%= p %><%= search ? '&search=' + search : '' %><%= categoryFilter ? '&category=' + categoryFilter : '' %>" class="page-link"><%= p %></a>
-          <% } %>
-        <% } %>
+<% if (typeof loadError !== 'undefined' && loadError) { %>
+  <div class="card empty-state admin-products-error" role="alert">
+    <h2>No se pudo abrir el catálogo de productos</h2>
+    <p><%= loadError.message %></p>
+    <p><small>Referencia: <%= loadError.requestId %></small></p>
+    <a href="/admin/catalogo/productos" class="btn btn-primary">Volver a intentar</a>
+  </div>
+<% } else { %>
+  <div class="card filters-bar">
+    <form method="GET" action="/admin/catalogo/productos" class="inline-filters">
+      <div class="form-group">
+        <input type="search" name="search" value="<%= search %>" maxlength="100" placeholder="Buscar producto…" class="form-control">
       </div>
+      <div class="form-group">
+        <select name="category" class="form-control">
+          <option value="">Todas las categorías</option>
+          <% categories.forEach(function(cat) { %>
+            <option value="<%= cat.id %>" <%= categoryFilter == String(cat.id) ? 'selected' : '' %>><%= cat.name %></option>
+          <% }); %>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-outline">Filtrar</button>
+    </form>
+  </div>
+
+  <div class="card admin-table-wrap">
+    <% if (products.length === 0) { %>
+      <div class="empty-state">
+        <p>No hay productos registrados.</p>
+        <a href="/admin/catalogo/productos/nuevo" class="btn btn-primary">Crear primer producto</a>
+      </div>
+    <% } else { %>
+      <p><strong><%= total %></strong> producto(s) — Página <%= page %> de <%= totalPages %></p>
+      <table class="table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Categorías</th>
+            <th>Estado</th>
+            <th>Precio regular</th>
+            <th>Promoción</th>
+            <th>Web</th>
+            <th>Stock</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% products.forEach(function(prod) { %>
+            <tr>
+              <td>
+                <% if (prod.primary_image) { %>
+                  <img src="<%= prod.primary_image %>" alt="" class="thumb-sm" loading="lazy">
+                <% } else { %>
+                  <span class="thumb-sm thumb-sm--placeholder" aria-hidden="true">N</span>
+                <% } %>
+              </td>
+              <td><%= prod.id %></td>
+              <td>
+                <strong><%= prod.name %></strong>
+                <% if (!prod.is_active) { %><span class="badge badge-danger">Inactivo</span><% } %>
+                <% if (!prod.is_published) { %><span class="badge badge-warning">Borrador</span><% } %>
+              </td>
+              <td><%= prod.categoryNames.join(', ') %></td>
+              <td>
+                <% if (!prod.is_active) { %>
+                  <span class="badge badge-archived">Archivado</span>
+                <% } else if (!prod.is_published) { %>
+                  <span class="badge badge-hidden">Oculto</span>
+                <% } else { %>
+                  <span class="badge badge-published">Publicado</span>
+                <% } %>
+              </td>
+              <td>₡<%= Number(prod.regular_price || 0).toLocaleString('es-CR') %></td>
+              <td><%= prod.promotional_price ? '₡' + Number(prod.promotional_price).toLocaleString('es-CR') : '—' %></td>
+              <td><%= prod.web_price ? '₡' + Number(prod.web_price).toLocaleString('es-CR') : '—' %></td>
+              <td><%= prod.stock_quantity %></td>
+              <td class="actions">
+                <a href="/admin/catalogo/productos/<%= prod.id %>/editar" class="btn btn-sm btn-outline">Editar</a>
+                <form action="/admin/catalogo/productos/<%= prod.id %>/eliminar" method="POST" class="inline-form" onsubmit="return confirm('¿Eliminar este producto?')">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+
+      <% if (totalPages > 1) { %>
+        <div class="pagination">
+          <% for (let p = 1; p <= totalPages; p++) { %>
+            <% if (p === page) { %>
+              <span class="page-current"><%= p %></span>
+            <% } else { %>
+              <a href="/admin/catalogo/productos?page=<%= p %><%= search ? '&search=' + encodeURIComponent(search) : '' %><%= categoryFilter ? '&category=' + encodeURIComponent(categoryFilter) : '' %>" class="page-link"><%= p %></a>
+            <% } %>
+          <% } %>
+        </div>
+      <% } %>
     <% } %>
-  <% } %>
-</div>
+  </div>
+<% } %>
 
 <div class="back-link">
   <a href="/admin">← Volver al panel</a>

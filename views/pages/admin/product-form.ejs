@@ -146,7 +146,11 @@
           <div class="image-grid" id="existing-images">
             <% product.images.forEach(function(img) { %>
               <div class="image-card <%= img.is_primary ? 'is-primary' : '' %>">
-                <img src="<%= img.file_path %>" alt="" loading="lazy" class="image-preview">
+                <% if (img.display_path) { %>
+                  <img src="<%= img.display_path %>" alt="" loading="lazy" class="image-preview">
+                <% } else { %>
+                  <span class="image-preview thumb-sm--placeholder" aria-hidden="true">N</span>
+                <% } %>
                 <% if (img.is_primary) { %>
                   <span class="badge badge-primary">Principal</span>
                 <% } else { %>

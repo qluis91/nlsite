@@ -23,7 +23,9 @@ const productImageUpload = multer({
   limits: {
     fileSize: MAX_FILE_SIZE,
     files: 5,
-    fields: 10,
+    // The existing product form has 14 non-file fields (including CSRF).
+    // Keep this bounded while allowing the real create/update payload.
+    fields: 20,
     fieldSize: MAX_FILE_SIZE,
   },
 }).fields([

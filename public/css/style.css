@@ -1004,6 +1004,18 @@ select.form-control {
   background: #1e293b;
 }
 
+.thumb-sm--placeholder {
+  display: inline-grid;
+  place-items: center;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.admin-products-error h2 {
+  margin-bottom: 0.75rem;
+  color: #e2e8f0;
+}
+
 /* Empty state */
 .empty-state {
   text-align: center;

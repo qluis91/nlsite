@@ -4,6 +4,7 @@
  */
 const pool = require('./db');
 const { inspectCmsSchema } = require('../services/cmsSchemaReadinessService');
+const { inspectCatalogSchema } = require('../services/catalogSchemaReadinessService');
 
 const READINESS_TIMEOUT_MS = 5000;
 
@@ -17,7 +18,8 @@ async function probeDatabase() {
     connection = await pool.getConnection();
     await connection.query('SELECT 1');
     const cmsSchema = await inspectCmsSchema(connection, { force: true });
-    return cmsSchema.ready;
+    const catalogSchema = await inspectCatalogSchema(connection, { force: true });
+    return cmsSchema.ready && catalogSchema.ready;
   } catch (_err) {
     return false;
   } finally {

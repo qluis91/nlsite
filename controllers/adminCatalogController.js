@@ -7,6 +7,23 @@ const catalog = require('../services/adminCatalogService');
 const imgProc = require('../services/imageProcessingService');
 const v = require('../validators/catalogValidator');
 const { parsePositiveId } = require('../validators/addressValidator');
+const { assertCatalogSchemaReady } = require('../services/catalogSchemaReadinessService');
+const {
+  createCatalogRequestContext,
+  logCatalogFailure,
+} = require('../utils/adminCatalogDiagnostics');
+
+function catalogFailureMessage(requestId) {
+  return `No fue posible completar la operación de productos. Referencia: ${requestId}.`;
+}
+
+function redirectAfterCatalogFailure(req, res, error, redirectPath, stage) {
+  const context = createCatalogRequestContext(req);
+  context.stage = stage;
+  logCatalogFailure(context, error, 500);
+  req.session.error_msg = catalogFailureMessage(context.requestId);
+  return res.redirect(redirectPath);
+}
 
 // ══════════════════════════════════════
 //  CATEGORIES
@@ -208,12 +225,34 @@ exports.deleteCategory = async (req, res, next) => {
 // ══════════════════════════════════════
 
 exports.listProducts = async (req, res, next) => {
+  const filters = catalog.normalizeAdminProductQuery(
+    req.query.search,
+    req.query.category,
+    req.query.page,
+    20
+  );
+  const context = createCatalogRequestContext(req, filters);
   try {
-    const search = String(req.query.search || '').trim();
-    const categoryId = String(req.query.category || '').trim();
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const result = await catalog.listProducts(search, categoryId, page, 20);
+    context.stage = 'schema.readiness';
+    await assertCatalogSchemaReady();
+    context.stage = 'products.list';
+    const result = await catalog.listProducts(
+      filters.search,
+      filters.categoryId,
+      filters.page,
+      filters.limit
+    );
+    context.stage = 'categories.list';
     const categories = await catalog.listCategories();
+    const legacyWarning = result.warnings.length
+      ? [{
+        id: 'admin-products-legacy-warning',
+        type: 'warning',
+        title: 'Algunos productos necesitan revisión',
+        description: `${result.warnings.length} dato(s) heredado(s) se mostraron con valores seguros.`,
+        duration: 10000,
+      }]
+      : [];
 
     res.render('pages/admin/products', {
       title: 'Productos',
@@ -222,11 +261,40 @@ exports.listProducts = async (req, res, next) => {
       total: result.total,
       page: result.page,
       totalPages: result.totalPages,
-      search,
-      categoryFilter: categoryId,
+      search: filters.search,
+      categoryFilter: filters.categoryId ? String(filters.categoryId) : '',
       categories,
+      loadError: null,
+      pageAlerts: legacyWarning,
     });
-  } catch (err) { next(err); }
+  } catch (err) {
+    const status = err.code === 'CATALOG_SCHEMA_NOT_READY' ? 503 : 500;
+    logCatalogFailure(context, err, status);
+    return res.status(status).render('pages/admin/products', {
+      title: 'Productos',
+      layout: 'layouts/admin',
+      products: [],
+      total: 0,
+      page: 1,
+      totalPages: 1,
+      search: filters.search,
+      categoryFilter: filters.categoryId ? String(filters.categoryId) : '',
+      categories: [],
+      loadError: {
+        message: err.code === 'CATALOG_SCHEMA_NOT_READY'
+          ? 'El catálogo todavía no está listo. Ejecute las migraciones pendientes y vuelva a intentar.'
+          : 'No fue posible cargar los productos. Vuelva a intentarlo en unos momentos.',
+        requestId: context.requestId,
+      },
+      pageAlerts: [{
+        id: `admin-products-error-${context.requestId}`,
+        type: 'error',
+        title: 'No se pudieron cargar los productos',
+        description: `Referencia para soporte: ${context.requestId}.`,
+        persistent: true,
+      }],
+    });
+  }
 };
 
 exports.showCreateProduct = async (req, res, next) => {
@@ -269,6 +337,18 @@ exports.createProduct = async (req, res, next) => {
     const weightResult = v.validateWeight(req.body.weight);
     const descResult = v.validateDescription(req.body.description);
     const tagsResult = v.validateTags(req.body.tags);
+    const invalidField = [
+      promotionalPrice,
+      webPrice,
+      stockResult,
+      weightResult,
+      descResult,
+      tagsResult,
+    ].find((result) => !result.valid);
+    if (invalidField) {
+      req.session.error_msg = invalidField.error;
+      return res.redirect('/admin/catalogo/productos/nuevo');
+    }
 
     // Validate image count
     const newImageCount = ((req.files?.primaryImage?.length || 0) + (req.files?.secondaryImages?.length || 0));
@@ -353,7 +433,15 @@ exports.createProduct = async (req, res, next) => {
 
     req.session.success_msg = 'Producto creado exitosamente.';
     res.redirect('/admin/catalogo/productos');
-  } catch (err) { next(err); }
+  } catch (err) {
+    return redirectAfterCatalogFailure(
+      req,
+      res,
+      err,
+      '/admin/catalogo/productos/nuevo',
+      err.catalogStage || 'products.create'
+    );
+  }
 };
 
 exports.showEditProduct = async (req, res, next) => {
@@ -371,7 +459,15 @@ exports.showEditProduct = async (req, res, next) => {
       categories,
       action: `/admin/catalogo/productos/${product.id}`,
     });
-  } catch (err) { next(err); }
+  } catch (err) {
+    return redirectAfterCatalogFailure(
+      req,
+      res,
+      err,
+      '/admin/catalogo/productos',
+      err.catalogStage || 'products.editor'
+    );
+  }
 };
 
 exports.updateProduct = async (req, res, next) => {
@@ -404,6 +500,19 @@ exports.updateProduct = async (req, res, next) => {
     const weightResult = v.validateWeight(req.body.weight);
     const descResult = v.validateDescription(req.body.description);
     const tagsResult = v.validateTags(req.body.tags);
+    const invalidField = [
+      regularPrice,
+      promotionalPrice,
+      webPrice,
+      stockResult,
+      weightResult,
+      descResult,
+      tagsResult,
+    ].find((result) => !result.valid);
+    if (invalidField) {
+      req.session.error_msg = invalidField.error;
+      return res.redirect(`/admin/catalogo/productos/${product.id}/editar`);
+    }
 
     // Validate image count
     const removeIds = Array.isArray(req.body.removeImageIds) ? req.body.removeImageIds : (req.body.removeImageIds ? [req.body.removeImageIds] : []);
@@ -505,7 +614,15 @@ exports.updateProduct = async (req, res, next) => {
 
     req.session.success_msg = 'Producto actualizado exitosamente.';
     res.redirect('/admin/catalogo/productos');
-  } catch (err) { next(err); }
+  } catch (err) {
+    return redirectAfterCatalogFailure(
+      req,
+      res,
+      err,
+      `/admin/catalogo/productos/${req.params.id}/editar`,
+      err.catalogStage || 'products.update'
+    );
+  }
 };
 
 exports.deleteProduct = async (req, res, next) => {
@@ -532,7 +649,15 @@ exports.deleteProduct = async (req, res, next) => {
       req.session.success_msg = 'Producto eliminado correctamente.';
     }
     res.redirect('/admin/catalogo/productos');
-  } catch (err) { next(err); }
+  } catch (err) {
+    return redirectAfterCatalogFailure(
+      req,
+      res,
+      err,
+      '/admin/catalogo/productos',
+      err.catalogStage || 'products.delete'
+    );
+  }
 };
 
 // ══════════════════════════════════════
