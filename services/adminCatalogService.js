@@ -3,6 +3,7 @@
  */
 const pool = require('../config/db');
 const { slugify } = require('../validators/catalogValidator');
+const { normalizeCatalogTags } = require('./catalogTags');
 
 const ADMIN_PRODUCT_PAGE_SIZE = 20;
 const MAX_ADMIN_PRODUCT_PAGE_SIZE = 100;
@@ -280,21 +281,7 @@ async function getProductById(id) {
   if (!rows[0]) return null;
   const product = rows[0];
 
-  // Parse tags
-  if (Array.isArray(product.tags)) {
-    product.tags = product.tags.filter((tag) => typeof tag === 'string');
-  } else if (product.tags) {
-    try {
-      const parsedTags = JSON.parse(product.tags);
-      product.tags = Array.isArray(parsedTags)
-        ? parsedTags.filter((tag) => typeof tag === 'string')
-        : [];
-    } catch {
-      product.tags = [];
-    }
-  } else {
-    product.tags = [];
-  }
+  product.tags = normalizeCatalogTags(product.tags);
 
   // Get categories
   const [cats] = await pool.query(

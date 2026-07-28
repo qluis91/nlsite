@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { normalizeCatalogTags } = require('./catalogTags');
 
 // ── Try MySQL; fall back to JSON if unavailable
 let pool = null;
@@ -404,6 +405,7 @@ async function getPublicCatalogAsync(query = {}) {
       .filter(p => p.name)
       .map(p => {
         const pricing = resolveDisplayPrice(p);
+        const tags = normalizeCatalogTags(p.tags);
         const cats = catMap.get(p.id) || [];
         const primaryCat = cats[0] || {};
 
@@ -433,10 +435,8 @@ async function getPublicCatalogAsync(query = {}) {
           availability: p.stock_quantity > 0 ? 'Disponible' : 'Agotado',
           inStock: p.stock_quantity > 0,
           stockQuantity: p.stock_quantity,
-          tags: p.tags || [],
-          searchKeywords: p.tags ? (() => {
-            try { return (JSON.parse(p.tags) || []).join(' '); } catch { return ''; }
-          })() : '',
+          tags,
+          searchKeywords: tags.join(' '),
           hasPrice: pricing.displayPrice > 0,
           featuredOrder: 9999,
           createdAt: new Date(p.created_at).getTime(),
@@ -558,7 +558,7 @@ async function getProductBySlug(slug) {
       inStock: p.stock_quantity > 0,
       stockQuantity: p.stock_quantity,
       weight: p.weight,
-      tags: p.tags ? (() => { try { return JSON.parse(p.tags); } catch { return []; } })() : [],
+      tags: normalizeCatalogTags(p.tags),
       createdAt: p.created_at,
     };
   } catch (err) {

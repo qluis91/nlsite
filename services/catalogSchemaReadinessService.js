@@ -7,6 +7,7 @@ const pool = require('../config/db');
 
 const INTEGER_TYPES = Object.freeze(['tinyint', 'smallint', 'mediumint', 'int', 'bigint']);
 const TEXT_TYPES = Object.freeze(['char', 'varchar', 'tinytext', 'text', 'mediumtext', 'longtext']);
+const JSON_TEXT_STORAGE_TYPES = Object.freeze(['text', 'mediumtext', 'longtext']);
 const DECIMAL_TYPES = Object.freeze([...INTEGER_TYPES, 'decimal', 'float', 'double']);
 const DATE_TYPES = Object.freeze(['date', 'datetime', 'timestamp']);
 
@@ -60,8 +61,59 @@ function baseType(value) {
   return String(value || '').toLowerCase().split('(')[0];
 }
 
+/**
+ * Catalog capability types are semantic rather than engine-specific.
+ * MySQL exposes native JSON as DATA_TYPE=json. MariaDB exposes its JSON alias
+ * as LONGTEXT (normally with json_valid), and the catalog read/write boundary
+ * safely validates and normalizes text-backed values.
+ */
+function isCatalogColumnTypeCompatible(table, column, metadata, allowedTypes) {
+  const dataType = baseType(metadata?.dataType);
+  const columnType = baseType(metadata?.columnType);
+  const physicalType = dataType || columnType;
+
+  if (table === 'products' && column === 'tags') {
+    return physicalType === 'json' || JSON_TEXT_STORAGE_TYPES.includes(physicalType);
+  }
+  return Boolean(physicalType && allowedTypes.includes(physicalType));
+}
+
 function matchesColumns(actual, required) {
   return required.every((column, index) => actual[index] === column);
+}
+
+async function inspectCatalogDatabaseCompatibility(db = pool) {
+  const [[versionRow]] = await db.query('SELECT VERSION() AS version');
+  const [columnRows] = await db.query(
+    `SELECT DATA_TYPE AS dataType, COLUMN_TYPE AS columnType
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'products'
+        AND COLUMN_NAME = 'tags'
+      LIMIT 1`
+  );
+  const column = columnRows[0] || null;
+  const version = String(versionRow?.version || 'unknown')
+    .replace(/[^a-z0-9._+\- ]/gi, '')
+    .slice(0, 100);
+  const engine = /mariadb/i.test(version) ? 'MariaDB' : 'MySQL';
+  const compatible = Boolean(column && isCatalogColumnTypeCompatible(
+    'products',
+    'tags',
+    column,
+    CATALOG_SCHEMA_REQUIREMENTS.products.tags
+  ));
+
+  return {
+    engine,
+    version,
+    dataType: column ? baseType(column.dataType) : null,
+    columnType: column ? String(column.columnType || '').toLowerCase().slice(0, 100) : null,
+    compatible,
+    typeAlteration: !column
+      ? 'not-applicable-column-missing'
+      : compatible ? 'skipped-semantically-compatible' : 'manual-review-required',
+  };
 }
 
 async function inspectCatalogSchema(db = pool, { force = false } = {}) {
@@ -83,7 +135,10 @@ async function inspectCatalogSchema(db = pool, { force = false } = {}) {
 
   const actual = new Map();
   rows.forEach((row) => {
-    actual.set(`${row.tableName}.${row.columnName}`, baseType(row.dataType || row.columnType));
+    actual.set(`${row.tableName}.${row.columnName}`, {
+      dataType: row.dataType,
+      columnType: row.columnType,
+    });
   });
 
   const missing = [];
@@ -91,9 +146,12 @@ async function inspectCatalogSchema(db = pool, { force = false } = {}) {
   for (const [table, columns] of Object.entries(CATALOG_SCHEMA_REQUIREMENTS)) {
     for (const [column, allowedTypes] of Object.entries(columns)) {
       const key = `${table}.${column}`;
-      const type = actual.get(key);
-      if (!type) missing.push(key);
-      else if (!allowedTypes.includes(type)) incompatible.push(`${key}:${type}`);
+      const metadata = actual.get(key);
+      const physicalType = baseType(metadata?.dataType || metadata?.columnType);
+      if (!metadata) missing.push(key);
+      else if (!isCatalogColumnTypeCompatible(table, column, metadata, allowedTypes)) {
+        incompatible.push(`${key}:${physicalType}`);
+      }
     }
   }
 
@@ -167,6 +225,20 @@ async function inspectCatalogSchema(db = pool, { force = false } = {}) {
     incompatible,
     missingIndexes,
     missingForeignKeys,
+    tagsStorage: (() => {
+      const metadata = actual.get('products.tags');
+      if (!metadata) return null;
+      return {
+        dataType: baseType(metadata.dataType),
+        columnType: String(metadata.columnType || '').toLowerCase(),
+        compatible: isCatalogColumnTypeCompatible(
+          'products',
+          'tags',
+          metadata,
+          CATALOG_SCHEMA_REQUIREMENTS.products.tags
+        ),
+      };
+    })(),
   };
   if (mayCache) {
     cachedResult = result;
@@ -207,6 +279,8 @@ module.exports = {
   CATALOG_SCHEMA_REQUIREMENTS,
   CATALOG_INDEX_REQUIREMENTS,
   CATALOG_FOREIGN_KEY_REQUIREMENTS,
+  isCatalogColumnTypeCompatible,
+  inspectCatalogDatabaseCompatibility,
   inspectCatalogSchema,
   assertCatalogSchemaReady,
   formatCatalogSchemaIssues,
