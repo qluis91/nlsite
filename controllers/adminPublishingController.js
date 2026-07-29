@@ -185,6 +185,7 @@ async function showHistory(req, res, next) {
       carousel_item: 'Carrusel',
       feature_item: 'Tarjeta (Panel 3)',
       social_item: 'Red social',
+      category: 'Categoría de tienda',
     };
 
     res.render('pages/admin/page/history/index', {

@@ -37,6 +37,7 @@ const MIGRATION_REGISTRY = [
   { name: 'migrateCmsPhase1aSaveRepair', file: './migrate-cms-phase1a-save-repair', exportName: 'migrateCmsPhase1aSaveRepair' },
   { name: 'migrateRevisionSourceId', file: './migrate-revision-source-id', exportName: 'migrate', passPool: true },
   { name: 'migrateStoreHeroCms', file: './migrate-store-hero-cms', exportName: 'migrateStoreHeroCms', passPool: true },
+  { name: 'migrateCategoryStoreHero', file: './migrate-category-store-hero', exportName: 'migrateCategoryStoreHero', passPool: true, capability: 'catalog' },
 ];
 
 async function ensureMigrationsTable(pool) {

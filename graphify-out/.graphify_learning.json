@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-28T23:36:50.421905+00:00",
+  "generated_at": "2026-07-29T06:49:27.517149+00:00",
   "nodes": {
     "app": {
       "code_fingerprint": "7a88a2ae87e93895fe3e9b85e614d555e51083074943f9ebc23061866adbb132",
@@ -22,7 +22,7 @@
           "q": "Trace production CMS media upload, resolution, LogoLoop and carousel homepage rendering, static serving, deletion, and reconciliation"
         }
       ],
-      "score": 2.946246596,
+      "score": 2.92586636,
       "source_file": "app.js",
       "status": "preferred",
       "uses": 3
@@ -38,7 +38,7 @@
           "q": "Trace and diagnose the production HTTP 500 on the Admin Products page, including route, SQL, schema, pagination, filters, media, and migrations."
         }
       ],
-      "score": 0.998347718,
+      "score": 0.991441792,
       "source_file": "config/db.js",
       "status": "tentative",
       "uses": 1
@@ -54,7 +54,7 @@
           "q": "Trace and diagnose the production HTTP 500 on the Admin Products page, including route, SQL, schema, pagination, filters, media, and migrations."
         }
       ],
-      "score": 0.998347718,
+      "score": 0.991441792,
       "source_file": "controllers/adminCatalogController.js",
       "status": "tentative",
       "uses": 1
@@ -75,7 +75,7 @@
           "q": "Use Codex. This is a production-blocking Phase 1A regression. Inspect the current code and deployment migration flow directly. Use Graphify only if an existing graph is available.\r\n\r\nProduction symptom:\r\n\r\nIn `/admin/page/panel-1`, an administrator edits text or CTA labels and presses â€œGuardar cambiosâ€.\r\n\r\nObserved behavior:\r\n- the UI continues showing â€œCambios sin guardarâ€;\r\n- after refreshing, all edited values are lost;\r\n- the editor then shows â€œSin cambiosâ€ with the previous stored values;\r\n- therefore the draft was not persisted, not merely a dirty-state UI issue.\r\n\r\nTreat this as a save failure until proven otherwise.\r\n\r\n1. Reproduce the exact request\r\n\r\nTrace the Panel 1 save flow:\r\n\r\nEJS form\r\nâ†’ submit button/form association\r\nâ†’ request payload\r\nâ†’ CSRF\r\nâ†’ route\r\nâ†’ controller\r\nâ†’ validation\r\nâ†’ service\r\nâ†’ transaction\r\nâ†’ draft snapshot columns\r\nâ†’ redirect or re-render\r\nâ†’ subsequent editor read\r\n\r\nInspect the actual Panel 1 form structure carefully.\r\n\r\nConfirm:\r\n- the bottom â€œGuardar cambiosâ€ button submits the intended form;\r\n- it is not outside the form without a valid `form` attribute;\r\n- nested or split forms are not interfering;\r\n- the action and HTTP method match the registered route;\r\n- all required hidden values are present;\r\n- dynamic/repeatable social fields do not block ordinary Hero saves;\r\n- disabled inputs are not unexpectedly omitted;\r\n- the submit handler does not prevent the request without completing it.\r\n\r\n2. Determine the real failure mode\r\n\r\nAdd or use safe structured diagnostics to identify whether production returns:\r\n- 200;\r\n- 302;\r\n- 400;\r\n- 403;\r\n- 404;\r\n- 409;\r\n- 422;\r\n- 500.\r\n\r\nDo not expose secrets or full submitted content in logs.\r\n\r\nLog only:\r\n- request/correlation ID;\r\n- route;\r\n- authenticated admin ID;\r\n- panel key;\r\n- validation result;\r\n- transaction start/commit/rollback;\r\n- error code and sanitized message;\r\n- migration/schema capability result.\r\n\r\nMake server errors visible through `NinjaAlerts` and inline errors instead of silently leaving the page dirty.\r\n\r\n3. Verify production schema compatibility\r\n\r\nInspect the Phase 1A and Phase 1B migrations and Railway deployment migration runner.\r\n\r\nConfirm that all required draft/published columns and tables exist in production, including the exact names and compatible data types expected by the services.\r\n\r\nThe migration tracker currently reports Phase 1B as migration 17. Verify:\r\n- every earlier required migration is registered;\r\n- migration ordering is correct;\r\n- the deployment script actually invokes migration 17 and its dependencies;\r\n- a migration was not marked successful before all statements completed;\r\n- MariaDB/MySQL compatibility;\r\n- idempotent reruns;\r\n- no local-only schema assumptions.\r\n\r\nAdd a non-destructive schema readiness check that fails deployment/readiness clearly when required CMS columns are missing.\r\n\r\nDo not manually mark a failed migration as completed.\r\n\r\n4. Fix draft persistence\r\n\r\nAfter a valid Panel 1 save:\r\n- persist all current Hero draft values;\r\n- safely merge fields not submitted by split forms;\r\n- retain social collection data;\r\n- do not alter published snapshots;\r\n- commit transaction before reporting success;\r\n- reload the editor from the persisted draft;\r\n- show â€œBorrador guardadoâ€ or â€œSin cambiosâ€;\r\n- clear dirty state only after confirmed server success.\r\n\r\nA failed save must:\r\n- preserve submitted values;\r\n- keep â€œCambios sin guardarâ€ or show â€œErrorâ€;\r\n- show a visible error alert;\r\n- never redirect to old stored values;\r\n- never claim success.\r\n\r\n5. Review redirect and flash behavior\r\n\r\nVerify that:\r\n- success flash is created only after transaction commit;\r\n- failure uses an HTTP error status and preserves the submitted model;\r\n- Post/Redirect/Get occurs only after success;\r\n- flash normalization does not consume or misclassify the error;\r\n- no global middleware overwrites submitted editor state;\r\n- stale cache is not used for admin draft reads.\r\n\r\nAdmin editor reads must bypass public published-content cache.\r\n\r\n6. Inspect all CMS Save buttons\r\n\r\nOnce the Panel 1 root cause is fixed, verify the same save contract for:\r\n- Panel 2;\r\n- Panel 3;\r\n- global settings;\r\n- navbar;\r\n- SEO;\r\n- LogoLoop;\r\n- carousel;\r\n- features;\r\n- all six existing CMS editor forms.\r\n\r\nDo not broaden the feature scope. Fix the shared save infrastructure when the cause is shared.\r\n\r\n7. Automated tests\r\n\r\nAdd a regression test matching the production symptom:\r\n\r\n- load Panel 1 editor;\r\n- submit changed Hero title and CTA labels through the real route;\r\n- assert successful persistence;\r\n- reload editor;\r\n- assert changed draft values remain;\r\n- assert public homepage still shows published values;\r\n- publish;\r\n- assert public homepage now shows the new values.\r\n\r\nAlso test:\r\n- missing required migration/schema produces an explicit readiness or server error;\r\n- failed transaction preserves submitted values;\r\n- failed save never redirects to stale values;\r\n- success state clears dirty tracking only after confirmed persistence;\r\n- ordinary Hero save does not erase social items;\r\n- all other CMS Save forms persist and reload correctly.\r\n\r\nRun:\r\n- focused Panel 1 save/reload tests;\r\n- migration/deployment tests;\r\n- CMS Phase 1A and 1B tests;\r\n- full serial suite;\r\n- `git diff --check`;\r\n- syntax checks.\r\n\r\nDo not create a commit.\r\nDo not modify untracked media artifacts.\r\nDo not continue to Phase 1C until this regression is resolved.\r\n\r\nReturn:\r\n1. Completion date and time with timezone\r\n2. Exact root cause\r\n3. Production HTTP/database failure identified\r\n4. Migration and schema status\r\n5. Save-flow correction\r\n6. Error visibility and data-preservation behavior\r\n7. Other CMS editors inspected\r\n8. Files modified\r\n9. Focused test results\r\n10. Full serial suite result\r\n11. Exact Railway deployment verification steps\r\n\r\nPrompt generated: 2026-07-28 09:39 CST"
         }
       ],
-      "score": 1.990005342,
+      "score": 1.976239767,
       "source_file": "controllers/adminPageContentController.js",
       "status": "preferred",
       "uses": 2
@@ -91,7 +91,7 @@
           "q": "Use Codex. This is a production-blocking Phase 1A regression. Inspect the current code and deployment migration flow directly. Use Graphify only if an existing graph is available.\r\n\r\nProduction symptom:\r\n\r\nIn `/admin/page/panel-1`, an administrator edits text or CTA labels and presses â€œGuardar cambiosâ€.\r\n\r\nObserved behavior:\r\n- the UI continues showing â€œCambios sin guardarâ€;\r\n- after refreshing, all edited values are lost;\r\n- the editor then shows â€œSin cambiosâ€ with the previous stored values;\r\n- therefore the draft was not persisted, not merely a dirty-state UI issue.\r\n\r\nTreat this as a save failure until proven otherwise.\r\n\r\n1. Reproduce the exact request\r\n\r\nTrace the Panel 1 save flow:\r\n\r\nEJS form\r\nâ†’ submit button/form association\r\nâ†’ request payload\r\nâ†’ CSRF\r\nâ†’ route\r\nâ†’ controller\r\nâ†’ validation\r\nâ†’ service\r\nâ†’ transaction\r\nâ†’ draft snapshot columns\r\nâ†’ redirect or re-render\r\nâ†’ subsequent editor read\r\n\r\nInspect the actual Panel 1 form structure carefully.\r\n\r\nConfirm:\r\n- the bottom â€œGuardar cambiosâ€ button submits the intended form;\r\n- it is not outside the form without a valid `form` attribute;\r\n- nested or split forms are not interfering;\r\n- the action and HTTP method match the registered route;\r\n- all required hidden values are present;\r\n- dynamic/repeatable social fields do not block ordinary Hero saves;\r\n- disabled inputs are not unexpectedly omitted;\r\n- the submit handler does not prevent the request without completing it.\r\n\r\n2. Determine the real failure mode\r\n\r\nAdd or use safe structured diagnostics to identify whether production returns:\r\n- 200;\r\n- 302;\r\n- 400;\r\n- 403;\r\n- 404;\r\n- 409;\r\n- 422;\r\n- 500.\r\n\r\nDo not expose secrets or full submitted content in logs.\r\n\r\nLog only:\r\n- request/correlation ID;\r\n- route;\r\n- authenticated admin ID;\r\n- panel key;\r\n- validation result;\r\n- transaction start/commit/rollback;\r\n- error code and sanitized message;\r\n- migration/schema capability result.\r\n\r\nMake server errors visible through `NinjaAlerts` and inline errors instead of silently leaving the page dirty.\r\n\r\n3. Verify production schema compatibility\r\n\r\nInspect the Phase 1A and Phase 1B migrations and Railway deployment migration runner.\r\n\r\nConfirm that all required draft/published columns and tables exist in production, including the exact names and compatible data types expected by the services.\r\n\r\nThe migration tracker currently reports Phase 1B as migration 17. Verify:\r\n- every earlier required migration is registered;\r\n- migration ordering is correct;\r\n- the deployment script actually invokes migration 17 and its dependencies;\r\n- a migration was not marked successful before all statements completed;\r\n- MariaDB/MySQL compatibility;\r\n- idempotent reruns;\r\n- no local-only schema assumptions.\r\n\r\nAdd a non-destructive schema readiness check that fails deployment/readiness clearly when required CMS columns are missing.\r\n\r\nDo not manually mark a failed migration as completed.\r\n\r\n4. Fix draft persistence\r\n\r\nAfter a valid Panel 1 save:\r\n- persist all current Hero draft values;\r\n- safely merge fields not submitted by split forms;\r\n- retain social collection data;\r\n- do not alter published snapshots;\r\n- commit transaction before reporting success;\r\n- reload the editor from the persisted draft;\r\n- show â€œBorrador guardadoâ€ or â€œSin cambiosâ€;\r\n- clear dirty state only after confirmed server success.\r\n\r\nA failed save must:\r\n- preserve submitted values;\r\n- keep â€œCambios sin guardarâ€ or show â€œErrorâ€;\r\n- show a visible error alert;\r\n- never redirect to old stored values;\r\n- never claim success.\r\n\r\n5. Review redirect and flash behavior\r\n\r\nVerify that:\r\n- success flash is created only after transaction commit;\r\n- failure uses an HTTP error status and preserves the submitted model;\r\n- Post/Redirect/Get occurs only after success;\r\n- flash normalization does not consume or misclassify the error;\r\n- no global middleware overwrites submitted editor state;\r\n- stale cache is not used for admin draft reads.\r\n\r\nAdmin editor reads must bypass public published-content cache.\r\n\r\n6. Inspect all CMS Save buttons\r\n\r\nOnce the Panel 1 root cause is fixed, verify the same save contract for:\r\n- Panel 2;\r\n- Panel 3;\r\n- global settings;\r\n- navbar;\r\n- SEO;\r\n- LogoLoop;\r\n- carousel;\r\n- features;\r\n- all six existing CMS editor forms.\r\n\r\nDo not broaden the feature scope. Fix the shared save infrastructure when the cause is shared.\r\n\r\n7. Automated tests\r\n\r\nAdd a regression test matching the production symptom:\r\n\r\n- load Panel 1 editor;\r\n- submit changed Hero title and CTA labels through the real route;\r\n- assert successful persistence;\r\n- reload editor;\r\n- assert changed draft values remain;\r\n- assert public homepage still shows published values;\r\n- publish;\r\n- assert public homepage now shows the new values.\r\n\r\nAlso test:\r\n- missing required migration/schema produces an explicit readiness or server error;\r\n- failed transaction preserves submitted values;\r\n- failed save never redirects to stale values;\r\n- success state clears dirty tracking only after confirmed persistence;\r\n- ordinary Hero save does not erase social items;\r\n- all other CMS Save forms persist and reload correctly.\r\n\r\nRun:\r\n- focused Panel 1 save/reload tests;\r\n- migration/deployment tests;\r\n- CMS Phase 1A and 1B tests;\r\n- full serial suite;\r\n- `git diff --check`;\r\n- syntax checks.\r\n\r\nDo not create a commit.\r\nDo not modify untracked media artifacts.\r\nDo not continue to Phase 1C until this regression is resolved.\r\n\r\nReturn:\r\n1. Completion date and time with timezone\r\n2. Exact root cause\r\n3. Production HTTP/database failure identified\r\n4. Migration and schema status\r\n5. Save-flow correction\r\n6. Error visibility and data-preservation behavior\r\n7. Other CMS editors inspected\r\n8. Files modified\r\n9. Focused test results\r\n10. Full serial suite result\r\n11. Exact Railway deployment verification steps\r\n\r\nPrompt generated: 2026-07-28 09:39 CST"
         }
       ],
-      "score": 0.997098353,
+      "score": 0.990201069,
       "source_file": "controllers/adminPanelsController.js",
       "status": "tentative",
       "uses": 1
@@ -107,13 +107,13 @@
           "q": "Use Codex. This is a production-blocking Phase 1A regression. Inspect the current code and deployment migration flow directly. Use Graphify only if an existing graph is available.\r\n\r\nProduction symptom:\r\n\r\nIn `/admin/page/panel-1`, an administrator edits text or CTA labels and presses â€œGuardar cambiosâ€.\r\n\r\nObserved behavior:\r\n- the UI continues showing â€œCambios sin guardarâ€;\r\n- after refreshing, all edited values are lost;\r\n- the editor then shows â€œSin cambiosâ€ with the previous stored values;\r\n- therefore the draft was not persisted, not merely a dirty-state UI issue.\r\n\r\nTreat this as a save failure until proven otherwise.\r\n\r\n1. Reproduce the exact request\r\n\r\nTrace the Panel 1 save flow:\r\n\r\nEJS form\r\nâ†’ submit button/form association\r\nâ†’ request payload\r\nâ†’ CSRF\r\nâ†’ route\r\nâ†’ controller\r\nâ†’ validation\r\nâ†’ service\r\nâ†’ transaction\r\nâ†’ draft snapshot columns\r\nâ†’ redirect or re-render\r\nâ†’ subsequent editor read\r\n\r\nInspect the actual Panel 1 form structure carefully.\r\n\r\nConfirm:\r\n- the bottom â€œGuardar cambiosâ€ button submits the intended form;\r\n- it is not outside the form without a valid `form` attribute;\r\n- nested or split forms are not interfering;\r\n- the action and HTTP method match the registered route;\r\n- all required hidden values are present;\r\n- dynamic/repeatable social fields do not block ordinary Hero saves;\r\n- disabled inputs are not unexpectedly omitted;\r\n- the submit handler does not prevent the request without completing it.\r\n\r\n2. Determine the real failure mode\r\n\r\nAdd or use safe structured diagnostics to identify whether production returns:\r\n- 200;\r\n- 302;\r\n- 400;\r\n- 403;\r\n- 404;\r\n- 409;\r\n- 422;\r\n- 500.\r\n\r\nDo not expose secrets or full submitted content in logs.\r\n\r\nLog only:\r\n- request/correlation ID;\r\n- route;\r\n- authenticated admin ID;\r\n- panel key;\r\n- validation result;\r\n- transaction start/commit/rollback;\r\n- error code and sanitized message;\r\n- migration/schema capability result.\r\n\r\nMake server errors visible through `NinjaAlerts` and inline errors instead of silently leaving the page dirty.\r\n\r\n3. Verify production schema compatibility\r\n\r\nInspect the Phase 1A and Phase 1B migrations and Railway deployment migration runner.\r\n\r\nConfirm that all required draft/published columns and tables exist in production, including the exact names and compatible data types expected by the services.\r\n\r\nThe migration tracker currently reports Phase 1B as migration 17. Verify:\r\n- every earlier required migration is registered;\r\n- migration ordering is correct;\r\n- the deployment script actually invokes migration 17 and its dependencies;\r\n- a migration was not marked successful before all statements completed;\r\n- MariaDB/MySQL compatibility;\r\n- idempotent reruns;\r\n- no local-only schema assumptions.\r\n\r\nAdd a non-destructive schema readiness check that fails deployment/readiness clearly when required CMS columns are missing.\r\n\r\nDo not manually mark a failed migration as completed.\r\n\r\n4. Fix draft persistence\r\n\r\nAfter a valid Panel 1 save:\r\n- persist all current Hero draft values;\r\n- safely merge fields not submitted by split forms;\r\n- retain social collection data;\r\n- do not alter published snapshots;\r\n- commit transaction before reporting success;\r\n- reload the editor from the persisted draft;\r\n- show â€œBorrador guardadoâ€ or â€œSin cambiosâ€;\r\n- clear dirty state only after confirmed server success.\r\n\r\nA failed save must:\r\n- preserve submitted values;\r\n- keep â€œCambios sin guardarâ€ or show â€œErrorâ€;\r\n- show a visible error alert;\r\n- never redirect to old stored values;\r\n- never claim success.\r\n\r\n5. Review redirect and flash behavior\r\n\r\nVerify that:\r\n- success flash is created only after transaction commit;\r\n- failure uses an HTTP error status and preserves the submitted model;\r\n- Post/Redirect/Get occurs only after success;\r\n- flash normalization does not consume or misclassify the error;\r\n- no global middleware overwrites submitted editor state;\r\n- stale cache is not used for admin draft reads.\r\n\r\nAdmin editor reads must bypass public published-content cache.\r\n\r\n6. Inspect all CMS Save buttons\r\n\r\nOnce the Panel 1 root cause is fixed, verify the same save contract for:\r\n- Panel 2;\r\n- Panel 3;\r\n- global settings;\r\n- navbar;\r\n- SEO;\r\n- LogoLoop;\r\n- carousel;\r\n- features;\r\n- all six existing CMS editor forms.\r\n\r\nDo not broaden the feature scope. Fix the shared save infrastructure when the cause is shared.\r\n\r\n7. Automated tests\r\n\r\nAdd a regression test matching the production symptom:\r\n\r\n- load Panel 1 editor;\r\n- submit changed Hero title and CTA labels through the real route;\r\n- assert successful persistence;\r\n- reload editor;\r\n- assert changed draft values remain;\r\n- assert public homepage still shows published values;\r\n- publish;\r\n- assert public homepage now shows the new values.\r\n\r\nAlso test:\r\n- missing required migration/schema produces an explicit readiness or server error;\r\n- failed transaction preserves submitted values;\r\n- failed save never redirects to stale values;\r\n- success state clears dirty tracking only after confirmed persistence;\r\n- ordinary Hero save does not erase social items;\r\n- all other CMS Save forms persist and reload correctly.\r\n\r\nRun:\r\n- focused Panel 1 save/reload tests;\r\n- migration/deployment tests;\r\n- CMS Phase 1A and 1B tests;\r\n- full serial suite;\r\n- `git diff --check`;\r\n- syntax checks.\r\n\r\nDo not create a commit.\r\nDo not modify untracked media artifacts.\r\nDo not continue to Phase 1C until this regression is resolved.\r\n\r\nReturn:\r\n1. Completion date and time with timezone\r\n2. Exact root cause\r\n3. Production HTTP/database failure identified\r\n4. Migration and schema status\r\n5. Save-flow correction\r\n6. Error visibility and data-preservation behavior\r\n7. Other CMS editors inspected\r\n8. Files modified\r\n9. Focused test results\r\n10. Full serial suite result\r\n11. Exact Railway deployment verification steps\r\n\r\nPrompt generated: 2026-07-28 09:39 CST"
         }
       ],
-      "score": 0.997098353,
+      "score": 0.990201069,
       "source_file": "controllers/adminPanelsController.js",
       "status": "tentative",
       "uses": 1
     },
     "controllers_adminpublishingcontroller_publicationservice": {
-      "code_fingerprint": "b657e5406264bbaa780fb13e8de12de2d887bbe867187884bcecbf216b35e25b",
+      "code_fingerprint": "ee5d5e077f01d250ba0479478c414a4ff38774c1cb989338fed19e16c113fff8",
       "label": "publicationService",
       "last": "2026-07-28T08:00:03.306411+00:00",
       "provenance": [
@@ -123,7 +123,7 @@
           "q": "Use Codex. Inspect the complete public homepage and every existing CMS editor directly. Use Graphify only if an existing graph is available; otherwise inspect the codebase normally.\r\n\r\nImplement Admin CMS Phase 1B: complete the editable fields for every existing homepage panel and ensure all visible public content is controlled through the CMS draft/publish system created in Phase 1A.\r\n\r\nDo not redesign revision history yet. Do not implement the Store hero, category hero, About page, or Social Feed in this phase.\r\n\r\n1. Build a public-to-admin content inventory\r\n\r\nInspect the complete homepage and map every visible or behavior-affecting content value through:\r\n\r\npublic EJS/partials\r\nâ†’ controller/view model\r\nâ†’ CMS service\r\nâ†’ draft snapshot\r\nâ†’ published snapshot\r\nâ†’ admin editor\r\n\r\nCreate an internal implementation inventory of:\r\n- hardcoded public text;\r\n- headings and subtitles;\r\n- descriptions;\r\n- labels;\r\n- button text;\r\n- button URLs;\r\n- social-media URLs;\r\n- images and videos;\r\n- alt text;\r\n- accessibility labels;\r\n- visual badges;\r\n- feature items;\r\n- LogoLoop items;\r\n- carousel entries;\r\n- visibility toggles;\r\n- ordering values;\r\n- panel-specific settings.\r\n\r\nAny visible homepage content that should reasonably be managed by an administrator must have a corresponding editable field.\r\n\r\n2. Panel 1 completeness\r\n\r\nReview all content displayed in Panel 1 and add missing editor controls.\r\n\r\nAt minimum include:\r\n- heading;\r\n- supporting text;\r\n- primary and secondary button labels;\r\n- primary and secondary button URLs;\r\n- external-link behavior where applicable;\r\n- social icon visibility;\r\n- social platform label;\r\n- social profile URL;\r\n- accessible label for each social link;\r\n- social-item ordering;\r\n- associated image/media references;\r\n- alt text;\r\n- any existing badge, eyebrow, status, or decorative text controlled by content.\r\n\r\nThe existing social icons must no longer depend on hardcoded profile URLs in EJS or JavaScript.\r\n\r\nSupported social entries should follow the structure already used by the project when possible. Do not allow administrators to submit arbitrary icon HTML or script content.\r\n\r\n3. Remaining homepage panels\r\n\r\nReview every other homepage panel and add all missing fields required to edit the content already visible publicly.\r\n\r\nThis includes, where present:\r\n- Panel 2;\r\n- Panel 3;\r\n- LogoLoop;\r\n- feature collections;\r\n- carousels;\r\n- calls to action;\r\n- headings;\r\n- descriptions;\r\n- buttons and links;\r\n- media;\r\n- captions;\r\n- alt text;\r\n- active/inactive state;\r\n- ordering;\r\n- panel visibility;\r\n- panel-specific labels.\r\n\r\nDo not invent unrelated features. Expose content that already exists publicly but is not editable, plus obvious accessibility metadata required for that content.\r\n\r\n4. Repeated and collection items\r\n\r\nFor social links, LogoLoop items, carousel items, feature cards, or other repeatable content:\r\n- allow adding items;\r\n- editing items;\r\n- reordering items;\r\n- activating/deactivating items;\r\n- deleting or archiving according to the projectâ€™s existing data model;\r\n- selecting media through the existing media-library workflow;\r\n- preserving stable item IDs during edits and reorder operations.\r\n\r\nAvoid replacing entire collections in ways that unnecessarily destroy IDs, timestamps, or revision relationships.\r\n\r\n5. Draft and publish integration\r\n\r\nAll new fields must use the Phase 1A model:\r\n- edits save only into draft snapshots;\r\n- public pages continue reading published snapshots;\r\n- publishing copies the complete valid draft into published data;\r\n- saving one subsection must not erase fields belonging to another subsection;\r\n- partial forms must merge safely with the current stored draft;\r\n- collection changes must remain scoped to the correct panel;\r\n- cache invalidation occurs only after a successful publish transaction.\r\n\r\nDo not reintroduce mutable shared values between draft and published content.\r\n\r\n6. Validation and URL safety\r\n\r\nAdd server-side validation for all new fields.\r\n\r\nRequirements:\r\n- preserve submitted values after validation errors;\r\n- show inline errors and NinjaAlerts;\r\n- validate URLs;\r\n- allow safe relative internal URLs;\r\n- allow only `http:` and `https:` for external links;\r\n- reject `javascript:`, `data:`, unsafe protocols, malformed URLs, and script-like payloads;\r\n- validate media references against existing media records;\r\n- validate platform identifiers for social links;\r\n- apply reasonable text-length limits;\r\n- prevent unsafe target/rel combinations for external links.\r\n\r\nDo not store arbitrary embed HTML.\r\n\r\n7. Admin editor usability\r\n\r\nOrganize fields into understandable groups inside each panel editor, such as:\r\n- Contenido;\r\n- Botones y enlaces;\r\n- Redes sociales;\r\n- Multimedia;\r\n- Accesibilidad;\r\n- Orden y visibilidad.\r\n\r\nUse the existing admin design system.\r\n\r\nRequirements:\r\n- clear labels;\r\n- short explanatory help text where needed;\r\n- visible required/optional states;\r\n- URL placeholders;\r\n- media previews;\r\n- current selected media information;\r\n- accessible add/remove/reorder controls;\r\n- mobile-friendly editor layout;\r\n- existing Save and Publish controls remain visible and functional;\r\n- editor dirty-state logic must include all newly added fields and repeatable items.\r\n\r\nUse `NinjaAlerts` for successful saves, publications, validation failures, and server errors.\r\n\r\n8. Backward compatibility and migration\r\n\r\nExisting published content must continue rendering after deployment.\r\n\r\nWhen adding new fields:\r\n- make migrations additive and idempotent;\r\n- derive safe defaults from existing hardcoded values or current stored content;\r\n- backfill draft and published snapshots where required;\r\n- do not blank current production content;\r\n- do not duplicate existing collection items;\r\n- register every migration in the existing migration tracker;\r\n- ensure deployment migrations can run safely more than once.\r\n\r\nIf a currently hardcoded value is moved into the CMS, preserve its current public value as the initial published value.\r\n\r\n9. Public rendering\r\n\r\nUpdate public rendering so all newly editable fields come from published CMS snapshots.\r\n\r\nRequirements:\r\n- preserve the current visual design and animations;\r\n- preserve safe fallbacks when optional content is empty;\r\n- do not render empty buttons or social links;\r\n- external links receive safe `rel` behavior;\r\n- media uses existing public URL helpers;\r\n- missing or archived media uses the established fallback behavior;\r\n- no public content may accidentally read draft data.\r\n\r\n10. Tests\r\n\r\nAdd focused tests proving:\r\n- every public homepage content field has an admin-editable source;\r\n- Panel 1 social URLs can be edited;\r\n- social URLs are no longer hardcoded in public templates;\r\n- button labels and destinations can be changed;\r\n- media and alt text can be changed;\r\n- collection items can be added, edited, reordered, activated, and removed safely;\r\n- partial form saves do not erase sibling fields;\r\n- draft changes do not affect public output;\r\n- published changes appear immediately;\r\n- invalid and unsafe URLs are rejected;\r\n- validation failures preserve submitted values and media selections;\r\n- existing production content receives backward-compatible defaults;\r\n- normal users cannot access these editors;\r\n- NinjaAlerts receive the correct result messages;\r\n- no regression occurs in Gallery, Store, authentication, account, uploads, SEO, CSP, or public animations.\r\n\r\nRun:\r\n- focused CMS Panel 1 and homepage-editor tests;\r\n- migration and backward-compatibility tests;\r\n- public-rendering tests;\r\n- the complete serial test suite;\r\n- `git diff --check`;\r\n- JavaScript syntax checks for modified scripts.\r\n\r\nDo not create a commit.\r\nDo not modify existing untracked media artifacts.\r\n\r\nReturn:\r\n1. Completion date and time with timezone\r\n2. Public-to-admin inventory and missing fields found\r\n3. Panel 1 and social-link implementation\r\n4. Fields added to every remaining panel\r\n5. Repeatable-item behavior\r\n6. Draft/publish and partial-merge behavior\r\n7. Validation and security behavior\r\n8. Migration and backward-compatibility behavior\r\n9. Files modified\r\n10. Focused test results\r\n11. Full serial suite result\r\n12. Remaining homepage content that is intentionally not editable, with justification\r\n\r\nPrompt generated: 2026-07-28 01:20 CST"
         }
       ],
-      "score": 0.98508161,
+      "score": 0.97826745,
       "source_file": "controllers/adminPublishingController.js",
       "status": "tentative",
       "uses": 1
@@ -139,7 +139,7 @@
           "q": "Locate the gallery mobile layout, Infinite Menu responsive geometry, Grid layout, category controls, and breakpoint styles."
         }
       ],
-      "score": 0.973156288,
+      "score": 0.966424619,
       "source_file": "docs/CHANGELOG.md",
       "status": "tentative",
       "uses": 1
@@ -155,7 +155,7 @@
           "q": "Locate the gallery mobile layout, Infinite Menu responsive geometry, Grid layout, category controls, and breakpoint styles."
         }
       ],
-      "score": 0.973156288,
+      "score": 0.966424619,
       "source_file": "docs/GALLERY_ARCHITECTURE.md",
       "status": "tentative",
       "uses": 1
@@ -171,13 +171,13 @@
           "q": "Locate the public gallery structure, navbar lifecycle, category controls, mode switcher, Infinite renderer, Grid cards, video carousel, lightbox, and GSAP ScrollTrigger Lenis utilities."
         }
       ],
-      "score": 0.973475347,
+      "score": 0.966741471,
       "source_file": "docs/GALLERY_ARCHITECTURE.md",
       "status": "tentative",
       "uses": 1
     },
     "gsap": {
-      "code_fingerprint": "e2b81c9ad637d005834225aef8ad28e4e2ad0ea4ce8cfbe29d8b29d1e885450e",
+      "code_fingerprint": "c7cd5fde3e7ada15f2b46f777fcd24ccbf88c31d092cffd3581d305a8c761b84",
       "label": "gsap",
       "last": "2026-07-27T19:41:23.197143+00:00",
       "provenance": [
@@ -187,13 +187,13 @@
           "q": "Locate the public gallery structure, navbar lifecycle, category controls, mode switcher, Infinite renderer, Grid cards, video carousel, lightbox, and GSAP ScrollTrigger Lenis utilities."
         }
       ],
-      "score": 0.973475347,
+      "score": 0.966741471,
       "source_file": "package.json",
       "status": "tentative",
       "uses": 1
     },
     "lenis": {
-      "code_fingerprint": "e2b81c9ad637d005834225aef8ad28e4e2ad0ea4ce8cfbe29d8b29d1e885450e",
+      "code_fingerprint": "c7cd5fde3e7ada15f2b46f777fcd24ccbf88c31d092cffd3581d305a8c761b84",
       "label": "lenis",
       "last": "2026-07-27T19:41:23.197143+00:00",
       "provenance": [
@@ -203,7 +203,7 @@
           "q": "Locate the public gallery structure, navbar lifecycle, category controls, mode switcher, Infinite renderer, Grid cards, video carousel, lightbox, and GSAP ScrollTrigger Lenis utilities."
         }
       ],
-      "score": 0.973475347,
+      "score": 0.966741471,
       "source_file": "package.json",
       "status": "tentative",
       "uses": 1
@@ -219,7 +219,7 @@
           "q": "Locate the public gallery structure, navbar lifecycle, category controls, mode switcher, Infinite renderer, Grid cards, video carousel, lightbox, and GSAP ScrollTrigger Lenis utilities."
         }
       ],
-      "score": 0.973475347,
+      "score": 0.966741471,
       "source_file": "public/js/gallery.js",
       "status": "tentative",
       "uses": 1
@@ -235,7 +235,7 @@
           "q": "Locate the public gallery structure, navbar lifecycle, category controls, mode switcher, Infinite renderer, Grid cards, video carousel, lightbox, and GSAP ScrollTrigger Lenis utilities."
         }
       ],
-      "score": 0.973475347,
+      "score": 0.966741471,
       "source_file": "public/js/gallery/circularGalleryRenderer.mjs",
       "status": "tentative",
       "uses": 1
@@ -251,7 +251,7 @@
           "q": "Locate the public gallery structure, navbar lifecycle, category controls, mode switcher, Infinite renderer, Grid cards, video carousel, lightbox, and GSAP ScrollTrigger Lenis utilities."
         }
       ],
-      "score": 0.973475347,
+      "score": 0.966741471,
       "source_file": "public/js/gallery/galleryModes.mjs",
       "status": "tentative",
       "uses": 1
@@ -267,16 +267,21 @@
           "q": "Locate the public gallery structure, navbar lifecycle, category controls, mode switcher, Infinite renderer, Grid cards, video carousel, lightbox, and GSAP ScrollTrigger Lenis utilities."
         }
       ],
-      "score": 0.973475347,
+      "score": 0.966741471,
       "source_file": "public/js/gallery.js",
       "status": "tentative",
       "uses": 1
     },
     "scripts_migrate_deploy": {
-      "code_fingerprint": "9498878445645aba29745780796ed508e4e321cd3feee5c5a39ff48410da0ee7",
+      "code_fingerprint": "8e756731b00f743efccfd3aa871f110ff59dd6f9add1be8defaa0b027607741a",
       "label": "migrate-deploy.js",
-      "last": "2026-07-28T21:53:46.661109+00:00",
+      "last": "2026-07-28T23:41:54.721022+00:00",
       "provenance": [
+        {
+          "date": "2026-07-28T23:41:54.721022+00:00",
+          "outcome": "useful",
+          "q": "Trace and fix the Railway catalog repair rejection of native MySQL JSON for products.tags while preserving MariaDB compatibility and safe tag reads"
+        },
         {
           "date": "2026-07-28T21:53:46.661109+00:00",
           "outcome": "useful",
@@ -293,16 +298,21 @@
           "q": "Use Codex. This is a production-blocking Phase 1A regression. Inspect the current code and deployment migration flow directly. Use Graphify only if an existing graph is available.\r\n\r\nProduction symptom:\r\n\r\nIn `/admin/page/panel-1`, an administrator edits text or CTA labels and presses â€œGuardar cambiosâ€.\r\n\r\nObserved behavior:\r\n- the UI continues showing â€œCambios sin guardarâ€;\r\n- after refreshing, all edited values are lost;\r\n- the editor then shows â€œSin cambiosâ€ with the previous stored values;\r\n- therefore the draft was not persisted, not merely a dirty-state UI issue.\r\n\r\nTreat this as a save failure until proven otherwise.\r\n\r\n1. Reproduce the exact request\r\n\r\nTrace the Panel 1 save flow:\r\n\r\nEJS form\r\nâ†’ submit button/form association\r\nâ†’ request payload\r\nâ†’ CSRF\r\nâ†’ route\r\nâ†’ controller\r\nâ†’ validation\r\nâ†’ service\r\nâ†’ transaction\r\nâ†’ draft snapshot columns\r\nâ†’ redirect or re-render\r\nâ†’ subsequent editor read\r\n\r\nInspect the actual Panel 1 form structure carefully.\r\n\r\nConfirm:\r\n- the bottom â€œGuardar cambiosâ€ button submits the intended form;\r\n- it is not outside the form without a valid `form` attribute;\r\n- nested or split forms are not interfering;\r\n- the action and HTTP method match the registered route;\r\n- all required hidden values are present;\r\n- dynamic/repeatable social fields do not block ordinary Hero saves;\r\n- disabled inputs are not unexpectedly omitted;\r\n- the submit handler does not prevent the request without completing it.\r\n\r\n2. Determine the real failure mode\r\n\r\nAdd or use safe structured diagnostics to identify whether production returns:\r\n- 200;\r\n- 302;\r\n- 400;\r\n- 403;\r\n- 404;\r\n- 409;\r\n- 422;\r\n- 500.\r\n\r\nDo not expose secrets or full submitted content in logs.\r\n\r\nLog only:\r\n- request/correlation ID;\r\n- route;\r\n- authenticated admin ID;\r\n- panel key;\r\n- validation result;\r\n- transaction start/commit/rollback;\r\n- error code and sanitized message;\r\n- migration/schema capability result.\r\n\r\nMake server errors visible through `NinjaAlerts` and inline errors instead of silently leaving the page dirty.\r\n\r\n3. Verify production schema compatibility\r\n\r\nInspect the Phase 1A and Phase 1B migrations and Railway deployment migration runner.\r\n\r\nConfirm that all required draft/published columns and tables exist in production, including the exact names and compatible data types expected by the services.\r\n\r\nThe migration tracker currently reports Phase 1B as migration 17. Verify:\r\n- every earlier required migration is registered;\r\n- migration ordering is correct;\r\n- the deployment script actually invokes migration 17 and its dependencies;\r\n- a migration was not marked successful before all statements completed;\r\n- MariaDB/MySQL compatibility;\r\n- idempotent reruns;\r\n- no local-only schema assumptions.\r\n\r\nAdd a non-destructive schema readiness check that fails deployment/readiness clearly when required CMS columns are missing.\r\n\r\nDo not manually mark a failed migration as completed.\r\n\r\n4. Fix draft persistence\r\n\r\nAfter a valid Panel 1 save:\r\n- persist all current Hero draft values;\r\n- safely merge fields not submitted by split forms;\r\n- retain social collection data;\r\n- do not alter published snapshots;\r\n- commit transaction before reporting success;\r\n- reload the editor from the persisted draft;\r\n- show â€œBorrador guardadoâ€ or â€œSin cambiosâ€;\r\n- clear dirty state only after confirmed server success.\r\n\r\nA failed save must:\r\n- preserve submitted values;\r\n- keep â€œCambios sin guardarâ€ or show â€œErrorâ€;\r\n- show a visible error alert;\r\n- never redirect to old stored values;\r\n- never claim success.\r\n\r\n5. Review redirect and flash behavior\r\n\r\nVerify that:\r\n- success flash is created only after transaction commit;\r\n- failure uses an HTTP error status and preserves the submitted model;\r\n- Post/Redirect/Get occurs only after success;\r\n- flash normalization does not consume or misclassify the error;\r\n- no global middleware overwrites submitted editor state;\r\n- stale cache is not used for admin draft reads.\r\n\r\nAdmin editor reads must bypass public published-content cache.\r\n\r\n6. Inspect all CMS Save buttons\r\n\r\nOnce the Panel 1 root cause is fixed, verify the same save contract for:\r\n- Panel 2;\r\n- Panel 3;\r\n- global settings;\r\n- navbar;\r\n- SEO;\r\n- LogoLoop;\r\n- carousel;\r\n- features;\r\n- all six existing CMS editor forms.\r\n\r\nDo not broaden the feature scope. Fix the shared save infrastructure when the cause is shared.\r\n\r\n7. Automated tests\r\n\r\nAdd a regression test matching the production symptom:\r\n\r\n- load Panel 1 editor;\r\n- submit changed Hero title and CTA labels through the real route;\r\n- assert successful persistence;\r\n- reload editor;\r\n- assert changed draft values remain;\r\n- assert public homepage still shows published values;\r\n- publish;\r\n- assert public homepage now shows the new values.\r\n\r\nAlso test:\r\n- missing required migration/schema produces an explicit readiness or server error;\r\n- failed transaction preserves submitted values;\r\n- failed save never redirects to stale values;\r\n- success state clears dirty tracking only after confirmed persistence;\r\n- ordinary Hero save does not erase social items;\r\n- all other CMS Save forms persist and reload correctly.\r\n\r\nRun:\r\n- focused Panel 1 save/reload tests;\r\n- migration/deployment tests;\r\n- CMS Phase 1A and 1B tests;\r\n- full serial suite;\r\n- `git diff --check`;\r\n- syntax checks.\r\n\r\nDo not create a commit.\r\nDo not modify untracked media artifacts.\r\nDo not continue to Phase 1C until this regression is resolved.\r\n\r\nReturn:\r\n1. Completion date and time with timezone\r\n2. Exact root cause\r\n3. Production HTTP/database failure identified\r\n4. Migration and schema status\r\n5. Save-flow correction\r\n6. Error visibility and data-preservation behavior\r\n7. Other CMS editors inspected\r\n8. Files modified\r\n9. Focused test results\r\n10. Full serial suite result\r\n11. Exact Railway deployment verification steps\r\n\r\nPrompt generated: 2026-07-28 09:39 CST"
         }
       ],
-      "score": 2.988353061,
+      "score": 3.960845018,
       "source_file": "scripts/migrate-deploy.js",
       "status": "preferred",
-      "uses": 3
+      "uses": 4
     },
     "scripts_migrationtracker": {
-      "code_fingerprint": "c034e51030c6fc701c58188988e6b287cfa51d81003336d04d933d1981a79bf0",
+      "code_fingerprint": "33faa1e78830e88f5f76f685ced07727a9c4bcdbe8d650a9dcec10b02fe69035",
       "label": "migrationTracker.js",
-      "last": "2026-07-28T21:53:46.661109+00:00",
+      "last": "2026-07-28T23:41:54.721022+00:00",
       "provenance": [
+        {
+          "date": "2026-07-28T23:41:54.721022+00:00",
+          "outcome": "useful",
+          "q": "Trace and fix the Railway catalog repair rejection of native MySQL JSON for products.tags while preserving MariaDB compatibility and safe tag reads"
+        },
         {
           "date": "2026-07-28T21:53:46.661109+00:00",
           "outcome": "useful",
@@ -319,29 +329,50 @@
           "q": "Use Codex. This is a production-blocking Phase 1A regression. Inspect the current code and deployment migration flow directly. Use Graphify only if an existing graph is available.\r\n\r\nProduction symptom:\r\n\r\nIn `/admin/page/panel-1`, an administrator edits text or CTA labels and presses â€œGuardar cambiosâ€.\r\n\r\nObserved behavior:\r\n- the UI continues showing â€œCambios sin guardarâ€;\r\n- after refreshing, all edited values are lost;\r\n- the editor then shows â€œSin cambiosâ€ with the previous stored values;\r\n- therefore the draft was not persisted, not merely a dirty-state UI issue.\r\n\r\nTreat this as a save failure until proven otherwise.\r\n\r\n1. Reproduce the exact request\r\n\r\nTrace the Panel 1 save flow:\r\n\r\nEJS form\r\nâ†’ submit button/form association\r\nâ†’ request payload\r\nâ†’ CSRF\r\nâ†’ route\r\nâ†’ controller\r\nâ†’ validation\r\nâ†’ service\r\nâ†’ transaction\r\nâ†’ draft snapshot columns\r\nâ†’ redirect or re-render\r\nâ†’ subsequent editor read\r\n\r\nInspect the actual Panel 1 form structure carefully.\r\n\r\nConfirm:\r\n- the bottom â€œGuardar cambiosâ€ button submits the intended form;\r\n- it is not outside the form without a valid `form` attribute;\r\n- nested or split forms are not interfering;\r\n- the action and HTTP method match the registered route;\r\n- all required hidden values are present;\r\n- dynamic/repeatable social fields do not block ordinary Hero saves;\r\n- disabled inputs are not unexpectedly omitted;\r\n- the submit handler does not prevent the request without completing it.\r\n\r\n2. Determine the real failure mode\r\n\r\nAdd or use safe structured diagnostics to identify whether production returns:\r\n- 200;\r\n- 302;\r\n- 400;\r\n- 403;\r\n- 404;\r\n- 409;\r\n- 422;\r\n- 500.\r\n\r\nDo not expose secrets or full submitted content in logs.\r\n\r\nLog only:\r\n- request/correlation ID;\r\n- route;\r\n- authenticated admin ID;\r\n- panel key;\r\n- validation result;\r\n- transaction start/commit/rollback;\r\n- error code and sanitized message;\r\n- migration/schema capability result.\r\n\r\nMake server errors visible through `NinjaAlerts` and inline errors instead of silently leaving the page dirty.\r\n\r\n3. Verify production schema compatibility\r\n\r\nInspect the Phase 1A and Phase 1B migrations and Railway deployment migration runner.\r\n\r\nConfirm that all required draft/published columns and tables exist in production, including the exact names and compatible data types expected by the services.\r\n\r\nThe migration tracker currently reports Phase 1B as migration 17. Verify:\r\n- every earlier required migration is registered;\r\n- migration ordering is correct;\r\n- the deployment script actually invokes migration 17 and its dependencies;\r\n- a migration was not marked successful before all statements completed;\r\n- MariaDB/MySQL compatibility;\r\n- idempotent reruns;\r\n- no local-only schema assumptions.\r\n\r\nAdd a non-destructive schema readiness check that fails deployment/readiness clearly when required CMS columns are missing.\r\n\r\nDo not manually mark a failed migration as completed.\r\n\r\n4. Fix draft persistence\r\n\r\nAfter a valid Panel 1 save:\r\n- persist all current Hero draft values;\r\n- safely merge fields not submitted by split forms;\r\n- retain social collection data;\r\n- do not alter published snapshots;\r\n- commit transaction before reporting success;\r\n- reload the editor from the persisted draft;\r\n- show â€œBorrador guardadoâ€ or â€œSin cambiosâ€;\r\n- clear dirty state only after confirmed server success.\r\n\r\nA failed save must:\r\n- preserve submitted values;\r\n- keep â€œCambios sin guardarâ€ or show â€œErrorâ€;\r\n- show a visible error alert;\r\n- never redirect to old stored values;\r\n- never claim success.\r\n\r\n5. Review redirect and flash behavior\r\n\r\nVerify that:\r\n- success flash is created only after transaction commit;\r\n- failure uses an HTTP error status and preserves the submitted model;\r\n- Post/Redirect/Get occurs only after success;\r\n- flash normalization does not consume or misclassify the error;\r\n- no global middleware overwrites submitted editor state;\r\n- stale cache is not used for admin draft reads.\r\n\r\nAdmin editor reads must bypass public published-content cache.\r\n\r\n6. Inspect all CMS Save buttons\r\n\r\nOnce the Panel 1 root cause is fixed, verify the same save contract for:\r\n- Panel 2;\r\n- Panel 3;\r\n- global settings;\r\n- navbar;\r\n- SEO;\r\n- LogoLoop;\r\n- carousel;\r\n- features;\r\n- all six existing CMS editor forms.\r\n\r\nDo not broaden the feature scope. Fix the shared save infrastructure when the cause is shared.\r\n\r\n7. Automated tests\r\n\r\nAdd a regression test matching the production symptom:\r\n\r\n- load Panel 1 editor;\r\n- submit changed Hero title and CTA labels through the real route;\r\n- assert successful persistence;\r\n- reload editor;\r\n- assert changed draft values remain;\r\n- assert public homepage still shows published values;\r\n- publish;\r\n- assert public homepage now shows the new values.\r\n\r\nAlso test:\r\n- missing required migration/schema produces an explicit readiness or server error;\r\n- failed transaction preserves submitted values;\r\n- failed save never redirects to stale values;\r\n- success state clears dirty tracking only after confirmed persistence;\r\n- ordinary Hero save does not erase social items;\r\n- all other CMS Save forms persist and reload correctly.\r\n\r\nRun:\r\n- focused Panel 1 save/reload tests;\r\n- migration/deployment tests;\r\n- CMS Phase 1A and 1B tests;\r\n- full serial suite;\r\n- `git diff --check`;\r\n- syntax checks.\r\n\r\nDo not create a commit.\r\nDo not modify untracked media artifacts.\r\nDo not continue to Phase 1C until this regression is resolved.\r\n\r\nReturn:\r\n1. Completion date and time with timezone\r\n2. Exact root cause\r\n3. Production HTTP/database failure identified\r\n4. Migration and schema status\r\n5. Save-flow correction\r\n6. Error visibility and data-preservation behavior\r\n7. Other CMS editors inspected\r\n8. Files modified\r\n9. Focused test results\r\n10. Full serial suite result\r\n11. Exact Railway deployment verification steps\r\n\r\nPrompt generated: 2026-07-28 09:39 CST"
         }
       ],
-      "score": 2.988353061,
+      "score": 3.960845018,
       "source_file": "scripts/migrationTracker.js",
       "status": "preferred",
-      "uses": 3
+      "uses": 4
     },
     "services_admincatalogservice": {
-      "code_fingerprint": "8078e8bc6e9bd5a28f560cd8530c8f635cf4640dafea17f57ac9c1e8f349630c",
+      "code_fingerprint": "5e24f5bb1deabe4ebac9ec28f24ff46b1ad178e328e4fba8fd1d1291eeae8646",
       "label": "adminCatalogService.js",
-      "last": "2026-07-28T21:53:46.661109+00:00",
+      "last": "2026-07-28T23:41:54.721022+00:00",
       "provenance": [
+        {
+          "date": "2026-07-28T23:41:54.721022+00:00",
+          "outcome": "useful",
+          "q": "Trace and fix the Railway catalog repair rejection of native MySQL JSON for products.tags while preserving MariaDB compatibility and safe tag reads"
+        },
         {
           "date": "2026-07-28T21:53:46.661109+00:00",
           "outcome": "useful",
           "q": "Trace and diagnose the production HTTP 500 on the Admin Products page, including route, SQL, schema, pagination, filters, media, and migrations."
         }
       ],
-      "score": 0.998347718,
+      "score": 1.984605251,
       "source_file": "services/adminCatalogService.js",
+      "status": "preferred",
+      "uses": 2
+    },
+    "services_catalogservice": {
+      "code_fingerprint": "6ed6a509f9fe4e8b62d5d6d41972b38a4a2bf3d27c1e9cb9540b891ff451dca2",
+      "label": "catalogService.js",
+      "last": "2026-07-28T23:41:54.721022+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-28T23:41:54.721022+00:00",
+          "outcome": "useful",
+          "q": "Trace and fix the Railway catalog repair rejection of native MySQL JSON for products.tags while preserving MariaDB compatibility and safe tag reads"
+        }
+      ],
+      "score": 0.993163459,
+      "source_file": "services/catalogService.js",
       "status": "tentative",
       "uses": 1
     },
     "services_cmspublishingservice": {
-      "code_fingerprint": "6b18299196bab150a8e7501d5b77d91598b3a76eb4a7ae23cfac5339392649ca",
+      "code_fingerprint": "335cffb192ca4357e960bd65e5d00b640cd71c3c964b5e7f0e85f07f85002e23",
       "label": "cmsPublishingService.js",
       "last": "2026-07-27T07:30:17.500435+00:00",
       "provenance": [
@@ -351,13 +382,13 @@
           "q": "Trace production CMS media upload, resolution, LogoLoop and carousel homepage rendering, static serving, deletion, and reconciliation"
         }
       ],
-      "score": 0.962122737,
+      "score": 0.955467392,
       "source_file": "services/cmsPublishingService.js",
       "status": "tentative",
       "uses": 1
     },
     "services_cmsrepeatableservice": {
-      "code_fingerprint": "d441a35ef15bee31edcd6143fc188412864bbcd9adc8c8d4a3a53fb1b9d90e93",
+      "code_fingerprint": "f95aace279830d1e36a8ac7321da9dc8daf30aaf79bb4eb7b6a71d0398a04585",
       "label": "cmsRepeatableService.js",
       "last": "2026-07-27T07:30:17.500435+00:00",
       "provenance": [
@@ -367,7 +398,7 @@
           "q": "Trace production CMS media upload, resolution, LogoLoop and carousel homepage rendering, static serving, deletion, and reconciliation"
         }
       ],
-      "score": 0.962122737,
+      "score": 0.955467392,
       "source_file": "services/cmsRepeatableService.js",
       "status": "tentative",
       "uses": 1
@@ -383,13 +414,13 @@
           "q": "Trace production CMS media upload, resolution, LogoLoop and carousel homepage rendering, static serving, deletion, and reconciliation"
         }
       ],
-      "score": 0.962122737,
+      "score": 0.955467392,
       "source_file": "services/mediaStorageService.js",
       "status": "tentative",
       "uses": 1
     },
     "services_publicationservice": {
-      "code_fingerprint": "378586a7d29bbde41b7cd10c9452404b6ac18b605369d728b16dd07debe5963f",
+      "code_fingerprint": "c6d4c2de275f06f0a895755b2177e245a4cc3cd122a808f30843c2b504ee7435",
       "label": "publicationService.js",
       "last": "2026-07-28T16:13:11.837288+00:00",
       "provenance": [
@@ -404,7 +435,7 @@
           "q": "Trace production CMS media upload, resolution, LogoLoop and carousel homepage rendering, static serving, deletion, and reconciliation"
         }
       ],
-      "score": 1.955029726,
+      "score": 1.94150609,
       "source_file": "services/publicationService.js",
       "status": "preferred",
       "uses": 2
@@ -420,7 +451,7 @@
           "q": "Locate the gallery mobile layout, Infinite Menu responsive geometry, Grid layout, category controls, and breakpoint styles."
         }
       ],
-      "score": 0.973156288,
+      "score": 0.966424619,
       "source_file": "tests/gallery-infinite-renderer-runtime.test.js",
       "status": "tentative",
       "uses": 1
@@ -436,7 +467,7 @@
           "q": "Locate the public gallery structure, navbar lifecycle, category controls, mode switcher, Infinite renderer, Grid cards, video carousel, lightbox, and GSAP ScrollTrigger Lenis utilities."
         }
       ],
-      "score": 0.973475347,
+      "score": 0.966741471,
       "source_file": "tests/home-hero-entrance.test.js",
       "status": "tentative",
       "uses": 1

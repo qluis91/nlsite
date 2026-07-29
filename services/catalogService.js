@@ -225,8 +225,9 @@ async function getPublicCategories() {
   }
   try {
     const [rows] = await pool.query(
-      `SELECT slug, name, description, hero_title, hero_description,
-              hero_image, hero_alt, hero_position,
+      `SELECT slug, name, description, hero_eyebrow, hero_title, hero_description,
+              hero_image, hero_media_ref, hero_alt, hero_position,
+              hero_button_label, hero_button_url, hero_button_target, hero_custom_enabled,
               seo_title, seo_description, og_image
        FROM categories
        ORDER BY name ASC`
@@ -264,11 +265,19 @@ function mapPublicCategory(cat) {
     slug: String(cat.slug || ''),
     name: String(cat.name || cat.slug || ''),
     description: typeof cat.description === 'string' ? cat.description : '',
+    hero_eyebrow: typeof cat.hero_eyebrow === 'string' ? cat.hero_eyebrow : '',
     hero_title: typeof cat.hero_title === 'string' ? cat.hero_title : '',
     hero_description: typeof cat.hero_description === 'string' ? cat.hero_description : '',
     hero_image: typeof cat.hero_image === 'string' ? cat.hero_image : '',
+    hero_media_ref: typeof cat.hero_media_ref === 'string' ? cat.hero_media_ref : '',
     hero_alt: typeof cat.hero_alt === 'string' ? cat.hero_alt : '',
     hero_position: typeof cat.hero_position === 'string' ? cat.hero_position : 'center',
+    hero_button_label: typeof cat.hero_button_label === 'string' ? cat.hero_button_label : '',
+    hero_button_url: typeof cat.hero_button_url === 'string' ? cat.hero_button_url : '',
+    hero_button_target: cat.hero_button_target === '_blank' ? '_blank' : '_self',
+    hero_custom_enabled: cat.hero_custom_enabled === true
+      || cat.hero_custom_enabled === 1
+      || cat.hero_custom_enabled === '1',
     seo_title: typeof cat.seo_title === 'string' ? cat.seo_title : '',
     seo_description: typeof cat.seo_description === 'string' ? cat.seo_description : '',
     og_image: typeof cat.og_image === 'string' ? cat.og_image : '',
@@ -288,12 +297,88 @@ function normalizeHeroPosition(raw) {
   return HERO_POSITIONS.has(value) ? value : 'center';
 }
 
+function safeHeroButtonUrl(raw) {
+  const value = String(raw || '').replace(/\0/g, '').trim();
+  if (!value || /[\r\n\\]/.test(value)) return '';
+  if (value.startsWith('/') && !value.startsWith('//')) return value;
+  try {
+    const parsed = new URL(value);
+    if ((parsed.protocol === 'http:' || parsed.protocol === 'https:')
+      && parsed.hostname && !parsed.username && !parsed.password) return value;
+  } catch (_) {}
+  return '';
+}
+
+async function resolveActiveHeroMedia(db, reference) {
+  const match = /^media:\/\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
+    .exec(String(reference || '').trim());
+  if (!db || !match) return '';
+  try {
+    const [[asset]] = await db.query(
+      `SELECT public_url
+         FROM media_assets
+        WHERE public_id = ?
+          AND status = 'active'
+          AND deleted_at IS NULL
+          AND mime_type LIKE 'image/%'
+        LIMIT 1`,
+      [match[1]]
+    );
+    return asset && typeof asset.public_url === 'string' ? asset.public_url : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+async function resolveGeneralStoreHero(db, contextText) {
+  const fallback = {
+    ...DEFAULT_STORE_HERO,
+    contextText,
+    primaryLabel: '',
+    primaryUrl: '',
+    buttonTarget: '_self',
+    isVisible: true,
+    source: 'general-default',
+  };
+  if (!db) return fallback;
+  try {
+    const [[row]] = await db.query(
+      `SELECT s.published_content_json
+         FROM page_sections s
+        INNER JOIN pages p ON p.id = s.page_id
+        WHERE p.page_key = 'tienda' AND s.section_key = 'st-hero'`
+    );
+    if (!row || !row.published_content_json) return fallback;
+    const content = typeof row.published_content_json === 'string'
+      ? JSON.parse(row.published_content_json)
+      : row.published_content_json;
+    if (!content || content.isVisible === false) return fallback;
+    const resolvedImage = await resolveActiveHeroMedia(db, content.backgroundMedia);
+    return {
+      eyebrow: content.eyebrow || fallback.eyebrow,
+      title: content.title || fallback.title,
+      description: content.description || fallback.description,
+      imageUrl: resolvedImage || fallback.imageUrl,
+      imageAlt: content.imageAlt || fallback.imageAlt,
+      imagePosition: normalizeHeroPosition(content.imagePosition),
+      contextText,
+      primaryLabel: content.primaryLabel || '',
+      primaryUrl: safeHeroButtonUrl(content.primaryUrl),
+      buttonTarget: content.buttonTarget === '_blank' ? '_blank' : '_self',
+      isVisible: true,
+      source: 'general-cms',
+    };
+  } catch (_) {
+    return fallback;
+  }
+}
+
 /**
  * Resolve the store catalog hero view model from the active category / search.
  * Phase 1F: Reads from CMS published data when available.
  * Fallback order: CMS published > hardcoded defaults.
  */
-async function resolveStoreHero({ activeCategory = null, search = '' } = {}, poolRef = null) {
+async function resolveStoreHeroLegacy({ activeCategory = null, search = '' } = {}, poolRef = null) {
   const searchText = String(search || '').replace(/\0/g, '').trim().slice(0, 100);
   const contextText = searchText ? `Resultados para “${searchText}”` : '';
 
@@ -390,6 +475,38 @@ async function resolveStoreHero({ activeCategory = null, search = '' } = {}, poo
     primaryUrl: '',
     buttonTarget: '_self',
     isVisible: true,
+  };
+}
+
+/**
+ * Phase 1G fallback: enabled category with active Media Library image,
+ * then the published general Store hero, then safe defaults.
+ */
+async function resolveStoreHero({ activeCategory = null, search = '' } = {}, poolRef = null) {
+  const searchText = String(search || '').replace(/\0/g, '').trim().slice(0, 100);
+  const contextText = searchText ? `Resultados para “${searchText}”` : '';
+  const generalHero = await resolveGeneralStoreHero(poolRef, contextText);
+  if (!activeCategory) return generalHero;
+
+  const category = mapPublicCategory(activeCategory);
+  if (!category.hero_custom_enabled) return generalHero;
+  const categoryImage = await resolveActiveHeroMedia(poolRef, category.hero_media_ref);
+  if (!categoryImage) return generalHero;
+
+  const primaryUrl = safeHeroButtonUrl(category.hero_button_url);
+  return {
+    eyebrow: category.hero_eyebrow || generalHero.eyebrow,
+    title: category.hero_title || category.name || generalHero.title,
+    description: category.hero_description || category.description || generalHero.description,
+    imageUrl: categoryImage,
+    imageAlt: category.hero_alt || `Productos de ${category.name} en NinjaLabCR`,
+    imagePosition: normalizeHeroPosition(category.hero_position),
+    contextText,
+    primaryLabel: primaryUrl ? category.hero_button_label : '',
+    primaryUrl,
+    buttonTarget: category.hero_button_target === '_blank' ? '_blank' : '_self',
+    isVisible: true,
+    source: 'category',
   };
 }
 
@@ -788,4 +905,6 @@ module.exports = {
   resolveStoreHero,
   isSafeHeroImagePath,
   normalizeHeroPosition,
+  safeHeroButtonUrl,
+  resolveActiveHeroMedia,
 };

@@ -5,6 +5,7 @@ const path = require('path');
 const pool = require('../config/db');
 const catalog = require('../services/adminCatalogService');
 const imgProc = require('../services/imageProcessingService');
+const mediaService = require('../services/mediaService');
 const v = require('../validators/catalogValidator');
 const { parsePositiveId } = require('../validators/addressValidator');
 const { assertCatalogSchemaReady } = require('../services/catalogSchemaReadinessService');
@@ -29,6 +30,121 @@ function redirectAfterCatalogFailure(req, res, error, redirectPath, stage) {
 //  CATEGORIES
 // ══════════════════════════════════════
 
+function categoryFormValues(body = {}, current = null) {
+  return {
+    ...(current || {}),
+    name: String(body.name ?? current?.name ?? ''),
+    description: String(body.description ?? current?.description ?? ''),
+    hero_custom_enabled: body.hero_custom_enabled === '1',
+    hero_media_ref: String(body.hero_media_ref ?? current?.hero_media_ref ?? ''),
+    hero_eyebrow: String(body.hero_eyebrow ?? current?.hero_eyebrow ?? ''),
+    hero_title: String(body.hero_title ?? current?.hero_title ?? ''),
+    hero_description: String(body.hero_description ?? current?.hero_description ?? ''),
+    hero_alt: String(body.hero_alt ?? current?.hero_alt ?? ''),
+    hero_position: String(body.hero_position ?? current?.hero_position ?? 'center'),
+    hero_button_label: String(body.hero_button_label ?? current?.hero_button_label ?? ''),
+    hero_button_url: String(body.hero_button_url ?? current?.hero_button_url ?? ''),
+    hero_button_target: String(body.hero_button_target ?? current?.hero_button_target ?? '_self'),
+    seo_title: String(body.seo_title ?? current?.seo_title ?? ''),
+    seo_description: String(body.seo_description ?? current?.seo_description ?? ''),
+    og_image: String(body.og_image ?? current?.og_image ?? ''),
+  };
+}
+
+async function categorySelectedMedia(reference) {
+  const publicId = String(reference || '').replace(/^media:\/\//, '');
+  if (!publicId) return null;
+  try {
+    return await mediaService.getByPublicId(publicId);
+  } catch (_) {
+    return null;
+  }
+}
+
+async function renderCategoryEditor(req, res, category, {
+  status = 200,
+  fieldErrors = [],
+  pageAlerts = [],
+} = {}) {
+  const isEdit = Boolean(category && category.id);
+  return res.status(status).render('pages/admin/category-form', {
+    title: isEdit ? 'Editar Categoría' : 'Nueva Categoría',
+    layout: 'layouts/admin',
+    category,
+    action: isEdit
+      ? `/admin/catalogo/categorias/${category.id}`
+      : '/admin/catalogo/categorias',
+    selectedHeroMedia: await categorySelectedMedia(category?.hero_media_ref),
+    fieldErrors,
+    pageAlerts,
+    pageStyles: ['/css/admin-page.css'],
+    pageScripts: ['/js/admin/media-selector.js'],
+  });
+}
+
+async function validateCategorySubmission(body) {
+  const values = categoryFormValues(body);
+  const checks = [
+    ['name', v.validateCategoryName(values.name)],
+    ['description', v.validateCategoryDescription(values.description)],
+    ['hero_eyebrow', v.validateHeroEyebrow(values.hero_eyebrow)],
+    ['hero_title', v.validateHeroTitle(values.hero_title)],
+    ['hero_description', v.validateHeroDescription(values.hero_description)],
+    ['hero_alt', v.validateHeroAlt(values.hero_alt)],
+    ['hero_position', v.validateHeroPosition(values.hero_position)],
+    ['hero_button_label', v.validateHeroButtonLabel(values.hero_button_label)],
+    ['hero_button_url', v.validateHeroButtonUrl(values.hero_button_url)],
+    ['hero_button_target', v.validateHeroButtonTarget(values.hero_button_target)],
+    ['hero_media_ref', v.validateHeroMediaReference(values.hero_media_ref)],
+  ];
+  const fieldErrors = checks
+    .filter(([, result]) => !result.valid)
+    .map(([field, result]) => ({ field, message: result.error }));
+  const normalized = Object.fromEntries(checks.map(([field, result]) => [field, result.value]));
+
+  if (!fieldErrors.length && normalized.hero_media_ref) {
+    try {
+      const asset = await mediaService.getByPublicId(
+        normalized.hero_media_ref.replace('media://', ''),
+        { includeArchived: false }
+      );
+      if (!asset || asset.status !== 'active' || asset.deleted_at || asset.kind !== 'image') {
+        fieldErrors.push({
+          field: 'hero_media_ref',
+          message: 'Selecciona una imagen activa de la Biblioteca de medios.',
+        });
+      }
+    } catch (_) {
+      fieldErrors.push({
+        field: 'hero_media_ref',
+        message: 'La imagen seleccionada ya no está disponible.',
+      });
+    }
+  }
+
+  return {
+    valid: fieldErrors.length === 0,
+    fieldErrors,
+    values: {
+      ...values,
+      ...normalized,
+      hero_custom_enabled: values.hero_custom_enabled,
+      seo_title: values.seo_title.slice(0, 160),
+      seo_description: values.seo_description.slice(0, 300),
+      og_image: values.og_image.slice(0, 500),
+    },
+  };
+}
+
+function categoryActor(req) {
+  const user = req.session?.user || {};
+  return {
+    actorId: user.id || null,
+    actorName: user.name || null,
+    actorEmail: user.email || null,
+  };
+}
+
 exports.listCategories = async (req, res, next) => {
   try {
     const categories = await catalog.listCategories();
@@ -40,7 +156,7 @@ exports.listCategories = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-exports.showCreateCategory = (req, res) => {
+exports.showCreateCategoryLegacy = (req, res) => {
   res.render('pages/admin/category-form', {
     title: 'Nueva Categoría',
     layout: 'layouts/admin',
@@ -49,7 +165,7 @@ exports.showCreateCategory = (req, res) => {
   });
 };
 
-exports.createCategory = async (req, res, next) => {
+exports.createCategoryLegacy = async (req, res, next) => {
   try {
     const nameResult = v.validateCategoryName(req.body.name);
     if (!nameResult.valid) {
@@ -114,7 +230,7 @@ exports.createCategory = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-exports.showEditCategory = async (req, res, next) => {
+exports.showEditCategoryLegacy = async (req, res, next) => {
   try {
     const categoryId = parsePositiveId(req.params.id);
     if (!categoryId) {
@@ -135,7 +251,7 @@ exports.showEditCategory = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-exports.updateCategory = async (req, res, next) => {
+exports.updateCategoryLegacy = async (req, res, next) => {
   try {
     const cat = await catalog.getCategoryById(parsePositiveId(req.params.id));
     if (!cat) {
@@ -204,6 +320,143 @@ exports.updateCategory = async (req, res, next) => {
     req.session.success_msg = 'Categoría actualizada exitosamente.';
     res.redirect('/admin/catalogo/categorias');
   } catch (err) { next(err); }
+};
+
+exports.showCreateCategory = async (req, res, next) => {
+  try {
+    return await renderCategoryEditor(req, res, categoryFormValues());
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.createCategory = async (req, res) => {
+  const submitted = categoryFormValues(req.body);
+  try {
+    const result = await validateCategorySubmission(req.body);
+    if (!result.valid) {
+      return renderCategoryEditor(req, res, submitted, {
+        status: 422,
+        fieldErrors: result.fieldErrors,
+        pageAlerts: [{
+          id: 'category-validation-error',
+          type: 'error',
+          title: 'Revisa los campos de la categoría',
+          description: 'No se guardó ningún cambio.',
+        }],
+      });
+    }
+    const slug = v.slugify(result.values.name);
+    if (await catalog.isCategorySlugTaken(slug)) {
+      return renderCategoryEditor(req, res, submitted, {
+        status: 422,
+        fieldErrors: [{ field: 'name', message: 'Ya existe una categoría con ese nombre.' }],
+        pageAlerts: [{
+          id: 'category-slug-conflict',
+          type: 'error',
+          title: 'La categoría ya existe',
+          description: 'Usa un nombre diferente.',
+        }],
+      });
+    }
+    await catalog.createCategory(result.values.name, slug, {
+      ...result.values,
+      hero_image: null,
+    }, categoryActor(req));
+    req.session.success_msg = 'Categoría creada exitosamente.';
+    return res.redirect('/admin/catalogo/categorias');
+  } catch (error) {
+    const context = createCatalogRequestContext(req);
+    context.stage = 'categories.create';
+    logCatalogFailure(context, error, 500);
+    return renderCategoryEditor(req, res, submitted, {
+      status: 500,
+      pageAlerts: [{
+        id: 'category-save-error',
+        type: 'error',
+        title: 'No se pudo guardar la categoría',
+        description: `Los valores siguen en el formulario. Referencia: ${context.requestId}.`,
+        persistent: true,
+      }],
+    });
+  }
+};
+
+exports.showEditCategory = async (req, res, next) => {
+  try {
+    const categoryId = parsePositiveId(req.params.id);
+    const category = categoryId ? await catalog.getCategoryById(categoryId) : null;
+    if (!category) {
+      req.session.error_msg = 'Categoría no encontrada.';
+      return res.redirect('/admin/catalogo/categorias');
+    }
+    return await renderCategoryEditor(req, res, category);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.updateCategory = async (req, res) => {
+  const categoryId = parsePositiveId(req.params.id);
+  let current = null;
+  try {
+    current = categoryId ? await catalog.getCategoryById(categoryId) : null;
+    if (!current) {
+      req.session.error_msg = 'Categoría no encontrada.';
+      return res.redirect('/admin/catalogo/categorias');
+    }
+    const submitted = { ...categoryFormValues(req.body, current), id: current.id };
+    const result = await validateCategorySubmission(req.body);
+    if (!result.valid) {
+      return renderCategoryEditor(req, res, submitted, {
+        status: 422,
+        fieldErrors: result.fieldErrors,
+        pageAlerts: [{
+          id: 'category-validation-error',
+          type: 'error',
+          title: 'Revisa los campos de la categoría',
+          description: 'No se guardó ningún cambio.',
+        }],
+      });
+    }
+    const slug = v.slugify(result.values.name);
+    if (await catalog.isCategorySlugTaken(slug, current.id)) {
+      return renderCategoryEditor(req, res, submitted, {
+        status: 422,
+        fieldErrors: [{ field: 'name', message: 'Ya existe otra categoría con ese nombre.' }],
+        pageAlerts: [{
+          id: 'category-slug-conflict',
+          type: 'error',
+          title: 'El nombre ya está en uso',
+          description: 'Usa un nombre diferente.',
+        }],
+      });
+    }
+    await catalog.updateCategory(current.id, result.values.name, slug, {
+      ...result.values,
+      hero_image: current.hero_image || null,
+    }, categoryActor(req));
+    req.session.success_msg = 'Categoría actualizada exitosamente.';
+    return res.redirect('/admin/catalogo/categorias');
+  } catch (error) {
+    const submitted = {
+      ...categoryFormValues(req.body, current),
+      ...(current?.id ? { id: current.id } : {}),
+    };
+    const context = createCatalogRequestContext(req);
+    context.stage = 'categories.update';
+    logCatalogFailure(context, error, 500);
+    return renderCategoryEditor(req, res, submitted, {
+      status: 500,
+      pageAlerts: [{
+        id: 'category-update-error',
+        type: 'error',
+        title: 'No se pudo actualizar la categoría',
+        description: `Los valores siguen en el formulario. Referencia: ${context.requestId}.`,
+        persistent: true,
+      }],
+    });
+  }
 };
 
 exports.deleteCategory = async (req, res, next) => {

@@ -122,11 +122,17 @@ CREATE TABLE IF NOT EXISTS categories (
   seo_title VARCHAR(160) NULL,
   seo_description VARCHAR(300) NULL,
   og_image VARCHAR(500) NULL,
+  hero_eyebrow VARCHAR(120) NULL,
   hero_title VARCHAR(160) NULL,
   hero_description VARCHAR(500) NULL,
   hero_image VARCHAR(500) NULL,
+  hero_media_ref VARCHAR(500) NULL,
   hero_alt VARCHAR(200) NULL,
   hero_position VARCHAR(20) NULL DEFAULT 'center',
+  hero_button_label VARCHAR(80) NULL,
+  hero_button_url VARCHAR(500) NULL,
+  hero_button_target VARCHAR(10) NOT NULL DEFAULT '_self',
+  hero_custom_enabled TINYINT(1) NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

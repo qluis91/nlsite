@@ -106,7 +106,9 @@ async function showStore(req, res) {
   if (activeCategory && activeCategory.name) {
     catMetaTitle = activeCategory.seo_title || activeCategory.name;
     catMetaDescription = activeCategory.seo_description || activeCategory.description?.slice(0, 160) || '';
-    catOgImage = activeCategory.og_image || activeCategory.hero_image || '';
+    catOgImage = activeCategory.og_image
+      || (storeHero.source === 'category' ? storeHero.imageUrl : '')
+      || '';
     catCanonical = makeAbsolute(`/tienda?category=${activeCategory.slug}`, BASE_URL);
   }
 

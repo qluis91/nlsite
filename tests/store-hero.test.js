@@ -52,6 +52,18 @@ const schemaSql = fs.readFileSync(path.resolve(__dirname, '../schema.sql'), 'utf
 const productDetail = fs.readFileSync(path.resolve(__dirname, '../views/pages/tienda-producto.ejs'), 'utf8');
 
 describe('resolveStoreHero fallbacks', () => {
+  const categoryDb = {
+    async query(sql) {
+      if (sql.includes('page_sections')) return [[{}]];
+      if (sql.includes('media_assets')) return [[{ public_url: '/uploads/media/category.webp' }]];
+      return [[]];
+    },
+  };
+  const categoryFields = {
+    hero_custom_enabled: 1,
+    hero_media_ref: 'media://11111111-1111-4111-8111-111111111111',
+  };
+
   test('default hero without category', async () => {
     const hero = await resolveStoreHero({});
     assert.strictEqual(hero.title, DEFAULT_STORE_HERO.title);
@@ -70,39 +82,40 @@ describe('resolveStoreHero fallbacks', () => {
   test('category hero_title preferred over name', async () => {
     const hero = await resolveStoreHero({
       activeCategory: {
+        ...categoryFields,
         name: 'Figuras',
         hero_title: 'Figuras coleccionables',
         hero_description: '',
         description: 'Desc genérica',
       },
-    });
+    }, categoryDb);
     assert.strictEqual(hero.title, 'Figuras coleccionables');
   });
 
   test('category name fallback when hero_title missing', async () => {
     const hero = await resolveStoreHero({
-      activeCategory: { name: 'Llaveros', hero_title: '', description: '' },
-    });
+      activeCategory: { ...categoryFields, name: 'Llaveros', hero_title: '', description: '' },
+    }, categoryDb);
     assert.strictEqual(hero.title, 'Llaveros');
   });
 
   test('description fallback: hero_description → description → default', async () => {
     assert.strictEqual(
       (await resolveStoreHero({
-        activeCategory: { name: 'A', hero_description: 'Hero desc', description: 'Cat desc' },
-      })).description,
+        activeCategory: { ...categoryFields, name: 'A', hero_description: 'Hero desc', description: 'Cat desc' },
+      }, categoryDb)).description,
       'Hero desc'
     );
     assert.strictEqual(
       (await resolveStoreHero({
-        activeCategory: { name: 'A', hero_description: '', description: 'Cat desc' },
-      })).description,
+        activeCategory: { ...categoryFields, name: 'A', hero_description: '', description: 'Cat desc' },
+      }, categoryDb)).description,
       'Cat desc'
     );
     assert.strictEqual(
       (await resolveStoreHero({
-        activeCategory: { name: 'A', hero_description: '', description: '' },
-      })).description,
+        activeCategory: { ...categoryFields, name: 'A', hero_description: '', description: '' },
+      }, categoryDb)).description,
       DEFAULT_STORE_HERO.description
     );
   });
@@ -117,22 +130,22 @@ describe('resolveStoreHero fallbacks', () => {
     assert.strictEqual(hero.imageUrl, DEFAULT_STORE_HERO.imageUrl);
   });
 
-  test('safe category hero image accepted', async () => {
+  test('enabled category Media Library image accepted', async () => {
     const hero = await resolveStoreHero({
       activeCategory: {
+        ...categoryFields,
         name: 'X',
-        hero_image: '/uploads/categories/3/abcdef.webp',
         hero_alt: 'Alt personalizado',
       },
-    });
-    assert.strictEqual(hero.imageUrl, '/uploads/categories/3/abcdef.webp');
+    }, categoryDb);
+    assert.strictEqual(hero.imageUrl, '/uploads/media/category.webp');
     assert.strictEqual(hero.imageAlt, 'Alt personalizado');
   });
 
   test('alt fallback includes category name', async () => {
     const hero = await resolveStoreHero({
-      activeCategory: { name: 'Prototipos', hero_alt: '' },
-    });
+      activeCategory: { ...categoryFields, name: 'Prototipos', hero_alt: '' },
+    }, categoryDb);
     assert.match(hero.imageAlt, /Prototipos/);
   });
 
@@ -187,23 +200,27 @@ describe('migration and schema are additive', () => {
 });
 
 describe('admin category form', () => {
-  test('multipart form with hero fields and CSRF', () => {
-    assert.match(categoryForm, /enctype="multipart\/form-data"/);
+  test('Media Library hero fields and CSRF', () => {
+    assert.doesNotMatch(categoryForm, /enctype="multipart\/form-data"/);
     assert.match(categoryForm, /name="_csrf"/);
+    assert.match(categoryForm, /name="hero_custom_enabled"/);
+    assert.match(categoryForm, /fieldName:\s*'hero_media_ref'/);
+    assert.match(categoryForm, /name="hero_eyebrow"/);
     assert.match(categoryForm, /name="hero_title"/);
     assert.match(categoryForm, /name="hero_description"/);
-    assert.match(categoryForm, /name="hero_image"/);
     assert.match(categoryForm, /name="hero_alt"/);
     assert.match(categoryForm, /name="hero_position"/);
-    assert.match(categoryForm, /name="remove_hero_image"/);
+    assert.match(categoryForm, /name="hero_button_label"/);
+    assert.match(categoryForm, /name="hero_button_url"/);
+    assert.match(categoryForm, /name="hero_button_target"/);
   });
 
   test('position allowlist options present', () => {
-    assert.match(categoryForm, /value:\s*'center'/);
-    assert.match(categoryForm, /value:\s*'top'/);
-    assert.match(categoryForm, /value:\s*'bottom'/);
-    assert.match(categoryForm, /value:\s*'left'/);
-    assert.match(categoryForm, /value:\s*'right'/);
+    assert.match(categoryForm, /\['center','Centro'\]/);
+    assert.match(categoryForm, /\['top','Arriba'\]/);
+    assert.match(categoryForm, /\['bottom','Abajo'\]/);
+    assert.match(categoryForm, /\['left','Izquierda'\]/);
+    assert.match(categoryForm, /\['right','Derecha'\]/);
   });
 });
 

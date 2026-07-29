@@ -24,6 +24,11 @@ const HERO_TITLE_MAX = 160;
 const HERO_DESC_MAX = 500;
 const HERO_ALT_MAX = 200;
 const CATEGORY_DESC_MAX = 500;
+const HERO_EYEBROW_MAX = 120;
+const HERO_BUTTON_LABEL_MAX = 80;
+const HERO_BUTTON_URL_MAX = 500;
+const HERO_TARGETS = new Set(['_self', '_blank']);
+const MEDIA_REFERENCE_PATTERN = /^media:\/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Optional short category description.
@@ -83,6 +88,69 @@ function validateHeroPosition(value) {
     return { valid: false, error: 'La posición de la imagen no es válida.', value: 'center' };
   }
   return { valid: true, value: raw };
+}
+
+function validateOptionalText(value, maximum, fieldLabel) {
+  const trimmed = String(value ?? '').replace(/\0/g, '').trim();
+  if (!trimmed) return { valid: true, value: null };
+  if (trimmed.length > maximum) {
+    return { valid: false, error: `${fieldLabel} no debe exceder ${maximum} caracteres.`, value: trimmed };
+  }
+  return { valid: true, value: trimmed };
+}
+
+function validateHeroEyebrow(value) {
+  return validateOptionalText(value, HERO_EYEBROW_MAX, 'El antetítulo del hero');
+}
+
+function validateHeroButtonLabel(value) {
+  return validateOptionalText(value, HERO_BUTTON_LABEL_MAX, 'La etiqueta del botón');
+}
+
+function isSafeHeroButtonUrl(value) {
+  const url = String(value ?? '').replace(/\0/g, '').trim();
+  if (!url || url.length > HERO_BUTTON_URL_MAX || /[\r\n\\]/.test(url)) return false;
+  if (url.startsWith('/') && !url.startsWith('//')) return true;
+  try {
+    const parsed = new URL(url);
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
+      && Boolean(parsed.hostname)
+      && !parsed.username
+      && !parsed.password;
+  } catch {
+    return false;
+  }
+}
+
+function validateHeroButtonUrl(value) {
+  const trimmed = String(value ?? '').replace(/\0/g, '').trim();
+  if (!trimmed) return { valid: true, value: null };
+  if (!isSafeHeroButtonUrl(trimmed)) {
+    return {
+      valid: false,
+      error: 'La URL del botón debe ser una ruta interna segura o una URL HTTP(S).',
+      value: trimmed,
+    };
+  }
+  return { valid: true, value: trimmed };
+}
+
+function validateHeroButtonTarget(value) {
+  const target = String(value ?? '').trim();
+  if (!target) return { valid: true, value: '_self' };
+  if (!HERO_TARGETS.has(target)) {
+    return { valid: false, error: 'El destino del botón no es válido.', value: '_self' };
+  }
+  return { valid: true, value: target };
+}
+
+function validateHeroMediaReference(value) {
+  const reference = String(value ?? '').trim();
+  if (!reference) return { valid: true, value: null };
+  if (!MEDIA_REFERENCE_PATTERN.test(reference)) {
+    return { valid: false, error: 'La imagen seleccionada no tiene una referencia válida.', value: reference };
+  }
+  return { valid: true, value: reference };
 }
 
 /**
@@ -218,11 +286,22 @@ module.exports = {
   validateHeroDescription,
   validateHeroAlt,
   validateHeroPosition,
+  validateHeroEyebrow,
+  validateHeroButtonLabel,
+  validateHeroButtonUrl,
+  validateHeroButtonTarget,
+  validateHeroMediaReference,
+  isSafeHeroButtonUrl,
   HERO_POSITIONS,
   HERO_TITLE_MAX,
   HERO_DESC_MAX,
   HERO_ALT_MAX,
   CATEGORY_DESC_MAX,
+  HERO_EYEBROW_MAX,
+  HERO_BUTTON_LABEL_MAX,
+  HERO_BUTTON_URL_MAX,
+  HERO_TARGETS,
+  MEDIA_REFERENCE_PATTERN,
   slugify,
   validateProductName,
   validatePrice,

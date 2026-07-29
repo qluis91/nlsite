@@ -201,6 +201,7 @@ const REVISION_ENTITY_TYPES = Object.freeze({
   CAROUSEL_ITEM: 'carousel_item',
   FEATURE_ITEM: 'feature_item',
   SOCIAL_ITEM: 'social_item',
+  CATEGORY: 'category',
 });
 
 const REVISION_ACTIONS = Object.freeze({

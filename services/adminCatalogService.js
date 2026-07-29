@@ -4,6 +4,8 @@
 const pool = require('../config/db');
 const { slugify } = require('../validators/catalogValidator');
 const { normalizeCatalogTags } = require('./catalogTags');
+const revisions = require('./contentRevisionService');
+const { REVISION_ENTITY_TYPES, REVISION_ACTIONS } = require('../config/cmsOptions');
 
 const ADMIN_PRODUCT_PAGE_SIZE = 20;
 const MAX_ADMIN_PRODUCT_PAGE_SIZE = 100;
@@ -90,72 +92,122 @@ async function listCategories(db = pool) {
   return rows;
 }
 
-async function getCategoryById(id) {
-  const [rows] = await pool.query(
-    `SELECT id, name, slug, description, hero_title, hero_description,
-            hero_image, hero_alt, hero_position
+const CATEGORY_SNAPSHOT_FIELDS = Object.freeze([
+  'id', 'name', 'slug', 'description', 'hero_eyebrow', 'hero_title',
+  'hero_description', 'hero_image', 'hero_media_ref', 'hero_alt', 'hero_position',
+  'hero_button_label', 'hero_button_url', 'hero_button_target',
+  'hero_custom_enabled', 'seo_title', 'seo_description', 'og_image',
+]);
+
+function categorySnapshot(category) {
+  if (!category) return null;
+  return CATEGORY_SNAPSHOT_FIELDS.reduce((snapshot, field) => {
+    if (category[field] !== undefined) snapshot[field] = category[field];
+    return snapshot;
+  }, {});
+}
+
+async function getCategoryById(id, db = pool) {
+  const [rows] = await db.query(
+    `SELECT id, name, slug, description, hero_eyebrow, hero_title, hero_description,
+            hero_image, hero_media_ref, hero_alt, hero_position, hero_button_label,
+            hero_button_url, hero_button_target, hero_custom_enabled,
+            seo_title, seo_description, og_image
      FROM categories WHERE id = ?`,
     [id]
   );
   return rows[0] || null;
 }
 
-async function createCategory(name, slug, hero = {}) {
+async function createCategory(name, slug, hero = {}, options = {}) {
   const s = slug || slugify(name);
-  const [result] = await pool.query(
-    `INSERT INTO categories
-      (name, slug, description, hero_title, hero_description, hero_image, hero_alt, hero_position,
-       seo_title, seo_description, og_image)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      name,
-      s,
-      hero.description || null,
-      hero.hero_title || null,
-      hero.hero_description || null,
-      hero.hero_image || null,
-      hero.hero_alt || null,
-      hero.hero_position || 'center',
-      hero.seo_title || null,
-      hero.seo_description || null,
-      hero.og_image || null,
-    ]
-  );
-  return { id: result.insertId, name, slug: s };
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [result] = await conn.query(
+      `INSERT INTO categories
+        (name, slug, description, hero_eyebrow, hero_title, hero_description,
+         hero_image, hero_media_ref, hero_alt, hero_position, hero_button_label,
+         hero_button_url, hero_button_target, hero_custom_enabled,
+         seo_title, seo_description, og_image)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        name, s, hero.description || null, hero.hero_eyebrow || null,
+        hero.hero_title || null, hero.hero_description || null,
+        hero.hero_image || null, hero.hero_media_ref || null, hero.hero_alt || null,
+        hero.hero_position || 'center', hero.hero_button_label || null,
+        hero.hero_button_url || null, hero.hero_button_target || '_self',
+        hero.hero_custom_enabled ? 1 : 0, hero.seo_title || null,
+        hero.seo_description || null, hero.og_image || null,
+      ]
+    );
+    const created = await getCategoryById(result.insertId, conn);
+    await revisions.recordRevision({
+      entityType: REVISION_ENTITY_TYPES.CATEGORY,
+      entityId: result.insertId,
+      action: REVISION_ACTIONS.METADATA_EDIT,
+      previousData: null,
+      newData: categorySnapshot(created),
+      changeSummary: 'Categoría creada con configuración de hero.',
+      changedBy: options.actorId || null,
+      actorName: options.actorName || null,
+      actorEmail: options.actorEmail || null,
+    }, conn);
+    await conn.commit();
+    return created;
+  } catch (error) {
+    await conn.rollback().catch(() => {});
+    throw error;
+  } finally {
+    conn.release();
+  }
 }
 
-async function updateCategory(id, name, slug, hero = {}) {
+async function updateCategory(id, name, slug, hero = {}, options = {}) {
   const s = slug || slugify(name);
-  await pool.query(
-    `UPDATE categories SET
-      name = ?,
-      slug = ?,
-      description = ?,
-      hero_title = ?,
-      hero_description = ?,
-      hero_image = ?,
-      hero_alt = ?,
-      hero_position = ?,
-      seo_title = ?,
-      seo_description = ?,
-      og_image = ?
-     WHERE id = ?`,
-    [
-      name,
-      s,
-      hero.description || null,
-      hero.hero_title || null,
-      hero.hero_description || null,
-      hero.hero_image || null,
-      hero.hero_alt || null,
-      hero.hero_position || 'center',
-      hero.seo_title || null,
-      hero.seo_description || null,
-      hero.og_image || null,
-      id,
-    ]
-  );
-  return { id, name, slug: s };
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [[previous]] = await conn.query('SELECT * FROM categories WHERE id = ? FOR UPDATE', [id]);
+    if (!previous) throw new Error('Categoría no encontrada.');
+    await conn.query(
+      `UPDATE categories SET
+        name = ?, slug = ?, description = ?, hero_eyebrow = ?, hero_title = ?,
+        hero_description = ?, hero_image = ?, hero_media_ref = ?, hero_alt = ?,
+        hero_position = ?, hero_button_label = ?, hero_button_url = ?,
+        hero_button_target = ?, hero_custom_enabled = ?,
+        seo_title = ?, seo_description = ?, og_image = ?
+       WHERE id = ?`,
+      [
+        name, s, hero.description || null, hero.hero_eyebrow || null,
+        hero.hero_title || null, hero.hero_description || null,
+        hero.hero_image || null, hero.hero_media_ref || null, hero.hero_alt || null,
+        hero.hero_position || 'center', hero.hero_button_label || null,
+        hero.hero_button_url || null, hero.hero_button_target || '_self',
+        hero.hero_custom_enabled ? 1 : 0, hero.seo_title || null,
+        hero.seo_description || null, hero.og_image || null, id,
+      ]
+    );
+    const updated = await getCategoryById(id, conn);
+    await revisions.recordRevision({
+      entityType: REVISION_ENTITY_TYPES.CATEGORY,
+      entityId: id,
+      action: REVISION_ACTIONS.METADATA_EDIT,
+      previousData: categorySnapshot(previous),
+      newData: categorySnapshot(updated),
+      changeSummary: 'Categoría y hero actualizados.',
+      changedBy: options.actorId || null,
+      actorName: options.actorName || null,
+      actorEmail: options.actorEmail || null,
+    }, conn);
+    await conn.commit();
+    return updated;
+  } catch (error) {
+    await conn.rollback().catch(() => {});
+    throw error;
+  } finally {
+    conn.release();
+  }
 }
 
 async function deleteCategory(id) {
@@ -522,4 +574,6 @@ module.exports = {
   normalizeAdminProductQuery,
   ADMIN_PRODUCT_PAGE_SIZE,
   PRODUCT_IMAGE_PATH,
+  CATEGORY_SNAPSHOT_FIELDS,
+  categorySnapshot,
 };

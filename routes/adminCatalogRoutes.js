@@ -1,18 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/adminCatalogController');
-const { productImageUpload, categoryHeroUpload } = require('../middleware/upload');
+const { productImageUpload } = require('../middleware/upload');
 const { csrfSynchronisedProtection } = require('../config/csrf');
 
 // ══════════════════════════════════════
-//  CATEGORIES (multipart for optional hero image)
+//  CATEGORIES
 // ══════════════════════════════════════
 
 router.get('/catalogo/categorias', ctrl.listCategories);
 router.get('/catalogo/categorias/nueva', ctrl.showCreateCategory);
-router.post('/catalogo/categorias', categoryHeroUpload, csrfSynchronisedProtection, ctrl.createCategory);
+router.post('/catalogo/categorias', csrfSynchronisedProtection, ctrl.createCategory);
 router.get('/catalogo/categorias/:id/editar', ctrl.showEditCategory);
-router.post('/catalogo/categorias/:id', categoryHeroUpload, csrfSynchronisedProtection, ctrl.updateCategory);
+router.post('/catalogo/categorias/:id', csrfSynchronisedProtection, ctrl.updateCategory);
 router.post('/catalogo/categorias/:id/eliminar', csrfSynchronisedProtection, ctrl.deleteCategory);
 
 // ══════════════════════════════════════

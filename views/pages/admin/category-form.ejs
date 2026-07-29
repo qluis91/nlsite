@@ -1,169 +1,176 @@
+<%
+  const cat = category || {};
+  const errors = typeof fieldErrors !== 'undefined' && Array.isArray(fieldErrors) ? fieldErrors : [];
+  const selectedMedia = typeof selectedHeroMedia !== 'undefined' ? selectedHeroMedia : null;
+  const errorFor = function(field) {
+    const found = errors.find(function(error) { return error.field === field; });
+    return found ? found.message : '';
+  };
+%>
 <div class="page-header">
-  <h1><%= category ? 'Editar Categoría' : 'Nueva Categoría' %></h1>
+  <div>
+    <h1><%= cat.id ? 'Editar Categoría' : 'Nueva Categoría' %></h1>
+    <p class="page-subtitle">Configura la categoría y, opcionalmente, su hero en la tienda.</p>
+  </div>
 </div>
 
 <div class="card">
-  <form action="<%= action %>" method="POST" class="form" enctype="multipart/form-data">
+  <% if (errors.length) { %>
+    <div class="alert alert-danger" role="alert" aria-labelledby="category-errors-title">
+      <strong id="category-errors-title">Hay campos que requieren atención.</strong>
+      <ul>
+        <% errors.forEach(function(error) { %><li><%= error.message %></li><% }); %>
+      </ul>
+    </div>
+  <% } %>
+
+  <form action="<%= action %>" method="POST" class="form" novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
     <div class="form-group">
       <label for="name">Nombre de la categoría <span class="required">*</span></label>
-      <input
-        type="text"
-        id="name"
-        name="name"
-        value="<%= category ? category.name : '' %>"
-        maxlength="100"
-        required
-        autocomplete="off"
-        class="form-control"
-        placeholder="Ej: Figuras, Llaveros, Decoración"
-      >
+      <input type="text" id="name" name="name" value="<%= cat.name || '' %>" maxlength="100"
+             required autocomplete="off" class="form-control" aria-describedby="name-help name-error"
+             placeholder="Ej: Figuras, Llaveros, Decoración">
+      <%- include('../../components/field-help', { id: 'name', text: 'Se usa también para crear la URL de la categoría.' }) %>
+      <% if (errorFor('name')) { %><p id="name-error" class="field-error"><%= errorFor('name') %></p><% } %>
     </div>
 
     <div class="form-group">
       <label for="description">Descripción corta</label>
-      <textarea
-        id="description"
-        name="description"
-        maxlength="500"
-        rows="3"
-        class="form-control"
-        placeholder="Breve descripción de la categoría (opcional)"
-      ><%= category && category.description ? category.description : '' %></textarea>
-      <p class="form-help">Se usa como respaldo del hero si no hay descripción promocional.</p>
+      <textarea id="description" name="description" maxlength="500" rows="3"
+                class="form-control"><%= cat.description || '' %></textarea>
+      <%- include('../../components/field-help', { id: 'description', text: 'Se usa como respaldo de la descripción del hero.' }) %>
     </div>
 
     <fieldset class="form-fieldset">
-      <legend>Hero de la tienda (opcional)</legend>
-      <p class="form-help">Estos campos personalizan el banner contextual cuando un visitante filtra por esta categoría.</p>
+      <legend>Hero de categoría</legend>
+      <p class="form-help">Al activarlo, este hero reemplaza al Hero general de Tienda únicamente al filtrar esta categoría.</p>
 
-      <div class="form-group">
-        <label for="hero_title">Título del hero</label>
-        <input
-          type="text"
-          id="hero_title"
-          name="hero_title"
-          value="<%= category && category.hero_title ? category.hero_title : '' %>"
-          maxlength="160"
-          class="form-control"
-          placeholder="Ej: Figuras coleccionables en 3D"
-        >
+      <div class="form-group form-check">
+        <label>
+          <input type="checkbox" name="hero_custom_enabled" value="1" <%= cat.hero_custom_enabled ? 'checked' : '' %>>
+          Habilitar hero personalizado
+        </label>
+        <%- include('../../components/field-help', { id: 'hero_custom_enabled', text: 'Si la imagen falta o deja de estar activa, la tienda usa automáticamente el hero general.' }) %>
       </div>
 
       <div class="form-group">
-        <label for="hero_description">Descripción del hero</label>
-        <textarea
-          id="hero_description"
-          name="hero_description"
-          maxlength="500"
-          rows="3"
-          class="form-control"
-          placeholder="Texto introductorio del banner (opcional)"
-        ><%= category && category.hero_description ? category.hero_description : '' %></textarea>
+        <%- include('../../components/media-selector', {
+          fieldName: 'hero_media_ref',
+          currentValue: cat.hero_media_ref || '',
+          selectedAsset: selectedMedia,
+          allowedTypes: ['image/png','image/jpeg','image/webp','image/avif'],
+          allowedCategories: [],
+          uploadProfile: 'hero-background',
+          label: 'Imagen del hero',
+          kindLabel: 'Imagen',
+          thumbnailUrl: selectedMedia ? (selectedMedia.thumbnail_path || selectedMedia.public_url) : '',
+          selectedTitle: selectedMedia ? (selectedMedia.title || selectedMedia.original_name) : '',
+          selectedCategory: selectedMedia ? selectedMedia.category : '',
+          selectedMime: selectedMedia ? selectedMedia.mime_type : '',
+          selectedDimensions: selectedMedia ? selectedMedia.dimensions : '',
+          helpText: 'Selecciona una imagen de la Biblioteca de medios. Quitarla limpia solamente esta referencia.',
+        }) %>
+        <% if (errorFor('hero_media_ref')) { %><p class="field-error"><%= errorFor('hero_media_ref') %></p><% } %>
       </div>
 
       <div class="form-group">
-        <label for="hero_image">Imagen del hero</label>
-        <% if (category && category.hero_image) { %>
-          <div class="form-current-image" style="margin-bottom:0.75rem">
-            <img
-              src="<%= category.hero_image %>"
-              alt="<%= category.hero_alt || ('Imagen actual de ' + category.name) %>"
-              width="320"
-              height="180"
-              style="max-width:100%;height:auto;border-radius:0.5rem;object-fit:cover"
-            >
-            <label class="form-check" style="display:block;margin-top:0.5rem">
-              <input type="checkbox" name="remove_hero_image" value="1">
-              Eliminar imagen actual
-            </label>
-          </div>
-        <% } %>
-        <input
-          type="file"
-          id="hero_image"
-          name="hero_image"
-          accept="image/jpeg,image/png,image/webp,image/avif"
-          class="form-control"
-        >
-        <p class="form-help">JPEG, PNG, WebP o AVIF. Máx. 10 MB. Se convierte a WebP optimizado.</p>
+        <label for="hero_alt">Texto alternativo</label>
+        <input type="text" id="hero_alt" name="hero_alt" value="<%= cat.hero_alt || '' %>"
+               maxlength="200" class="form-control">
+        <%- include('../../components/field-help', { id: 'hero_alt', text: 'Describe la imagen para accesibilidad. Si se omite, se genera un texto con el nombre de la categoría.' }) %>
       </div>
 
       <div class="form-group">
-        <label for="hero_alt">Texto alternativo de la imagen</label>
-        <input
-          type="text"
-          id="hero_alt"
-          name="hero_alt"
-          value="<%= category && category.hero_alt ? category.hero_alt : '' %>"
-          maxlength="200"
-          class="form-control"
-          placeholder="Describe la imagen para accesibilidad"
-        >
+        <label for="hero_eyebrow">Antetítulo</label>
+        <input type="text" id="hero_eyebrow" name="hero_eyebrow" value="<%= cat.hero_eyebrow || '' %>"
+               maxlength="120" class="form-control" placeholder="Colección destacada">
       </div>
 
       <div class="form-group">
-        <label for="hero_position">Posición focal de la imagen</label>
-        <select id="hero_position" name="hero_position" class="form-control">
-          <%
-            const positions = [
-              { value: 'center', label: 'Centro' },
-              { value: 'top', label: 'Arriba' },
-              { value: 'bottom', label: 'Abajo' },
-              { value: 'left', label: 'Izquierda' },
-              { value: 'right', label: 'Derecha' },
-            ];
-            const currentPos = (category && category.hero_position) ? category.hero_position : 'center';
-          %>
-          <% positions.forEach(function(pos) { %>
-            <option value="<%= pos.value %>" <%= currentPos === pos.value ? 'selected' : '' %>><%= pos.label %></option>
-          <% }); %>
-        </select>
+        <label for="hero_title">Título</label>
+        <input type="text" id="hero_title" name="hero_title" value="<%= cat.hero_title || '' %>"
+               maxlength="160" class="form-control" placeholder="Figuras coleccionables en 3D">
+      </div>
+
+      <div class="form-group">
+        <label for="hero_description">Descripción</label>
+        <textarea id="hero_description" name="hero_description" maxlength="500" rows="3"
+                  class="form-control"><%= cat.hero_description || '' %></textarea>
       </div>
     </fieldset>
 
-    <!-- ══ SEO (opcional) ══ -->
-    <fieldset class="form-fieldset">
-      <legend>SEO (opcional)</legend>
-      <p class="form-hint">Anula el título, la descripción y la imagen social generados automáticamente para esta categoría.</p>
+    <details class="advanced-section card" data-advanced-section>
+      <summary aria-expanded="false">Enlace y presentación avanzada</summary>
+      <div class="form-group">
+        <label for="hero_button_label">Etiqueta del botón</label>
+        <input type="text" id="hero_button_label" name="hero_button_label"
+               value="<%= cat.hero_button_label || '' %>" maxlength="80" class="form-control">
+      </div>
+      <div class="form-group">
+        <label for="hero_button_url">URL del botón</label>
+        <input type="text" id="hero_button_url" name="hero_button_url"
+               value="<%= cat.hero_button_url || '' %>" maxlength="500" class="form-control"
+               placeholder="/tienda o https://ejemplo.com">
+        <%- include('../../components/field-help', { id: 'hero_button_url', text: 'Acepta rutas internas que comienzan con / y enlaces externos HTTP(S).' }) %>
+        <% if (errorFor('hero_button_url')) { %><p class="field-error"><%= errorFor('hero_button_url') %></p><% } %>
+      </div>
+      <div class="form-group">
+        <label for="hero_button_target">Destino del botón</label>
+        <select id="hero_button_target" name="hero_button_target" class="form-control">
+          <option value="_self" <%= (cat.hero_button_target || '_self') === '_self' ? 'selected' : '' %>>Misma pestaña</option>
+          <option value="_blank" <%= cat.hero_button_target === '_blank' ? 'selected' : '' %>>Nueva pestaña</option>
+        </select>
+        <%- include('../../components/field-help', { id: 'hero_button_target', text: 'Los enlaces en nueva pestaña reciben rel="noopener noreferrer" en la tienda.' }) %>
+      </div>
+      <div class="form-group">
+        <label for="hero_position">Posición focal de la imagen</label>
+        <select id="hero_position" name="hero_position" class="form-control">
+          <% [
+            ['center','Centro'], ['top','Arriba'], ['bottom','Abajo'],
+            ['left','Izquierda'], ['right','Derecha']
+          ].forEach(function(position) { %>
+            <option value="<%= position[0] %>" <%= (cat.hero_position || 'center') === position[0] ? 'selected' : '' %>><%= position[1] %></option>
+          <% }); %>
+        </select>
+      </div>
+    </details>
 
+    <details class="advanced-section card" data-advanced-section>
+      <summary aria-expanded="false">SEO (opcional)</summary>
       <div class="form-group">
         <label for="seo_title">Título SEO</label>
-        <input type="text" id="seo_title" name="seo_title"
-               value="<%= category && category.seo_title ? category.seo_title : '' %>" maxlength="160"
-               class="form-control" placeholder="Ej: Figuras coleccionables 3D — NinjaLab CR">
+        <input type="text" id="seo_title" name="seo_title" value="<%= cat.seo_title || '' %>"
+               maxlength="160" class="form-control">
       </div>
       <div class="form-group">
         <label for="seo_description">Descripción meta</label>
         <textarea id="seo_description" name="seo_description" maxlength="300" rows="3"
-                  class="form-control" placeholder="Descripción para buscadores y redes sociales"><%= category && category.seo_description ? category.seo_description : '' %></textarea>
+                  class="form-control"><%= cat.seo_description || '' %></textarea>
       </div>
       <div class="form-group">
-        <label for="og_image">Imagen Open Graph (ruta absoluta)</label>
-        <input type="text" id="og_image" name="og_image"
-               value="<%= category && category.og_image ? category.og_image : '' %>" maxlength="500"
-               class="form-control" placeholder="Ej: /uploads/products/1/imagen.webp">
-        <span class="form-hint">Opcional. Si se deja vacío, se usa la imagen del hero de la categoría. Ruta absoluta desde la raíz del sitio.</span>
+        <label for="og_image">Imagen Open Graph</label>
+        <input type="text" id="og_image" name="og_image" value="<%= cat.og_image || '' %>"
+               maxlength="500" class="form-control">
       </div>
-    </fieldset>
+    </details>
 
     <div class="sticky-actions">
-      <button type="submit" class="btn btn-save"><%= category ? 'Guardar cambios' : 'Guardar categoría' %></button>
+      <button type="submit" class="btn btn-save"><%= cat.id ? 'Guardar cambios' : 'Guardar categoría' %></button>
       <a href="/admin/catalogo/categorias" class="btn btn-outline">Cancelar</a>
-      <% if (category) { %>
-        <button type="submit" class="btn btn-danger" data-confirm="¿Eliminar esta categoría?" data-confirm-destructive form="delete-form">Eliminar categoría</button>
+      <% if (cat.id) { %>
+        <button type="submit" class="btn btn-danger" data-confirm="¿Eliminar esta categoría?"
+                data-confirm-destructive form="delete-form">Eliminar categoría</button>
       <% } %>
     </div>
   </form>
 
-  <% if (category) { %>
-    <form id="delete-form" action="/admin/catalogo/categorias/<%= category.id %>/eliminar" method="POST" style="display:none">
+  <% if (cat.id) { %>
+    <form id="delete-form" action="/admin/catalogo/categorias/<%= cat.id %>/eliminar" method="POST" hidden>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     </form>
   <% } %>
 </div>
 
-<div class="back-link">
-  <a href="/admin/catalogo/categorias">← Volver a categorías</a>
-</div>
+<div class="back-link"><a href="/admin/catalogo/categorias">← Volver a categorías</a></div>
