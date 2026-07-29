@@ -1,0 +1,127 @@
+<% if (errors.length) { %>
+  <div class="cms-field-errors" role="alert">
+    <h3>Errores de validación</h3>
+    <ul><% errors.forEach(function (msg) { %><li><%= msg %></li><% }); %></ul>
+  </div>
+<% } %>
+
+<div class="admin-page-header">
+  <h1><%= post ? 'Editar Post' : 'Nuevo Post' %> — Social Feed</h1>
+  <a href="/admin/page/social-feed" class="btn btn-outline">← Volver al listado</a>
+</div>
+
+<form method="post" action="/admin/page/social-feed/save" class="admin-form" novalidate>
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <% if (post && post.publicId) { %>
+    <input type="hidden" name="publicId" value="<%= post.publicId %>">
+  <% } %>
+
+  <!-- Platform -->
+  <div class="form-group">
+    <label for="sf-platform">Plataforma <span class="required" aria-hidden="true">*</span></label>
+    <select id="sf-platform" name="platform" class="form-select" required>
+      <option value="">Seleccionar plataforma...</option>
+      <% ['instagram','facebook','tiktok','youtube','other'].forEach(function(p) { %>
+        <option value="<%= p %>" <%= (form.platform || post?.platform || '') === p ? 'selected' : '' %>>
+          <%= p.charAt(0).toUpperCase() + p.slice(1) %>
+        </option>
+      <% }) %>
+    </select>
+  </div>
+
+  <!-- Post URL -->
+  <div class="form-group">
+    <label for="sf-url">URL del post <span class="required" aria-hidden="true">*</span></label>
+    <input type="url" id="sf-url" name="postUrl" class="form-input" required
+           value="<%= form.postUrl || post?.postUrl || '' %>"
+           placeholder="https://www.instagram.com/p/..." maxlength="2048">
+    <span class="field-help" id="sf-url-help">URL pública del post original (HTTP o HTTPS)</span>
+  </div>
+
+  <!-- Title -->
+  <div class="form-group">
+    <label for="sf-title">Título <span class="required" aria-hidden="true">*</span></label>
+    <input type="text" id="sf-title" name="title" class="form-input" required
+           value="<%= form.title || post?.title || '' %>"
+           placeholder="Título del post" maxlength="300">
+  </div>
+
+  <!-- Description -->
+  <div class="form-group">
+    <label for="sf-desc">Descripción</label>
+    <textarea id="sf-desc" name="description" class="form-textarea" rows="3"
+              maxlength="500" placeholder="Breve descripción del contenido..."><%= form.description || post?.description || '' %></textarea>
+    <span class="field-help" id="sf-desc-help">Máximo 500 caracteres</span>
+  </div>
+
+  <!-- Thumbnail Media Reference -->
+  <div class="form-group">
+    <label>Imagen miniatura</label>
+    <%- include('../../../../components/media-selector', {
+      fieldName: 'thumbnailMediaRef',
+      currentValue: form.thumbnailMediaRef || post?.thumbnailMediaRef || '',
+      thumbnailUrl: thumbnail?.thumbnail_path || '',
+      originalName: thumbnail?.original_name || '',
+    }) %>
+  </div>
+
+  <!-- Display mode -->
+  <div class="form-group">
+    <label for="sf-display">Modo de visualización</label>
+    <select id="sf-display" name="displayMode" class="form-select">
+      <option value="external_link" <%= (form.displayMode || post?.displayMode || 'external_link') === 'external_link' ? 'selected' : '' %>>Enlace externo</option>
+      <option value="embed" <%= (form.displayMode || '') === 'embed' ? 'selected' : '' %>>Embed (próximamente)</option>
+    </select>
+  </div>
+
+  <!-- Embed toggle -->
+  <div class="form-group">
+    <label class="checkbox-label">
+      <input type="checkbox" name="embedEnabled" value="1"
+             <%= (form.embedEnabled || post?.embedEnabled) ? 'checked' : '' %>>
+      Habilitar embed
+    </label>
+  </div>
+
+  <!-- Featured & Active -->
+  <div class="form-row">
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="isFeatured" value="1"
+               <%= (form.isFeatured || post?.isFeatured) ? 'checked' : '' %>>
+        Destacado
+      </label>
+    </div>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="isActive" value="1"
+               <%= (form.isActive !== undefined ? form.isActive : (post?.isActive !== undefined ? post.isActive : true)) ? 'checked' : '' %>>
+        Activo
+      </label>
+    </div>
+  </div>
+
+  <!-- Sticky action bar -->
+  <div class="sticky-actions" data-editor-state>
+    <div class="editor-state-indicator">
+      <span class="state-text">Borrador</span>
+    </div>
+    <div class="actions-group">
+      <button type="submit" name="action" value="save" class="btn btn-primary btn-save">Guardar borrador</button>
+      <% if (post && post.publicId) { %>
+        <button type="submit" form="publish-form" class="btn btn-success btn-publish" data-sf-publish>Publicar</button>
+      <% } %>
+    </div>
+  </div>
+</form>
+
+<% if (post && post.publicId) { %>
+  <form id="publish-form" method="post" action="/admin/page/social-feed/publish" style="display:none">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="publicId" value="<%= post.publicId %>">
+  </form>
+  <form id="restore-form" method="post" action="/admin/page/social-feed/restore" style="display:none">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="publicId" value="<%= post.publicId %>">
+  </form>
+<% } %>

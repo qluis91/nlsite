@@ -60,6 +60,18 @@ router.get('/page/nosotros', requireCapability(CAPABILITIES.ABOUT_PAGE_VIEW), ab
 router.post('/page/nosotros/save', requireCapability(CAPABILITIES.ABOUT_PAGE_EDIT), csrfSynchronisedProtection, aboutPageController.saveAboutPageDraft);
 router.post('/page/nosotros/publish', requireCapability(CAPABILITIES.ABOUT_PAGE_PUBLISH), csrfSynchronisedProtection, aboutPageController.publishAboutPage);
 
+// ── Social Feed (Phase 2A) ──
+const socialFeedController = require('../controllers/adminSocialFeedController');
+router.get('/page/social-feed', requireCapability(CAPABILITIES.SOCIAL_FEED_VIEW), socialFeedController.showList);
+router.get('/page/social-feed/create', requireCapability(CAPABILITIES.SOCIAL_FEED_EDIT), socialFeedController.showCreate);
+router.get('/page/social-feed/edit', requireCapability(CAPABILITIES.SOCIAL_FEED_EDIT), socialFeedController.showEdit);
+router.post('/page/social-feed/save', requireCapability(CAPABILITIES.SOCIAL_FEED_EDIT), csrfSynchronisedProtection, socialFeedController.saveDraft);
+router.post('/page/social-feed/publish', requireCapability(CAPABILITIES.SOCIAL_FEED_PUBLISH), csrfSynchronisedProtection, socialFeedController.publishPost);
+router.post('/page/social-feed/archive', requireCapability(CAPABILITIES.SOCIAL_FEED_EDIT), csrfSynchronisedProtection, socialFeedController.archivePost);
+router.post('/page/social-feed/reorder', requireCapability(CAPABILITIES.SOCIAL_FEED_EDIT), csrfSynchronisedProtection, socialFeedController.reorderPosts);
+router.post('/page/social-feed/toggle-active', requireCapability(CAPABILITIES.SOCIAL_FEED_EDIT), csrfSynchronisedProtection, socialFeedController.toggleActive);
+router.post('/page/social-feed/restore', requireCapability(CAPABILITIES.SOCIAL_FEED_EDIT), csrfSynchronisedProtection, socialFeedController.restorePostDraft);
+
 // ── Preview ──
 router.get('/page/preview', requireCapability(CAPABILITIES.PAGE_MANAGE), controller.preview);
 

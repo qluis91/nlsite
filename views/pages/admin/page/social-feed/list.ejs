@@ -1,0 +1,65 @@
+<div class="admin-page-header">
+  <h1>Social Feed</h1>
+  <a href="/admin/page/social-feed/create" class="btn btn-primary">+ Nuevo Post</a>
+</div>
+
+<form method="get" class="admin-filters" aria-label="Filtros">
+  <div class="filter-row">
+    <label for="platformFilter">Plataforma:</label>
+    <select id="platformFilter" name="platform" class="form-select" onchange="this.form.submit()">
+      <option value="">Todas</option>
+      <option value="instagram" <%= platformFilter === 'instagram' ? 'selected' : '' %>>Instagram</option>
+      <option value="facebook" <%= platformFilter === 'facebook' ? 'selected' : '' %>>Facebook</option>
+      <option value="tiktok" <%= platformFilter === 'tiktok' ? 'selected' : '' %>>TikTok</option>
+      <option value="youtube" <%= platformFilter === 'youtube' ? 'selected' : '' %>>YouTube</option>
+      <option value="other" <%= platformFilter === 'other' ? 'selected' : '' %>>Otro</option>
+    </select>
+  </div>
+</form>
+
+<% if (!posts || !posts.length) { %>
+  <div class="empty-state" role="status">
+    <p>No hay posts en el Social Feed todavía.</p>
+    <a href="/admin/page/social-feed/create" class="btn btn-primary">Crear el primer post</a>
+  </div>
+<% } else { %>
+  <div class="social-feed-list">
+    <% posts.forEach(function(post) { %>
+      <div class="social-feed-card" data-post-id="<%= post.publicId %>">
+        <div class="card-preview">
+          <% if (post.thumbnailMediaRef) { %>
+            <span class="card-thumb">📎</span>
+          <% } %>
+          <span class="card-platform platform-<%= post.platform %>">
+            <%= post.platform.charAt(0).toUpperCase() + post.platform.slice(1) %>
+          </span>
+        </div>
+        <div class="card-body">
+          <h3 class="card-title"><%= post.title %></h3>
+          <p class="card-desc"><%= post.description || 'Sin descripción.' %></p>
+          <div class="card-meta">
+            <% if (post.isFeatured) { %><span class="badge badge-featured">Destacado</span><% } %>
+            <span class="badge badge-status <%= post.status %>"><%= post.status === 'published' ? 'Publicado' : 'Borrador' %></span>
+            <span class="badge badge-active <%= post.isActive ? 'active' : 'inactive' %>"><%= post.isActive ? 'Activo' : 'Inactivo' %></span>
+          </div>
+        </div>
+        <div class="card-actions">
+          <a href="/admin/page/social-feed/edit?id=<%= post.publicId %>" class="btn btn-sm btn-outline">Editar</a>
+          <form method="post" action="/admin/page/social-feed/toggle-active" class="inline-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="publicId" value="<%= post.publicId %>">
+            <input type="hidden" name="active" value="<%= post.isActive ? '0' : '1' %>">
+            <button type="submit" class="btn btn-sm btn-outline"><%= post.isActive ? 'Desactivar' : 'Activar' %></button>
+          </form>
+          <form method="post" action="/admin/page/social-feed/archive" class="inline-form" data-confirm="¿Archivar este post?" onsubmit="return confirm(this.getAttribute('data-confirm'))">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="publicId" value="<%= post.publicId %>">
+            <button type="submit" class="btn btn-sm btn-danger">Archivar</button>
+          </form>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+
+<a href="/admin/page" class="btn btn-outline back-link">← Volver a Administrar página</a>

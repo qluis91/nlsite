@@ -279,6 +279,9 @@ async function publishSingleModule(connection, moduleKey, actorId) {
     case MODULE_KEYS.ABOUT_PAGE:
       return publishPageSectionInTx(connection, 'nosotros', 'about-content', actorId);
 
+    case MODULE_KEYS.SOCIAL_FEED:
+      return publishSocialFeedInTx(connection, actorId);
+
     default:
       throw new Error(`Módulo sin publicador: ${moduleKey}`);
   }
@@ -432,6 +435,44 @@ async function publishPageSectionInTx(connection, pageKey, sectionKey, actorId) 
     },
     newSnapshot: { status: 'published', content_json: before.content_json, style_json: before.style_json },
   };
+}
+
+async function publishSocialFeedInTx(connection, actorId) {
+  const [before] = await connection.query(
+    `SELECT * FROM social_posts WHERE status = 'draft' AND archived_at IS NULL FOR UPDATE`
+  );
+  if (!before.length) {
+    return { publishedRevId: null, sourceRevId: null, previousSnapshot: null, newSnapshot: null, skipped: true };
+  }
+  let publishedRevId = null;
+  for (const item of before) {
+    const contentJson = JSON.stringify({
+      platform: item.platform,
+      postUrl: item.post_url,
+      title: item.title,
+      description: item.description,
+      thumbnailMediaRef: item.thumbnail_media_ref,
+      embedEnabled: Boolean(item.embed_enabled),
+      displayMode: item.display_mode,
+      isFeatured: Boolean(item.is_featured),
+    });
+    await connection.query(
+      `UPDATE social_posts
+         SET status = 'published', published_content_json = ?, published_at = NOW(), updated_by = ?
+       WHERE id = ?`,
+      [contentJson, actorId, item.id]
+    );
+    publishedRevId = await recordPublicationRevision(connection, {
+      entityType: 'social_post',
+      entityId: item.id,
+      action: 'publish',
+      previousData: { public_id: item.public_id, status: 'draft' },
+      newData: { public_id: item.public_id, status: 'published' },
+      changeSummary: 'Social post publicado.',
+      changedBy: actorId,
+    });
+  }
+  return { publishedRevId, sourceRevId: null, previousSnapshot: null, newSnapshot: null, skipped: false };
 }
 
 async function publishCollectionInTx(connection, table, entityType, actorId) {

@@ -18,6 +18,7 @@ const MODULE_KEYS = Object.freeze({
   FEATURES: 'home.features',
   STORE_HERO: 'tienda.st-hero',
   ABOUT_PAGE: 'nosotros.about-content',
+  SOCIAL_FEED: 'social-feed',
 });
 
 const MODULE_KEY_VALUES = Object.freeze(Object.values(MODULE_KEYS));
@@ -253,6 +254,28 @@ const MODULES = Object.freeze({
         "SELECT s.status FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key='nosotros' AND s.section_key='about-content'"
       );
       return Boolean(row && row.status === 'draft');
+    },
+  }),
+  [MODULE_KEYS.SOCIAL_FEED]: Object.freeze({
+    key: MODULE_KEYS.SOCIAL_FEED,
+    label: 'Social Feed',
+    entitySource: 'social_posts',
+    cacheNamespaces: ['sc_social_feed'],
+    revisionEntityTypes: ['social_post'],
+    dependencies: [],
+    canPublishIndependently: true,
+    validate: async () => {
+      const [[{ cnt }]] = await pool.query(
+        "SELECT COUNT(*) cnt FROM social_posts WHERE status='draft' AND archived_at IS NULL AND is_active=1"
+      );
+      if (cnt === 0) return { valid: false, errors: ['El Social Feed requiere al menos un post activo en borrador.'] };
+      return { valid: true, warnings: [] };
+    },
+    pendingCheck: async () => {
+      const [[{ cnt }]] = await pool.query(
+        "SELECT COUNT(*) cnt FROM social_posts WHERE status='draft' AND archived_at IS NULL"
+      );
+      return cnt > 0;
     },
   }),
 });
