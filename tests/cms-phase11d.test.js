@@ -358,13 +358,14 @@ describe('Phase 11D — Restore', () => {
     assert.equal(typeof ctrl.restoreRevision, 'function');
   });
 
-  it('40. restore.ejs has both actions', () => {
+  it('40. restore.ejs creates draft only — no immediate publish', () => {
     const content = fs.readFileSync(
       path.join(process.cwd(), 'views', 'pages', 'admin', 'page', 'history', 'restore.ejs'),
       'utf-8'
     );
     assert.ok(content.includes('Restaurar como borrador'), 'should have restore-as-draft button');
-    assert.ok(content.includes('Restaurar y publicar'), 'should have restore-and-publish button');
+    assert.ok(content.includes('nuevo borrador'), 'should explain draft behavior');
+    // Restoration creates a draft; immediate publish is removed for safety in Phase 1C
   });
 
   it('41. restore.ejs shows confirmation warning', () => {

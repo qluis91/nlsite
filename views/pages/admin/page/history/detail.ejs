@@ -1,60 +1,116 @@
 <div class="page-header">
   <h1>Revisión #<%= revision.revision_number %></h1>
   <div class="cms-actions">
-    <a href="/admin/page/history<%= batch ? '?moduleKey=&action=' : '' %>" class="btn btn-outline">Volver al historial</a>
-    <% if (batch) { %>
-      <a href="/admin/page/history/compare?from=<%= revision.id %>&to=<%= revision.id %>" class="btn btn-outline btn-sm">Comparar</a>
+    <a href="/admin/page/history" class="btn btn-outline">Volver al historial</a>
+    <% if (restorationEligible) { %>
+      <a href="/admin/page/history/revision/<%= revision.id %>/restore" class="btn btn-primary">Restaurar</a>
     <% } %>
-    <a href="/admin/page/history/revision/<%= revision.id %>/restore" class="btn btn-primary">Restaurar</a>
   </div>
 </div>
 
+<% if (isLegacy) { %>
+  <div class="alert alert-warning">Registro heredado — algunos metadatos pueden estar incompletos.</div>
+<% } %>
+
+<% if (restorationNote && !restorationEligible) { %>
+  <div class="alert alert-warning"><%= restorationNote %></div>
+<% } %>
+
+<!-- Metadata card -->
 <div class="card">
   <h2>Detalles</h2>
-  <table class="cms-table" style="width:auto">
-    <tr><th style="width:150px">ID</th><td><code><%= revision.id %></code></td></tr>
-    <tr><th>Número</th><td>#<%= revision.revision_number %></td></tr>
-    <tr><th>Entidad</th><td><%= revision.entity_type %></td></tr>
-    <tr><th>ID Entidad</th><td><%= revision.entity_id %></td></tr>
-    <tr><th>Acción</th><td><span class="badge"><%= revision.action %></span></td></tr>
-    <tr><th>Actor</th><td><%= revision.actor_name || '—' %></td></tr>
-    <tr><th>Fecha</th><td><%= new Date(revision.created_at).toLocaleString('es-CR') %></td></tr>
+  <table class="cms-table cms-table--meta">
+    <tr><th style="width:160px">Número</th><td><code>#<%= revision.revision_number %></code></td></tr>
+    <tr><th>Entidad</th><td><code><%= revision.entity_type %></code> (ID: <%= revision.entity_id %>)</td></tr>
+    <tr><th>Acción</th>
+      <td>
+        <% var actionLabels = { upload:'Creación / subida', metadata_edit:'Edición', replace:'Reemplazo', archive:'Archivado', restore:'Restauración', permanent_delete:'Eliminación permanente', publish:'Publicación', reorder:'Reordenamiento', activate:'Activación', deactivate:'Desactivación' }; %>
+        <span class="badge badge--<%= revision.action %>"><%= actionLabels[revision.action] || revision.action %></span>
+      </td>
+    </tr>
+    <tr><th>Administrador</th><td><%= revision.actor_name || 'Desconocido' %><% if (revision.actor_email) { %> (<%= revision.actor_email %>)<% } %></td></tr>
+    <tr><th>Fecha</th><td><%= new Date(revision.created_at).toLocaleString('es-CR', {dateStyle:'full',timeStyle:'medium'}) %></td></tr>
     <tr><th>Resumen</th><td><%= revision.change_summary || '—' %></td></tr>
     <% if (batch) { %>
       <tr><th>Lote de publicación</th><td><code><%= batch.public_id %></code> (<%= batch.scope %>, <%= batch.status %>)</td></tr>
     <% } %>
+    <% if (sourceRev) { %>
+      <tr><th>Revisión de origen</th><td><a href="/admin/page/history/revision/<%= sourceRev.id %>">#<%= sourceRev.revision_number %></a> — <%= new Date(sourceRev.created_at).toLocaleString('es-CR') %></td></tr>
+    <% } %>
   </table>
 </div>
 
+<!-- Field-level changes -->
 <% if (fieldChanges.length) { %>
 <div class="card" style="margin-top:1.5rem">
-  <h2>Cambios registrados</h2>
-  <table class="cms-table">
-    <thead><tr><th>Campo</th><th>Anterior</th><th>Nuevo</th><th>Tipo</th></tr></thead>
-    <tbody>
-      <% fieldChanges.forEach(function(c) { %>
+  <h2>Cambios detectados (<%= fieldChanges.length %>)</h2>
+  <div class="diff-table-container">
+    <table class="cms-table diff-table">
+      <thead>
         <tr>
-          <td><strong><%= c.field %></strong></td>
-          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code><%= c.oldValue.slice(0, 100) %></code></td>
-          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code><%= c.newValue.slice(0, 100) %></code></td>
-          <td><span class="badge <%= c.type === 'added' ? 'badge-published' : c.type === 'removed' ? 'badge-error' : 'badge-warning' %>"><%= c.type %></span></td>
+          <th style="width:180px">Campo</th>
+          <th>Anterior</th>
+          <th>Nuevo</th>
+          <th style="width:100px">Tipo</th>
         </tr>
-      <% }); %>
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        <% var typeLabels = { added:'Agregado', changed:'Modificado', removed:'Eliminado', reordered:'Reordenado' }; %>
+        <% fieldChanges.forEach(function(c) { %>
+          <tr class="diff-row diff-row--<%= c.type %>">
+            <td class="diff-field"><strong><%= c.label %></strong><br><small><code><%= c.field %></code></small></td>
+            <td class="diff-old">
+              <% if (c.type === 'added') { %><span class="diff-empty">—</span><% } else { %>
+                <code class="diff-value" title="<%= String(c.oldValue).replace(/"/g, '&quot;') %>"><%= String(c.oldValue).slice(0, 200) %><% if (String(c.oldValue).length > 200) { %>…<% } %></code>
+              <% } %>
+            </td>
+            <td class="diff-new">
+              <% if (c.type === 'removed') { %><span class="diff-empty">—</span><% } else { %>
+                <code class="diff-value" title="<%= String(c.newValue).replace(/"/g, '&quot;') %>"><%= String(c.newValue).slice(0, 200) %><% if (String(c.newValue).length > 200) { %>…<% } %></code>
+              <% } %>
+            </td>
+            <td><span class="badge badge--diff-<%= c.type %>"><%= typeLabels[c.type] || c.type %></span></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
 </div>
 <% } %>
 
-<% if (newData && !fieldChanges.length) { %>
+<!-- Raw data (collapsible diagnostic) -->
+<% if (prevData || newData) { %>
 <div class="card" style="margin-top:1.5rem">
-  <h2>Datos de la revisión</h2>
-  <details>
-    <summary>Ver JSON</summary>
-    <pre style="background:#f8fafc;padding:1rem;overflow:auto;max-height:400px;font-size:0.8rem"><code><%= JSON.stringify(newData, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;') %></code></pre>
-  </details>
+  <h2>Datos completos</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+    <% if (prevData) { %>
+    <div>
+      <h3>Anterior</h3>
+      <details>
+        <summary>Ver JSON</summary>
+        <pre class="json-preview"><code><%= JSON.stringify(prevData, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;') %></code></pre>
+      </details>
+    </div>
+    <% } %>
+    <% if (newData) { %>
+    <div>
+      <h3>Nuevo</h3>
+      <details>
+        <summary>Ver JSON</summary>
+        <pre class="json-preview"><code><%= JSON.stringify(newData, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;') %></code></pre>
+      </details>
+    </div>
+    <% } %>
+  </div>
+</div>
+<% } else if (!fieldChanges.length) { %>
+<div class="empty-state" style="margin-top:1.5rem">
+  <p>No hay datos de diferencia disponibles para esta revisión.</p>
 </div>
 <% } %>
 
 <div class="cms-actions" style="margin-top:1.5rem">
-  <a href="/admin/page/history/revision/<%= revision.id %>/restore" class="btn btn-primary">Restaurar esta revisión</a>
+  <% if (restorationEligible) { %>
+    <a href="/admin/page/history/revision/<%= revision.id %>/restore" class="btn btn-primary">Restaurar esta revisión</a>
+  <% } %>
 </div>

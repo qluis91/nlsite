@@ -211,6 +211,10 @@ const REVISION_ACTIONS = Object.freeze({
   RESTORE: 'restore',
   PERMANENT_DELETE: 'permanent_delete',
   SELECTOR_UPLOAD: 'selector_upload',
+  PUBLISH: 'publish',
+  REORDER: 'reorder',
+  ACTIVATE: 'activate',
+  DEACTIVATE: 'deactivate',
 });
 
 /** Direct-upload profiles for the visual media selector — Phase 11C-S. */

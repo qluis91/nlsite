@@ -455,18 +455,22 @@ CREATE TABLE IF NOT EXISTS page_sections (
 -- ── Historial de revisiones de contenido ──
 CREATE TABLE IF NOT EXISTS content_revisions (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  entity_type VARCHAR(40) NOT NULL COMMENT 'media_asset | page | page_section | site_setting',
+  entity_type VARCHAR(40) NOT NULL COMMENT 'media_asset | page | page_section | site_setting | navigation_item | logo_loop_item | carousel_item | feature_item | social_item',
   entity_id BIGINT NOT NULL,
   revision_number INT NOT NULL,
-  action VARCHAR(30) NOT NULL COMMENT 'upload | metadata_edit | replace | archive | restore',
+  action VARCHAR(30) NOT NULL COMMENT 'upload | metadata_edit | replace | archive | restore | permanent_delete | selector_upload | publish | reorder | activate | deactivate',
   previous_data JSON NULL,
   new_data JSON NULL,
   change_summary VARCHAR(300) NULL,
+  source_revision_id BIGINT NULL,
   changed_by INT NULL,
+  actor_name VARCHAR(120) NULL,
+  actor_email VARCHAR(180) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_content_revisions_entity_revision (entity_type, entity_id, revision_number),
   KEY idx_content_revisions_entity_created (entity_type, entity_id, created_at),
   KEY idx_content_revisions_actor (changed_by),
+  KEY idx_content_revisions_source (source_revision_id),
   CONSTRAINT fk_content_revisions_actor FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

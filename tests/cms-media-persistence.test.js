@@ -37,14 +37,14 @@ before(async () => {
 
 after(async () => {
   // Cleanup test items
-  await pool.query("DELETE FROM logo_loop_items WHERE page_section_id = ? AND text_content = ?", [sectionId, 'PERSIST_TEST']);
-  await pool.query("DELETE FROM home_carousel_items WHERE page_section_id = ? AND title = ?", [sectionId, 'PERSIST_TEST']);
+  await pool.query("DELETE FROM logo_loop_items WHERE page_section_id = ? AND text_content = ?", [sectionId, 'PERSIST_TEST']).catch(() => {});
+  await pool.query("DELETE FROM home_carousel_items WHERE page_section_id = ? AND title = ?", [sectionId, 'PERSIST_TEST']).catch(() => {});
   // Cleanup test feature items
   const [[servicesSec]] = await pool.query(
     "SELECT s.id FROM page_sections s WHERE s.section_key = 'services'"
   );
   if (servicesSec) {
-    await pool.query("DELETE FROM home_feature_items WHERE page_section_id = ? AND title = ?", [servicesSec.id, 'PERSIST_TEST']);
+    await pool.query("DELETE FROM home_feature_items WHERE page_section_id = ? AND title = ?", [servicesSec.id, 'PERSIST_TEST']).catch(() => {});
   }
   try { await pool.end(); } catch (_) {}
 });

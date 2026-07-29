@@ -6,6 +6,7 @@ const path = require('node:path');
 const bcrypt = require('bcryptjs');
 
 const pool = require('../config/db');
+const { withDeadlockRetry } = require('../services/mysqlRetry');
 const publishing = require('../services/cmsPublishingService');
 const {
   inspectCmsSchema,
@@ -157,8 +158,8 @@ test.before(async () => {
   );
   adminId = userResult.insertId;
 
-  await migrateCmsPhase1aSaveRepair();
-  await migrateCmsPhase1aSaveRepair();
+  await withDeadlockRetry(() => migrateCmsPhase1aSaveRepair());
+  await withDeadlockRetry(() => migrateCmsPhase1aSaveRepair());
   ({ baseUrl } = await startTestServer());
   await login();
 });
@@ -191,6 +192,7 @@ test.after(async () => {
     ]
   );
   await pool.query('DELETE FROM users WHERE id = ?', [adminId]);
+  await stopTestServer();
   await pool.end();
 });
 

@@ -316,15 +316,15 @@ async function publishNavbarInTx(connection, actorId) {
   );
   let publishedRevId = null;
   for (const setting of settings) {
-    publishedRevId = await recordPublicationRevision(connection, {
-      entityType: 'site_setting',
-      entityId: setting.id,
-      action: 'replace',
-      previousData: { setting_key: setting.setting_key, published_value: setting.published_value },
-      newData: { setting_key: setting.setting_key, published_value: setting.setting_value },
-      changeSummary: `Configuración ${setting.setting_key} publicada desde publicación centralizada.`,
-      changedBy: actorId,
-    });
+      publishedRevId = await recordPublicationRevision(connection, {
+        entityType: 'site_setting',
+        entityId: setting.id,
+        action: 'publish',
+        previousData: { setting_key: setting.setting_key, published_value: setting.published_value },
+        newData: { setting_key: setting.setting_key, published_value: setting.setting_value },
+        changeSummary: `Configuración ${setting.setting_key} publicada desde publicación centralizada.`,
+        changedBy: actorId,
+      });
   }
   const [items] = await connection.query(
     `SELECT * FROM navigation_items
@@ -342,7 +342,7 @@ async function publishNavbarInTx(connection, actorId) {
       publishedRevId = await recordPublicationRevision(connection, {
         entityType: 'navigation_item',
         entityId: item.id,
-        action: 'replace',
+        action: 'publish',
         previousData: { status: item.status, published_data: item.published_data },
         newData: { status: 'archived', published_data: null },
         changeSummary: 'Elemento de navegación archivado desde publicación centralizada.',
@@ -369,7 +369,7 @@ async function publishNavbarInTx(connection, actorId) {
     publishedRevId = await recordPublicationRevision(connection, {
       entityType: 'navigation_item',
       entityId: item.id,
-      action: 'replace',
+      action: 'publish',
       previousData: { status: item.status, published_data: item.published_data },
       newData: { status: 'published', published_data: snapshot },
       changeSummary: 'Elemento de navegación publicado desde publicación centralizada.',
@@ -409,7 +409,7 @@ async function publishPageSectionInTx(connection, pageKey, sectionKey, actorId) 
   const publishedRevId = await recordPublicationRevision(connection, {
     entityType: 'page_section',
     entityId: before.id,
-    action: 'replace',
+    action: 'publish',
     previousData: JSON.stringify({ status: before.status, content_json: before.content_json, style_json: before.style_json }),
     newData: JSON.stringify({ status: 'published', content_json: before.content_json, style_json: before.style_json }),
     changeSummary: `Sección ${sectionKey} publicada desde publicación centralizada.`,
@@ -451,7 +451,7 @@ async function publishCollectionInTx(connection, table, entityType, actorId) {
       publishedRevId = await recordPublicationRevision(connection, {
         entityType,
         entityId: item.id,
-        action: 'replace',
+        action: 'publish',
         previousData: { public_id: item.public_id, status: item.status, published_data: item.published_data },
         newData: { public_id: item.public_id, status: 'archived', published_data: null },
         changeSummary: `Elemento de ${table} archivado desde publicación centralizada.`,
@@ -470,7 +470,7 @@ async function publishCollectionInTx(connection, table, entityType, actorId) {
     publishedRevId = await recordPublicationRevision(connection, {
       entityType,
       entityId: item.id,
-      action: 'replace',
+      action: 'publish',
       previousData: { public_id: item.public_id, status: item.status, published_data: item.published_data },
       newData: { public_id: item.public_id, status: 'published', published_data: snapshot },
       changeSummary: `Elemento de ${table} publicado desde publicación centralizada.`,

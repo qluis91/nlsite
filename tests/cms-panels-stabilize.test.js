@@ -13,7 +13,13 @@ let showcaseSectionId, servicesSectionId;
 
 before(async () => {
   const { migratePanels } = require('../scripts/migrate-panels');
+  // Pre-clean any leaked items from other test suites (both PERSIST_TEST and media_prod markers)
+  await pool.query("DELETE FROM logo_loop_items WHERE page_section_id IN (SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = 'showcase') AND (text_content = 'PERSIST_TEST' OR text_content LIKE 'media_prod_%')").catch(() => {});
+  await pool.query("DELETE FROM home_carousel_items WHERE page_section_id IN (SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = 'showcase') AND (title = 'PERSIST_TEST' OR title LIKE 'media_prod_%')").catch(() => {});
+  await pool.query("DELETE FROM home_feature_items WHERE page_section_id IN (SELECT s.id FROM page_sections s WHERE s.section_key = 'services') AND title = 'PERSIST_TEST'").catch(() => {});
   await migratePanels();
+  // Clean any leftover content_revisions to prevent ER_DUP_ENTRY
+  await pool.query('DELETE FROM content_revisions');
 
   const [[sr]] = await pool.query(
     "SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = 'showcase'"
@@ -26,7 +32,35 @@ before(async () => {
   servicesSectionId = svr?.id;
 });
 
+// Track created items for cleanup
+const createdItemIds = [];
+
 after(async () => {
+  // Clean up items and their revisions
+  for (const { table, publicId } of createdItemIds) {
+    try {
+      const [[row]] = await pool.query(`SELECT id FROM ${table} WHERE public_id = ?`, [publicId]);
+      if (row) {
+        const entityType = table === 'logo_loop_items' ? 'logo_loop_item'
+          : table === 'home_carousel_items' ? 'carousel_item'
+          : table === 'home_feature_items' ? 'feature_item' : null;
+        if (entityType) {
+          await pool.query('DELETE FROM content_revisions WHERE entity_type = ? AND entity_id = ?', [entityType, row.id]);
+        }
+        await pool.query(`DELETE FROM ${table} WHERE id = ?`, [row.id]);
+      }
+    } catch (_) { /* ignore */ }
+  }
+  // Clean up section-level revisions (reorder, publish)
+  for (const [entityType, sectionId] of [
+    ['logo_loop_item', showcaseSectionId],
+    ['carousel_item', showcaseSectionId],
+    ['feature_item', servicesSectionId],
+  ]) {
+    if (sectionId) {
+      await pool.query('DELETE FROM content_revisions WHERE entity_type = ? AND entity_id = ?', [entityType, sectionId]).catch(() => {});
+    }
+  }
   await pool.end();
 });
 
@@ -187,6 +221,7 @@ describe('LogoLoop items — CRUD flow', () => {
       item_type: 'text', text_content: 'TEST-TEXT', is_visible: 1, status: 'draft', sort_order: 99,
     });
     textItemId = result.public_id;
+    createdItemIds.push({ table: 'logo_loop_items', publicId: textItemId });
     assert.ok(textItemId);
     assert.equal(result.item_type, 'text');
     assert.equal(result.text_content, 'TEST-TEXT');
@@ -197,6 +232,7 @@ describe('LogoLoop items — CRUD flow', () => {
       item_type: 'image', media_public_id: null, is_visible: 1, status: 'draft', sort_order: 100,
     });
     imageItemId = result.public_id;
+    createdItemIds.push({ table: 'logo_loop_items', publicId: imageItemId });
     assert.ok(imageItemId);
     assert.equal(result.item_type, 'image');
   });
@@ -274,6 +310,7 @@ describe('Carousel items — CRUD flow', () => {
       theme_key: 'graphite', is_visible: 1, status: 'draft', sort_order: 99,
     });
     itemId = result.public_id;
+    createdItemIds.push({ table: 'home_carousel_items', publicId: itemId });
     assert.ok(itemId);
     assert.equal(result.title, 'Test Project');
   });
@@ -328,6 +365,7 @@ describe('Feature items — CRUD flow', () => {
       style_variant: 'default', is_visible: 1, status: 'draft', sort_order: 99,
     });
     builtinItemId = result.public_id;
+    createdItemIds.push({ table: 'home_feature_items', publicId: builtinItemId });
     assert.ok(builtinItemId);
     assert.equal(result.icon_type, 'builtin');
   });
@@ -339,6 +377,7 @@ describe('Feature items — CRUD flow', () => {
       media_public_id: null, is_visible: 1, status: 'draft', sort_order: 100,
     });
     mediaItemId = result.public_id;
+    createdItemIds.push({ table: 'home_feature_items', publicId: mediaItemId });
     assert.ok(mediaItemId);
     assert.equal(result.icon_type, 'media');
   });

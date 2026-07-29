@@ -1,9 +1,9 @@
 /**
- * CMS content mutation + published‑content cache — Phase 11B.
+ * CMS content mutation + published-content cache — Phase 1C.
  *
  * Owns the draft/publish lifecycle for page sections, site settings and
- * navigation items. The simple in‑memory cache is invalidated per‑key on every
- * publish and keeps drafts from contaminating public reads.
+ * navigation items. Records revisions with persisted actor metadata and
+ * proper publish/reorder actions.
  */
 const crypto = require('crypto');
 const { isDeepStrictEqual } = require('node:util');
@@ -12,8 +12,9 @@ const revisions = require('./contentRevisionService');
 const usageService = require('./mediaUsageService');
 const { assertCmsSchemaReady } = require('./cmsSchemaReadinessService');
 const { CONTENT_STATUS_VALUES } = require('../config/cmsOptions');
+const { withTransaction } = require('./mysqlRetry');
 
-// ── Simple read cache (single‑instance, drafts excluded) ──
+// ── Simple read cache (single-instance, drafts excluded) ──
 const cache = new Map();
 
 function cacheKey(namespace, discriminator) {
@@ -41,6 +42,15 @@ function flushCache() { cache.clear(); }
 const ENTITY_SITE_SETTING = 'site_setting';
 const ENTITY_PAGE_SECTION = 'page_section';
 const ENTITY_NAV_ITEM = 'navigation_item';
+
+/**
+ * Resolve actor metadata for revision recording.
+ */
+async function actorMeta(actorId) {
+  if (!actorId) return {};
+  const actor = await revisions.resolveActor(actorId);
+  return { actorName: actor.name, actorEmail: actor.email };
+}
 
 // ── Site settings helpers ──
 
@@ -81,6 +91,7 @@ async function upsertSetting(settingKey, value, valueType, {
     const [[current]] = await connection.query(
       'SELECT * FROM site_settings WHERE setting_key = ?', [settingKey]
     );
+    const meta = await actorMeta(actorId);
     await revisions.recordRevision({
       entityType: ENTITY_SITE_SETTING,
       entityId: current.id,
@@ -89,6 +100,7 @@ async function upsertSetting(settingKey, value, valueType, {
       newData: { setting_value: current.setting_value },
       changeSummary: previous ? 'Configuración actualizada.' : 'Configuración creada.',
       changedBy: actorId,
+      ...meta,
     }, connection);
 
     await connection.commit();
@@ -107,6 +119,7 @@ async function saveSettingsDraft(entries, { actorId = null } = {}) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    const meta = await actorMeta(actorId);
     for (const [settingKey, value, valueType, settingGroup = 'general', isPublic = true] of entries) {
       const [existing] = await connection.query(
         'SELECT id, setting_value FROM site_settings WHERE setting_key = ? FOR UPDATE',
@@ -142,6 +155,7 @@ async function saveSettingsDraft(entries, { actorId = null } = {}) {
         newData: { setting_value: serialized },
         changeSummary: previous ? 'Configuración actualizada.' : 'Configuración creada.',
         changedBy: actorId,
+        ...meta,
       }, connection);
     }
     await connection.commit();
@@ -226,6 +240,7 @@ async function publishSettings(keys, { actorId = null } = {}) {
         FOR UPDATE`,
       keys
     );
+    const meta = await actorMeta(actorId);
     if (rows.length) {
       await connection.query(
         `UPDATE site_settings
@@ -238,11 +253,12 @@ async function publishSettings(keys, { actorId = null } = {}) {
         await revisions.recordRevision({
           entityType: ENTITY_SITE_SETTING,
           entityId: row.id,
-          action: 'replace',
+          action: 'publish',
           previousData: { published_value: row.published_value },
           newData: { published_value: row.setting_value },
           changeSummary: 'Configuración publicada.',
           changedBy: actorId,
+          ...meta,
         }, connection);
       }
     }
@@ -257,7 +273,7 @@ async function publishSettings(keys, { actorId = null } = {}) {
   }
 }
 
-// ── Section content helpers (hero/panel‑1) ──
+// ── Section content helpers (hero/panel-1) ──
 
 function parseJsonObject(value) {
   if (!value) return {};
@@ -308,10 +324,8 @@ async function saveSectionDraft(pageKey, sectionKey, content, style, {
     });
     throw error;
   }
-  const connection = await pool.getConnection();
-  try {
+  return withTransaction(pool, async (connection) => {
     emitDiagnostic(onDiagnostic, 'transaction_start');
-    await connection.beginTransaction();
     const [rows] = await connection.query(
       `SELECT s.id, s.content_json, s.style_json, s.status, s.is_enabled, s.version
          FROM page_sections s INNER JOIN pages p ON p.id = s.page_id
@@ -325,8 +339,22 @@ async function saveSectionDraft(pageKey, sectionKey, content, style, {
     const previousStyleObject = parseJsonObject(section.style_json);
     const mergedContent = mergeDraftObjects(previousContentObject, content);
     const mergedStyle = mergeDraftObjects(previousStyleObject, style);
-    const previousContent = JSON.stringify(previousContentObject);
-    const previousStyle = JSON.stringify(previousStyleObject);
+
+    if (
+      isDeepStrictEqual(mergedContent, previousContentObject)
+      && isDeepStrictEqual(mergedStyle, previousStyleObject)
+    ) {
+      // No meaningful change — skip revision
+      emitDiagnostic(onDiagnostic, 'noop_save', { sectionId: section.id });
+      return {
+        sectionId: section.id,
+        content: previousContentObject,
+        style: previousStyleObject,
+        status: section.status,
+        version: section.version,
+      };
+    }
+
     const newContent = JSON.stringify(mergedContent);
     const newStyle = JSON.stringify(mergedStyle);
 
@@ -343,14 +371,16 @@ async function saveSectionDraft(pageKey, sectionKey, content, style, {
       throw error;
     }
 
+    const meta = await actorMeta(actorId);
     await revisions.recordRevision({
       entityType: ENTITY_PAGE_SECTION,
       entityId: section.id,
       action: 'metadata_edit',
-      previousData: { content_json: previousContent, style_json: previousStyle },
+      previousData: { content_json: JSON.stringify(previousContentObject), style_json: JSON.stringify(previousStyleObject) },
       newData: { content_json: newContent, style_json: newStyle },
       changeSummary: 'Borrador de sección guardado.',
       changedBy: actorId,
+      ...meta,
     }, connection);
 
     const [[persisted]] = await connection.query(
@@ -367,7 +397,6 @@ async function saveSectionDraft(pageKey, sectionKey, content, style, {
       throw error;
     }
 
-    await connection.commit();
     emitDiagnostic(onDiagnostic, 'transaction_commit', { sectionId: section.id });
     return {
       sectionId: section.id,
@@ -376,22 +405,17 @@ async function saveSectionDraft(pageKey, sectionKey, content, style, {
       status: persisted.status,
       version: persisted.version,
     };
-  } catch (error) {
-    await connection.rollback().catch(() => {});
+  }).catch((error) => {
     emitDiagnostic(onDiagnostic, 'transaction_rollback', {
       code: error.code || 'CMS_SAVE_ERROR',
       message: String(error.message || 'Save failed').slice(0, 180),
     });
     throw error;
-  } finally {
-    connection.release();
-  }
+  });
 }
 
 async function publishSection(pageKey, sectionKey, { actorId = null } = {}) {
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
+  return withTransaction(pool, async (connection) => {
     const [rows] = await connection.query(
       `SELECT s.id, s.content_json, s.style_json, s.published_content_json,
               s.published_style_json, s.status, s.is_enabled, s.version
@@ -402,12 +426,11 @@ async function publishSection(pageKey, sectionKey, { actorId = null } = {}) {
     const section = rows[0];
     if (!section) throw new Error('La sección no existe en la base de datos.');
     if (section.status === 'published' && Number(section.is_enabled) === 1) {
-      await connection.commit();
       return section;
     }
 
-    const previousContent = JSON.stringify(section.content_json);
-    const previousStyle = JSON.stringify(section.style_json);
+    const previousContent = String(section.content_json);
+    const previousStyle = String(section.style_json);
 
     await connection.query(
       `UPDATE page_sections
@@ -418,25 +441,21 @@ async function publishSection(pageKey, sectionKey, { actorId = null } = {}) {
       [actorId, section.id]
     );
 
+    const meta = await actorMeta(actorId);
     await revisions.recordRevision({
       entityType: ENTITY_PAGE_SECTION,
       entityId: section.id,
-      action: 'replace',
+      action: 'publish',
       previousData: { content_json: previousContent, style_json: previousStyle, status: section.status },
       newData: { content_json: section.content_json, style_json: section.style_json, status: 'published' },
       changeSummary: 'Sección publicada. Los cambios ahora son visibles en el sitio.',
       changedBy: actorId,
+      ...meta,
     }, connection);
 
-    await connection.commit();
     invalidateNamespace(`sc_${pageKey}`);
     return section;
-  } catch (error) {
-    await connection.rollback().catch(() => {});
-    throw error;
-  } finally {
-    connection.release();
-  }
+  });
 }
 
 async function getSectionDraft(pageKey, sectionKey) {
@@ -540,6 +559,7 @@ async function saveNavItem(publicId, data, { actorId = null } = {}) {
        data.sortOrder, data.isVisible ? 1 : 0, actorId, publicId]
     );
 
+    const meta = await actorMeta(actorId);
     await revisions.recordRevision({
       entityType: ENTITY_NAV_ITEM,
       entityId: item.id,
@@ -548,6 +568,7 @@ async function saveNavItem(publicId, data, { actorId = null } = {}) {
       newData: { label: data.label, url: data.url, target: data.target },
       changeSummary: 'Enlace de navegación actualizado.',
       changedBy: actorId,
+      ...meta,
     }, connection);
     await connection.commit();
   } catch (error) {
@@ -571,6 +592,7 @@ async function createNavItem(data, { actorId = null } = {}) {
        data.mediaPublicId || null, data.sortOrder, data.isVisible ? 1 : 0, actorId]
     );
 
+    const meta = await actorMeta(actorId);
     await revisions.recordRevision({
       entityType: ENTITY_NAV_ITEM,
       entityId: result.insertId,
@@ -579,6 +601,7 @@ async function createNavItem(data, { actorId = null } = {}) {
       newData: { label: data.label, url: data.url },
       changeSummary: 'Enlace de navegación creado.',
       changedBy: actorId,
+      ...meta,
     }, connection);
     await connection.commit();
     return { ...data, public_id: publicId, id: result.insertId };
@@ -604,6 +627,7 @@ async function archiveNavItem(publicId, { actorId = null } = {}) {
       "UPDATE navigation_items SET status = 'archived', deleted_at = NOW(), updated_by = ? WHERE public_id = ?",
       [actorId, publicId]
     );
+    const meta = await actorMeta(actorId);
     await revisions.recordRevision({
       entityType: ENTITY_NAV_ITEM,
       entityId: item.id,
@@ -612,6 +636,7 @@ async function archiveNavItem(publicId, { actorId = null } = {}) {
       newData: { status: 'archived' },
       changeSummary: 'Enlace de navegación archivado.',
       changedBy: actorId,
+      ...meta,
     }, connection);
     await connection.commit();
   } catch (error) {
@@ -632,6 +657,7 @@ async function publishNavItems({ location = 'home', actorId = null } = {}) {
         FOR UPDATE`,
       [location]
     );
+    const meta = await actorMeta(actorId);
     for (const item of items) {
       if (item.status === 'archived') {
         await connection.query(
@@ -664,11 +690,12 @@ async function publishNavItems({ location = 'home', actorId = null } = {}) {
       await revisions.recordRevision({
         entityType: ENTITY_NAV_ITEM,
         entityId: item.id,
-        action: 'replace',
+        action: 'publish',
         previousData: { status: item.status, published_data: item.published_data },
         newData: { status: item.status === 'archived' ? 'archived' : 'published' },
         changeSummary: 'Enlace de navegación publicado.',
         changedBy: actorId,
+        ...meta,
       }, connection);
     }
     await connection.commit();
@@ -686,6 +713,16 @@ async function reorderNavItems(orderedIds, { location = 'home', actorId = null }
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+
+    // Snapshot before reorder
+    const [before] = await connection.query(
+      `SELECT public_id, sort_order FROM navigation_items
+        WHERE location = ? AND status != 'archived' AND deleted_at IS NULL
+        ORDER BY sort_order`,
+      [location]
+    );
+    const previousOrder = before.map(b => ({ public_id: b.public_id, sort_order: b.sort_order }));
+
     for (let index = 0; index < orderedIds.length; index += 1) {
       await connection.query(
         `UPDATE navigation_items
@@ -695,6 +732,26 @@ async function reorderNavItems(orderedIds, { location = 'home', actorId = null }
         [index, actorId, orderedIds[index], location]
       );
     }
+
+    // Record reorder revision
+    const newOrder = orderedIds.map((pid, idx) => ({ public_id: pid, sort_order: idx }));
+    const meta = await actorMeta(actorId);
+    // Use a sentinel entity ID since this spans multiple items
+    const [[navCount]] = await connection.query(
+      'SELECT COALESCE(MIN(id), 0) AS min_id FROM navigation_items WHERE location = ?',
+      [location]
+    );
+    await revisions.recordRevision({
+      entityType: ENTITY_NAV_ITEM,
+      entityId: navCount.min_id || 1,
+      action: 'reorder',
+      previousData: { items: previousOrder },
+      newData: { items: newOrder },
+      changeSummary: 'Navegación reordenada.',
+      changedBy: actorId,
+      ...meta,
+    }, connection);
+
     await connection.commit();
   } catch (error) {
     await connection.rollback().catch(() => {});

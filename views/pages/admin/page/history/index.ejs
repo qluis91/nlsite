@@ -5,8 +5,8 @@
   </div>
 </div>
 
-<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
-<% if (saved) { %><div class="alert alert-success"><%= saved %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<% if (typeof saved !== 'undefined' && saved) { %><div class="alert alert-success"><%= saved %></div><% } %>
 
 <!-- Filters -->
 <form class="cms-form cms-form--inline" method="GET" action="/admin/page/history" style="margin-bottom:1.5rem">
@@ -25,7 +25,7 @@
       <select name="action" class="form-input">
         <option value="">Todas</option>
         <% revisionActions.forEach(function(a) { %>
-          <option value="<%= a %>" <%= action === a ? 'selected' : '' %>><%= a %></option>
+          <option value="<%= a %>" <%= action === a ? 'selected' : '' %>><%= actionLabels[a] || a %></option>
         <% }); %>
       </select>
     </div>
@@ -38,8 +38,9 @@
   </div>
 </form>
 
-<p class="text-muted"><%= total %> revisiones encontradas<% if (moduleKey) { %> para <%= MODULES[moduleKey].label %><% } %>. Página <%= page %> de <%= totalPages %>.</p>
+<p class="text-muted"><%= total %> revisiones encontradas. Página <%= page %> de <%= totalPages %>.</p>
 
+<% if (revisions.length) { %>
 <table class="cms-table">
   <thead>
     <tr>
@@ -47,35 +48,46 @@
       <th>Entidad</th>
       <th>Acción</th>
       <th>Resumen</th>
-      <th>Actor</th>
+      <th>Administrador</th>
       <th>Fecha</th>
       <th>Acciones</th>
     </tr>
   </thead>
   <tbody>
     <% revisions.forEach(function(rev) { %>
-      <tr>
+      <tr class="<%= !rev.actor_name && !rev.has_previous && !rev.has_new ? 'row-legacy' : '' %>">
         <td><code>#<%= rev.revision_number %></code></td>
-        <td><%= rev.entity_type %></td>
-        <td><span class="badge"><%= rev.action %></span></td>
-        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= rev.change_summary || '—' %></td>
-        <td><%= rev.actor_name || '—' %></td>
-        <td><%= new Date(rev.created_at).toLocaleString('es-CR') %></td>
+        <td><%= entityLabels[rev.entity_type] || rev.entity_type %></td>
+        <td>
+          <span class="badge badge--<%= rev.action %>">
+            <%= actionLabels[rev.action] || rev.action %>
+          </span>
+        </td>
+        <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          <%= rev.change_summary || '—' %>
+        </td>
+        <td>
+          <% if (rev.actor_name) { %><%= rev.actor_name %><% } else { %><span class="text-muted">Registro heredado</span><% } %>
+        </td>
+        <td><%= new Date(rev.created_at).toLocaleString('es-CR', {dateStyle:'medium',timeStyle:'short'}) %></td>
         <td class="cms-actions-cell">
           <a href="/admin/page/history/revision/<%= rev.id %>" class="btn btn-sm btn-outline">Ver</a>
         </td>
       </tr>
     <% }); %>
-    <% if (!revisions.length) { %>
-      <tr><td colspan="7" class="empty-state">No se encontraron revisiones.</td></tr>
-    <% } %>
   </tbody>
 </table>
+<% } else { %>
+  <div class="empty-state">
+    <p>No se encontraron revisiones.</p>
+    <p>Las revisiones se generan automáticamente cuando se guarda o publica contenido.</p>
+  </div>
+<% } %>
 
 <% if (totalPages > 1) { %>
-  <div class="media-selector__pagination" style="display:flex;gap:0.5rem;justify-content:center;margin-top:1rem">
+  <div class="media-selector__pagination" style="display:flex;gap:0.5rem;justify-content:center;margin-top:1rem;flex-wrap:wrap">
     <% for (let p = 1; p <= totalPages; p++) { %>
-      <a href="/admin/page/history?moduleKey=<%= moduleKey %>&action=<%= action %>&page=<%= p %>"
+      <a href="/admin/page/history?moduleKey=<%= moduleKey %>&action=<%= action %>&page=<%= p %>&limit=<%= limit %>"
          class="btn btn-sm <%= p === page ? 'btn-primary' : 'btn-outline' %>"><%= p %></a>
     <% } %>
   </div>

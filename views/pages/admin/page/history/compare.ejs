@@ -7,29 +7,31 @@
 
 <div class="card" style="margin-bottom:1.5rem">
   <h2>Revisiones comparadas</h2>
-  <table class="cms-table" style="width:auto">
+  <table class="cms-table cms-table--meta">
     <thead><tr><th></th><th>Desde (Revisión #<%= fromRev.revision_number %>)</th><th>Hasta (Revisión #<%= toRev.revision_number %>)</th></tr></thead>
     <tbody>
       <tr><th>ID</th><td><code><%= fromRev.id %></code></td><td><code><%= toRev.id %></code></td></tr>
       <tr><th>Entidad</th><td><%= fromRev.entity_type %></td><td><%= toRev.entity_type %></td></tr>
       <tr><th>Acción</th><td><span class="badge"><%= fromRev.action %></span></td><td><span class="badge"><%= toRev.action %></span></td></tr>
-      <tr><th>Fecha</th><td><%= new Date(fromRev.created_at).toLocaleString('es-CR') %></td><td><%= new Date(toRev.created_at).toLocaleString('es-CR') %></td></tr>
+      <tr><th>Administrador</th><td><%= fromRev.actor_name || '—' %></td><td><%= toRev.actor_name || '—' %></td></tr>
+      <tr><th>Fecha</th><td><%= new Date(fromRev.created_at).toLocaleString('es-CR', {dateStyle:'medium',timeStyle:'short'}) %></td><td><%= new Date(toRev.created_at).toLocaleString('es-CR', {dateStyle:'medium',timeStyle:'short'}) %></td></tr>
     </tbody>
   </table>
 </div>
 
 <% if (differences.length) { %>
 <div class="card">
-  <h2>Diferencias detectadas</h2>
-  <table class="cms-table">
-    <thead><tr><th>Campo</th><th>Desde</th><th>Hasta</th><th>Tipo</th></tr></thead>
+  <h2>Diferencias detectadas (<%= differences.length %>)</h2>
+  <table class="cms-table diff-table">
+    <thead><tr><th style="width:180px">Campo</th><th>Desde</th><th>Hasta</th><th style="width:100px">Tipo</th></tr></thead>
     <tbody>
+      <% var typeLabels = { agregado:'Agregado', modificado:'Modificado', eliminado:'Eliminado', reordered:'Reordenado' }; %>
       <% differences.forEach(function(d) { %>
-        <tr>
-          <td><strong><%= d.field %></strong></td>
-          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code><%= d.fromValue.slice(0, 150) %></code></td>
-          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code><%= d.toValue.slice(0, 150) %></code></td>
-          <td><span class="badge <%= d.type === 'agregado' ? 'badge-published' : d.type === 'eliminado' ? 'badge-error' : 'badge-warning' %>"><%= d.type %></span></td>
+        <tr class="diff-row diff-row--<%= d.type === 'agregado' ? 'added' : d.type === 'eliminado' ? 'removed' : d.type === 'reordered' ? 'reordered' : 'changed' %>">
+          <td class="diff-field"><strong><%= d.label || d.field %></strong><br><small><code><%= d.field %></code></small></td>
+          <td class="diff-old"><code class="diff-value"><%= String(d.oldValue || d.fromValue || '').slice(0, 200) %></code></td>
+          <td class="diff-new"><code class="diff-value"><%= String(d.newValue || d.toValue || '').slice(0, 200) %></code></td>
+          <td><span class="badge badge--diff-<%= d.type %>"><%= typeLabels[d.type] || d.type %></span></td>
         </tr>
       <% }); %>
     </tbody>
@@ -46,13 +48,13 @@
     <div>
       <h3>Desde</h3>
       <details><summary>Ver JSON</summary>
-        <pre style="background:#f8fafc;padding:0.75rem;overflow:auto;max-height:300px;font-size:0.75rem"><code><%= JSON.stringify(fromData || {}, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;') %></code></pre>
+        <pre class="json-preview"><code><%= JSON.stringify(fromData || {}, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;') %></code></pre>
       </details>
     </div>
     <div>
       <h3>Hasta</h3>
       <details><summary>Ver JSON</summary>
-        <pre style="background:#f8fafc;padding:0.75rem;overflow:auto;max-height:300px;font-size:0.75rem"><code><%= JSON.stringify(toData || {}, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;') %></code></pre>
+        <pre class="json-preview"><code><%= JSON.stringify(toData || {}, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;') %></code></pre>
       </details>
     </div>
   </div>

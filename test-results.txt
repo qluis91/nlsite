@@ -1,0 +1,357 @@
+﻿User profile migration complete.
+Γ£ö account routes are mounted, ordered, authenticated, and owner-scoped (3005.4244ms)
+Γ£ö profile updates only allowlisted fields, normalizes phone, escapes names, and requires CSRF (152.8814ms)
+Γ£ö avatar pipeline accepts safe formats, produces 512px WebP, replaces safely, and removes safely (425.6264ms)
+Γ£ö failed avatar DB update removes the new orphan (37.5399ms)
+Γ£ö password change validates current password, rotates session, preserves cart, and clears guest grants (1229.4326ms)
+User addresses migration complete.
+User addresses migration complete.
+User addresses migration complete.
+User addresses migration complete.
+Γ£ö migration is idempotent, schema-synced, and does not change users or orders (2201.429ms)
+Γ£ö validation normalizes values and rejects province, lengths, phone, checkbox, and malicious text (1.4714ms)
+Γ£ö CRUD routes require auth and CSRF, escape output, and hide cross-user addresses as 404 (409.2088ms)
+Γ£ö default changes atomically and deleting it promotes the oldest remaining address (93.0414ms)
+Γ£ö the service enforces a maximum of 20 addresses per user (390.9286ms)
+Γ£ö checkout shows saved/default choices only to authenticated customers (209.3655ms)
+Γ£ö saved checkout ignores manual address and contact phone, then remains immutable after edit and delete (213.9314ms)
+Γ£ö checkout rejects guest/cross-user/unknown saved choices, supports manual, and pickup clears address (466.9301ms)
+Γ£ö money parsing is exact and rejects malformed or excessive values (2.222ms)
+Γ£ö references, notes, statuses and filters are allowlisted and bounded (0.8199ms)
+Γ£ö lifecycle rules differ for pickup and delivery (0.4357ms)
+Γ£ö tracking validators reject invalid input (0.6037ms)
+Γ£ö quotation, manual payment and cancellation gates reject unsafe states (0.457ms)
+Γ£ö admin routes are protected after global CSRF and all mutation forms carry tokens (2.7932ms)
+Γ£ö active database has hardened schema and consistent existing orders (115.7308ms)
+Γ£ö active unique constraint rejects a duplicate idempotency key without persistence (41.6791ms)
+Γû╢ Admin Products Phase 1E SQL and data resilience
+  Γ£ö reproduces the former MariaDB ONLY_FULL_GROUP_BY failure and the fixed queries pass (23.4797ms)
+  Γ£ö binds combined search and category filters in the same order with no placeholder mismatch (1.6512ms)
+  Γ£ö normalizes malformed legacy values and invalid media paths without crashing (0.7203ms)
+  Γ£ö sanitizes invalid pagination, category, and long search inputs (0.2907ms)
+  Γ£ö archives instead of deleting when historical foreign keys reference the product (0.4766ms)
+Γ£ö Admin Products Phase 1E SQL and data resilience (2544.1087ms)
+Γû╢ Catalog readiness and safe diagnostics
+  Γ£ö accepts the current MariaDB catalog schema (17.2361ms)
+  Γ£ö reports a missing required capability explicitly (2.3437ms)
+  Γ£ö logs correlation, stage, database code, and status without secrets or raw SQL (0.7349ms)
+  Γ£ö wires catalog readiness and the additive repair into deployment and /ready (2.0904ms)
+Γ£ö Catalog readiness and safe diagnostics (22.9709ms)
+Γû╢ Real Admin Products route and CRUD flow
+  Γ£ö blocks anonymous and normal users while the administrator can list, create, edit stock, filter, and delete (547.0368ms)
+  Γ£ö returns a visible NinjaAlert validation failure instead of accepting invalid stock (47.7542ms)
+Γ£ö Real Admin Products route and CRUD flow (595.2567ms)
+Γû╢ Phase 14 ΓÇö Global settings analytics fields
+  Γ£ö global-settings.ejs has ga_enabled checkbox (1.4975ms)
+  Γ£ö global-settings.ejs has ga_measurement_id input (0.4985ms)
+  Γ£ö global-settings.ejs has google_verification input (0.4549ms)
+  Γ£ö validator accepts valid G- measurement ID (123.0405ms)
+  Γ£ö validator rejects invalid measurement ID (0.54ms)
+  Γ£ö validator accepts empty measurement ID (0.3285ms)
+Γ£ö Phase 14 ΓÇö Global settings analytics fields (1783.2241ms)
+Γû╢ Phase 14 ΓÇö CSP for analytics domains
+  Γ£ö app.js script-src allows googletagmanager.com (0.8498ms)
+  Γ£ö app.js script-src allows google-analytics.com (0.7409ms)
+  Γ£ö app.js connect-src allows analytics domains (0.7884ms)
+Γ£ö Phase 14 ΓÇö CSP for analytics domains (2.9525ms)
+Γû╢ Phase 14 ΓÇö Consent banner in layouts
+  Γ£ö main.ejs includes consent-banner.css when gaConsentEnabled (0.9411ms)
+  Γ£ö store.ejs includes consent-banner.css when gaConsentEnabled (0.3619ms)
+  Γ£ö main.ejs loads analytics.js (0.3053ms)
+  Γ£ö store.ejs loads analytics.js (0.2732ms)
+  Γ£ö main.ejs has Google Search Console meta tag (0.4081ms)
+  Γ£ö main.ejs injects __GA_MEASUREMENT_ID config (0.3489ms)
+Γ£ö Phase 14 ΓÇö Consent banner in layouts (3.1234ms)
+Γû╢ Phase 14 ΓÇö Conversion tracking data attributes
+  Γ£ö product detail has data-analytics-product-view (0.8554ms)
+  Γ£ö product detail has add_to_cart data attribute (0.6055ms)
+  Γ£ö product detail has whatsapp_click data attribute (0.5154ms)
+  Γ£ö checkout page has begin_checkout page event (1.9033ms)
+  Γ£ö checkout page has quote_start on quote-requiring delivery (8.2364ms)
+  Γ£ö checkout page has data-analytics-once for quote_start (0.5522ms)
+  Γ£ö checkout page triggers quote_start only for pending_quote deliveries (0.4568ms)
+  Γ£ö checkout confirmation has conditional quote_submit (1.3772ms)
+Γ£ö Phase 14 ΓÇö Conversion tracking data attributes (15.4191ms)
+Γû╢ Phase 14 ΓÇö Consent banner CSS
+  Γ£ö consent-banner.css exists (4.9797ms)
+Γ£ö Phase 14 ΓÇö Consent banner CSS (5.2878ms)
+Γû╢ Phase 14 ΓÇö Analytics JS
+  Γ£ö analytics.js syntax is valid (2.5794ms)
+  Γ£ö analytics.js has once-only duplicate prevention (0.4648ms)
+  Γ£ö analytics.js has change event listener for keyboard navigation (0.3786ms)
+  Γ£ö click handler skips radio and checkbox inputs (0.2963ms)
+  Γ£ö shared fireAnalyticsEvent function exists (0.2857ms)
+Γ£ö Phase 14 ΓÇö Analytics JS (4.3305ms)
+Γû╢ Phase 14 ΓÇö Live HTTP rendering
+  Γ£ö homepage has analytics.js script tag (449.3012ms)
+  Γ£ö store page has analytics.js script tag (362.5388ms)
+  Γ£ö admin login redirect does NOT have GA config variables (14.7318ms)
+Γ£ö Phase 14 ΓÇö Live HTTP rendering (827.0821ms)
+Γû╢ Auth register layout matches login
+  Γ£ö both return 200 (1.211ms)
+  Γ£ö both have page-auth body class (0.4857ms)
+  Γ£ö both load auth.css (0.3283ms)
+  Γ£ö both render auth-card (0.2614ms)
+  Γ£ö both render auth-logo (0.1998ms)
+Γ£ö Auth register layout matches login (2726.4688ms)
+Γû╢ Carousel persistence ΓÇö create & save with media
+  Γ£ö createItem stores both media_public_id and preview_media_public_id (44.6609ms)
+  Γ£ö createItem handles null media fields (21.7597ms)
+  Γ£ö saveItem updates both media fields (47.4579ms)
+  Γ£ö saveItem does NOT create duplicate row (43.438ms)
+  Γ£ö saveItem with null preview clears existing preview (29.1886ms)
+  Γ£ö publishCollection promotes draft items to published (1152.7866ms)
+  Γ£ö getPublishedItems excludes draft and archived items (4.6862ms)
+  Γ£ö listItems returns media_public_id and preview_media_public_id (2.4645ms)
+Γ£ö Carousel persistence ΓÇö create & save with media (1446.8639ms)
+Γû╢ Carousel controller ΓÇö normalization
+  Γ£ö strips media:// prefix (0.5645ms)
+  Γ£ö passes plain UUID through (0.2387ms)
+  Γ£ö handles empty string ΓåÆ null (0.1054ms)
+  Γ£ö handles missing value ΓåÆ null (0.0842ms)
+  Γ£ö handles null ΓåÆ null (0.0933ms)
+Γ£ö Carousel controller ΓÇö normalization (1.4363ms)
+Γû╢ Carousel template ΓÇö panel2.ejs JSON data block
+  Γ£ö JSON block includes media fields for carousel items (9.4332ms)
+  Γ£ö JSON block handles missing resolved data gracefully (6.549ms)
+  Γ£ö carousel form includes both media selectors with correct field names (7.2072ms)
+  Γ£ö carousel form has edit buttons with data-carousel-edit-id (0.5053ms)
+Γ£ö Carousel template ΓÇö panel2.ejs JSON data block (24.0269ms)
+Γû╢ Carousel editor JS ΓÇö panel2-editor.js
+  Γ£ö editCarouselItem dispatches media-selector:load on two selectors (0.2503ms)
+  Γ£ö carousel load event includes preview_media_public_id (0.1366ms)
+  Γ£ö carousel load event includes media_thumb and preview_media_thumb (0.0945ms)
+  Γ£ö form action changes to save route for edit (0.0898ms)
+  Γ£ö resetCarouselForm calls form.reset() (0.1026ms)
+Γ£ö Carousel editor JS ΓÇö panel2-editor.js (1.1969ms)
+Γû╢ Carousel preview ΓÇö adminPageContentController
+  Γ£ö resolves preview_media_public_id for carousel items (0.2717ms)
+  Γ£ö resolves media_public_id for carousel items (0.2325ms)
+Γ£ö Carousel preview ΓÇö adminPageContentController (1.3659ms)
+Γû╢ Carousel public homepage ΓÇö app.js
+  Γ£ö resolves preview_media_public_id for carousel (0.2331ms)
+  Γ£ö resolves media_public_id for carousel (0.1587ms)
+  Γ£ö uses getPublishedItems for carousel (0.1348ms)
+Γ£ö Carousel public homepage ΓÇö app.js (1.1744ms)
+Γû╢ Carousel controller ΓÇö adminPanelsController
+  Γ£ö createCarouselItem includes both media fields (0.4224ms)
+  Γ£ö saveCarouselItem includes both media fields (0.1862ms)
+  Γ£ö showPanel2 resolves both carousel media fields (0.0954ms)
+  Γ£ö publishCarousel uses correct cache namespace (0.1196ms)
+Γ£ö Carousel controller ΓÇö adminPanelsController (1.702ms)
+Γû╢ CSP / markup safety
+  Γ£ö panel2.ejs has no onclick in carousel section (0.5567ms)
+  Γ£ö panel2-editor.js reads from JSON blocks only (0.4217ms)
+Γ£ö CSP / markup safety (1.1118ms)
+[migrate:deploy] Migration registry loaded (2 entries).
+[migrate:deploy] historicalCatalog is recorded ok but catalog capabilities are incomplete: columns: products.stock_quantity
+[migrate:deploy] Skipped historicalCatalog (already ok).
+[migrate:deploy] Starting catalogRepair.
+[migrate:deploy] Completed catalogRepair (1ms).
+Γ£ö catalog repair defines a complete empty-database bootstrap without schema.sql (2.5119ms)
+Γ£ö partial schema readiness reports exact column, index, and foreign-key capabilities (2.7915ms)
+Γ£ö capability matching accepts existing indexes and foreign keys regardless of names (0.4581ms)
+Γ£ö repair migration is registered immediately after the historical catalog migration (0.2705ms)
+Γ£ö historical ok record with missing physical schema runs and records the dedicated repair (3.0914ms)
+[catalog:repair] before: columnas/tablas: categories.description, categories.seo_title, categories.seo_description, categories.og_image, categories.hero_title, categories.hero_description, categories.hero_image, categories.hero_alt, categories.hero_position, categories.created_at, products.regular_price, products.promotional_price, products.web_price, products.weight, products.stock_quantity, products.description, products.seo_title, products.seo_description, products.og_image, products.tags, products.is_active, products.is_published, products.created_at, product_categories.product_id, product_categories.category_id, product_images.id, product_images.product_id, product_images.file_path, product_images.file_name, product_images.mime_type, product_images.width, product_images.height, product_images.size_bytes, product_images.is_primary, product_images.position; ├¡ndices: categories(slug):unique, products(slug):unique, products(is_active), products(is_published), product_categories(product_id,category_id):unique, product_categories(category_id), product_images(product_id,position), product_images(product_id,is_primary); llaves for├íneas: product_categories(product_id)->products(id), product_categories(category_id)->categories(id), product_images(product_id)->products(id)
+[catalog:repair] after: ready (32 additive operation(s))
+[catalog:repair] before: ready
+[catalog:repair] after: ready (0 additive operation(s))
+Γ£ö empty and partial local MariaDB schemas are repaired without losing legacy rows (1171.2386ms)
+[catalog:repair] before: ready
+[catalog:repair] after: ready (0 additive operation(s))
+[catalog:repair] before: ready
+[catalog:repair] after: ready (0 additive operation(s))
+[prestart] Production migration lifecycle beginning.
+[prestart] Migration failed ΓÇö application will not start: migration failed
+[prestart] Migration database pool closed.
+[prestart] Production migration lifecycle beginning.
+[prestart] Migrations complete; application startup may begin.
+[prestart] Migration database pool closed.
+Γ£ö fully migrated local database repair is idempotent and preserves catalog row counts (517.8915ms)
+Γ£ö prestart blocks app launch on migration failure and always closes its owned pool (0.8488ms)
+Γ£ö prestart allows npm startup only after successful migration and clean pool closure (0.3769ms)
+Γ£ö deployment verifies catalog readiness after the complete registry and health stays independent (0.9083ms)
+[catalog:repair] before: ready
+[catalog:repair] after: ready (0 additive operation(s))
+[catalog:repair] before: ready
+[catalog:repair] after: ready (0 additive operation(s))
+[catalog:repair] before: tipos incompatibles: products.tags:int
+Γ£ö semantic products.tags compatibility accepts MySQL JSON and MariaDB text aliases (4.1479ms)
+Γ£ö native MySQL JSON passes readiness and exposes semantic storage metadata (4.9597ms)
+Γ£ö engine diagnostics distinguish MySQL native JSON without requesting alteration (1.464ms)
+Γ£ö engine diagnostics accept MariaDB LONGTEXT JSON storage without alteration (1.9967ms)
+Γ£ö native JSON repair completes twice without altering its type or values (15.6524ms)
+Γ£ö genuinely incompatible scalar tags storage is rejected without blind alteration (3.8487ms)
+Γ£ö tag normalization supports parsed arrays, JSON strings, null, and malformed legacy text (1.0954ms)
+  ΓÅ¡  products.seo_title already exists
+  ΓÅ¡  products.seo_description already exists
+  ΓÅ¡  products.og_image already exists
+  ΓÅ¡  categories.seo_title already exists
+  ΓÅ¡  categories.seo_description already exists
+  ΓÅ¡  categories.og_image already exists
+Γû╢ Phase 12C ΓÇö Migration
+  Γ£ö products has seo_title column (6.7814ms)
+  Γ£ö products has seo_description column (14.7352ms)
+  Γ£ö products has og_image column (19.7831ms)
+  Γ£ö categories has seo_title column (4.2973ms)
+  Γ£ö categories has seo_description column (4.3814ms)
+  Γ£ö categories has og_image column (9.0272ms)
+  ΓÅ¡  products.seo_title already exists
+  ΓÅ¡  products.seo_description already exists
+  ΓÅ¡  products.og_image already exists
+  ΓÅ¡  categories.seo_title already exists
+  ΓÅ¡  categories.seo_description already exists
+  ΓÅ¡  categories.og_image already exists
+  Γ£ö migration is idempotent (100.6208ms)
+Γ£ö Phase 12C ΓÇö Migration (2038.1147ms)
+Γû╢ Phase 12C ΓÇö Product detail SEO rendering
+  Γ£ö store page returns 200 with OG tags (322.9648ms)
+  Γ£ö category-filtered store page returns 200 (26.195ms)
+  Γ£ö product detail page returns 404 for non-existent slug (20.4504ms)
+  Γ£ö store page with no SEO override renders without crashing (207.6584ms)
+Γ£ö Phase 12C ΓÇö Product detail SEO rendering (578.3885ms)
+Γû╢ Phase 12C ΓÇö Admin form SEO fields
+  Γ£ö product-form has SEO fields (0.7476ms)
+  Γ£ö category-form has SEO fields (0.5568ms)
+  Γ£ö product-form renders with SEO values (3.4131ms)
+Γ£ö Phase 12C ΓÇö Admin form SEO fields (5.0368ms)
+Γû╢ Phase 12C ΓÇö Public product detail page SEO
+  Γ£ö product page includes og:title meta tag (19.5587ms)
+  Γ£ö schema.sql includes SEO columns (0.8793ms)
+Γ£ö Phase 12C ΓÇö Public product detail page SEO (20.6989ms)
+  Γ£à media_assets
+  Γ£à pages
+  Γ£à page_sections
+  Γ£à site_settings
+  Γ£à content_revisions
+Γ£à CMS (Phase 11A) migration complete.
+Γ£ö anonymous visitors cannot reach any CMS admin route (2645.792ms)
+Γ£ö authenticated non-admin users cannot reach the CMS admin routes (42.2854ms)
+Γ£ö admin sees "Administrar p├ígina" in the navigation and opens the overview (633.5713ms)
+Γ£ö CMS write routes reject requests without a CSRF token (62.7129ms)
+Γ£ö admin uploads a valid image and the library renders its thumbnail (439.0788ms)
+Γ£ö renamed executables and unsupported types are rejected without creating records (39.8614ms)
+Γ£ö an unknown media id returns a safe error instead of a stack trace (29.4588ms)
+Γ£ö public media URLs serve the file with safe headers and hide the filesystem root (45.001ms)
+Γ£ö existing admin sections and the public homepage keep working (474.5494ms)
+Γ£ö public 404 and global HTML error rendering preserve the original status (28.2178ms)
+Γû╢ CSP header presence
+  Γ£ö CSP nonce middleware exists in app.js (1.6519ms)
+  Γ£ö CSP nonce uses crypto.randomBytes (per-request unique) (1.9482ms)
+Γ£ö CSP header presence (5.0992ms)
+Γû╢ Admin views ΓÇö no inline scripts
+  Γ£ö pages/admin/page/panel2.ejs has no <script> block (only type=json or src=) (2.9252ms)
+  Γ£ö pages/admin/page/panel2.ejs has no onclick handlers (25.7445ms)
+  Γ£ö pages/admin/page/panel2.ejs has no inline onchange (3.067ms)
+  Γ£ö pages/admin/page/panel3.ejs has no <script> block (only type=json or src=) (0.6918ms)
+  Γ£ö pages/admin/page/panel3.ejs has no onclick handlers (0.5285ms)
+  Γ£ö pages/admin/page/panel3.ejs has no inline onchange (8.7769ms)
+  Γ£ö pages/admin/page/navbar.ejs has no <script> block (only type=json or src=) (0.6567ms)
+  Γ£ö pages/admin/page/navbar.ejs has no onclick handlers (0.5379ms)
+  Γ£ö pages/admin/page/navbar.ejs has no inline onchange (0.3855ms)
+  Γ£ö pages/admin/page/panel1.ejs has no <script> block (only type=json or src=) (1.9085ms)
+  Γ£ö pages/admin/page/panel1.ejs has no onclick handlers (0.5278ms)
+  Γ£ö pages/admin/page/panel1.ejs has no inline onchange (0.4948ms)
+  Γ£ö admin layout has no inline <script> block (1.5146ms)
+Γ£ö Admin views ΓÇö no inline scripts (49.0538ms)
+Γû╢ External editor scripts
+  Γ£ö panel2-editor.js exists and is syntactically valid (6.9193ms)
+  Γ£ö panel3-editor.js exists and is syntactically valid (3.105ms)
+  Γ£ö media-selector.js exists and is valid (1.6741ms)
+Γ£ö External editor scripts (12.6417ms)
+Γû╢ EJS renders ΓÇö CSP safe
+  Γ£ö panel2.ejs renders with ID-based buttons and JSON blocks, no onclick/script (38.7603ms)
+  Γ£ö panel3.ejs renders with ID-based buttons, no onclick/script (23.4935ms)
+Γ£ö EJS renders ΓÇö CSP safe (62.5098ms)
+Γû╢ JSON data blocks
+  Γ£ö panel2-logo-items-data block contains valid JSON (39.3631ms)
+  Γ£ö panel3-feature-items-data block contains valid JSON (6.8647ms)
+Γ£ö JSON data blocks (46.4924ms)
+Γû╢ Controller loads editor scripts
+  Γ£ö adminPanelsController includes panel2-editor.js and panel3-editor.js (0.7116ms)
+Γ£ö Controller loads editor scripts (0.9097ms)
+Γû╢ CMS admin views ΓÇö no inline handlers
+  Γ£ö panel2.ejs clean (0.6447ms)
+  Γ£ö panel3.ejs clean (0.3978ms)
+  Γ£ö navbar.ejs clean (0.3772ms)
+  Γ£ö panel1.ejs clean (0.3549ms)
+Γ£ö CMS admin views ΓÇö no inline handlers (2.3308ms)
+Γû╢ Editor initialization guards
+  Γ£ö panel2-editor.js has guard against double init (0.3803ms)
+  Γ£ö panel3-editor.js has guard against double init (0.4052ms)
+Γ£ö Editor initialization guards (0.9495ms)
+Γû╢ Media persistence ΓÇö LogoLoop
+  Γ£ö INSERT stores media_public_id (72.1957ms)
+  Γ£ö listItems returns media_public_id (11.2577ms)
+  Γ£ö UPDATE preserves media_public_id (88.0457ms)
+  Γ£ö JSON data block includes media reference (123.0923ms)
+Γ£ö Media persistence ΓÇö LogoLoop (357.7ms)
+Γû╢ Media persistence ΓÇö Carousel
+  Γ£ö INSERT stores media_public_id and preview_media_public_id (360.3871ms)
+  Γ£ö controller strips media:// prefix (0.4435ms)
+  Γ£ö controller handles null/empty media gracefully (0.2927ms)
+Γ£ö Media persistence ΓÇö Carousel (361.6322ms)
+Γû╢ Media persistence ΓÇö Feature items
+  Γ£ö INSERT stores media_public_id for media-icon cards (17.0261ms)
+  Γ£ö builtin icon mode does not persist stale media (15.8124ms)
+Γ£ö Media persistence ΓÇö Feature items (35.0848ms)
+Γû╢ Media selector ΓÇö field scoping
+  Γ£ö media-selector.ejs uses fieldName as hidden input name (0.7394ms)
+  Γ£ö data-media-selector root scopes each selector (0.4696ms)
+Γ£ö Media selector ΓÇö field scoping (1.4257ms)
+Γû╢ media-selector:load event
+  Γ£ö media-selector.js listens for media-selector:load event (0.5473ms)
+Γ£ö media-selector:load event (0.7582ms)
+Γû╢ Editor scripts dispatch load events
+  Γ£ö panel2-editor.js dispatches media-selector:load for LogoLoop (0.5799ms)
+  Γ£ö panel3-editor.js dispatches media-selector:load for feature items (0.4672ms)
+Γ£ö Editor scripts dispatch load events (1.2424ms)
+Γû╢ Preview rendering ΓÇö preview_media_public_id
+  Γ£ö adminPageContentController resolves preview_media_public_id (0.5506ms)
+  Γ£ö app.js resolves preview_media_public_id (0.5252ms)
+Γ£ö Preview rendering ΓÇö preview_media_public_id (1.3048ms)
+Γû╢ Publishing preserves media
+  Γ£ö publishCollection sets status to published (2800.2932ms)
+Γ£ö Publishing preserves media (2800.5856ms)
+  Γ£à media_assets
+  Γ£à pages
+  Γ£à page_sections
+  Γ£à site_settings
+  Γ£à content_revisions
+Γ£à CMS (Phase 11A) migration complete.
+Γ£ö uploaded LogoLoop and carousel media survive restart, render publicly, and delete safely (13240.4322ms)
+Γû╢ media-selector optional-local regression
+  Γ£ö renders when currentValue is omitted (5.5223ms)
+  Γ£ö renders when thumbnailUrl is omitted (2.3509ms)
+  Γ£ö renders when optional arrays are omitted (1.9217ms)
+  Γ£ö renders an empty-state selector (1.6004ms)
+  Γ£ö renders selected media metadata and thumbnail (1.8503ms)
+  Γ£ö preserves the hidden media reference (1.6843ms)
+  Γ£ö renders safely and warns when fieldName is omitted (6.2241ms)
+  Γ£ö keeps direct-upload and library-selection tabs (7.3018ms)
+Γ£ö media-selector optional-local regression (31.3085ms)
+Γû╢ CMS editor EJS rendering regression
+  Γ£ö Panel 3 renders with no existing media icon (4.5248ms)
+  Γ£ö Panel 3 renders an existing media icon (4.0733ms)
+  Γ£ö Panel 3 built-in icon mode renders (2.4581ms)
+  Γ£ö Panel 3 media icon mode renders (3.9996ms)
+  Γ£ö Navbar editor still renders (9.8763ms)
+  Γ£ö Panel 1 editor still renders (34.2962ms)
+  Γ£ö Panel 2 editor still renders (11.5754ms)
+  Γ£ö media-selector.js parses as JavaScript (3.3409ms)
+Γ£ö CMS editor EJS rendering regression (75.265ms)
+Γû╢ Panel 3 controller and authenticated route regression
+  Γ£ö does not query media assets when Panel 3 has no media reference (1.4978ms)
+  Γ£ö resolves a stored raw media UUID for the Panel 3 editor (10.3059ms)
+  Γ£ö authenticated admin Panel 3 route returns HTTP 200 (390.5809ms)
+Γ£ö Panel 3 controller and authenticated route regression (403.4317ms)
+Γ£ö initializes every selector once even if the script executes twice (10.8621ms)
+Γ£ö one open produces one visible dialog and one request; rapid repeats are ignored (3.0822ms)
+Γ£ö search is debounced; filters, rendering, and pagination issue only intended loads (50.3584ms)
+Γ£ö forced load aborts the old request and loading clears after success and failure (2.4831ms)
+Γ£ö modal close aborts, restores focus, and backdrop handling ignores internal clicks (5.3398ms)
+Γ£ö two selectors keep fields, restrictions, selection, and clear state independent (2.4431ms)
+Γ£ö upload tab does not reload; direct upload updates only its originating selector (3.8623ms)
+Γ£ö all action controls rendered by the selector are non-submitting buttons (2.1385ms)
+Γ£ö Navbar and Panels 1-3 each render initialized, independent selector markup (53.6452ms)

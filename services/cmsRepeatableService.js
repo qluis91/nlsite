@@ -1,12 +1,14 @@
 /**
- * Phase 11C — Repeatable CMS items CRUD & publish service.
+ * Phase 1C — Repeatable CMS items CRUD & publish service.
  * Extends Phase 11B publishing service with logo loop, carousel, and feature items.
+ * Records revisions for all create/update/archive/reorder/publish operations.
  */
 const crypto = require('crypto');
 const pool = require('../config/db');
 const revisions = require('./contentRevisionService');
 const usageService = require('./mediaUsageService');
 const { invalidateNamespace } = require('./cmsPublishingService');
+const { withDeadlockRetry } = require('./mysqlRetry');
 
 function serialize(value) { return value === null || value === undefined ? null : JSON.stringify(value); }
 
@@ -85,6 +87,15 @@ async function getPublishedItems(table, sectionId) {
     .sort((a, b) => Number(a.sort_order) - Number(b.sort_order) || Number(a.id) - Number(b.id));
 }
 
+/**
+ * Resolve actor metadata for revision recording.
+ */
+async function actorMeta(actorId) {
+  if (!actorId) return {};
+  const actor = await revisions.resolveActor(actorId);
+  return { actorName: actor.name, actorEmail: actor.email };
+}
+
 async function createItem(table, sectionId, data, { actorId = null } = {}) {
   const publicId = crypto.randomUUID();
   const connection = await pool.getConnection();
@@ -98,6 +109,7 @@ async function createItem(table, sectionId, data, { actorId = null } = {}) {
       `INSERT INTO ${table} (public_id, page_section_id, ${columns.join(', ')}) VALUES (?, ?, ${placeholders})`,
       [publicId, sectionId, ...values]
     );
+    const meta = await actorMeta(actorId);
     await revisions.recordRevision({
       entityType: entityTypeFor(table),
       entityId: result.insertId,
@@ -105,6 +117,7 @@ async function createItem(table, sectionId, data, { actorId = null } = {}) {
       newData: data,
       changeSummary: 'Elemento creado.',
       changedBy: actorId,
+      ...meta,
     }, connection);
     await connection.commit();
     return { ...data, public_id: publicId, id: result.insertId };
@@ -118,8 +131,14 @@ async function saveItem(table, publicId, data, { actorId = null } = {}) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const [rows] = await connection.query(`SELECT * FROM ${table} WHERE public_id = ? FOR UPDATE`, [publicId]);
+    const [rows] = await withDeadlockRetry(() => connection.query(`SELECT * FROM ${table} WHERE public_id = ? FOR UPDATE`, [publicId]));
     if (!rows[0]) throw new Error('Elemento no encontrado.');
+
+    const before = { ...rows[0] };
+    // Remove internal control columns from snapshots
+    delete before.created_at;
+    delete before.updated_at;
+    delete before.deleted_at;
 
     const entries = Object.entries({ ...data, status: 'draft' });
     if (!entries.length) {
@@ -132,14 +151,22 @@ async function saveItem(table, publicId, data, { actorId = null } = {}) {
       `UPDATE ${table} SET ${setClauses}, deleted_at = NULL, updated_by = ? WHERE public_id = ?`,
       [...values, actorId, publicId]
     );
+
+    const after = { ...before, ...data, status: 'draft' };
+    delete after.created_at;
+    delete after.updated_at;
+    delete after.deleted_at;
+
+    const meta = await actorMeta(actorId);
     await revisions.recordRevision({
       entityType: entityTypeFor(table),
       entityId: rows[0].id,
       action: 'metadata_edit',
-      previousData: JSON.stringify(rows[0]),
-      newData: JSON.stringify({ ...rows[0], ...data, status: 'draft' }),
+      previousData: before,
+      newData: after,
       changeSummary: 'Elemento actualizado.',
       changedBy: actorId,
+      ...meta,
     }, connection);
     await connection.commit();
   } catch (e) {
@@ -152,19 +179,21 @@ async function archiveItem(table, publicId, { actorId = null } = {}) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const [rows] = await connection.query(`SELECT * FROM ${table} WHERE public_id = ? FOR UPDATE`, [publicId]);
+    const [rows] = await withDeadlockRetry(() => connection.query(`SELECT * FROM ${table} WHERE public_id = ? FOR UPDATE`, [publicId]));
     if (!rows[0]) throw new Error('Elemento no encontrado.');
     await connection.query(
       `UPDATE ${table} SET status = 'archived', deleted_at = NOW(), updated_by = ? WHERE public_id = ?`,
       [actorId, publicId]
     );
+    const meta = await actorMeta(actorId);
     await revisions.recordRevision({
       entityType: entityTypeFor(table),
       entityId: rows[0].id,
       action: 'archive',
-      previousData: { public_id: rows[0].public_id },
+      previousData: { public_id: rows[0].public_id, status: rows[0].status, label: rows[0].label || rows[0].title || rows[0].text_content },
       changeSummary: 'Elemento archivado.',
       changedBy: actorId,
+      ...meta,
     }, connection);
     await connection.commit();
   } catch (e) {
@@ -177,6 +206,16 @@ async function reorderItems(table, sectionId, orderedIds, { actorId = null } = {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+
+    // Snapshot before reorder
+    const [before] = await connection.query(
+      `SELECT id, public_id, sort_order FROM ${table}
+        WHERE page_section_id = ? AND status != 'archived' AND deleted_at IS NULL
+        ORDER BY sort_order`,
+      [sectionId]
+    );
+    const previousOrder = before.map(b => ({ public_id: b.public_id, sort_order: b.sort_order }));
+
     for (let i = 0; i < orderedIds.length; i++) {
       await connection.query(
         `UPDATE ${table}
@@ -186,6 +225,26 @@ async function reorderItems(table, sectionId, orderedIds, { actorId = null } = {
         [i, actorId, orderedIds[i], sectionId]
       );
     }
+
+    // Record a single reorder revision for the collection
+    const [[section]] = await connection.query(
+      'SELECT id FROM page_sections WHERE id = ?', [sectionId]
+    );
+    if (section) {
+      const newOrder = orderedIds.map((pid, idx) => ({ public_id: pid, sort_order: idx }));
+      const meta = await actorMeta(actorId);
+      await revisions.recordRevision({
+        entityType: entityTypeFor(table),
+        entityId: sectionId,
+        action: 'reorder',
+        previousData: { items: previousOrder },
+        newData: { items: newOrder },
+        changeSummary: `Colección reordenada (${orderedIds.length} elementos).`,
+        changedBy: actorId,
+        ...meta,
+      }, connection);
+    }
+
     await connection.commit();
   } catch (e) {
     await connection.rollback().catch(() => {});
@@ -197,12 +256,15 @@ async function publishCollection(table, sectionId, cacheNs, { actorId = null } =
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const [items] = await connection.query(
+    const [items] = await withDeadlockRetry(() => connection.query(
       `SELECT * FROM ${table}
         WHERE page_section_id = ? AND (status IN ('draft', 'archived') OR published_data IS NULL)
         FOR UPDATE`,
       [sectionId]
-    );
+    ));
+    const entityType = entityTypeFor(table);
+    const meta = await actorMeta(actorId);
+
     for (const item of items) {
       if (item.status === 'archived') {
         await connection.query(
@@ -211,16 +273,38 @@ async function publishCollection(table, sectionId, cacheNs, { actorId = null } =
             WHERE id = ?`,
           [actorId, item.id]
         );
+        await revisions.recordRevision({
+          entityType,
+          entityId: item.id,
+          action: 'publish',
+          previousData: { public_id: item.public_id, status: 'archived' },
+          newData: { public_id: item.public_id, status: 'archived', published_data: null },
+          changeSummary: 'Elemento archivado publicado (retirado del sitio).',
+          changedBy: actorId,
+          ...meta,
+        }, connection);
         continue;
       }
+      const snapshot = publishedSnapshot(table, item);
       await connection.query(
         `UPDATE ${table}
             SET published_data = ?, published_at = NOW(), status = 'published',
                 deleted_at = NULL, updated_by = ?
           WHERE id = ?`,
-        [JSON.stringify(publishedSnapshot(table, item)), actorId, item.id]
+        [JSON.stringify(snapshot), actorId, item.id]
       );
+      await revisions.recordRevision({
+        entityType,
+        entityId: item.id,
+        action: 'publish',
+        previousData: { public_id: item.public_id, status: item.status, published_data: item.published_data },
+        newData: { public_id: item.public_id, status: 'published', published_data: snapshot },
+        changeSummary: 'Elemento publicado.',
+        changedBy: actorId,
+        ...meta,
+      }, connection);
     }
+
     await connection.query(
       'UPDATE page_sections SET is_enabled = 1 WHERE id = ?',
       [sectionId]

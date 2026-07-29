@@ -12,10 +12,35 @@ const pool = require('../config/db');
 // ── Setup ──
 before(async () => {
   const { migratePanels } = require('../scripts/migrate-panels');
+  // Pre-clean any leaked items from other test suites (both PERSIST_TEST and media_prod markers)
+  await pool.query("DELETE FROM logo_loop_items WHERE page_section_id IN (SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = 'showcase') AND (text_content = 'PERSIST_TEST' OR text_content LIKE 'media_prod_%')").catch(() => {});
+  await pool.query("DELETE FROM home_carousel_items WHERE page_section_id IN (SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = 'showcase') AND (title = 'PERSIST_TEST' OR title LIKE 'media_prod_%')").catch(() => {});
+  await pool.query("DELETE FROM home_feature_items WHERE page_section_id IN (SELECT s.id FROM page_sections s WHERE s.section_key = 'services') AND title = 'PERSIST_TEST'").catch(() => {});
   await migratePanels();
+  // Clean any leftover content_revisions to prevent ER_DUP_ENTRY
+  await pool.query('DELETE FROM content_revisions');
 });
 
+// Track modified entity IDs for cleanup
+const trackedEntities = new Map(); // entityType -> Set of entityIds
+const archivedItemPids = [];
+
+function trackEntity(entityType, entityId) {
+  if (!trackedEntities.has(entityType)) trackedEntities.set(entityType, new Set());
+  trackedEntities.get(entityType).add(entityId);
+}
+
 after(async () => {
+  // Clean up content_revisions
+  for (const [entityType, ids] of trackedEntities) {
+    for (const id of ids) {
+      await pool.query('DELETE FROM content_revisions WHERE entity_type = ? AND entity_id = ?', [entityType, id]).catch(() => {});
+    }
+  }
+  // Delete archived test items
+  for (const { table, publicId } of archivedItemPids) {
+    await pool.query(`DELETE FROM ${table} WHERE public_id = ?`, [publicId]).catch(() => {});
+  }
   await pool.end();
 });
 
@@ -67,10 +92,14 @@ describe('Phase 11C — Migration & Schema', () => {
   });
 
   it('existing CMS data not overwritten by seed', async () => {
-    const [[before]] = await pool.query("SELECT COUNT(*) total FROM logo_loop_items");
+    const [[before]] = await pool.query(
+      "SELECT COUNT(*) total FROM logo_loop_items WHERE deleted_at IS NULL AND text_content IN ('ACABADOS','DISEÑO','MODELADO','PROTOTIPADO','DETALLADO','PERSONALIZACIÓN','IMPRESIÓN 3D')"
+    );
     const { migratePanels } = require('../scripts/migrate-panels');
     await migratePanels();
-    const [[after]] = await pool.query("SELECT COUNT(*) total FROM logo_loop_items");
+    const [[after]] = await pool.query(
+      "SELECT COUNT(*) total FROM logo_loop_items WHERE deleted_at IS NULL AND text_content IN ('ACABADOS','DISEÑO','MODELADO','PROTOTIPADO','DETALLADO','PERSONALIZACIÓN','IMPRESIÓN 3D')"
+    );
     assert.equal(Number(before.total), Number(after.total));
   });
 });
@@ -204,6 +233,7 @@ describe('Phase 11C — Repeatable Items CRUD', () => {
     }, { actorId: null });
     assert.ok(item.public_id);
     assert.equal(item.text_content, 'TestCreate');
+    trackEntity('logo_loop_item', item.id);
     await pool.query('DELETE FROM logo_loop_items WHERE public_id = ?', [item.public_id]);
   });
 
@@ -212,6 +242,7 @@ describe('Phase 11C — Repeatable Items CRUD', () => {
       title: 'TestCarousel', theme_key: 'lime', status: 'draft'
     }, { actorId: null });
     assert.ok(item.public_id);
+    trackEntity('carousel_item', item.id);
     await pool.query('DELETE FROM home_carousel_items WHERE public_id = ?', [item.public_id]);
   });
 
@@ -220,6 +251,7 @@ describe('Phase 11C — Repeatable Items CRUD', () => {
       title: 'TestFeature', icon_type: 'builtin', icon_key: 'diseno-3d', status: 'draft'
     }, { actorId: null });
     assert.ok(item.public_id);
+    trackEntity('feature_item', item.id);
     await pool.query('DELETE FROM home_feature_items WHERE public_id = ?', [item.public_id]);
   });
 
@@ -229,6 +261,7 @@ describe('Phase 11C — Repeatable Items CRUD', () => {
     await repeatable.saveItem('logo_loop_items', original.public_id, {
       text_content: 'SAVED', item_type: original.item_type
     }, { actorId: null });
+    trackEntity('logo_loop_item', original.id);
     const [updated] = await pool.query('SELECT text_content FROM logo_loop_items WHERE public_id = ?', [original.public_id]);
     assert.equal(updated[0].text_content, 'SAVED');
     // Verify revision was created for THIS item
@@ -245,7 +278,10 @@ describe('Phase 11C — Repeatable Items CRUD', () => {
   it('archiveItem sets archived status', async () => {
     const { randomUUID } = require('crypto');
     const pid = randomUUID();
+    archivedItemPids.push({ table: 'logo_loop_items', publicId: pid });
     await pool.query("INSERT INTO logo_loop_items (public_id, page_section_id, item_type, text_content, status) VALUES (?, ?, 'text', 'Temp', 'draft')", [pid, showcaseId]);
+    const [[{ id: insertedId }]] = await pool.query('SELECT id FROM logo_loop_items WHERE public_id = ?', [pid]);
+    trackEntity('logo_loop_item', insertedId);
     await repeatable.archiveItem('logo_loop_items', pid, { actorId: null });
     const [[item]] = await pool.query("SELECT status, deleted_at FROM logo_loop_items WHERE public_id = ?", [pid]);
     assert.equal(item.status, 'archived');
@@ -256,6 +292,7 @@ describe('Phase 11C — Repeatable Items CRUD', () => {
     const items = await repeatable.listItems('logo_loop_items', showcaseId);
     const ids = items.map(i => i.public_id).reverse();
     await repeatable.reorderItems('logo_loop_items', showcaseId, ids);
+    trackEntity('logo_loop_item', showcaseId);
     const [reordered] = await pool.query("SELECT public_id FROM logo_loop_items WHERE deleted_at IS NULL ORDER BY sort_order");
     const sorted = reordered.map(r => r.public_id);
     assert.deepEqual(sorted, ids);
@@ -267,6 +304,10 @@ describe('Phase 11C — Repeatable Items CRUD', () => {
     await repeatable.publishCollection('home_feature_items', servicesId, 'features_home', { actorId: null });
     const items = await repeatable.getPublishedItems('home_feature_items', servicesId);
     assert.ok(items.length > 0);
+    // Track revisions created for each feature item
+    for (const item of items) {
+      trackEntity('feature_item', item.id);
+    }
   });
 
   it('seeded carousel items exist', async () => {
@@ -319,6 +360,7 @@ describe('Phase 11C — Media Usage & Publishing', () => {
         { actorId: null }
       );
       const section = await publishing.getSectionDraft('home', 'showcase');
+      trackEntity('page_section', section.id);
       assert.ok(section);
       assert.equal(section.content.eyebrow, 'CMS TEST');
     } finally {
