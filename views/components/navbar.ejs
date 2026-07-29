@@ -4,6 +4,7 @@
     <ul class="navbar-nav">
       <li><a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">Inicio</a></li>
       <li><a href="/galeria" class="<%= currentPath.startsWith('/galeria') ? 'active' : '' %>">Galería</a></li>
+      <li><a href="/nosotros" class="<%= currentPath.startsWith('/nosotros') ? 'active' : '' %>" <%= currentPath.startsWith('/nosotros') ? 'aria-current="page"' : '' %>>Nosotros</a></li>
       <% if (user) { %>
         <li class="nav-user">
           <a href="/cuenta" class="nav-user-link">

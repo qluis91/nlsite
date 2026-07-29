@@ -235,11 +235,12 @@ describe('Phase 1G additive migration and Store regressions', () => {
     assert.equal(calls.length, 2);
   });
 
-  test('registry appends migration 22 immediately after Phase 1F', () => {
+  test('registry keeps migration 22 immediately after Phase 1F', () => {
     const registry = require('../scripts/migrationTracker').MIGRATION_REGISTRY;
-    assert.equal(registry.length, 22);
+    assert.equal(registry.length, 23);
     assert.equal(registry[20].name, 'migrateStoreHeroCms');
     assert.equal(registry[21].name, 'migrateCategoryStoreHero');
+    assert.equal(registry[22].name, 'migrateAboutPageCms');
   });
 
   test('Store limits, filters and pagination contracts remain intact', () => {

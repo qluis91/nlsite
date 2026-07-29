@@ -44,6 +44,10 @@ const CAPABILITIES = Object.freeze({
   STORE_HERO_VIEW: 'store.hero.view',
   STORE_HERO_EDIT: 'store.hero.edit',
   STORE_HERO_PUBLISH: 'store.hero.publish',
+  // Phase 1H — Página Nosotros
+  ABOUT_PAGE_VIEW: 'about.page.view',
+  ABOUT_PAGE_EDIT: 'about.page.edit',
+  ABOUT_PAGE_PUBLISH: 'about.page.publish',
 });
 
 const CAPABILITY_VALUES = Object.freeze(Object.values(CAPABILITIES));

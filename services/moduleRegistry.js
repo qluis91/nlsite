@@ -17,6 +17,7 @@ const MODULE_KEYS = Object.freeze({
   SERVICES: 'home.services',
   FEATURES: 'home.features',
   STORE_HERO: 'tienda.st-hero',
+  ABOUT_PAGE: 'nosotros.about-content',
 });
 
 const MODULE_KEY_VALUES = Object.freeze(Object.values(MODULE_KEYS));
@@ -221,6 +222,35 @@ const MODULES = Object.freeze({
     pendingCheck: async () => {
       const [[row]] = await pool.query(
         "SELECT s.status FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key='tienda' AND s.section_key='st-hero'"
+      );
+      return Boolean(row && row.status === 'draft');
+    },
+  }),
+  [MODULE_KEYS.ABOUT_PAGE]: Object.freeze({
+    key: MODULE_KEYS.ABOUT_PAGE,
+    label: 'Página Nosotros',
+    entitySource: 'page_sections (nosotros/about-content)',
+    cacheNamespaces: ['sc_nosotros'],
+    revisionEntityTypes: ['page_section'],
+    dependencies: [],
+    canPublishIndependently: true,
+    validate: async () => {
+      const [[row]] = await pool.query(
+        "SELECT s.content_json FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key='nosotros' AND s.section_key='about-content'"
+      );
+      if (!row?.content_json) return { valid: false, errors: ['La Página Nosotros no tiene contenido configurado.'] };
+      let content;
+      try {
+        content = typeof row.content_json === 'string' ? JSON.parse(row.content_json) : row.content_json;
+      } catch {
+        return { valid: false, errors: ['JSON inválido en la Página Nosotros.'] };
+      }
+      if (!content?.hero?.title) return { valid: false, errors: ['La Página Nosotros requiere un título.'] };
+      return { valid: true, warnings: content.isVisible === false ? ['La Página Nosotros está oculta.'] : [] };
+    },
+    pendingCheck: async () => {
+      const [[row]] = await pool.query(
+        "SELECT s.status FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key='nosotros' AND s.section_key='about-content'"
       );
       return Boolean(row && row.status === 'draft');
     },

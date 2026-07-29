@@ -1,0 +1,54 @@
+<%- include('../components/home-navbar') %>
+
+<main class="about-page" aria-label="<%= content.accessibility?.ariaLabel || content.hero?.title || 'Página Nosotros' %>">
+  <% if (content.isVisible !== false) { %>
+    <section class="about-hero" aria-labelledby="about-title">
+      <div class="about-shell about-hero__grid">
+        <div class="about-hero__copy">
+          <% if (content.hero?.eyebrow) { %><p class="about-eyebrow"><%= content.hero.eyebrow %></p><% } %>
+          <h1 id="about-title"><%= content.hero?.title || 'Nosotros' %></h1>
+          <% if (content.hero?.description) { %><p class="about-lead"><%= content.hero.description %></p><% } %>
+        </div>
+        <% if (heroMedia) { %>
+          <figure class="about-media about-media--hero">
+            <img src="<%= heroMedia.url %>" alt="<%= content.hero?.alt || heroMedia.altText || '' %>" loading="eager">
+          </figure>
+        <% } %>
+      </div>
+    </section>
+
+    <div class="about-sections">
+      <% sections.forEach(function (section, index) { %>
+        <section class="about-section" aria-labelledby="about-<%= section.key %>">
+          <div class="about-shell about-section__grid <%= index % 2 ? 'about-section__grid--reverse' : '' %>">
+            <div class="about-section__copy">
+              <% if (section.heading) { %><h2 id="about-<%= section.key %>"><%= section.heading %></h2><% } %>
+              <% if (section.text) { %><p><%= section.text %></p><% } %>
+            </div>
+            <% if (section.mediaResolved) { %>
+              <figure class="about-media">
+                <img src="<%= section.mediaResolved.url %>" alt="<%= section.alt || section.mediaResolved.altText || '' %>" loading="lazy">
+              </figure>
+            <% } %>
+          </div>
+        </section>
+      <% }); %>
+    </div>
+
+    <% if (content.cta?.visible !== false && (content.cta?.heading || content.cta?.text || (content.cta?.label && ctaUrl))) { %>
+      <section class="about-cta" aria-labelledby="about-cta-title">
+        <div class="about-shell about-cta__inner">
+          <% if (content.cta.heading) { %><h2 id="about-cta-title"><%= content.cta.heading %></h2><% } %>
+          <% if (content.cta.text) { %><p><%= content.cta.text %></p><% } %>
+          <% if (content.cta.label && ctaUrl) { %>
+            <a class="about-cta__button" href="<%= ctaUrl %>" target="<%= content.cta.target === '_blank' ? '_blank' : '_self' %>" <% if (ctaRel) { %>rel="<%= ctaRel %>"<% } %>><%= content.cta.label %></a>
+          <% } %>
+        </div>
+      </section>
+    <% } %>
+  <% } else { %>
+    <section class="about-empty" aria-labelledby="about-unavailable">
+      <div class="about-shell"><h1 id="about-unavailable">Página no disponible</h1><p>Este contenido se encuentra temporalmente oculto.</p></div>
+    </section>
+  <% } %>
+</main>

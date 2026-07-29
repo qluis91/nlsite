@@ -276,6 +276,9 @@ async function publishSingleModule(connection, moduleKey, actorId) {
     case MODULE_KEYS.STORE_HERO:
       return publishPageSectionInTx(connection, 'tienda', 'st-hero', actorId);
 
+    case MODULE_KEYS.ABOUT_PAGE:
+      return publishPageSectionInTx(connection, 'nosotros', 'about-content', actorId);
+
     default:
       throw new Error(`Módulo sin publicador: ${moduleKey}`);
   }

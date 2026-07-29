@@ -54,6 +54,12 @@ router.get('/page/store-hero', requireCapability(CAPABILITIES.STORE_HERO_VIEW), 
 router.post('/page/store-hero/save', requireCapability(CAPABILITIES.STORE_HERO_EDIT), csrfSynchronisedProtection, storeHeroController.saveStoreHeroDraft);
 router.post('/page/store-hero/publish', requireCapability(CAPABILITIES.STORE_HERO_PUBLISH), csrfSynchronisedProtection, storeHeroController.publishStoreHero);
 
+// ── Página Nosotros (Phase 1H) ──
+const aboutPageController = require('../controllers/adminAboutPageController');
+router.get('/page/nosotros', requireCapability(CAPABILITIES.ABOUT_PAGE_VIEW), aboutPageController.showAboutPage);
+router.post('/page/nosotros/save', requireCapability(CAPABILITIES.ABOUT_PAGE_EDIT), csrfSynchronisedProtection, aboutPageController.saveAboutPageDraft);
+router.post('/page/nosotros/publish', requireCapability(CAPABILITIES.ABOUT_PAGE_PUBLISH), csrfSynchronisedProtection, aboutPageController.publishAboutPage);
+
 // ── Preview ──
 router.get('/page/preview', requireCapability(CAPABILITIES.PAGE_MANAGE), controller.preview);
 

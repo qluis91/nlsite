@@ -8,6 +8,7 @@
   const navbarSearchName = isStoreSearch ? 'search' : 'q';
   const navbarSearchLabel = isStoreSearch ? 'Buscar productos' : 'Buscar en NinjaLab';
   const navbarSearchPlaceholder = isStoreSearch ? 'Buscar productos...' : 'Buscar en NinjaLab...';
+  const navbarCurrentPath = typeof currentPath !== 'undefined' ? String(currentPath || '') : '';
 
   const hasCmsNav = cms && cms.navItems && cms.navItems.length;
   const logoPrimary = (cms && cms.logos && cms.logos.primary) ? cms.logos.primary.url : null;
@@ -81,7 +82,8 @@
       <% if (hasCmsNav) { %>
         <% cms.navItems.forEach(function (item) { %>
           <li class="hero-nav-item">
-            <a href="<%= item.url %>" class="hero-nav-link"
+            <a href="<%= item.url %>" class="hero-nav-link <%= item.url === '/nosotros' && navbarCurrentPath.startsWith('/nosotros') ? 'active' : '' %>"
+               <% if (item.url === '/nosotros' && navbarCurrentPath.startsWith('/nosotros')) { %>aria-current="page"<% } %>
                <% if (item.target === '_blank') { %>target="_blank" rel="noopener noreferrer"<% } %>><%= item.label %></a>
             <% if (item.url === '/tienda') { %>
               <div class="hero-dropdown-panel"><div class="hero-dropdown-inner">
@@ -119,7 +121,7 @@
       </li>
       <li class="hero-nav-item"><a href="/galeria" class="hero-nav-link">Galería</a></li>
       <li class="hero-nav-item hero-nav-item--dropdown" data-nav-dropdown data-dropdown-align="end">
-        <button class="hero-nav-link hero-nav-trigger" type="button" aria-expanded="false" aria-controls="nav-about">Nosotros <svg class="hero-nav-chevron" viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"/></svg></button>
+        <a href="/nosotros" class="hero-nav-link <%= navbarCurrentPath.startsWith('/nosotros') ? 'active' : '' %>" <%= navbarCurrentPath.startsWith('/nosotros') ? 'aria-current="page"' : '' %>>Nosotros <svg class="hero-nav-chevron" viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"/></svg></a>
         <div id="nav-about" class="hero-dropdown-panel" aria-label="Opciones de Nosotros"><div class="hero-dropdown-inner">
           <a href="<%= anchorPrefix %>#nosotros" class="hero-dropdown-link"><strong>Sobre NinjaLab</strong><span>Conoce nuestro enfoque y experiencia.</span></a>
           <a href="<%= anchorPrefix %>#inicio" class="hero-dropdown-link"><strong>Volver al inicio</strong><span>Regresa a la presentación principal.</span></a>

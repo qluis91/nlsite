@@ -313,6 +313,7 @@ function emitDiagnostic(callback, event, details = {}) {
 async function saveSectionDraft(pageKey, sectionKey, content, style, {
   actorId = null,
   onDiagnostic = null,
+  expectedVersion = null,
 } = {}) {
   try {
     const schemaResult = await assertCmsSchemaReady(pool);
@@ -334,6 +335,17 @@ async function saveSectionDraft(pageKey, sectionKey, content, style, {
     );
     const section = rows[0];
     if (!section) throw new Error('La sección no existe en la base de datos.');
+
+    if (
+      expectedVersion !== null
+      && expectedVersion !== undefined
+      && Number(expectedVersion) !== Number(section.version)
+    ) {
+      const error = new Error('Otra persona modificó este borrador. Recarga la página antes de guardar.');
+      error.code = 'CMS_VERSION_CONFLICT';
+      error.status = 409;
+      throw error;
+    }
 
     const previousContentObject = parseJsonObject(section.content_json);
     const previousStyleObject = parseJsonObject(section.style_json);

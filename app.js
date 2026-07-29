@@ -67,6 +67,7 @@ const guestOrderRoutes = require('./routes/guestOrderRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const storeRoutes = require('./routes/storeRoutes');
 const galleryRoutes = require('./routes/galleryRoutes');
+const aboutRoutes = require('./routes/aboutRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const checkoutRoutes = require('./routes/checkoutRoutes');
 const { router: tilopayRoutes, guestRouter: tilopayGuestRoutes } = require('./routes/tilopayRoutes');
@@ -480,6 +481,7 @@ app.use('/auth', authLimiter, authRoutes);
 app.use('/buscar', searchRoutes);
 app.use('/tienda', storeRoutes);
 app.use('/galeria', galleryRoutes);
+app.use('/nosotros', aboutRoutes);
 app.use('/carrito', cartRoutes);
 app.use('/checkout', checkoutRoutes);
 app.use('/consultar-pedido', guestLookupLimiter, guestOrderRoutes);
@@ -511,6 +513,7 @@ app.get('/sitemap.xml', async (_req, res) => {
       { loc: '/', priority: '1.0' },
       { loc: '/tienda', priority: '0.9' },
       { loc: '/galeria', priority: '0.8' },
+      { loc: '/nosotros', priority: '0.8' },
     ];
 
     // Published products

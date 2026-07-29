@@ -7,6 +7,13 @@ const pool = require('../config/db');
 
 const CMS_MODULES = Object.freeze([
   {
+    key: 'about-page',
+    title: 'Página Nosotros',
+    description: 'Hero, historia, enfoque, capacidades, valores, proceso, CTA y SEO de /nosotros.',
+    href: '/admin/page/nosotros',
+    status: 'active',
+  },
+  {
     key: 'global-settings',
     title: 'Configuración global y SEO',
     description: 'Nombre del sitio, metadatos SEO, favicon, Open Graph, URL canónica y modo de indexación.',

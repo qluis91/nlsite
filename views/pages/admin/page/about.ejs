@@ -1,0 +1,162 @@
+<%
+  const c = content || {};
+  const hero = c.hero || {};
+  const cta = c.cta || {};
+  const seo = c.seo || {};
+  const accessibility = c.accessibility || {};
+  const currentSections = Array.isArray(c.sections) ? c.sections : [];
+  const state = editorState || 'clean';
+  const stateLabels = { clean: 'Sin cambios', dirty: 'Cambios sin guardar', saving: 'Guardando', saved: 'Borrador guardado', published: 'Publicado', error: 'Error' };
+  function sectionFor(key) { return currentSections.find(function (item) { return item.key === key; }) || { key: key, visible: true }; }
+  function mediaFor(ref) { return ref && mediaByRef ? mediaByRef[ref] : null; }
+%>
+<div data-cms-editor data-editor-state="<%= state %>">
+  <div class="page-header">
+    <div>
+      <h1>Página Nosotros</h1>
+      <p>Edita el contenido público de <code>/nosotros</code>. Guardar modifica solo el borrador.</p>
+      <span class="badge <%= section.status === 'published' ? 'badge-published' : 'badge-hidden' %>"><%= section.status || 'sin guardar' %></span>
+    </div>
+    <div class="cms-actions">
+      <span class="cms-editor-state" data-cms-editor-status data-state="<%= state %>"><%= stateLabels[state] || stateLabels.clean %></span>
+      <a href="/nosotros" class="btn btn-outline" target="_blank" rel="noopener noreferrer">Ver página pública</a>
+    </div>
+  </div>
+
+  <% if (fieldErrors.length) { %>
+    <div class="card" role="group" aria-label="Errores de validación">
+      <h2>Revisa estos campos</h2>
+      <ul class="cms-field-errors"><% fieldErrors.forEach(function (message) { %><li><%= message %></li><% }); %></ul>
+    </div>
+  <% } %>
+
+  <form id="about-page-form" action="/admin/page/nosotros/save" method="POST" class="cms-form" data-cms-editor-form novalidate>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="version" value="<%= section.version || 1 %>">
+
+    <section class="card" aria-labelledby="about-hero-heading">
+      <h2 id="about-hero-heading">Hero</h2>
+      <div class="form-group">
+        <label for="about-eyebrow">Eyebrow</label>
+        <input class="form-control" id="about-eyebrow" name="heroEyebrow" maxlength="120" value="<%= hero.eyebrow || '' %>">
+      </div>
+      <div class="form-group">
+        <label for="about-title">Título <span class="text-danger">*</span></label>
+        <input class="form-control" id="about-title" name="heroTitle" maxlength="160" required value="<%= hero.title || '' %>">
+      </div>
+      <div class="form-group">
+        <label for="about-description">Descripción</label>
+        <textarea class="form-control" id="about-description" name="heroDescription" rows="4" maxlength="1000"><%= hero.description || '' %></textarea>
+      </div>
+      <%- include('../../../components/media-selector', {
+        fieldName: 'heroMedia',
+        currentValue: hero.media || '',
+        allowedTypes: ['image/png','image/jpeg','image/webp'],
+        allowedCategories: ['site'],
+        uploadProfile: 'hero-background',
+        label: 'Imagen principal',
+        kindLabel: 'Imagen',
+        thumbnailUrl: mediaFor(hero.media) ? mediaFor(hero.media).thumbnail_url : null,
+        selectedTitle: mediaFor(hero.media) ? (mediaFor(hero.media).title || mediaFor(hero.media).original_filename) : null,
+        selectedCategory: mediaFor(hero.media) ? mediaFor(hero.media).category : null,
+        selectedMime: mediaFor(hero.media) ? mediaFor(hero.media).mime_type : null,
+        selectedDimensions: mediaFor(hero.media) ? mediaFor(hero.media).dimensions : null,
+      }) %>
+      <div class="form-group">
+        <label for="about-hero-alt">Texto alternativo</label>
+        <input class="form-control" id="about-hero-alt" name="heroAlt" maxlength="240" value="<%= hero.alt || '' %>">
+      </div>
+    </section>
+
+    <% sectionKeys.forEach(function (key) { const item = sectionFor(key); %>
+      <section class="card" aria-labelledby="about-section-<%= key %>">
+        <h2 id="about-section-<%= key %>"><%= item.heading || key %></h2>
+        <div class="form-group">
+          <label for="about-<%= key %>-heading">Encabezado</label>
+          <input class="form-control" id="about-<%= key %>-heading" name="section_<%= key %>_heading" maxlength="160" value="<%= item.heading || '' %>">
+        </div>
+        <div class="form-group">
+          <label for="about-<%= key %>-text">Texto</label>
+          <textarea class="form-control" id="about-<%= key %>-text" name="section_<%= key %>_text" rows="5" maxlength="4000"><%= item.text || '' %></textarea>
+        </div>
+        <%- include('../../../components/media-selector', {
+          fieldName: 'section_' + key + '_media',
+          currentValue: item.media || '',
+          allowedTypes: ['image/png','image/jpeg','image/webp'],
+          allowedCategories: ['site'],
+          uploadProfile: 'hero-background',
+          label: 'Imagen opcional',
+          kindLabel: 'Imagen',
+          thumbnailUrl: mediaFor(item.media) ? mediaFor(item.media).thumbnail_url : null,
+          selectedTitle: mediaFor(item.media) ? (mediaFor(item.media).title || mediaFor(item.media).original_filename) : null,
+          selectedCategory: mediaFor(item.media) ? mediaFor(item.media).category : null,
+          selectedMime: mediaFor(item.media) ? mediaFor(item.media).mime_type : null,
+          selectedDimensions: mediaFor(item.media) ? mediaFor(item.media).dimensions : null,
+        }) %>
+        <div class="form-group">
+          <label for="about-<%= key %>-alt">Texto alternativo</label>
+          <input class="form-control" id="about-<%= key %>-alt" name="section_<%= key %>_alt" maxlength="240" value="<%= item.alt || '' %>">
+        </div>
+        <div class="form-group form-check">
+          <label><input type="checkbox" name="section_<%= key %>_visible" value="1" <%= item.visible !== false ? 'checked' : '' %>> Sección visible</label>
+        </div>
+        <div class="form-group">
+          <label for="about-<%= key %>-order">Orden</label>
+          <input class="form-control" id="about-<%= key %>-order" name="section_<%= key %>_order" type="number" min="0" max="999" value="<%= Number.isFinite(Number(item.order)) ? item.order : 0 %>">
+        </div>
+      </section>
+    <% }); %>
+
+    <section class="card" aria-labelledby="about-cta-heading">
+      <h2 id="about-cta-heading">CTA final</h2>
+      <div class="form-group"><label for="about-cta-title">Encabezado</label><input class="form-control" id="about-cta-title" name="ctaHeading" maxlength="160" value="<%= cta.heading || '' %>"></div>
+      <div class="form-group"><label for="about-cta-text">Texto</label><textarea class="form-control" id="about-cta-text" name="ctaText" rows="3" maxlength="1000"><%= cta.text || '' %></textarea></div>
+      <div class="form-group"><label for="about-cta-label">Etiqueta del botón</label><input class="form-control" id="about-cta-label" name="ctaLabel" maxlength="80" value="<%= cta.label || '' %>"></div>
+      <div class="form-group"><label for="about-cta-url">URL del botón</label><input class="form-control" id="about-cta-url" name="ctaUrl" maxlength="500" value="<%= cta.url || '' %>" aria-describedby="about-cta-url-help"><%- include('../../../components/field-help', { id: 'about-cta-url', text: 'Usa /ruta para enlaces internos o una URL HTTP(S) completa.' }) %></div>
+      <div class="form-group"><label for="about-cta-target">Destino</label><select class="form-control" id="about-cta-target" name="ctaTarget"><option value="_self" <%= cta.target !== '_blank' ? 'selected' : '' %>>Misma pestaña</option><option value="_blank" <%= cta.target === '_blank' ? 'selected' : '' %>>Nueva pestaña</option></select></div>
+      <div class="form-group form-check"><label><input type="checkbox" name="ctaVisible" value="1" <%= cta.visible !== false ? 'checked' : '' %>> CTA visible</label></div>
+    </section>
+
+    <details class="advanced-section card" data-advanced-section>
+      <summary aria-expanded="false">SEO</summary>
+      <div class="form-group"><label for="about-seo-title">Título SEO</label><input class="form-control" id="about-seo-title" name="seoTitle" maxlength="160" value="<%= seo.title || '' %>"></div>
+      <div class="form-group"><label for="about-seo-description">Descripción SEO</label><textarea class="form-control" id="about-seo-description" name="seoDescription" rows="3" maxlength="320"><%= seo.description || '' %></textarea></div>
+      <div class="form-group"><label for="about-seo-canonical">URL canónica</label><input class="form-control" id="about-seo-canonical" name="seoCanonical" maxlength="500" value="<%= seo.canonical || '/nosotros' %>"></div>
+      <%- include('../../../components/media-selector', {
+        fieldName: 'seoOgMedia',
+        currentValue: seo.ogMedia || '',
+        allowedTypes: ['image/png','image/jpeg','image/webp'],
+        allowedCategories: ['site'],
+        uploadProfile: 'hero-background',
+        label: 'Imagen Open Graph',
+        kindLabel: 'Imagen',
+        thumbnailUrl: mediaFor(seo.ogMedia) ? mediaFor(seo.ogMedia).thumbnail_url : null,
+        selectedTitle: mediaFor(seo.ogMedia) ? (mediaFor(seo.ogMedia).title || mediaFor(seo.ogMedia).original_filename) : null,
+        selectedCategory: mediaFor(seo.ogMedia) ? mediaFor(seo.ogMedia).category : null,
+        selectedMime: mediaFor(seo.ogMedia) ? mediaFor(seo.ogMedia).mime_type : null,
+        selectedDimensions: mediaFor(seo.ogMedia) ? mediaFor(seo.ogMedia).dimensions : null,
+      }) %>
+    </details>
+
+    <details class="advanced-section card" data-advanced-section>
+      <summary aria-expanded="false">Accesibilidad</summary>
+      <div class="form-group"><label for="about-aria-label">Etiqueta accesible de la página</label><input class="form-control" id="about-aria-label" name="ariaLabel" maxlength="180" value="<%= accessibility.ariaLabel || '' %>"></div>
+    </details>
+
+    <details class="advanced-section card" data-advanced-section>
+      <summary aria-expanded="false">Visibilidad</summary>
+      <div class="form-group form-check"><label><input type="checkbox" name="isVisible" value="1" <%= c.isVisible !== false ? 'checked' : '' %>> Página visible e indexable al publicar</label></div>
+      <p class="text-muted">El orden de cada sección se configura dentro de su tarjeta. Ocultar la página publica <code>noindex</code> sin exponer el borrador.</p>
+    </details>
+
+    <div class="sticky-actions">
+      <span class="cms-editor-state" data-cms-editor-status data-state="<%= state %>"><%= stateLabels[state] || stateLabels.clean %></span>
+      <button type="submit" class="btn btn-save">Guardar cambios</button>
+      <button type="submit" form="about-page-publish-form" class="btn btn-publish">Publicar</button>
+    </div>
+  </form>
+
+  <form id="about-page-publish-form" action="/admin/page/nosotros/publish" method="POST" hidden data-cms-publish-form>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  </form>
+</div>

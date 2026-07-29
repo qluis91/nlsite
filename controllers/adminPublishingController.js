@@ -509,6 +509,7 @@ async function restoreRevision(req, res, next) {
       publishing.invalidateNamespace('logoLoop_home');
       publishing.invalidateNamespace('carousel_home');
       publishing.invalidateNamespace('features_home');
+      publishing.invalidateNamespace('sc_nosotros');
     }
 
     const msg = publishAfter
