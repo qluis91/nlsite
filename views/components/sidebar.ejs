@@ -4,27 +4,49 @@
     <span class="sidebar-badge">Admin</span>
   </div>
 
-  <nav class="sidebar-nav">
+  <nav class="sidebar-nav" aria-label="Navegación principal">
     <a href="/admin" class="<%= currentPath === '/admin' ? 'active' : '' %>">
-      <span class="sidebar-icon">📊</span> Dashboard
-    </a>
-    <a href="/admin/catalogo/categorias" class="<%= (currentPath || '').startsWith('/admin/catalogo/categorias') ? 'active' : '' %>">
-      <span class="sidebar-icon">📁</span> Categorías
-    </a>
-    <a href="/admin/catalogo/productos" class="<%= (currentPath || '').startsWith('/admin/catalogo/productos') ? 'active' : '' %>">
-      <span class="sidebar-icon">📦</span> Productos
-    </a>
-    <a href="/admin/galeria" class="<%= (currentPath || '').startsWith('/admin/galeria') ? 'active' : '' %>">
-      <span class="sidebar-icon">🖼️</span> Galería
+      <span class="sidebar-icon" aria-hidden="true">📊</span> Dashboard
     </a>
     <a href="/admin/page" class="<%= (currentPath || '').startsWith('/admin/page') ? 'active' : '' %>">
-      <span class="sidebar-icon">🧩</span> Administrar página
+      <span class="sidebar-icon" aria-hidden="true">🧩</span> Administrar página
+    </a>
+    <a href="/admin/page/history" class="<%= (currentPath || '').indexOf('/admin/page/history') === 0 ? 'active' : '' %>">
+      <span class="sidebar-icon" aria-hidden="true">📋</span> Historial
+    </a>
+    <a href="/admin/page/media" class="<%= (currentPath || '').indexOf('/admin/page/media') === 0 ? 'active' : '' %>">
+      <span class="sidebar-icon" aria-hidden="true">🖼️</span> Biblioteca multimedia
+    </a>
+    <a href="/admin/page/publishing" class="<%= (currentPath || '').indexOf('/admin/page/publishing') === 0 ? 'active' : '' %>">
+      <span class="sidebar-icon" aria-hidden="true">🚀</span> Publicación
+    </a>
+    <a href="/admin/page/store-hero" class="<%= (currentPath || '').indexOf('/admin/page/store-hero') === 0 ? 'active' : '' %>">
+      <span class="sidebar-icon" aria-hidden="true">🏪</span> Hero de Tienda
+    </a>
+  </nav>
+
+  <div class="sidebar-divider" role="separator"></div>
+
+  <nav class="sidebar-nav" aria-label="Catálogo y contenido">
+    <a href="/admin/catalogo/categorias" class="<%= (currentPath || '').startsWith('/admin/catalogo/categorias') ? 'active' : '' %>">
+      <span class="sidebar-icon" aria-hidden="true">📁</span> Categorías
+    </a>
+    <a href="/admin/catalogo/productos" class="<%= (currentPath || '').startsWith('/admin/catalogo/productos') ? 'active' : '' %>">
+      <span class="sidebar-icon" aria-hidden="true">📦</span> Productos
+    </a>
+    <a href="/admin/galeria" class="<%= (currentPath || '').startsWith('/admin/galeria') ? 'active' : '' %>">
+      <span class="sidebar-icon" aria-hidden="true">🖼️</span> Galería
     </a>
     <a href="/admin/orders" class="<%= (currentPath || '').startsWith('/admin/orders') ? 'active' : '' %>">
-      <span class="sidebar-icon">🧾</span> Pedidos
+      <span class="sidebar-icon" aria-hidden="true">🧾</span> Pedidos
     </a>
+  </nav>
+
+  <div class="sidebar-divider" role="separator"></div>
+
+  <nav class="sidebar-nav" aria-label="Configuración">
     <a href="/admin/users" class="<%= (currentPath && currentPath.startsWith('/admin/users')) ? 'active' : '' %>">
-      <span class="sidebar-icon">👥</span> Usuarios
+      <span class="sidebar-icon" aria-hidden="true">👥</span> Usuarios
     </a>
   </nav>
 

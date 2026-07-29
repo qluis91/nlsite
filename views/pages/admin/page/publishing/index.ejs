@@ -6,9 +6,9 @@
   <div class="cms-actions">
     <a href="/admin/page/history" class="btn btn-outline">Historial de revisiones</a>
     <a href="/admin/page/preview" target="_blank" class="btn btn-outline">Vista previa</a>
-    <form action="/admin/page/publishing/publish-home" method="POST" style="display:inline" onsubmit="return confirm('¿Publicar la página completa? Esta acción es atómica.')">
+    <form action="/admin/page/publishing/publish-home" method="POST" style="display:inline" data-confirm="¿Publicar la página completa? Esta acción es atómica.">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit" class="btn btn-primary">Publicar página completa</button>
+      <button type="submit" class="btn btn-publish">Publicar página completa</button>
     </form>
   </div>
 </div>
@@ -65,7 +65,7 @@
       <% }); %>
     </div>
     <div class="cms-actions" style="margin-top:1rem">
-      <button type="submit" class="btn btn-primary" data-confirm="¿Publicar los módulos seleccionados?" id="publish-selected-btn">Publicar módulos seleccionados</button>
+      <button type="submit" class="btn btn-publish" data-confirm="¿Publicar los módulos seleccionados?" id="publish-selected-btn">Publicar módulos seleccionados</button>
     </div>
   </form>
 </section>
@@ -98,17 +98,17 @@
   if (!checkboxes.length) {
     document.getElementById('publish-selected-btn')?.setAttribute('disabled', '');
   }
-  // Confirmation on publish-selected
+  // Validation — ensure at least one module is selected
   const form = document.getElementById('publish-selected-form');
   form?.addEventListener('submit', function(e) {
     const checked = form.querySelectorAll('[data-module-checkbox]:checked');
     if (!checked.length) {
       e.preventDefault();
-      alert('Seleccione al menos un módulo para publicar.');
-      return;
-    }
-    if (!confirm('¿Publicar los módulos seleccionados? Esta acción es atómica.')) {
-      e.preventDefault();
+      if (window.NinjaAlerts) {
+        window.NinjaAlerts.warning('Seleccione al menos un módulo para publicar.');
+      } else {
+        alert('Seleccione al menos un módulo para publicar.');
+      }
     }
   });
 })();

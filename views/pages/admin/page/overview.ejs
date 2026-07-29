@@ -1,11 +1,11 @@
 <div class="page-header">
   <div>
     <h1>Administrar página</h1>
-    <p>Contenido editable del sitio. En esta fase está disponible la biblioteca multimedia.</p>
+    <p>Contenido editable del sitio, biblioteca multimedia, historial y publicación.</p>
   </div>
 </div>
 
-<section class="cms-stats" aria-label="Resumen de la biblioteca multimedia">
+<section class="cms-stats" aria-label="Acceso rápido">
   <div class="card cms-stat">
     <span class="cms-stat-label">Archivos totales</span>
     <strong class="cms-stat-value"><%= summary.totalAssets %></strong>
@@ -19,16 +19,8 @@
     <strong class="cms-stat-value"><%= summary.modelAssets %></strong>
   </div>
   <div class="card cms-stat">
-    <span class="cms-stat-label">Almacenamiento usado</span>
-    <strong class="cms-stat-value"><%= summary.storageLabel %></strong>
-  </div>
-  <div class="card cms-stat">
     <span class="cms-stat-label">Archivados</span>
     <strong class="cms-stat-value"><%= summary.archivedAssets %></strong>
-  </div>
-  <div class="card cms-stat">
-    <span class="cms-stat-label">Procesando / fallidos</span>
-    <strong class="cms-stat-value"><%= summary.processingAssets %> / <%= summary.failedAssets %></strong>
   </div>
 </section>
 

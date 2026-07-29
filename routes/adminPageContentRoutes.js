@@ -48,6 +48,12 @@ router.get('/page/page-seo', requireCapability(CAPABILITIES.GLOBAL_SETTINGS_VIEW
 router.post('/page/page-seo/save', requireCapability(CAPABILITIES.GLOBAL_SETTINGS_EDIT), csrfSynchronisedProtection, pageSeoController.savePageSeo);
 router.post('/page/page-seo/publish', requireCapability(CAPABILITIES.GLOBAL_SETTINGS_PUBLISH), csrfSynchronisedProtection, pageSeoController.publishPageSeo);
 
+// ── Store Hero (Phase 1F) ──
+const storeHeroController = require('../controllers/adminStoreHeroController');
+router.get('/page/store-hero', requireCapability(CAPABILITIES.STORE_HERO_VIEW), storeHeroController.showStoreHero);
+router.post('/page/store-hero/save', requireCapability(CAPABILITIES.STORE_HERO_EDIT), csrfSynchronisedProtection, storeHeroController.saveStoreHeroDraft);
+router.post('/page/store-hero/publish', requireCapability(CAPABILITIES.STORE_HERO_PUBLISH), csrfSynchronisedProtection, storeHeroController.publishStoreHero);
+
 // ── Preview ──
 router.get('/page/preview', requireCapability(CAPABILITIES.PAGE_MANAGE), controller.preview);
 

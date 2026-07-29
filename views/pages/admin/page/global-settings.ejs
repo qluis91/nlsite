@@ -10,7 +10,7 @@
     <a href="/admin/page" class="btn btn-outline">Administrar página</a>
     <form action="/admin/page/global-settings/publish" method="POST" style="display:inline" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit" class="btn btn-primary">Publicar</button>
+      <button type="submit" class="btn btn-publish">Publicar</button>
     </form>
   </div>
 </div>
@@ -95,7 +95,11 @@
              placeholder="https://ejemplo.com">
       <small>URL base del sitio para etiquetas canónicas y Open Graph.</small>
     </div>
+  </div>
 
+  <!-- ══ Indexación avanzada (advanced) ══ -->
+  <details class="advanced-section card" data-advanced-section>
+    <summary aria-expanded="false">Indexación avanzada</summary>
     <div class="form-group">
       <label for="indexing_mode">Modo de indexación</label>
       <select id="indexing_mode" name="indexing_mode">
@@ -105,7 +109,7 @@
       </select>
       <small>Define la directiva <code>robots</code> predeterminada del sitio.</small>
     </div>
-  </div>
+  </details>
 
   <div class="card">
     <h2>Analytics y consentimiento</h2>
@@ -139,8 +143,8 @@
     </div>
   </div>
 
-  <div class="form-group">
-    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+  <div class="sticky-actions">
+    <button type="submit" class="btn btn-save">Guardar cambios</button>
     <a href="/admin/page" class="btn btn-outline">Cancelar</a>
   </div>
 </form>

@@ -18,7 +18,7 @@
     <a href="/admin/page/preview" target="_blank" class="btn btn-outline">Vista previa</a>
     <form action="/admin/page/home/panel-1/publish" method="POST" style="display:inline" data-cms-publish-form data-confirm="¿Publicar el Panel 1? Los cambios serán visibles en el sitio.">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit" class="btn btn-primary">Publicar</button>
+      <button type="submit" class="btn btn-publish">Publicar</button>
     </form>
   </div>
 </div>
@@ -251,14 +251,15 @@
       <div class="form-group"><label for="retry_label">Etiqueta del botón de reintento</label><input class="form-control" id="retry_label" name="retry_label" maxlength="80" value="<%= heroContent.retryLabel || 'Reintentar' %>"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label for="model_poster_alt">Texto alternativo del póster</label><input class="form-control" id="model_poster_alt" name="model_poster_alt" maxlength="250" value="<%= heroContent.modelPosterAlt || 'Casco 3D NinjaLab' %>"></div>
-      <div class="form-group"><label for="model_fallback_alt">Texto alternativo de respaldo</label><input class="form-control" id="model_fallback_alt" name="model_fallback_alt" maxlength="250" value="<%= heroContent.modelFallbackAlt || 'Modelo 3D no disponible' %>"></div>
+      <div class="form-group"><label for="model_poster_alt">Texto alternativo del póster</label><input class="form-control" id="model_poster_alt" name="model_poster_alt" maxlength="250" aria-describedby="model_poster_alt-help" value="<%= heroContent.modelPosterAlt || 'Casco 3D NinjaLab' %>"><%- include('../../../components/field-help', { id: 'model_poster_alt', text: 'Describe la imagen para lectores de pantalla y SEO. Sé conciso.' }) %></div>
+      <div class="form-group"><label for="model_fallback_alt">Texto alternativo de respaldo</label><input class="form-control" id="model_fallback_alt" name="model_fallback_alt" maxlength="250" aria-describedby="model_fallback_alt-help" value="<%= heroContent.modelFallbackAlt || 'Modelo 3D no disponible' %>"><%- include('../../../components/field-help', { id: 'model_fallback_alt', text: 'Se muestra si el modelo 3D no puede cargarse.' }) %></div>
     </div>
     <div class="form-group"><label for="social_aria_label">Etiqueta accesible del grupo de redes sociales</label><input class="form-control" id="social_aria_label" name="social_aria_label" maxlength="160" value="<%= heroContent.socialAriaLabel || 'Redes sociales de NinjaLab' %>"></div>
   </div>
 
-  <div class="cms-actions">
-    <button class="btn btn-primary" type="submit" form="panel1-draft-form">Guardar cambios</button>
+  <div class="sticky-actions">
+    <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>">Sin cambios</span>
+    <button class="btn btn-save" type="submit" form="panel1-draft-form">Guardar cambios</button>
   </div>
 </form>
 

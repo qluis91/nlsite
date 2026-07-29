@@ -60,7 +60,7 @@
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar cambios</button>
+      <button type="submit" class="btn btn-save" name="action" value="draft">Guardar cambios</button>
     </div>
   </form>
 </div>
@@ -221,14 +221,14 @@
   <div class="cms-section-footer">
     <form method="POST" action="/admin/page/home/panel-3/items/publish" class="cms-form" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit" class="btn btn-success">Publicar tarjetas</button>
+      <button type="submit" class="btn btn-publish">Publicar tarjetas</button>
     </form>
   </div>
 </div>
 
 <!-- ═══ Style tab ═══ -->
 <div class="cms-tab-panel" role="tabpanel" data-panel="style" hidden>
-  <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form" data-cms-editor-form novalidate>
+  <form method="POST" action="/admin/page/home/panel-3/draft" id="panel3-settings-form" class="cms-form" data-cms-editor-form novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
     <div class="form-row">
@@ -245,19 +245,17 @@
         <input type="text" id="p3-accent-color" name="accentColor" class="form-input" placeholder="#RRGGBB" pattern="#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?" value="<%= s.accentColor || '' %>">
       </div>
     </div>
-
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar cambios</button>
-    </div>
   </form>
 
-  <div class="cms-section-footer">
-    <form method="POST" action="/admin/page/home/panel-3/publish" class="cms-form" data-cms-publish-form>
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <p style="margin-bottom:0.5rem">Publica contenido general y tarjetas de servicios.</p>
-      <button type="submit" class="btn btn-success">Publicar Panel 3</button>
-    </form>
+  <div class="sticky-actions">
+    <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>">Sin cambios</span>
+    <button type="submit" class="btn btn-save" name="action" value="draft" form="panel3-settings-form">Guardar cambios</button>
+    <button type="submit" form="panel3-publish-form" class="btn btn-publish">Publicar Panel 3</button>
   </div>
+</div>
+<form id="panel3-publish-form" method="POST" action="/admin/page/home/panel-3/publish" style="display:none" data-cms-publish-form>
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+</form>
 </div>
 </div>
 

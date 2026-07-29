@@ -230,6 +230,7 @@ function publicServerInfo(current) {
     processGroupId: current.processGroupId,
     port: current.port,
     baseUrl: current.baseUrl,
+    logs: current.logs.slice(-5000),
   });
 }
 

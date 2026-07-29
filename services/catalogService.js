@@ -290,43 +290,106 @@ function normalizeHeroPosition(raw) {
 
 /**
  * Resolve the store catalog hero view model from the active category / search.
- * Fallback order documented in Phase 1.5.
+ * Phase 1F: Reads from CMS published data when available.
+ * Fallback order: CMS published > hardcoded defaults.
  */
-function resolveStoreHero({ activeCategory = null, search = '' } = {}) {
+async function resolveStoreHero({ activeCategory = null, search = '' } = {}, poolRef = null) {
   const searchText = String(search || '').replace(/\0/g, '').trim().slice(0, 100);
   const contextText = searchText ? `Resultados para “${searchText}”` : '';
 
-  if (!activeCategory) {
+  // If there's an active category, use category hero (Phase 1.5 behavior)
+  if (activeCategory) {
+    const name = String(activeCategory.name || '').trim() || DEFAULT_STORE_HERO.title;
+    const title = String(activeCategory.hero_title || '').trim() || name || DEFAULT_STORE_HERO.title;
+    const description = String(activeCategory.hero_description || '').trim()
+      || String(activeCategory.description || '').trim()
+      || DEFAULT_STORE_HERO.description;
+
+    let imageUrl = '';
+    if (isSafeHeroImagePath(activeCategory.hero_image)) {
+      imageUrl = activeCategory.hero_image;
+    } else {
+      imageUrl = DEFAULT_STORE_HERO.imageUrl;
+    }
+
+    const imageAlt = String(activeCategory.hero_alt || '').trim()
+      || (name ? `Productos de ${name} en NinjaLabCR` : DEFAULT_STORE_HERO.imageAlt);
+
     return {
-      ...DEFAULT_STORE_HERO,
+      eyebrow: 'Tienda NinjaLabCR',
+      title,
+      description,
+      imageUrl,
+      imageAlt,
+      imagePosition: normalizeHeroPosition(activeCategory.hero_position),
       contextText,
+      primaryLabel: '',
+      primaryUrl: '',
+      buttonTarget: '_self',
+      isVisible: true,
     };
   }
 
-  const name = String(activeCategory.name || '').trim() || DEFAULT_STORE_HERO.title;
-  const title = String(activeCategory.hero_title || '').trim() || name || DEFAULT_STORE_HERO.title;
-  const description = String(activeCategory.hero_description || '').trim()
-    || String(activeCategory.description || '').trim()
-    || DEFAULT_STORE_HERO.description;
+  // No active category — read from CMS published data
+  const db = poolRef;
+  if (db) {
+    try {
+      const [[row]] = await db.query(
+        `SELECT s.published_content_json
+           FROM page_sections s
+          INNER JOIN pages p ON p.id = s.page_id
+          WHERE p.page_key = 'tienda' AND s.section_key = 'st-hero'`
+      );
+      if (row && row.published_content_json) {
+        const c = typeof row.published_content_json === 'string'
+          ? JSON.parse(row.published_content_json)
+          : row.published_content_json;
+        if (c && c.isVisible !== false) {
+          // Resolve media reference
+          let imageUrl = DEFAULT_STORE_HERO.imageUrl;
+          if (c.backgroundMedia && typeof c.backgroundMedia === 'string' && c.backgroundMedia.startsWith('media://')) {
+            try {
+              const publicId = c.backgroundMedia.replace('media://', '');
+              const [[asset]] = await db.query(
+                "SELECT public_url, thumbnail_path, status FROM media_assets WHERE public_id = ? AND status != 'deleted' LIMIT 1",
+                [publicId]
+              );
+              if (asset && asset.public_url) imageUrl = asset.public_url;
+            } catch (_) { /* use fallback */ }
+          }
 
-  let imageUrl = '';
-  if (isSafeHeroImagePath(activeCategory.hero_image)) {
-    imageUrl = activeCategory.hero_image;
-  } else {
-    imageUrl = DEFAULT_STORE_HERO.imageUrl;
+          const safeButtonUrl = (url) => {
+            if (!url) return '';
+            if (url.startsWith('/') && !url.startsWith('//')) return url;
+            if (/^https?:\/\//i.test(url)) return url;
+            return '';
+          };
+
+          return {
+            eyebrow: c.eyebrow || DEFAULT_STORE_HERO.eyebrow,
+            title: c.title || DEFAULT_STORE_HERO.title,
+            description: c.description || DEFAULT_STORE_HERO.description,
+            imageUrl,
+            imageAlt: c.imageAlt || DEFAULT_STORE_HERO.imageAlt,
+            imagePosition: c.imagePosition || DEFAULT_STORE_HERO.imagePosition,
+            contextText,
+            primaryLabel: c.primaryLabel || '',
+            primaryUrl: safeButtonUrl(c.primaryUrl),
+            buttonTarget: (c.buttonTarget === '_blank' || c.buttonTarget === '_self') ? c.buttonTarget : '_self',
+            isVisible: true,
+          };
+        }
+      }
+    } catch (_) { /* use fallback */ }
   }
 
-  const imageAlt = String(activeCategory.hero_alt || '').trim()
-    || (name ? `Productos de ${name} en NinjaLabCR` : DEFAULT_STORE_HERO.imageAlt);
-
   return {
-    eyebrow: 'Tienda NinjaLabCR',
-    title,
-    description,
-    imageUrl,
-    imageAlt,
-    imagePosition: normalizeHeroPosition(activeCategory.hero_position),
+    ...DEFAULT_STORE_HERO,
     contextText,
+    primaryLabel: '',
+    primaryUrl: '',
+    buttonTarget: '_self',
+    isVisible: true,
   };
 }
 

@@ -52,23 +52,23 @@ const schemaSql = fs.readFileSync(path.resolve(__dirname, '../schema.sql'), 'utf
 const productDetail = fs.readFileSync(path.resolve(__dirname, '../views/pages/tienda-producto.ejs'), 'utf8');
 
 describe('resolveStoreHero fallbacks', () => {
-  test('default hero without category', () => {
-    const hero = resolveStoreHero({});
+  test('default hero without category', async () => {
+    const hero = await resolveStoreHero({});
     assert.strictEqual(hero.title, DEFAULT_STORE_HERO.title);
     assert.strictEqual(hero.description, DEFAULT_STORE_HERO.description);
     assert.strictEqual(hero.imageUrl, DEFAULT_STORE_HERO.imageUrl);
     assert.strictEqual(hero.contextText, '');
   });
 
-  test('search-only uses default hero with context line', () => {
-    const hero = resolveStoreHero({ search: 'figura' });
+  test('search-only uses default hero with context line', async () => {
+    const hero = await resolveStoreHero({ search: 'figura' });
     assert.strictEqual(hero.title, DEFAULT_STORE_HERO.title);
     assert.match(hero.contextText, /figura/);
     assert.doesNotMatch(hero.title, /figura/);
   });
 
-  test('category hero_title preferred over name', () => {
-    const hero = resolveStoreHero({
+  test('category hero_title preferred over name', async () => {
+    const hero = await resolveStoreHero({
       activeCategory: {
         name: 'Figuras',
         hero_title: 'Figuras coleccionables',
@@ -79,36 +79,36 @@ describe('resolveStoreHero fallbacks', () => {
     assert.strictEqual(hero.title, 'Figuras coleccionables');
   });
 
-  test('category name fallback when hero_title missing', () => {
-    const hero = resolveStoreHero({
+  test('category name fallback when hero_title missing', async () => {
+    const hero = await resolveStoreHero({
       activeCategory: { name: 'Llaveros', hero_title: '', description: '' },
     });
     assert.strictEqual(hero.title, 'Llaveros');
   });
 
-  test('description fallback: hero_description → description → default', () => {
+  test('description fallback: hero_description → description → default', async () => {
     assert.strictEqual(
-      resolveStoreHero({
+      (await resolveStoreHero({
         activeCategory: { name: 'A', hero_description: 'Hero desc', description: 'Cat desc' },
-      }).description,
+      })).description,
       'Hero desc'
     );
     assert.strictEqual(
-      resolveStoreHero({
+      (await resolveStoreHero({
         activeCategory: { name: 'A', hero_description: '', description: 'Cat desc' },
-      }).description,
+      })).description,
       'Cat desc'
     );
     assert.strictEqual(
-      resolveStoreHero({
+      (await resolveStoreHero({
         activeCategory: { name: 'A', hero_description: '', description: '' },
-      }).description,
+      })).description,
       DEFAULT_STORE_HERO.description
     );
   });
 
-  test('unsafe hero_image falls back to default', () => {
-    const hero = resolveStoreHero({
+  test('unsafe hero_image falls back to default', async () => {
+    const hero = await resolveStoreHero({
       activeCategory: {
         name: 'X',
         hero_image: '../../../etc/passwd',
@@ -117,8 +117,8 @@ describe('resolveStoreHero fallbacks', () => {
     assert.strictEqual(hero.imageUrl, DEFAULT_STORE_HERO.imageUrl);
   });
 
-  test('safe category hero image accepted', () => {
-    const hero = resolveStoreHero({
+  test('safe category hero image accepted', async () => {
+    const hero = await resolveStoreHero({
       activeCategory: {
         name: 'X',
         hero_image: '/uploads/categories/3/abcdef.webp',
@@ -129,8 +129,8 @@ describe('resolveStoreHero fallbacks', () => {
     assert.strictEqual(hero.imageAlt, 'Alt personalizado');
   });
 
-  test('alt fallback includes category name', () => {
-    const hero = resolveStoreHero({
+  test('alt fallback includes category name', async () => {
+    const hero = await resolveStoreHero({
       activeCategory: { name: 'Prototipos', hero_alt: '' },
     });
     assert.match(hero.imageAlt, /Prototipos/);

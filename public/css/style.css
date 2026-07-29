@@ -266,6 +266,16 @@ code {
   font-size: 1.1rem;
 }
 
+.sidebar-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+  margin: 0.5rem 0;
+}
+
+.sidebar-nav + .sidebar-nav {
+  padding-top: 0.25rem;
+}
+
 .sidebar-footer {
   padding: 1rem 1.5rem;
   border-top: 1px solid rgba(255,255,255,0.08);
@@ -818,7 +828,10 @@ select.form-control {
     white-space: nowrap;
   }
 
-  .sidebar-footer {
+  .sidebar-footer,
+  .sidebar-divider,
+  .sidebar-badge,
+  .sidebar-header h3 {
     display: none;
   }
 

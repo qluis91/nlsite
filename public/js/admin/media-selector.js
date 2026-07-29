@@ -160,7 +160,13 @@
       if (categoryFilter?.value) params.set('category', categoryFilter.value);
       if (typeFilter?.value) params.set('mime_filter', typeFilter.value);
 
-      grid.innerHTML = '<p class="empty-state">Cargando archivos…</p>';
+      // Show skeleton loading state
+      grid.innerHTML =
+        '<div class="skeleton-grid" data-ms-skeleton>' +
+          [...Array(6)].map(() =>
+            '<div class="skeleton" aria-hidden="true" style="aspect-ratio:4/3;border-radius:0.5rem"></div>'
+          ).join('') +
+        '</div>';
       try {
         const response = await fetch(`/admin/api/page/media?${params.toString()}`, {
           signal: requestController.signal,
@@ -211,10 +217,12 @@
       }
 
       assets.forEach((asset) => {
+        const isArchived = Boolean(asset.is_archived || asset.status === 'archived');
         const card = document.createElement('button');
         card.type = 'button';
         card.className = 'media-selector__item' +
-          (asset.public_id === state.selectedPublicId ? ' is-selected' : '');
+          (asset.public_id === state.selectedPublicId ? ' is-selected' : '') +
+          (isArchived ? ' is-archived' : '');
         card.setAttribute('data-ms-item', asset.public_id);
         card.innerHTML =
           `<div class="media-selector__item-thumb">
@@ -224,6 +232,7 @@
           </div>
           <div class="media-selector__item-body">
             <span class="media-selector__item-title">${escapeHtml(asset.title || asset.original_filename || 'Archivo')}</span>
+            ${isArchived ? '<span class="media-selector__badge media-selector__badge--archived">Archivado</span>' : ''}
             <span class="media-selector__item-meta">${escapeHtml([asset.category, asset.mime_type].filter(Boolean).join(' · '))}</span>
             ${asset.dimensions ? `<span class="media-selector__item-meta">${escapeHtml(asset.dimensions)}</span>` : ''}
           </div>`;
@@ -296,8 +305,18 @@
         ? `<img src="${escapeHtml(thumbnail)}" alt="" class="media-selector__thumb-img" data-ms-img>`
         : '<span class="media-selector__thumb-icon" data-ms-icon>📄</span>';
 
+      // Phase 1D: Archived / missing warning
+      const isArchived = Boolean(asset.is_archived || asset.status === 'archived');
+      const pathInvalid = Boolean(asset.path_contract_valid === false) && !isArchived;
+      const warningHtml = isArchived
+        ? `<div class="media-archived-warning" role="alert"><strong>Atención:</strong> Este archivo está archivado y no será visible al público. Puedes reemplazarlo o quitar la referencia.</div>`
+        : pathInvalid
+          ? `<div class="media-archived-warning" role="alert"><strong>Atención:</strong> El archivo no se encuentra disponible. Puedes reemplazarlo o quitar la referencia.</div>`
+          : '';
+
       preview.innerHTML =
         `<div class="media-selector__card" data-ms-card>
+          ${warningHtml}
           <div class="media-selector__thumbnail" data-ms-thumb>${thumbnailHtml}</div>
           <div class="media-selector__info">
             <span class="media-selector__title" data-ms-title>${escapeHtml(title)}</span>

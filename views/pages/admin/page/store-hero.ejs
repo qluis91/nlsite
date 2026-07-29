@@ -1,0 +1,141 @@
+<% const cmsEditorState = typeof editorState !== 'undefined' ? editorState : null;
+   const s = section || {};
+   const c = content || {};
+   const submitted = submittedContent || null;
+   const fieldErrorsList = typeof fieldErrors !== 'undefined' && Array.isArray(fieldErrors) ? fieldErrors : [];
+%>
+<div data-cms-editor data-editor-state="<%= cmsEditorState || 'clean' %>">
+<div class="page-header">
+  <div>
+    <h1>Hero de Tienda</h1>
+    <p>Imagen, textos y botón del encabezado de la tienda pública.</p>
+    <p>
+      <span class="badge <%= (s.status === 'published') ? 'badge-published' : 'badge-hidden' %>">
+        <%= s.status || 'sin guardar' %>
+      </span>
+    </p>
+  </div>
+  <div class="cms-actions">
+    <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>"><%= ({ dirty: 'Cambios sin guardar', saving: 'Guardando', saved: 'Borrador guardado', published: 'Publicado', error: 'Error' })[cmsEditorState] || 'Sin cambios' %></span>
+    <a href="/admin/page" class="btn btn-outline">Administrar página</a>
+    <a href="/tienda" target="_blank" class="btn btn-outline">Ver tienda</a>
+  </div>
+</div>
+
+<% if (fieldErrorsList.length) { %>
+  <div class="card" role="group" aria-label="Errores de validación">
+    <ul class="cms-field-errors"><% fieldErrorsList.forEach(function (message) { %><li><%= message %></li><% }); %></ul>
+  </div>
+<% } %>
+
+<form id="store-hero-form" action="/admin/page/store-hero/save" method="POST" class="cms-form" data-cms-editor-form novalidate>
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+  <!-- ══ Contenido principal ══ -->
+  <div class="card">
+    <h2>Contenido</h2>
+    <div class="form-group">
+      <label for="sh-eyebrow">Texto destacado (eyebrow)</label>
+      <input class="form-control" id="sh-eyebrow" name="eyebrow" type="text" maxlength="120"
+             value="<%= (submitted && submitted.eyebrow !== undefined) ? submitted.eyebrow : (c.eyebrow || '') %>" placeholder="Tienda NinjaLabCR">
+    </div>
+    <div class="form-group">
+      <label for="sh-title">Título <span class="text-danger">*</span></label>
+      <input class="form-control" id="sh-title" name="title" type="text" maxlength="160" required
+             value="<%= (submitted && submitted.title !== undefined) ? submitted.title : (c.title || '') %>" placeholder="Ideas creadas en 3D">
+    </div>
+    <div class="form-group">
+      <label for="sh-description">Descripción</label>
+      <textarea class="form-control" id="sh-description" name="description" rows="3" maxlength="500"><%= (submitted && submitted.description !== undefined) ? submitted.description : (c.description || '') %></textarea>
+    </div>
+    <div class="form-group form-check">
+      <label><input type="checkbox" name="isVisible" value="1" <%= (submitted ? submitted.isVisible : (c.isVisible !== false)) ? 'checked' : '' %>> Hero visible al publicar</label>
+    </div>
+  </div>
+
+  <!-- ══ Multimedia ══ -->
+  <div class="card">
+    <h2>Multimedia</h2>
+    <div class="form-group">
+      <%- include('../../../components/media-selector', {
+        fieldName: 'backgroundMedia',
+        currentValue: (submitted && submitted.backgroundMedia !== undefined) ? submitted.backgroundMedia : (c.backgroundMedia || ''),
+        allowedTypes: ['image/png','image/jpeg','image/webp'],
+        allowedCategories: ['site'],
+        uploadProfile: 'hero-background',
+        label: 'Imagen del hero',
+        kindLabel: 'Imagen',
+        thumbnailUrl: bgMedia ? bgMedia.thumbnail_url : null,
+        selectedTitle: bgMedia ? (bgMedia.title || bgMedia.original_filename) : null,
+        selectedCategory: bgMedia ? bgMedia.category : null,
+        selectedMime: bgMedia ? bgMedia.mime_type : null,
+        selectedDimensions: bgMedia ? bgMedia.dimensions : null,
+      }) %>
+    </div>
+    <div class="form-group">
+      <label for="sh-imageAlt">Texto alternativo de la imagen</label>
+      <input class="form-control" id="sh-imageAlt" name="imageAlt" type="text" maxlength="200"
+             value="<%= (submitted && submitted.imageAlt !== undefined) ? submitted.imageAlt : (c.imageAlt || '') %>"
+             aria-describedby="sh-imageAlt-help">
+      <%- include('../../../components/field-help', { id: 'sh-imageAlt', text: 'Describe la imagen para lectores de pantalla y SEO. Sé conciso.' }) %>
+    </div>
+    <div class="form-group">
+      <label for="sh-imagePosition">Posición de la imagen</label>
+      <select class="form-control" id="sh-imagePosition" name="imagePosition">
+        <% ['center','top','bottom','left','right'].forEach(function(pos) { %>
+          <option value="<%= pos %>" <%= (submitted ? submitted.imagePosition : c.imagePosition || 'center') === pos ? 'selected' : '' %>><%= pos %></option>
+        <% }); %>
+      </select>
+    </div>
+  </div>
+
+  <!-- ══ Enlaces y comportamiento (advanced) ══ -->
+  <details class="advanced-section card" data-advanced-section>
+    <summary aria-expanded="false">Enlaces y comportamiento</summary>
+    <div class="form-group">
+      <label for="sh-primaryLabel">Etiqueta del botón</label>
+      <input class="form-control" id="sh-primaryLabel" name="primaryLabel" type="text" maxlength="80"
+             value="<%= (submitted && submitted.primaryLabel !== undefined) ? submitted.primaryLabel : (c.primaryLabel || '') %>" placeholder="Ver productos">
+    </div>
+    <div class="form-group">
+      <label for="sh-primaryUrl">URL del botón</label>
+      <input class="form-control" id="sh-primaryUrl" name="primaryUrl" type="text" maxlength="500"
+             value="<%= (submitted && submitted.primaryUrl !== undefined) ? submitted.primaryUrl : (c.primaryUrl || '') %>"
+             placeholder="/tienda o https://..."
+             aria-describedby="sh-primaryUrl-help">
+      <%- include('../../../components/field-help', { id: 'sh-primaryUrl', text: 'Para páginas internas usa /ruta. Enlaces externos deben incluir https://.' }) %>
+    </div>
+    <div class="form-group">
+      <label for="sh-buttonTarget">Comportamiento del enlace</label>
+      <select class="form-control" id="sh-buttonTarget" name="buttonTarget">
+        <option value="_self" <%= (submitted ? submitted.buttonTarget : c.buttonTarget || '_self') === '_self' ? 'selected' : '' %>>Misma pestaña (_self)</option>
+        <option value="_blank" <%= (submitted ? submitted.buttonTarget : c.buttonTarget || '_self') === '_blank' ? 'selected' : '' %>>Nueva pestaña (_blank)</option>
+      </select>
+      <%- include('../../../components/field-help', { id: 'sh-buttonTarget', text: '"_blank" abre el enlace en una pestaña nueva. Incluye automáticamente rel="noopener noreferrer".' }) %>
+    </div>
+  </details>
+
+  <!-- ══ Accesibilidad (advanced) ══ -->
+  <details class="advanced-section card" data-advanced-section>
+    <summary aria-expanded="false">Accesibilidad</summary>
+    <div class="form-group">
+      <label for="sh-ariaLabel">Etiqueta accesible del hero</label>
+      <input class="form-control" id="sh-ariaLabel" name="ariaLabel" type="text" maxlength="160"
+             value="<%= (submitted && submitted.ariaLabel !== undefined) ? submitted.ariaLabel : (c.ariaLabel || '') %>"
+             aria-describedby="sh-ariaLabel-help">
+      <%- include('../../../components/field-help', { id: 'sh-ariaLabel', text: 'Describe la sección para tecnologías de asistencia. Opcional; se usa el título si se deja vacío.' }) %>
+    </div>
+  </details>
+
+  <!-- ══ Sticky actions ══ -->
+  <div class="sticky-actions">
+    <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>">Sin cambios</span>
+    <button type="submit" class="btn btn-save">Guardar cambios</button>
+    <button type="submit" form="store-hero-publish-form" class="btn btn-publish">Publicar</button>
+  </div>
+</form>
+
+<form id="store-hero-publish-form" action="/admin/page/store-hero/publish" method="POST" style="display:none" data-cms-publish-form data-confirm="¿Publicar el Hero de Tienda? Los cambios serán visibles en /tienda.">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+</form>
+</div>

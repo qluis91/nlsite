@@ -68,7 +68,7 @@
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar cambios</button>
+      <button type="submit" class="btn btn-save" name="action" value="draft">Guardar cambios</button>
     </div>
   </form>
 </div>
@@ -158,7 +158,8 @@
       <div class="form-row">
         <div class="form-group">
           <label class="field-label" for="logo-url">URL (opcional)</label>
-          <input type="text" id="logo-url" name="url" class="form-input" maxlength="500" placeholder="/pagina o #seccion o https://...">
+          <input type="text" id="logo-url" name="url" class="form-input" maxlength="500" aria-describedby="logo-url-help" placeholder="/pagina o #seccion o https://...">
+          <%- include('../../../components/field-help', { id: 'logo-url', text: 'Para páginas internas usa /ruta. Para anclas usa #seccion. Enlaces externos deben incluir https://.' }) %>
         </div>
         <div class="form-group">
           <label class="field-label">Tipo de enlace</label>
@@ -198,7 +199,7 @@
   <div class="cms-section-footer">
     <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/publish" class="cms-form" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit" class="btn btn-success">Publicar LogoLoop</button>
+      <button type="submit" class="btn btn-publish">Publicar LogoLoop</button>
     </form>
   </div>
 </div>
@@ -347,14 +348,14 @@
   <div class="cms-section-footer">
     <form method="POST" action="/admin/page/home/panel-2/carousel/items/publish" class="cms-form" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit" class="btn btn-success">Publicar carrusel</button>
+      <button type="submit" class="btn btn-publish">Publicar carrusel</button>
     </form>
   </div>
 </div>
 
 <!-- ═══ Style tab ═══ -->
 <div class="cms-tab-panel" role="tabpanel" data-panel="style" hidden>
-  <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form" data-cms-editor-form novalidate>
+  <form method="POST" action="/admin/page/home/panel-2/draft" id="panel2-settings-form" class="cms-form" data-cms-editor-form novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
     <div class="form-row">
@@ -371,19 +372,17 @@
         <input type="text" id="p2-accent-color" name="accentColor" class="form-input" placeholder="#RRGGBB" pattern="#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?" value="<%= s.accentColor || '' %>">
       </div>
     </div>
-
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary" name="action" value="draft">Guardar cambios</button>
-    </div>
   </form>
 
-  <div class="cms-section-footer">
-    <form method="POST" action="/admin/page/home/panel-2/publish" class="cms-form" data-cms-publish-form>
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <p style="margin-bottom:0.5rem">Publica el contenido general, LogoLoop y carrusel.</p>
-      <button type="submit" class="btn btn-success">Publicar Panel 2</button>
-    </form>
+  <div class="sticky-actions">
+    <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>">Sin cambios</span>
+    <button type="submit" class="btn btn-save" name="action" value="draft" form="panel2-settings-form">Guardar cambios</button>
+    <button type="submit" form="panel2-publish-form" class="btn btn-publish">Publicar Panel 2</button>
   </div>
+</div>
+<form id="panel2-publish-form" method="POST" action="/admin/page/home/panel-2/publish" style="display:none" data-cms-publish-form>
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+</form>
 </div>
 
 <script type="application/json" id="panel2-submitted-item-data"><%- safeJsonScript(typeof submittedItem !== 'undefined' ? submittedItem : null) %></script>

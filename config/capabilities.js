@@ -40,6 +40,10 @@ const CAPABILITIES = Object.freeze({
   GLOBAL_SETTINGS_VIEW: 'global.settings.view',
   GLOBAL_SETTINGS_EDIT: 'global.settings.edit',
   GLOBAL_SETTINGS_PUBLISH: 'global.settings.publish',
+  // Phase 1F — Store Hero CMS
+  STORE_HERO_VIEW: 'store.hero.view',
+  STORE_HERO_EDIT: 'store.hero.edit',
+  STORE_HERO_PUBLISH: 'store.hero.publish',
 });
 
 const CAPABILITY_VALUES = Object.freeze(Object.values(CAPABILITIES));

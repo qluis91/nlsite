@@ -7,6 +7,10 @@
     <% if (storeHero.description) { %>
       <p class="st-hero__description"><%= storeHero.description %></p>
     <% } %>
+    <% if (storeHero.primaryLabel && storeHero.primaryUrl) { %>
+      <a class="st-hero__cta btn btn-primary" href="<%= storeHero.primaryUrl %>"
+         <%= storeHero.buttonTarget === '_blank' ? 'target="_blank" rel="noopener noreferrer"' : '' %>><%= storeHero.primaryLabel %></a>
+    <% } %>
     <% if (storeHero.contextText) { %>
       <p class="st-hero__context"><%= storeHero.contextText %></p>
     <% } %>

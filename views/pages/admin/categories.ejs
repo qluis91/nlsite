@@ -27,7 +27,7 @@
             <td><%= cat.product_count %></td>
             <td class="actions">
               <a href="/admin/catalogo/categorias/<%= cat.id %>/editar" class="btn btn-sm btn-outline">Editar</a>
-              <form action="/admin/catalogo/categorias/<%= cat.id %>/eliminar" method="POST" class="inline-form" onsubmit="return confirm('¿Eliminar esta categoría?')">
+              <form action="/admin/catalogo/categorias/<%= cat.id %>/eliminar" method="POST" class="inline-form" data-confirm="¿Eliminar esta categoría?" data-confirm-destructive>
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="btn btn-sm btn-danger" <%= cat.product_count > 0 ? 'disabled title="No se puede eliminar: tiene productos asociados"' : '' %>>Eliminar</button>
               </form>

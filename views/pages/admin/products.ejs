@@ -36,6 +36,8 @@
       </div>
     <% } else { %>
       <p><strong><%= total %></strong> producto(s) — Página <%= page %> de <%= totalPages %></p>
+      <!-- Desktop table -->
+      <div class="products-desktop">
       <table class="table">
         <thead>
           <tr>
@@ -83,7 +85,7 @@
               <td><%= prod.stock_quantity %></td>
               <td class="actions">
                 <a href="/admin/catalogo/productos/<%= prod.id %>/editar" class="btn btn-sm btn-outline">Editar</a>
-                <form action="/admin/catalogo/productos/<%= prod.id %>/eliminar" method="POST" class="inline-form" onsubmit="return confirm('¿Eliminar este producto?')">
+                <form action="/admin/catalogo/productos/<%= prod.id %>/eliminar" method="POST" class="inline-form" data-confirm="¿Eliminar este producto?" data-confirm-destructive>
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                   <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
                 </form>
@@ -92,6 +94,46 @@
           <% }); %>
         </tbody>
       </table>
+      </div>
+      <!-- Mobile cards -->
+      <div class="products-mobile" aria-label="Lista de productos">
+        <% products.forEach(function(prod) { %>
+          <div class="product-card-mobile">
+            <div class="product-card-mobile__header">
+              <div class="product-card-mobile__img">
+                <% if (prod.primary_image) { %>
+                  <img src="<%= prod.primary_image %>" alt="" loading="lazy">
+                <% } else { %>
+                  <span class="thumb-sm thumb-sm--placeholder" aria-hidden="true">N</span>
+                <% } %>
+              </div>
+              <div class="product-card-mobile__info">
+                <strong class="product-card-mobile__name"><%= prod.name %></strong>
+                <span class="product-card-mobile__category"><%= prod.categoryNames.join(', ') || 'Sin categoría' %></span>
+                <div class="product-card-mobile__badges">
+                  <% if (!prod.is_active) { %><span class="badge badge-archived">Archivado</span><% } %>
+                  <% if (!prod.is_published) { %><span class="badge badge-hidden">Oculto</span><% } %>
+                  <% if (prod.is_active && prod.is_published) { %><span class="badge badge-published">Publicado</span><% } %>
+                </div>
+              </div>
+            </div>
+            <div class="product-card-mobile__meta">
+              <span>Stock: <strong><%= prod.stock_quantity %></strong></span>
+              <span>Precio: <strong>₡<%= Number(prod.regular_price || 0).toLocaleString('es-CR') %></strong></span>
+              <% if (prod.promotional_price) { %>
+                <span class="product-card-mobile__promo">Promo: ₡<%= Number(prod.promotional_price).toLocaleString('es-CR') %></span>
+              <% } %>
+            </div>
+            <div class="product-card-mobile__actions">
+              <a href="/admin/catalogo/productos/<%= prod.id %>/editar" class="btn btn-sm btn-outline">Editar</a>
+              <form action="/admin/catalogo/productos/<%= prod.id %>/eliminar" method="POST" class="inline-form" data-confirm="¿Eliminar este producto?" data-confirm-destructive>
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+              </form>
+            </div>
+          </div>
+        <% }); %>
+      </div>
 
       <% if (totalPages > 1) { %>
         <div class="pagination">

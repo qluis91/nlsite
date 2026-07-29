@@ -1,4 +1,5 @@
 const { DEFAULT_LIMIT, getPublicCatalog, getPublicCatalogAsync, getPublicCategories, getProductBySlug, getRelatedProducts, formatWeight, normalizeStoreQuery, resolveStoreHero } = require('../services/catalogService');
+const pool = require('../config/db');
 const { buildWhatsAppUrl } = require('../config/publicContact');
 const { buildProductLd, buildBreadcrumbLd, jsonLdScript, makeAbsolute } = require('../config/jsonLdHelper');
 
@@ -92,10 +93,10 @@ async function showStore(req, res) {
     });
   }
 
-  const storeHero = resolveStoreHero({
+  const storeHero = await resolveStoreHero({
     activeCategory,
     search: filters.search,
-  });
+  }, pool);
 
   // Category-specific SEO
   let catMetaTitle = '';

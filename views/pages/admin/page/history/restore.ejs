@@ -35,7 +35,7 @@
     <form action="/admin/page/history/revision/<%= revision.id %>/restore" method="POST">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="publish" value="0">
-      <button type="submit" class="btn btn-primary" onclick="return confirm('¿Restaurar esta revisión como borrador? Se creará un nuevo borrador. El sitio público no cambiará hasta que publique.')">Restaurar como borrador</button>
+      <button type="submit" class="btn btn-primary" data-confirm="¿Restaurar esta revisión como borrador? Se creará un nuevo borrador. El sitio público no cambiará hasta que publique.">Restaurar como borrador</button>
     </form>
   </div>
 

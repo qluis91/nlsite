@@ -53,7 +53,8 @@
                   </form>
 
                   <form action="/admin/users/<%= u.id %>/delete" method="POST" style="display:inline"
-                        onsubmit="return confirm('¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.')">
+                        data-confirm="¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer."
+                        data-confirm-destructive>
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
                   </form>

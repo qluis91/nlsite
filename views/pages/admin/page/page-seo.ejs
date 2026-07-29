@@ -11,7 +11,7 @@
     <form action="/admin/page/page-seo/publish" method="POST" style="display:inline" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="page_key" value="<%= activePage %>">
-      <button type="submit" class="btn btn-primary">Publicar</button>
+      <button type="submit" class="btn btn-publish">Publicar</button>
     </form>
   </div>
 </div>
@@ -100,8 +100,8 @@
     </div>
   </div>
 
-  <div class="form-group">
-    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+  <div class="sticky-actions">
+    <button type="submit" class="btn btn-save">Guardar cambios</button>
     <a href="/admin/page" class="btn btn-outline">Cancelar</a>
   </div>
 </form>

@@ -16,6 +16,7 @@ const MODULE_KEYS = Object.freeze({
   CAROUSEL: 'home.carousel',
   SERVICES: 'home.services',
   FEATURES: 'home.features',
+  STORE_HERO: 'tienda.st-hero',
 });
 
 const MODULE_KEY_VALUES = Object.freeze(Object.values(MODULE_KEYS));
@@ -197,6 +198,31 @@ const MODULES = Object.freeze({
         "SELECT COUNT(*) cnt FROM home_feature_items WHERE status='draft' AND deleted_at IS NULL"
       );
       return cnt > 0;
+    },
+  }),
+  [MODULE_KEYS.STORE_HERO]: Object.freeze({
+    key: MODULE_KEYS.STORE_HERO,
+    label: 'Hero de Tienda',
+    entitySource: 'page_sections (tienda/st-hero)',
+    cacheNamespaces: ['sc_tienda'],
+    revisionEntityTypes: ['page_section'],
+    dependencies: [],
+    canPublishIndependently: true,
+    validate: async () => {
+      const [[row]] = await pool.query(
+        "SELECT s.content_json FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key='tienda' AND s.section_key='st-hero'"
+      );
+      if (!row || !row.content_json) return { valid: true, warnings: ['Hero de Tienda sin contenido configurado.'] };
+      let content;
+      try { content = typeof row.content_json === 'string' ? JSON.parse(row.content_json) : row.content_json; } catch { return { valid: false, errors: ['JSON inválido en Hero de Tienda.'] }; }
+      if (!content.title) return { valid: false, errors: ['El Hero de Tienda requiere un título.'] };
+      return { valid: true, warnings: [] };
+    },
+    pendingCheck: async () => {
+      const [[row]] = await pool.query(
+        "SELECT s.status FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key='tienda' AND s.section_key='st-hero'"
+      );
+      return Boolean(row && row.status === 'draft');
     },
   }),
 });

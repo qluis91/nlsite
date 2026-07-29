@@ -148,11 +148,11 @@
       </div>
     </fieldset>
 
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary"><%= category ? 'Guardar cambios' : 'Guardar categoría' %></button>
+    <div class="sticky-actions">
+      <button type="submit" class="btn btn-save"><%= category ? 'Guardar cambios' : 'Guardar categoría' %></button>
       <a href="/admin/catalogo/categorias" class="btn btn-outline">Cancelar</a>
       <% if (category) { %>
-        <button type="button" class="btn btn-danger" onclick="if(confirm('¿Eliminar esta categoría?')) { document.getElementById('delete-form').submit(); }">Eliminar categoría</button>
+        <button type="submit" class="btn btn-danger" data-confirm="¿Eliminar esta categoría?" data-confirm-destructive form="delete-form">Eliminar categoría</button>
       <% } %>
     </div>
   </form>
