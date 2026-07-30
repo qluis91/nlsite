@@ -1,7 +1,113 @@
 <div class="admin-page-header">
-  <h1>Social Feed</h1>
+  <div>
+    <h1>Social Feed</h1>
+    <p>Curación de posts y configuración de la sección pública de inicio.</p>
+  </div>
   <a href="/admin/page/social-feed/create" class="btn btn-primary">+ Nuevo Post</a>
 </div>
+
+<section class="card social-feed-settings" aria-labelledby="social-feed-settings-title" data-cms-editor>
+  <div class="cms-section-header">
+    <div>
+      <h2 id="social-feed-settings-title">Sección “NinjaLab en redes”</h2>
+      <p>Estos ajustes usan el flujo de borrador, publicación e historial de la página de inicio.</p>
+    </div>
+    <span class="badge badge-status <%= section.status %>"><%= section.status === 'published' ? 'Publicado' : 'Borrador' %></span>
+  </div>
+
+  <% if (sectionErrors && sectionErrors.length) { %>
+    <ul class="cms-field-errors" aria-label="Errores de validación">
+      <% sectionErrors.forEach(function(error) { %><li><%= error %></li><% }); %>
+    </ul>
+  <% } %>
+
+  <form method="post" action="/admin/page/social-feed/section/save" class="cms-form" data-cms-editor-form novalidate>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="version" value="<%= section.version %>">
+
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="enabled" value="1" <%= sectionSettings.enabled ? 'checked' : '' %>>
+        Mostrar la sección pública
+      </label>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label" for="socialSectionTitle">Título</label>
+        <input id="socialSectionTitle" name="title" class="form-input" maxlength="120" required value="<%= sectionSettings.title %>">
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="socialMaximumPosts">Máximo de posts</label>
+        <input id="socialMaximumPosts" name="maximumPosts" class="form-input" type="number" min="1" max="12" step="1" value="<%= sectionSettings.maximumPosts %>">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="field-label" for="socialSectionSubtitle">Subtítulo</label>
+      <textarea id="socialSectionSubtitle" name="subtitle" class="form-input" rows="2" maxlength="300"><%= sectionSettings.subtitle %></textarea>
+    </div>
+
+    <fieldset class="form-group">
+      <legend class="field-label">Plataformas visibles</legend>
+      <div class="social-feed-platform-options">
+        <% ['instagram', 'facebook', 'tiktok', 'youtube', 'other'].forEach(function(platform) { %>
+          <label class="checkbox-label">
+            <input type="checkbox" name="platforms" value="<%= platform %>" <%= sectionSettings.platforms.includes(platform) ? 'checked' : '' %>>
+            <%= platform === 'other' ? 'Otro' : platform.charAt(0).toUpperCase() + platform.slice(1) %>
+          </label>
+        <% }); %>
+      </div>
+    </fieldset>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="featuredOnly" value="1" <%= sectionSettings.featuredOnly ? 'checked' : '' %>>
+          Mostrar solo destacados
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="socialDisplayOrder">Orden de visualización</label>
+        <select id="socialDisplayOrder" name="displayOrder" class="form-input">
+          <option value="manual" <%= sectionSettings.displayOrder === 'manual' ? 'selected' : '' %>>Orden manual del Social Feed</option>
+          <option value="newest" <%= sectionSettings.displayOrder === 'newest' ? 'selected' : '' %>>Más recientes primero</option>
+          <option value="oldest" <%= sectionSettings.displayOrder === 'oldest' ? 'selected' : '' %>>Más antiguos primero</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="sticky-actions">
+      <span class="cms-editor-state" data-cms-editor-status data-state="<%= section.status === 'published' ? 'published' : 'saved' %>">
+        <%= section.status === 'published' ? 'Publicado' : 'Borrador guardado' %>
+      </span>
+      <div class="actions-group">
+        <a href="/admin/page/history" class="btn btn-outline">Historial y restauración</a>
+        <button type="submit" class="btn btn-primary btn-save">Guardar borrador</button>
+        <button type="submit" form="publish-social-section" class="btn btn-success btn-publish">Publicar sección</button>
+      </div>
+    </div>
+  </form>
+  <form id="publish-social-section" method="post" action="/admin/page/social-feed/section/publish" hidden>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  </form>
+
+  <% if (revisions && revisions.length) { %>
+    <details class="social-feed-settings-history">
+      <summary>Últimos cambios de la sección</summary>
+      <ul>
+        <% revisions.forEach(function(revision) { %>
+          <li>
+            <a href="/admin/page/history/revision/<%= revision.id %>">Revisión #<%= revision.revision_number %></a>
+            — <%= revision.change_summary || revision.action %>
+          </li>
+        <% }); %>
+      </ul>
+    </details>
+  <% } %>
+</section>
+
+<h2 class="social-feed-posts-title">Posts curados</h2>
 
 <form method="get" class="admin-filters" aria-label="Filtros">
   <div class="filter-row">
@@ -42,6 +148,9 @@
             <span class="badge badge-status <%= post.status %>"><%= post.status === 'published' ? 'Publicado' : 'Borrador' %></span>
             <span class="badge badge-active <%= post.isActive ? 'active' : 'inactive' %>"><%= post.isActive ? 'Activo' : 'Inactivo' %></span>
           </div>
+          <p class="social-feed-embed-preview social-feed-embed-preview--<%= post.embedPreview.kind %>">
+            <strong>Comportamiento público:</strong> <%= post.embedPreview.label %>
+          </p>
         </div>
         <div class="card-actions">
           <a href="/admin/page/social-feed/edit?id=<%= post.publicId %>" class="btn btn-sm btn-outline">Editar</a>

@@ -21,6 +21,7 @@ const port = 34500 + Math.floor(Math.random() * 400);
 const fixture = { userId: null, otherUserId: null, refs: [], otherRef: null };
 const authenticatedJar = {};
 let serverProcess;
+const TEST_ACCOUNT_EMAIL_PATTERN = '^codex_account_[0-9]+_[0-9a-f]{6}(_other)?@example[.]invalid$';
 
 function reference() {
   return `NL-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
@@ -130,16 +131,52 @@ async function waitForServer() {
   throw new Error('Isolated account test server did not start');
 }
 
+async function stopServer() {
+  if (!serverProcess || serverProcess.exitCode !== null) return;
+  const exited = new Promise((resolve) => serverProcess.once('exit', resolve));
+  serverProcess.kill();
+  await Promise.race([
+    exited,
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ]);
+  if (serverProcess.exitCode === null) serverProcess.kill('SIGKILL');
+  serverProcess = null;
+}
+
 async function cleanup() {
-  if (fixture.refs.length || fixture.otherRef) {
-    const refs = [...fixture.refs, fixture.otherRef].filter(Boolean);
-    await pool.query(`DELETE FROM orders WHERE order_reference IN (${refs.map(() => '?').join(',')})`, refs);
+  // Resolve the exact test-only namespace so an interrupted prior run can be
+  // cleaned without touching unrelated customer orders or accounts.
+  const [fixtureOrderEmails] = await pool.query(
+    'SELECT DISTINCT customer_email AS email FROM orders WHERE customer_email REGEXP ?',
+    [TEST_ACCOUNT_EMAIL_PATTERN]
+  );
+  const [fixtureUsers] = await pool.query(
+    'SELECT id, email FROM users WHERE email REGEXP ?',
+    [TEST_ACCOUNT_EMAIL_PATTERN]
+  );
+  const emails = [...new Set(
+    [...fixtureOrderEmails, ...fixtureUsers].map((row) => row.email).filter(Boolean)
+  )];
+
+  if (emails.length) {
+    const placeholders = emails.map(() => '?').join(',');
+    await pool.query(
+      `DELETE FROM order_events WHERE order_id IN (
+         SELECT id FROM orders WHERE customer_email IN (${placeholders})
+       )`,
+      emails
+    );
+    await pool.query(`DELETE FROM orders WHERE customer_email IN (${placeholders})`, emails);
+    for (const fixtureEmail of emails) {
+      await pool.query('DELETE FROM sessions WHERE data LIKE ?', [`%${fixtureEmail}%`]);
+    }
+    await pool.query(`DELETE FROM users WHERE email IN (${placeholders})`, emails);
   }
-  const ids = [fixture.userId, fixture.otherUserId].filter(Boolean);
-  if (ids.length) await pool.query(`DELETE FROM users WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
-  await pool.query('DELETE FROM sessions WHERE data LIKE ?', [`%${marker}%`]);
-  const avatarDir = path.join(__dirname, '..', 'public', 'uploads', 'avatars', String(fixture.userId || 0));
-  if (fs.existsSync(avatarDir)) await fs.promises.rm(avatarDir, { recursive: true, force: true });
+
+  for (const fixtureUser of fixtureUsers) {
+    const avatarDir = path.join(__dirname, '..', 'public', 'uploads', 'avatars', String(fixtureUser.id));
+    if (fs.existsSync(avatarDir)) await fs.promises.rm(avatarDir, { recursive: true, force: true });
+  }
 }
 
 test.before(async () => {
@@ -171,7 +208,7 @@ test.before(async () => {
 });
 
 test.after(async () => {
-  if (serverProcess && !serverProcess.killed) serverProcess.kill();
+  await stopServer();
   await cleanup();
   await pool.end();
 });

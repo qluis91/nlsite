@@ -16,12 +16,16 @@ import { initNavbar } from './navbar.js';
 import { initPageLoader } from './pageLoader.js';
 import { initProjectCarousel } from './projectCarousel.js';
 import { initServicesCarousel } from './servicesCarousel.mjs';
+import { initSocialEmbedModal } from './socialEmbedModal.js';
+import { initSocialFeedRow } from './socialFeedRow.js';
 import { initSplashCursor } from './splashCursor.js';
 
 const homePage = document.querySelector('[data-home-page]');
 let destroyLogoLoop = () => {};
 let destroyProjectCarousel = () => {};
 let destroyServicesCarousel = () => {};
+let destroySocialEmbedModal = () => {};
+let destroySocialFeedRow = () => {};
 let splashCursorController = null;
 let antigravityController = null;
 let activePanelState = '';
@@ -334,6 +338,9 @@ async function init() {
     }
   }
 
+  destroySocialFeedRow = initSocialFeedRow(document.querySelector('[data-social-feed]'));
+  destroySocialEmbedModal = initSocialEmbedModal(document.querySelector('[data-social-feed]'));
+
   // Grainient background. Its failure must not affect the other visual systems.
   if (!prefersReduced) {
     try {
@@ -402,6 +409,8 @@ window.addEventListener('pagehide', () => {
   destroyLogoLoop();
   destroyProjectCarousel();
   destroyServicesCarousel();
+  destroySocialEmbedModal();
+  destroySocialFeedRow();
   splashCursorController?.destroy();
   antigravityController?.destroy();
 }, { once: true });

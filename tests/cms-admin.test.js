@@ -122,18 +122,15 @@ async function waitForServer() {
 }
 
 async function cleanup() {
-  const [assets] = await pool.query('SELECT * FROM media_assets WHERE title LIKE ? OR original_name LIKE ?', [
-    `${marker}%`,
-    `${marker}%`,
+  // Delete all stale test artifacts (any marker, not just current run).
+  await pool.query("DELETE FROM content_revisions WHERE entity_type = ? AND entity_id IN (SELECT id FROM media_assets WHERE title LIKE 'cmsadmin_%')", [
+    REVISION_ENTITY_TYPES.MEDIA_ASSET,
   ]);
+  const [assets] = await pool.query("SELECT * FROM media_assets WHERE title LIKE 'cmsadmin_%'");
   for (const asset of assets) {
     await storage.removeStoredPaths(storage.ownedPaths(asset));
-    await pool.query('DELETE FROM content_revisions WHERE entity_type = ? AND entity_id = ?', [
-      REVISION_ENTITY_TYPES.MEDIA_ASSET,
-      asset.id,
-    ]);
   }
-  await pool.query('DELETE FROM media_assets WHERE title LIKE ? OR original_name LIKE ?', [`${marker}%`, `${marker}%`]);
+  await pool.query("DELETE FROM media_assets WHERE title LIKE 'cmsadmin_%'");
   await pool.query('DELETE FROM sessions WHERE data LIKE ?', [`%${marker}%`]);
   await pool.query('DELETE FROM users WHERE email IN (?, ?)', [adminEmail, userEmail]);
 }

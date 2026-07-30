@@ -14,8 +14,8 @@ after(async () => {
 });
 
 describe('Phase 13 — migrationTracker', () => {
-    it('MIGRATION_REGISTRY has 24 entries (Phase 2A added migrateSocialFeed)', () => {
-    assert.equal(tracker.MIGRATION_REGISTRY.length, 24);
+  it('MIGRATION_REGISTRY has 25 entries (Phase 2B added homepage Social Feed settings)', () => {
+    assert.equal(tracker.MIGRATION_REGISTRY.length, 25);
     assert.equal(
       tracker.MIGRATION_REGISTRY.filter((entry) => entry.name === 'migrateCatalogSchemaRepair').length,
       1

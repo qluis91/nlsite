@@ -5,6 +5,8 @@
 const crypto = require('node:crypto');
 const pool = require('../config/db');
 const { recordRevision } = require('./contentRevisionService');
+const cmsContent = require('./cmsContentService');
+const { deriveSocialEmbed } = require('./socialEmbedService');
 
 const ALLOWED_PLATFORMS = Object.freeze(['instagram', 'facebook', 'tiktok', 'youtube', 'other']);
 const ALLOWED_DISPLAY_MODES = Object.freeze(['external_link', 'embed']);
@@ -20,6 +22,29 @@ function safeUrl(value) {
   if (v.startsWith('/') && !v.startsWith('//')) return v;
   if (/^https?:\/\//i.test(v)) return v;
   return '';
+}
+
+function safeExternalUrl(value) {
+  const candidate = h(value);
+  try {
+    const parsed = new URL(candidate);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+    if (parsed.username || parsed.password) return '';
+    return parsed.href;
+  } catch {
+    return '';
+  }
+}
+
+function parsePublishedSnapshot(value) {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function validatePlatformUrl(url, platform) {
@@ -386,6 +411,66 @@ async function getPublishedPosts() {
   return rows.map(postToJson);
 }
 
+/**
+ * Public Phase 2B projection. Draft columns are deliberately ignored: card
+ * content comes from the immutable published snapshot only.
+ */
+async function getPublicFeed(settings = {}) {
+  const maximumPosts = Math.min(12, Math.max(1, Number(settings.maximumPosts) || 6));
+  const platformFilters = Array.isArray(settings.platforms)
+    ? settings.platforms.filter((platform) => ALLOWED_PLATFORMS.includes(platform))
+    : [...ALLOWED_PLATFORMS];
+  if (!platformFilters.length) return [];
+
+  const [rows] = await pool.query(
+    `SELECT id, public_id, sort_order, published_at, published_content_json
+       FROM social_posts
+      WHERE status = 'published' AND is_active = 1 AND archived_at IS NULL
+        AND published_content_json IS NOT NULL
+      ORDER BY sort_order ASC, published_at DESC, id DESC`
+  );
+
+  const posts = rows.map((row) => {
+    const snapshot = parsePublishedSnapshot(row.published_content_json);
+    if (!snapshot) return null;
+    const platform = ALLOWED_PLATFORMS.includes(snapshot.platform) ? snapshot.platform : 'other';
+    const postUrl = safeExternalUrl(snapshot.postUrl);
+    if (!postUrl || !platformFilters.includes(platform)) return null;
+    if (settings.featuredOnly && snapshot.isFeatured !== true) return null;
+    return {
+      id: row.id,
+      publicId: row.public_id,
+      platform,
+      postUrl,
+      title: h(snapshot.title),
+      description: h(snapshot.description),
+      thumbnailMediaRef: h(snapshot.thumbnailMediaRef),
+      displayMode: snapshot.displayMode === 'embed' ? 'embed' : 'external',
+      embedEnabled: snapshot.embedEnabled === true,
+      isFeatured: snapshot.isFeatured === true,
+      sortOrder: Number(row.sort_order) || 0,
+      publishedAt: row.published_at,
+    };
+  }).filter(Boolean);
+
+  if (settings.displayOrder === 'newest') {
+    posts.sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0));
+  } else if (settings.displayOrder === 'oldest') {
+    posts.sort((a, b) => new Date(a.publishedAt || 0) - new Date(b.publishedAt || 0));
+  }
+
+  const selected = posts.slice(0, maximumPosts);
+  await Promise.all(selected.map(async (post) => {
+    const media = post.thumbnailMediaRef
+      ? await cmsContent.resolveMediaReference(post.thumbnailMediaRef, null)
+      : null;
+    post.thumbnailUrl = media?.thumbnailUrl || media?.url || '/images/social-feed-fallback.svg';
+    post.thumbnailAlt = media?.altText || post.title || `Publicación de ${post.platform}`;
+    post.embed = deriveSocialEmbed(post);
+  }));
+  return selected;
+}
+
 async function nextSortOrder() {
   const [[{ maxOrder }]] = await pool.query(
     'SELECT COALESCE(MAX(sort_order), -1) AS maxOrder FROM social_posts WHERE archived_at IS NULL'
@@ -408,4 +493,6 @@ module.exports = {
   restorePostDraft,
   setActive,
   getPublishedPosts,
+  getPublicFeed,
+  safeExternalUrl,
 };

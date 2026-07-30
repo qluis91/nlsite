@@ -71,6 +71,8 @@ router.post('/page/social-feed/archive', requireCapability(CAPABILITIES.SOCIAL_F
 router.post('/page/social-feed/reorder', requireCapability(CAPABILITIES.SOCIAL_FEED_EDIT), csrfSynchronisedProtection, socialFeedController.reorderPosts);
 router.post('/page/social-feed/toggle-active', requireCapability(CAPABILITIES.SOCIAL_FEED_EDIT), csrfSynchronisedProtection, socialFeedController.toggleActive);
 router.post('/page/social-feed/restore', requireCapability(CAPABILITIES.SOCIAL_FEED_EDIT), csrfSynchronisedProtection, socialFeedController.restorePostDraft);
+router.post('/page/social-feed/section/save', requireCapability(CAPABILITIES.SOCIAL_FEED_EDIT), csrfSynchronisedProtection, socialFeedController.saveSectionSettings);
+router.post('/page/social-feed/section/publish', requireCapability(CAPABILITIES.SOCIAL_FEED_PUBLISH), csrfSynchronisedProtection, socialFeedController.publishSectionSettings);
 
 // ── Preview ──
 router.get('/page/preview', requireCapability(CAPABILITIES.PAGE_MANAGE), controller.preview);

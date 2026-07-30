@@ -553,9 +553,9 @@ describe('Phase 1C — Regression', () => {
     assert.ok(content.includes("action: 'reorder'"), 'reorderItems should record revision');
   });
 
-  it('54. migration tracker has 24 entries (Phase 2A added migrateSocialFeed)', () => {
+  it('54. migration tracker has 25 entries (Phase 2B added homepage Social Feed settings)', () => {
     const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-    assert.equal(MIGRATION_REGISTRY.length, 24);
+    assert.equal(MIGRATION_REGISTRY.length, 25);
   });
 
   it('55. diffEngine exports expected functions', () => {

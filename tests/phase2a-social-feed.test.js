@@ -633,9 +633,9 @@ test('form.ejs has zero inline event handlers', () => {
 // 12. Migration count
 // ════════════════════════════════════════════════════════════
 
-test('migration registry has 24 entries', () => {
+test('migration registry has 25 entries after additive Phase 2B migration', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 24);
+  assert.equal(MIGRATION_REGISTRY.length, 25);
 });
 
 test('social_post entity type is registered', () => {
@@ -645,14 +645,14 @@ test('social_post entity type is registered', () => {
 });
 
 // ════════════════════════════════════════════════════════════
-// 13. No public rendering yet
+// 13. Draft isolation remains in force after Phase 2B
 // ════════════════════════════════════════════════════════════
 
-test('public / does not expose social posts', async () => {
+test('public / never exposes draft social post content', async () => {
+  const draft = await createTestPost({ title: `Draft-only ${marker}` });
   const resp = await fetch(`${baseUrl}/`);
   const text = await resp.text();
-  assert.doesNotMatch(text, /social_feed/i);
-  assert.doesNotMatch(text, /social-feed/i);
+  assert.doesNotMatch(text, new RegExp(draft.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
 // ════════════════════════════════════════════════════════════

@@ -40,6 +40,7 @@ const MIGRATION_REGISTRY = [
   { name: 'migrateCategoryStoreHero', file: './migrate-category-store-hero', exportName: 'migrateCategoryStoreHero', passPool: true, capability: 'catalog' },
   { name: 'migrateAboutPageCms', file: './migrate-about-page-cms', exportName: 'migrateAboutPageCms', passPool: true },
   { name: 'migrateSocialFeed', file: './migrate-social-feed', exportName: 'migrateSocialFeed', passPool: true },
+  { name: 'migrateSocialFeedHomeSection', file: './migrate-social-feed-home-section', exportName: 'migrateSocialFeedHomeSection', passPool: true },
 ];
 
 async function ensureMigrationsTable(pool) {

@@ -6,8 +6,12 @@ const { generateToken } = require('../config/csrf');
 const mediaService = require('../services/mediaService');
 const socialService = require('../services/socialFeedService');
 const publicationService = require('../services/publicationService');
+const cmsPublishingService = require('../services/cmsPublishingService');
+const revisionService = require('../services/contentRevisionService');
+const sectionValidator = require('../validators/socialFeedSectionValidator');
 const { MODULE_KEYS } = require('../services/moduleRegistry');
 const { REVISION_ENTITY_TYPES } = require('../config/cmsOptions');
+const { describeAdminBehavior } = require('../services/socialEmbedService');
 
 const MODULE_KEY = MODULE_KEYS.SOCIAL_FEED;
 const BASE_PATH = '/admin/page/social-feed';
@@ -31,20 +35,95 @@ function csrfFor(req) {
 async function showList(req, res, next) {
   try {
     const platform = String(req.query.platform || '').trim().toLowerCase() || null;
-    const posts = await socialService.listPosts(platform ? { platform } : {});
+    const [posts, storedSection] = await Promise.all([
+      socialService.listPosts(platform ? { platform } : {}),
+      cmsPublishingService.getSectionDraft('home', 'social-feed'),
+    ]);
+    const section = storedSection || {
+      id: null,
+      status: 'draft',
+      version: 0,
+      content: sectionValidator.DEFAULT_SETTINGS,
+    };
+    const settings = sectionValidator.normalizeSocialFeedSettings(section.content);
+    const revisions = section.id
+      ? await revisionService.listRevisions('page_section', section.id, 5)
+      : [];
     const pageAlerts = req.session?.cms_alerts || [];
     if (req.session?.cms_alerts) delete req.session.cms_alerts;
+    const sectionErrors = req.session?.social_feed_section_errors || [];
+    const sectionForm = req.session?.social_feed_section_form || null;
+    delete req.session.social_feed_section_errors;
+    delete req.session.social_feed_section_form;
 
     res.render('pages/admin/page/social-feed/list', {
       title: 'Social Feed',
       layout: 'layouts/admin',
       pageStyles: ['/css/admin-page.css'],
       pageModule: '',
+      pageScripts: ['/js/admin/cms-editor-state.js'],
       csrfToken: csrfFor(req),
-      posts,
+      posts: posts.map((post) => ({
+        ...post,
+        embedPreview: describeAdminBehavior(post),
+      })),
       platformFilter: platform || '',
-      pageAlerts,
+      pageAlerts: pageAlerts.concat(sectionErrors.length ? [{
+        id: 'social-feed-section-validation',
+        type: 'error',
+        title: 'No se pudo guardar la sección',
+        description: sectionErrors.join(' '),
+        persistent: true,
+      }] : []),
+      section,
+      sectionSettings: sectionForm
+        ? sectionValidator.normalizeSocialFeedSettings(sectionForm)
+        : settings,
+      sectionErrors,
+      revisions,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function saveSectionSettings(req, res, next) {
+  try {
+    const validation = sectionValidator.validateSocialFeedSettings(req.body);
+    if (!validation.valid) {
+      req.session.social_feed_section_errors = validation.errors;
+      req.session.social_feed_section_form = validation.sanitized;
+      return res.redirect(BASE_PATH);
+    }
+    await cmsPublishingService.saveSectionDraft(
+      'home',
+      'social-feed',
+      validation.sanitized,
+      {},
+      {
+        actorId: actorId(req),
+        expectedVersion: req.body.version === '' ? null : Number(req.body.version),
+      }
+    );
+    req.session.cms_alerts = [{
+      type: 'success',
+      text: 'Configuración guardada como borrador. Publique para hacerla visible.',
+    }];
+    return res.redirect(BASE_PATH);
+  } catch (error) {
+    if (error.code === 'CMS_VERSION_CONFLICT') {
+      req.session.cms_alerts = [{ type: 'error', text: error.message }];
+      return res.redirect(BASE_PATH);
+    }
+    next(error);
+  }
+}
+
+async function publishSectionSettings(req, res, next) {
+  try {
+    await cmsPublishingService.publishSection('home', 'social-feed', { actorId: actorId(req) });
+    req.session.cms_alerts = [{ type: 'success', text: 'Sección “NinjaLab en redes” publicada.' }];
+    return res.redirect(BASE_PATH);
   } catch (error) {
     next(error);
   }
@@ -250,4 +329,6 @@ module.exports = {
   archivePost,
   reorderPosts,
   toggleActive,
+  saveSectionSettings,
+  publishSectionSettings,
 };

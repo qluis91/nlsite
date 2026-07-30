@@ -176,7 +176,7 @@ test('home page and section seeds are idempotent and never overwrite existing co
     'SELECT section_key, content_json, status, is_enabled FROM page_sections WHERE page_id = ? ORDER BY sort_order',
     [page.id]
   );
-  assert.deepEqual(sections.map((row) => row.section_key), ['hero', 'showcase', 'services']);
+  assert.deepEqual(sections.map((row) => row.section_key), ['hero', 'showcase', 'services', 'social-feed']);
   const hero = sections.find((row) => row.section_key === 'hero');
   assert.match(typeof hero.content_json === 'string' ? hero.content_json : JSON.stringify(hero.content_json), new RegExp(marker));
   // Sections stay disabled drafts so the public site keeps its hardcoded output.
@@ -673,7 +673,7 @@ test('CMS content service resolves media references and falls back safely', asyn
   const page = await cmsContent.getPage('home');
   assert.equal(page.page_key, 'home');
   const sections = await cmsContent.listSections('home');
-  assert.deepEqual(sections.map((section) => section.section_key), ['hero', 'showcase', 'services']);
+  assert.deepEqual(sections.map((section) => section.section_key), ['hero', 'showcase', 'services', 'social-feed']);
 });
 
 test('revisions store safe metadata only and increment per entity', async () => {

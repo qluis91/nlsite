@@ -42,6 +42,8 @@ if (_isPreview) {
     servicesContent: (typeof previewServicesContent !== 'undefined' ? previewServicesContent : (cms && cms.servicesContent)) || null,
     servicesStyle: (typeof previewServicesStyle !== 'undefined' ? previewServicesStyle : (cms && cms.servicesStyle)) || null,
     featureItems: (typeof previewFeatureItems !== 'undefined' ? previewFeatureItems : (cms && cms.featureItems)) || null,
+    socialFeedSettings: (cms && cms.socialFeedSettings) || null,
+    socialFeedPosts: (cms && cms.socialFeedPosts) || [],
     settings: cms ? cms.settings : null,
     modelMedia: cms ? cms.modelMedia : null,
     modelFallback: cms ? cms.modelFallback : null,
@@ -605,4 +607,145 @@ const heroVisible = hasCmsHero ? heroContent.isVisible !== false : true;
       </div>
     </div>
   </section>
+  <%
+  const socialFeedSettings = (_previewCms && _previewCms.socialFeedSettings) || null;
+  const socialFeedPosts = (_previewCms && Array.isArray(_previewCms.socialFeedPosts))
+    ? _previewCms.socialFeedPosts
+    : [];
+  %>
+  <% if (socialFeedSettings && socialFeedSettings.enabled && socialFeedPosts.length) { %>
+  <section
+    id="ninjalab-en-redes"
+    class="home-panel home-panel--social-feed"
+    data-panel="4"
+    data-social-feed
+    aria-labelledby="social-feed-title"
+  >
+    <div class="social-public">
+      <header class="social-public__heading">
+        <p class="social-public__kicker">SOCIAL FEED</p>
+        <h2 id="social-feed-title" class="social-public__title"><%= socialFeedSettings.title || 'NinjaLab en redes' %></h2>
+        <% if (socialFeedSettings.subtitle) { %>
+          <p class="social-public__subtitle"><%= socialFeedSettings.subtitle %></p>
+        <% } %>
+      </header>
+
+      <div
+        class="social-public__viewport"
+        data-social-feed-viewport
+        role="region"
+        aria-roledescription="carrusel"
+        aria-label="Publicaciones de NinjaLab en redes sociales"
+        tabindex="0"
+      >
+        <div class="social-public__grid" data-social-feed-row>
+          <% socialFeedPosts.forEach(function(post) { %>
+            <% const opensEmbed = post.embed && post.embed.action === 'embed'; %>
+            <article class="social-public__card" data-social-feed-card>
+              <a
+                class="social-public__link"
+                href="<%= post.postUrl %>"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="<%= post.title %> en <%= post.platform %> (<%= opensEmbed ? 'abre en un diálogo' : 'abre en una pestaña nueva' %>)"
+                <% if (opensEmbed) { %>
+                  data-social-embed-open
+                  data-embed-platform="<%= post.embed.platform %>"
+                  data-embed-src="<%= post.embed.src %>"
+                  data-original-url="<%= post.postUrl %>"
+                  data-embed-title="<%= post.title %>"
+                  data-embed-description="<%= post.description %>"
+                  data-embed-thumbnail="<%= post.thumbnailUrl || '/images/social-feed-fallback.svg' %>"
+                  data-embed-thumbnail-alt="<%= post.thumbnailAlt || post.title %>"
+                  data-embed-frame-title="<%= post.embed.title %>"
+                <% } %>
+              >
+                <div class="social-public__media">
+                  <img
+                    class="social-public__image"
+                    src="<%= post.thumbnailUrl || '/images/social-feed-fallback.svg' %>"
+                    data-social-feed-thumbnail
+                    data-fallback-src="/images/social-feed-fallback.svg"
+                    alt="<%= post.thumbnailAlt || post.title %>"
+                    width="1200"
+                    height="675"
+                    loading="lazy"
+                    decoding="async"
+                  >
+                  <span class="social-public__platform social-public__platform--<%= post.platform %>"><%= post.platform %></span>
+                </div>
+                <div class="social-public__body">
+                  <h3 class="social-public__card-title"><%= post.title %></h3>
+                  <% if (post.description) { %><p class="social-public__description"><%= post.description %></p><% } %>
+                  <span class="social-public__action">
+                    <%= opensEmbed ? 'Ver aquí' : 'Ver publicación' %>
+                    <span aria-hidden="true"><%= opensEmbed ? '＋' : '↗' %></span>
+                  </span>
+                </div>
+              </a>
+            </article>
+          <% }); %>
+        </div>
+      </div>
+
+      <% if (socialFeedPosts.length > 1) { %>
+        <div class="social-public__controls" aria-label="Navegación de publicaciones">
+          <button type="button" class="social-public__control" data-social-feed-prev aria-label="Publicación anterior">←</button>
+          <button type="button" class="social-public__control" data-social-feed-next aria-label="Publicación siguiente">→</button>
+        </div>
+      <% } %>
+      <p class="social-public__status" data-social-feed-status aria-live="polite" aria-atomic="true"></p>
+    </div>
+
+    <div
+      class="social-embed-modal"
+      data-social-embed-modal
+      aria-hidden="true"
+      hidden
+    >
+      <div class="social-embed-modal__backdrop" data-social-embed-backdrop aria-hidden="true"></div>
+      <section
+        class="social-embed-modal__dialog"
+        data-social-embed-dialog
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="social-embed-modal-title"
+        aria-describedby="social-embed-modal-description"
+        tabindex="-1"
+      >
+        <button
+          type="button"
+          class="social-embed-modal__close"
+          data-social-embed-close
+          aria-label="Cerrar publicación"
+        >×</button>
+        <header class="social-embed-modal__heading">
+          <h2 id="social-embed-modal-title" data-social-embed-title></h2>
+          <p id="social-embed-modal-description" data-social-embed-description></p>
+        </header>
+        <div class="social-embed-modal__stage" data-social-embed-stage>
+          <p class="social-embed-modal__loading" data-social-embed-loading role="status">
+            Cargando publicación…
+          </p>
+          <div class="social-embed-modal__error" data-social-embed-error role="alert" hidden>
+            <img
+              data-social-embed-fallback-image
+              src="/images/social-feed-fallback.svg"
+              alt=""
+              width="1200"
+              height="675"
+            >
+            <p>No fue posible cargar el contenido integrado.</p>
+            <a
+              class="social-embed-modal__fallback-link"
+              data-social-embed-fallback-link
+              target="_blank"
+              rel="noopener noreferrer"
+            >Abrir publicación original <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+  <% } %>
 </main>

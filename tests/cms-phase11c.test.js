@@ -492,6 +492,7 @@ describe('Phase 11C-S — Media Service Selector Upload', () => {
   });
   it('duplicate upload returns existing asset', async () => {
     const mediaService = require('../services/mediaService');
+    const mediaStorage = require('../services/mediaStorageService');
     const img = await sharp({
       create: { width: 64, height: 64, channels: 3, background: { r: 255, g: 0, b: 0 } }
     }).jpeg().toBuffer();
@@ -500,8 +501,17 @@ describe('Phase 11C-S — Media Service Selector Upload', () => {
     const a2 = await mediaService.createFromSelectorUpload({ file, category: 'site', actorId: null });
     assert.ok(a1.public_id);
     assert.strictEqual(a1.public_id, a2.public_id); // duplicate returns same asset
-    // clean up
+    // Clean both database metadata and every generated derivative.
+    const ownedPaths = mediaStorage.ownedPaths(a1);
+    await mediaStorage.removeStoredPaths(ownedPaths);
+    await pool.query(
+      "DELETE FROM content_revisions WHERE entity_type = 'media_asset' AND entity_id = ?",
+      [a1.id]
+    );
     await pool.query('DELETE FROM media_assets WHERE public_id = ?', [a1.public_id]);
+    for (const storedPath of ownedPaths) {
+      assert.strictEqual(await mediaStorage.storedPathExists(storedPath), false);
+    }
   });
 });
 

@@ -179,7 +179,14 @@ test('active unique constraint rejects a duplicate idempotency key without persi
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [rows] = await conn.query('SELECT * FROM orders ORDER BY id LIMIT 1');
+    // Insert a fixture order so the idempotency-key clash is testable.
+    const ref = `NL-TEST${Date.now().toString(36).toUpperCase()}`;
+    const idemKey = `idem-${Date.now().toString(36)}`;
+    await conn.query(`INSERT INTO orders
+      (order_reference,user_id,customer_name,customer_email,customer_phone,delivery_method,shipping_status,shipping_amount,payment_method,payment_status,order_status,product_subtotal,final_total,idempotency_key)
+      VALUES (?,NULL,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [ref, '[TEST] Fixture', 'fixture@test.invalid', '70240270', 'local_pickup', 'not_required', 0, 'sinpe', 'pending', 'pending_payment', 1000, 1000, idemKey]);
+    const [rows] = await conn.query('SELECT * FROM orders WHERE order_reference = ?', [ref]);
     assert.ok(rows[0], 'fixture order required');
     const o = rows[0];
     await assert.rejects(

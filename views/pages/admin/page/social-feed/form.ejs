@@ -70,7 +70,7 @@
     <label for="sf-display">Modo de visualización</label>
     <select id="sf-display" name="displayMode" class="form-select">
       <option value="external_link" <%= (form.displayMode || post?.displayMode || 'external_link') === 'external_link' ? 'selected' : '' %>>Enlace externo</option>
-      <option value="embed" <%= (form.displayMode || '') === 'embed' ? 'selected' : '' %>>Embed (próximamente)</option>
+      <option value="embed" <%= (form.displayMode || post?.displayMode || '') === 'embed' ? 'selected' : '' %>>Embed en modal</option>
     </select>
   </div>
 
@@ -81,6 +81,9 @@
              <%= (form.embedEnabled || post?.embedEnabled) ? 'checked' : '' %>>
       Habilitar embed
     </label>
+    <span class="field-help">
+      YouTube, TikTok, Instagram y Facebook usan formatos de URL validados. Una URL no compatible abrirá el enlace original.
+    </span>
   </div>
 
   <!-- Featured & Active -->

@@ -288,12 +288,21 @@ describe('light theme CSS contract', () => {
 });
 
 describe('rendered /tienda hero behavior', () => {
+  let pool = null;
   before(async () => {
     const server = await startTestServer();
     BASE = server.baseUrl;
+    // Remove any stale published store-hero entry so the default hero renders.
+    try {
+      pool = require('../config/db');
+      await pool.query(
+        "DELETE FROM page_sections WHERE section_key = 'st-hero' AND page_id = (SELECT id FROM pages WHERE page_key = 'tienda' LIMIT 1)"
+      );
+    } catch (_) { /* database not available */ }
   });
   after(async () => {
     await stopTestServer();
+    if (pool) { try { await pool.end(); } catch (_) {} }
   });
 
   test('GET /tienda renders default hero', async () => {

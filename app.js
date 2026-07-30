@@ -126,7 +126,14 @@ const helmetConfig = {
       fontSrc: ["'self'", 'data:'],
       mediaSrc: ["'self'"],
       frameAncestors: ["'self'"],
-      frameSrc: ["'self'", 'https://www.youtube.com'],
+      frameSrc: [
+        "'self'",
+        'https://www.youtube.com',
+        'https://www.youtube-nocookie.com',
+        'https://www.tiktok.com',
+        'https://www.instagram.com',
+        'https://www.facebook.com',
+      ],
       formAction: ["'self'"],
     },
   },
@@ -564,11 +571,12 @@ app.get('/', async (req, res) => {
     const cms = require('./services/cmsPublishingService');
     const cmsContent = require('./services/cmsContentService');
 
-    const [navItems, heroContent, showcaseContent, servicesContent, settings] = await Promise.all([
+    const [navItems, heroContent, showcaseContent, servicesContent, socialFeedContent, settings] = await Promise.all([
       cms.getPublishedNavItems('home'),
       cmsContent.getPublishedSectionContent('home', 'hero', null),
       cmsContent.getPublishedSectionContent('home', 'showcase', null),
       cmsContent.getPublishedSectionContent('home', 'services', null),
+      cmsContent.getPublishedSectionContent('home', 'social-feed', null),
       cms.getPublishedSettings([
         'site.logo_primary', 'site.logo_light', 'site.logo_dark',
         'site.favicon', 'navbar.bg_color', 'navbar.text_color',
@@ -682,6 +690,17 @@ app.get('/', async (req, res) => {
       resolveMedia(heroContent?.backgroundMedia),
     ]);
 
+    let socialFeedSettings = null;
+    let socialFeedPosts = [];
+    if (socialFeedContent) {
+      const socialSectionValidator = require('./validators/socialFeedSectionValidator');
+      socialFeedSettings = socialSectionValidator.normalizeSocialFeedSettings(socialFeedContent);
+      if (socialFeedSettings.enabled) {
+        const socialFeedService = require('./services/socialFeedService');
+        socialFeedPosts = await socialFeedService.getPublicFeed(socialFeedSettings);
+      }
+    }
+
     const cmsData = {
       navItems: navItems.length ? navItems : null,
       heroContent,
@@ -694,6 +713,8 @@ app.get('/', async (req, res) => {
       carouselItems: carouselItems.length ? carouselItems : null,
       featureItems: featureItems.length ? featureItems : null,
       socialItems,
+      socialFeedSettings,
+      socialFeedPosts,
       settings,
       logos: {
         primary: logoPrimary,

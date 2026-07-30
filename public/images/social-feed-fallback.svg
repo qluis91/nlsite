@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">NinjaLab en redes</title>
+  <desc id="desc">Imagen de respaldo para publicaciones sociales</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111"/>
+      <stop offset="1" stop-color="#2a2f24"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <circle cx="600" cy="286" r="112" fill="none" stroke="#93eb0d" stroke-width="18"/>
+  <path d="M544 286h112M600 230v112" stroke="#93eb0d" stroke-width="18" stroke-linecap="round"/>
+  <text x="600" y="486" fill="#f5f5f5" font-family="Arial, sans-serif" font-size="54" text-anchor="middle">NinjaLab en redes</text>
+</svg>
