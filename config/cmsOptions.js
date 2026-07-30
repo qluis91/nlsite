@@ -202,6 +202,7 @@ const REVISION_ENTITY_TYPES = Object.freeze({
   FEATURE_ITEM: 'feature_item',
   SOCIAL_ITEM: 'social_item',
   SOCIAL_POST: 'social_post',
+  TESTIMONIAL: 'testimonial',
   CATEGORY: 'category',
 });
 

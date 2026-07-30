@@ -41,6 +41,7 @@ const MIGRATION_REGISTRY = [
   { name: 'migrateAboutPageCms', file: './migrate-about-page-cms', exportName: 'migrateAboutPageCms', passPool: true },
   { name: 'migrateSocialFeed', file: './migrate-social-feed', exportName: 'migrateSocialFeed', passPool: true },
   { name: 'migrateSocialFeedHomeSection', file: './migrate-social-feed-home-section', exportName: 'migrateSocialFeedHomeSection', passPool: true },
+  { name: 'migrateTestimonials', file: './migrate-testimonials', exportName: 'migrateTestimonials', passPool: true },
 ];
 
 async function ensureMigrationsTable(pool) {

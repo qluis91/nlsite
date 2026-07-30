@@ -748,4 +748,8 @@ const heroVisible = hasCmsHero ? heroContent.isVisible !== false : true;
     </div>
   </section>
   <% } %>
+
+  <% if (cms && cms.testimonialsSettings && cms.testimonialsSettings.enabled && cms.testimonialsItems && cms.testimonialsItems.length) { %>
+    <%- include('../components/testimonials-section') %>
+  <% } %>
 </main>

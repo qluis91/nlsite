@@ -1,0 +1,97 @@
+<form method="post" action="/admin/page/testimonials/save" class="cms-form" novalidate>
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <% if (testimonial) { %>
+    <input type="hidden" name="publicId" value="<%= testimonial.publicId %>">
+  <% } %>
+
+  <% if (errors && errors.length) { %>
+    <ul class="cms-field-errors" aria-label="Errores de validación">
+      <% errors.forEach(function(error) { %><li><%= error %></li><% }); %>
+    </ul>
+  <% } %>
+
+  <h2><%= testimonial ? 'Editar Testimonio' : 'Nuevo Testimonio' %></h2>
+
+  <div class="form-group">
+    <label class="field-label" for="tDisplayName">Nombre del cliente *</label>
+    <input id="tDisplayName" name="displayName" class="form-input" maxlength="200" required
+      value="<%= form.displayName || (testimonial ? testimonial.displayName : '') %>">
+    <small class="field-help">Cómo aparecerá el nombre públicamente.</small>
+  </div>
+
+  <div class="form-group">
+    <label class="field-label" for="tTestimonialText">Testimonio *</label>
+    <textarea id="tTestimonialText" name="testimonialText" class="form-input" rows="4" maxlength="1000" required><%= form.testimonialText || (testimonial ? testimonial.testimonialText : '') %></textarea>
+    <small class="field-help">El texto del testimonio, máximo 1000 caracteres.</small>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label class="field-label" for="tPlatform">Plataforma *</label>
+      <select id="tPlatform" name="platform" class="form-input" required>
+        <option value="">Seleccioná...</option>
+        <% ['instagram', 'facebook', 'google', 'tripadvisor', 'other'].forEach(function(p) { %>
+          <option value="<%= p %>" <% var sel = form.platform || (testimonial ? testimonial.platform : ''); %><%= sel === p ? 'selected' : '' %>><%= p === 'other' ? 'Otro' : p.charAt(0).toUpperCase() + p.slice(1) %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="field-label" for="tRating">Calificación</label>
+      <input id="tRating" name="rating" class="form-input" type="number" min="1" max="5" step="1"
+        value="<%= form.rating || (testimonial ? testimonial.rating || '' : '') %>">
+      <small class="field-help">De 1 a 5 estrellas (opcional).</small>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="field-label" for="tSourceUrl">URL del comentario original</label>
+    <input id="tSourceUrl" name="sourceUrl" class="form-input" type="url" maxlength="2048"
+      value="<%= form.sourceUrl || (testimonial ? testimonial.sourceUrl : '') %>">
+    <small class="field-help">Link al comentario original (opcional).</small>
+  </div>
+
+  <div class="form-group" id="testimonial-avatar-selector">
+    <label class="field-label">Avatar (opcional)</label>
+    <input type="hidden" name="avatarMediaRef" id="testimonial-avatar-ref"
+      value="<%= form.avatarMediaRef || (testimonial ? testimonial.avatarMediaRef : '') %>">
+    <div class="media-selector-preview" id="testimonial-avatar-preview">
+      <% if (avatar && avatar.thumbnail_path) { %>
+        <img src="<%= avatar.thumbnail_path %>" alt="Avatar seleccionado" width="80" height="80" class="avatar-preview-img">
+        <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('testimonial-avatar-ref').value='';document.getElementById('testimonial-avatar-preview').innerHTML='';return false;">Quitar</button>
+      <% } %>
+    </div>
+    <button type="button" class="btn btn-outline" onclick="if(window.MediaSelector){window.MediaSelector.open({onSelect:function(r){document.getElementById('testimonial-avatar-ref').value='media://'+r.publicId;document.getElementById('testimonial-avatar-preview').innerHTML='<img src=\\''+r.thumbnailUrl+'\\' alt=\\'Avatar\\' width=\\'80\\' height=\\'80\\' class=\\'avatar-preview-img\\'>';},category:'other',mimeType:'image'});}">Seleccionar avatar</button>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="isFeatured" value="1" <%= (form.isFeatured || (testimonial && testimonial.isFeatured)) ? 'checked' : '' %>>
+        Destacado
+      </label>
+    </div>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="isActive" value="1" <%= (form.isActive !== undefined ? form.isActive : (testimonial ? testimonial.isActive : true)) ? 'checked' : '' %>>
+        Activo
+      </label>
+    </div>
+  </div>
+
+  <div class="sticky-actions">
+    <a href="/admin/page/testimonials" class="btn btn-outline">Cancelar</a>
+    <div class="actions-group">
+      <button type="submit" class="btn btn-primary btn-save">Guardar borrador</button>
+      <button type="submit" form="publish-testimonial-form" class="btn btn-success btn-publish">Publicar</button>
+    </div>
+  </div>
+</form>
+
+<form id="publish-testimonial-form" method="post" action="/admin/page/testimonials/publish" hidden>
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <% if (testimonial) { %>
+    <input type="hidden" name="publicId" value="<%= testimonial.publicId %>">
+  <% } %>
+</form>
+
+<a href="/admin/page/testimonials" class="btn btn-outline back-link">← Volver a Testimonios</a>

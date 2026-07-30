@@ -52,6 +52,10 @@ const CAPABILITIES = Object.freeze({
   SOCIAL_FEED_VIEW: 'social.feed.view',
   SOCIAL_FEED_EDIT: 'social.feed.edit',
   SOCIAL_FEED_PUBLISH: 'social.feed.publish',
+  // Phase 2D — Testimonials
+  TESTIMONIALS_VIEW: 'testimonials.view',
+  TESTIMONIALS_EDIT: 'testimonials.edit',
+  TESTIMONIALS_PUBLISH: 'testimonials.publish',
 });
 
 const CAPABILITY_VALUES = Object.freeze(Object.values(CAPABILITIES));

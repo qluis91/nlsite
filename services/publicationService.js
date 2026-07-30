@@ -282,6 +282,9 @@ async function publishSingleModule(connection, moduleKey, actorId) {
     case MODULE_KEYS.SOCIAL_FEED:
       return publishSocialFeedInTx(connection, actorId);
 
+    case MODULE_KEYS.TESTIMONIALS:
+      return publishTestimonialsInTx(connection, actorId);
+
     default:
       throw new Error(`Módulo sin publicador: ${moduleKey}`);
   }
@@ -469,6 +472,43 @@ async function publishSocialFeedInTx(connection, actorId) {
       previousData: { public_id: item.public_id, status: 'draft' },
       newData: { public_id: item.public_id, status: 'published' },
       changeSummary: 'Social post publicado.',
+      changedBy: actorId,
+    });
+  }
+  return { publishedRevId, sourceRevId: null, previousSnapshot: null, newSnapshot: null, skipped: false };
+}
+
+async function publishTestimonialsInTx(connection, actorId) {
+  const [before] = await connection.query(
+    `SELECT * FROM testimonials WHERE status = 'draft' AND archived_at IS NULL FOR UPDATE`
+  );
+  if (!before.length) {
+    return { publishedRevId: null, sourceRevId: null, previousSnapshot: null, newSnapshot: null, skipped: true };
+  }
+  let publishedRevId = null;
+  for (const item of before) {
+    const contentJson = JSON.stringify({
+      displayName: item.display_name,
+      testimonialText: item.testimonial_text,
+      platform: item.platform,
+      sourceUrl: item.source_url,
+      avatarMediaRef: item.avatar_media_ref,
+      rating: item.rating,
+      isFeatured: Boolean(item.is_featured),
+    });
+    await connection.query(
+      `UPDATE testimonials
+         SET status = 'published', published_content_json = ?, published_at = NOW(), updated_by = ?
+       WHERE id = ?`,
+      [contentJson, actorId, item.id]
+    );
+    publishedRevId = await recordPublicationRevision(connection, {
+      entityType: 'testimonial',
+      entityId: item.id,
+      action: 'publish',
+      previousData: { public_id: item.public_id, status: 'draft' },
+      newData: { public_id: item.public_id, status: 'published' },
+      changeSummary: 'Testimonio publicado.',
       changedBy: actorId,
     });
   }

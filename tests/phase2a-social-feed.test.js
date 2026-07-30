@@ -172,8 +172,8 @@ test('SOCIAL_FEED module is registered', () => {
   assert.equal(mod.entitySource, 'social_posts');
 });
 
-test('module registry has 10 modules', () => {
-  assert.equal(MODULE_KEY_VALUES.length, 10);
+test('module registry has 11 modules', () => {
+  assert.equal(MODULE_KEY_VALUES.length, 11);
 });
 
 // ════════════════════════════════════════════════════════════
@@ -633,9 +633,9 @@ test('form.ejs has zero inline event handlers', () => {
 // 12. Migration count
 // ════════════════════════════════════════════════════════════
 
-test('migration registry has 25 entries after additive Phase 2B migration', () => {
+test('migration registry has 26 entries after additive Phase 2D migration', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 25);
+  assert.equal(MIGRATION_REGISTRY.length, 26);
 });
 
 test('social_post entity type is registered', () => {

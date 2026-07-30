@@ -1,0 +1,160 @@
+<div class="admin-page-header">
+  <div>
+    <h1>Testimonios</h1>
+    <p>Administración manual de testimonios de clientes.</p>
+  </div>
+  <a href="/admin/page/testimonials/create" class="btn btn-primary">+ Nuevo Testimonio</a>
+</div>
+
+<section class="card" aria-labelledby="testimonials-settings-title" data-cms-editor>
+  <div class="cms-section-header">
+    <div>
+      <h2 id="testimonials-settings-title">Sección pública de testimonios</h2>
+      <p>Estos ajustes controlan cómo se muestran los testimonios en la página de inicio.</p>
+    </div>
+    <span class="badge badge-status <%= section.status %>"><%= section.status === 'published' ? 'Publicado' : 'Borrador' %></span>
+  </div>
+
+  <% if (sectionErrors && sectionErrors.length) { %>
+    <ul class="cms-field-errors" aria-label="Errores de validación">
+      <% sectionErrors.forEach(function(error) { %><li><%= error %></li><% }); %>
+    </ul>
+  <% } %>
+
+  <form method="post" action="/admin/page/testimonials/section/save" class="cms-form" data-cms-editor-form novalidate>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="version" value="<%= section.version %>">
+
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="enabled" value="1" <%= sectionSettings.enabled ? 'checked' : '' %>>
+        Mostrar la sección pública
+      </label>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label" for="testimonialsSectionTitle">Título</label>
+        <input id="testimonialsSectionTitle" name="title" class="form-input" maxlength="120" required value="<%= sectionSettings.title %>">
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="testimonialsMaxItems">Máximo de testimonios</label>
+        <input id="testimonialsMaxItems" name="maxItems" class="form-input" type="number" min="1" max="12" step="1" value="<%= sectionSettings.maxItems %>">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="field-label" for="testimonialsSectionSubtitle">Subtítulo</label>
+      <textarea id="testimonialsSectionSubtitle" name="subtitle" class="form-input" rows="2" maxlength="300"><%= sectionSettings.subtitle %></textarea>
+    </div>
+
+    <fieldset class="form-group">
+      <legend class="field-label">Plataformas visibles</legend>
+      <div class="social-feed-platform-options">
+        <% ['instagram', 'facebook', 'google', 'tripadvisor', 'other'].forEach(function(platform) { %>
+          <label class="checkbox-label">
+            <input type="checkbox" name="platforms" value="<%= platform %>" <%= sectionSettings.platforms.includes(platform) ? 'checked' : '' %>>
+            <%= platform === 'other' ? 'Otro' : platform.charAt(0).toUpperCase() + platform.slice(1) %>
+          </label>
+        <% }); %>
+      </div>
+    </fieldset>
+
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="featuredOnly" value="1" <%= sectionSettings.featuredOnly ? 'checked' : '' %>>
+        Mostrar solo destacados
+      </label>
+    </div>
+
+    <div class="sticky-actions">
+      <span class="cms-editor-state" data-cms-editor-status data-state="<%= section.status === 'published' ? 'published' : 'saved' %>">
+        <%= section.status === 'published' ? 'Publicado' : 'Borrador guardado' %>
+      </span>
+      <div class="actions-group">
+        <a href="/admin/page/history" class="btn btn-outline">Historial y restauración</a>
+        <button type="submit" class="btn btn-primary btn-save">Guardar borrador</button>
+        <button type="submit" form="publish-testimonials-section" class="btn btn-success btn-publish">Publicar sección</button>
+      </div>
+    </div>
+  </form>
+  <form id="publish-testimonials-section" method="post" action="/admin/page/testimonials/section/publish" hidden>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  </form>
+
+  <% if (revisions && revisions.length) { %>
+    <details class="social-feed-settings-history">
+      <summary>Últimos cambios de la sección</summary>
+      <ul>
+        <% revisions.forEach(function(revision) { %>
+          <li>
+            <a href="/admin/page/history/revision/<%= revision.id %>">Revisión #<%= revision.revision_number %></a>
+            — <%= revision.change_summary || revision.action %>
+          </li>
+        <% }); %>
+      </ul>
+    </details>
+  <% } %>
+</section>
+
+<h2 class="social-feed-posts-title">Testimonios</h2>
+
+<form method="get" class="admin-filters" aria-label="Filtros">
+  <div class="filter-row">
+    <label for="platformFilter">Plataforma:</label>
+    <select id="platformFilter" name="platform" class="form-select" onchange="this.form.submit()">
+      <option value="">Todas</option>
+      <option value="instagram" <%= platformFilter === 'instagram' ? 'selected' : '' %>>Instagram</option>
+      <option value="facebook" <%= platformFilter === 'facebook' ? 'selected' : '' %>>Facebook</option>
+      <option value="google" <%= platformFilter === 'google' ? 'selected' : '' %>>Google</option>
+      <option value="tripadvisor" <%= platformFilter === 'tripadvisor' ? 'selected' : '' %>>TripAdvisor</option>
+      <option value="other" <%= platformFilter === 'other' ? 'selected' : '' %>>Otro</option>
+    </select>
+  </div>
+</form>
+
+<% if (!testimonials || !testimonials.length) { %>
+  <div class="empty-state" role="status">
+    <p>No hay testimonios todavía.</p>
+    <a href="/admin/page/testimonials/create" class="btn btn-primary">Crear el primer testimonio</a>
+  </div>
+<% } else { %>
+  <div class="testimonials-list">
+    <% testimonials.forEach(function(t) { %>
+      <div class="testimonial-admin-card" data-testimonial-id="<%= t.publicId %>">
+        <div class="card-preview">
+          <% if (t.avatarMediaRef) { %>
+            <span class="card-thumb">🖼️</span>
+          <% } %>
+          <span class="card-platform platform-<%= t.platform %>"><%= t.platformLabel %></span>
+          <% if (t.rating) { %>
+            <span class="card-rating" aria-label="<%= t.rating %> de 5 estrellas">
+              <%= '★'.repeat(t.rating) %><%= '☆'.repeat(5 - t.rating) %>
+            </span>
+          <% } %>
+        </div>
+        <div class="card-body">
+          <h3 class="card-title"><%= t.displayName %></h3>
+          <p class="card-desc"><%= t.testimonialText.length > 150 ? t.testimonialText.slice(0, 150) + '…' : t.testimonialText %></p>
+          <div class="card-meta">
+            <% if (t.isFeatured) { %><span class="badge badge-featured">Destacado</span><% } %>
+            <span class="badge badge-status <%= t.status %>"><%= t.status === 'published' ? 'Publicado' : 'Borrador' %></span>
+            <span class="badge badge-active <%= t.isActive ? 'active' : 'inactive' %>"><%= t.isActive ? 'Activo' : 'Inactivo' %></span>
+          </div>
+        </div>
+        <div class="card-actions">
+          <a href="/admin/page/testimonials/edit?id=<%= t.publicId %>" class="btn btn-sm btn-outline">Editar</a>
+          <form method="post" action="/admin/page/testimonials/toggle-active" class="inline-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="publicId" value="<%= t.publicId %>">
+            <input type="hidden" name="active" value="<%= t.isActive ? '0' : '1' %>">
+            <button type="submit" class="btn btn-sm btn-outline"><%= t.isActive ? 'Desactivar' : 'Activar' %></button>
+          </form>
+          <button type="button" class="btn btn-sm btn-danger" data-confirm-action="/admin/page/testimonials/archive" data-confirm-id="<%= t.publicId %>" data-confirm-msg="¿Archivar este testimonio?">Archivar</button>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+
+<a href="/admin/page" class="btn btn-outline back-link">← Volver a Administrar página</a>

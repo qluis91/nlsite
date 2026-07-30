@@ -571,12 +571,13 @@ app.get('/', async (req, res) => {
     const cms = require('./services/cmsPublishingService');
     const cmsContent = require('./services/cmsContentService');
 
-    const [navItems, heroContent, showcaseContent, servicesContent, socialFeedContent, settings] = await Promise.all([
+    const [navItems, heroContent, showcaseContent, servicesContent, socialFeedContent, testimonialsContent, settings] = await Promise.all([
       cms.getPublishedNavItems('home'),
       cmsContent.getPublishedSectionContent('home', 'hero', null),
       cmsContent.getPublishedSectionContent('home', 'showcase', null),
       cmsContent.getPublishedSectionContent('home', 'services', null),
       cmsContent.getPublishedSectionContent('home', 'social-feed', null),
+      cmsContent.getPublishedSectionContent('home', 'testimonials', null),
       cms.getPublishedSettings([
         'site.logo_primary', 'site.logo_light', 'site.logo_dark',
         'site.favicon', 'navbar.bg_color', 'navbar.text_color',
@@ -701,6 +702,33 @@ app.get('/', async (req, res) => {
       }
     }
 
+    // Phase 2D — Testimonials
+    let testimonialsSettings = null;
+    let testimonialsItems = [];
+    if (testimonialsContent) {
+      testimonialsSettings = (() => {
+        const raw = testimonialsContent;
+        return {
+          enabled: Boolean(raw?.enabled),
+          title: String(raw?.title || ''),
+          subtitle: String(raw?.subtitle || ''),
+          maxItems: Math.min(12, Math.max(1, Number(raw?.maxItems) || 6)),
+          featuredOnly: Boolean(raw?.featuredOnly),
+          platforms: Array.isArray(raw?.platforms) ? raw.platforms : [],
+        };
+      })();
+      if (testimonialsSettings.enabled) {
+        const testimonialService = require('./services/testimonialService');
+        testimonialsItems = await testimonialService.getPublicTestimonials(testimonialsSettings);
+        // Resolve avatar media for each testimonial
+        for (const t of testimonialsItems) {
+          if (t.avatarMediaRef) {
+            t.avatarResolved = await cmsContent.resolveMediaReference(t.avatarMediaRef, null);
+          }
+        }
+      }
+    }
+
     const cmsData = {
       navItems: navItems.length ? navItems : null,
       heroContent,
@@ -715,6 +743,8 @@ app.get('/', async (req, res) => {
       socialItems,
       socialFeedSettings,
       socialFeedPosts,
+      testimonialsSettings,
+      testimonialsItems,
       settings,
       logos: {
         primary: logoPrimary,

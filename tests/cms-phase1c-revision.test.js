@@ -500,9 +500,9 @@ describe('Phase 1C — Regression', () => {
     }
   });
 
-  it('47. module registry includes 10 modules (Phase 2A added SOCIAL_FEED)', () => {
+  it('47. module registry includes 11 modules (Phase 2D added TESTIMONIALS)', () => {
     const registry = require('../services/moduleRegistry');
-    assert.equal(registry.MODULE_KEY_VALUES.length, 10);
+    assert.equal(registry.MODULE_KEY_VALUES.length, 11);
   });
 
   it('48. all CMS entity types present', () => {
@@ -553,9 +553,9 @@ describe('Phase 1C — Regression', () => {
     assert.ok(content.includes("action: 'reorder'"), 'reorderItems should record revision');
   });
 
-  it('54. migration tracker has 25 entries (Phase 2B added homepage Social Feed settings)', () => {
+  it('54. migration tracker has 26 entries (Phase 2D added Testimonials)', () => {
     const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-    assert.equal(MIGRATION_REGISTRY.length, 25);
+    assert.equal(MIGRATION_REGISTRY.length, 26);
   });
 
   it('55. diffEngine exports expected functions', () => {

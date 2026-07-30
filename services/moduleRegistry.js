@@ -19,6 +19,7 @@ const MODULE_KEYS = Object.freeze({
   STORE_HERO: 'tienda.st-hero',
   ABOUT_PAGE: 'nosotros.about-content',
   SOCIAL_FEED: 'social-feed',
+  TESTIMONIALS: 'testimonials',
 });
 
 const MODULE_KEY_VALUES = Object.freeze(Object.values(MODULE_KEYS));
@@ -274,6 +275,28 @@ const MODULES = Object.freeze({
     pendingCheck: async () => {
       const [[{ cnt }]] = await pool.query(
         "SELECT COUNT(*) cnt FROM social_posts WHERE status='draft' AND archived_at IS NULL"
+      );
+      return cnt > 0;
+    },
+  }),
+  [MODULE_KEYS.TESTIMONIALS]: Object.freeze({
+    key: MODULE_KEYS.TESTIMONIALS,
+    label: 'Testimonios',
+    entitySource: 'testimonials',
+    cacheNamespaces: ['sc_testimonials'],
+    revisionEntityTypes: ['testimonial'],
+    dependencies: [],
+    canPublishIndependently: true,
+    validate: async () => {
+      const [[{ cnt }]] = await pool.query(
+        "SELECT COUNT(*) cnt FROM testimonials WHERE status='draft' AND archived_at IS NULL AND is_active=1"
+      );
+      if (cnt === 0) return { valid: false, errors: ['Testimonios requiere al menos un testimonio activo en borrador.'] };
+      return { valid: true, warnings: [] };
+    },
+    pendingCheck: async () => {
+      const [[{ cnt }]] = await pool.query(
+        "SELECT COUNT(*) cnt FROM testimonials WHERE status='draft' AND archived_at IS NULL"
       );
       return cnt > 0;
     },

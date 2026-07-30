@@ -1,0 +1,54 @@
+<% if (cmsData.testimonialsItems && cmsData.testimonialsItems.length && cmsData.testimonialsSettings.enabled) { %>
+<section class="testimonials-section" aria-labelledby="testimonials-heading">
+  <div class="section-header">
+    <% if (cmsData.testimonialsSettings.title) { %>
+      <h2 id="testimonials-heading" class="section-title"><%= cmsData.testimonialsSettings.title %></h2>
+    <% } %>
+    <% if (cmsData.testimonialsSettings.subtitle) { %>
+      <p class="section-subtitle"><%= cmsData.testimonialsSettings.subtitle %></p>
+    <% } %>
+  </div>
+
+  <div class="testimonials-grid" role="list" aria-label="Testimonios de clientes">
+    <% cmsData.testimonialsItems.forEach(function(t) { %>
+      <article class="testimonial-card" role="listitem">
+        <blockquote class="testimonial-quote">
+          <p>"<%= t.testimonialText %>"</p>
+        </blockquote>
+        <footer class="testimonial-footer">
+          <div class="testimonial-author">
+            <% if (t.avatarResolved && t.avatarResolved.url) { %>
+              <img
+                src="<%= t.avatarResolved.url %>"
+                alt="<%= t.displayName %>"
+                class="testimonial-avatar"
+                width="48"
+                height="48"
+                loading="lazy"
+              >
+            <% } else { %>
+              <div class="testimonial-avatar testimonial-avatar--fallback" aria-hidden="true">
+                <%= t.displayName.charAt(0).toUpperCase() %>
+              </div>
+            <% } %>
+            <div class="testimonial-author-info">
+              <strong class="testimonial-name"><%= t.displayName %></strong>
+              <span class="testimonial-platform platform-<%= t.platform %>"><%= t.platform === 'other' ? 'Otro' : t.platform.charAt(0).toUpperCase() + t.platform.slice(1) %></span>
+            </div>
+          </div>
+          <% if (t.rating) { %>
+            <div class="testimonial-stars" aria-label="<%= t.rating %> de 5 estrellas">
+              <% for (var i = 1; i <= 5; i++) { %>
+                <span class="star <%= i <= t.rating ? 'star--filled' : '' %>">★</span>
+              <% } %>
+            </div>
+          <% } %>
+          <% if (t.sourceUrl) { %>
+            <a href="<%= t.sourceUrl %>" class="testimonial-source-link" target="_blank" rel="noopener noreferrer">Ver comentario original</a>
+          <% } %>
+        </footer>
+      </article>
+    <% }); %>
+  </div>
+</section>
+<% } %>

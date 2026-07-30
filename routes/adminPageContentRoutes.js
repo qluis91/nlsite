@@ -74,6 +74,20 @@ router.post('/page/social-feed/restore', requireCapability(CAPABILITIES.SOCIAL_F
 router.post('/page/social-feed/section/save', requireCapability(CAPABILITIES.SOCIAL_FEED_EDIT), csrfSynchronisedProtection, socialFeedController.saveSectionSettings);
 router.post('/page/social-feed/section/publish', requireCapability(CAPABILITIES.SOCIAL_FEED_PUBLISH), csrfSynchronisedProtection, socialFeedController.publishSectionSettings);
 
+// ── Testimonials (Phase 2D) ──
+const testimonialController = require('../controllers/adminTestimonialController');
+router.get('/page/testimonials', requireCapability(CAPABILITIES.TESTIMONIALS_VIEW), testimonialController.showList);
+router.get('/page/testimonials/create', requireCapability(CAPABILITIES.TESTIMONIALS_EDIT), testimonialController.showCreate);
+router.get('/page/testimonials/edit', requireCapability(CAPABILITIES.TESTIMONIALS_EDIT), testimonialController.showEdit);
+router.post('/page/testimonials/save', requireCapability(CAPABILITIES.TESTIMONIALS_EDIT), csrfSynchronisedProtection, testimonialController.saveDraft);
+router.post('/page/testimonials/publish', requireCapability(CAPABILITIES.TESTIMONIALS_PUBLISH), csrfSynchronisedProtection, testimonialController.publishTestimonial);
+router.post('/page/testimonials/archive', requireCapability(CAPABILITIES.TESTIMONIALS_EDIT), csrfSynchronisedProtection, testimonialController.archiveTestimonial);
+router.post('/page/testimonials/reorder', requireCapability(CAPABILITIES.TESTIMONIALS_EDIT), csrfSynchronisedProtection, testimonialController.reorderTestimonials);
+router.post('/page/testimonials/toggle-active', requireCapability(CAPABILITIES.TESTIMONIALS_EDIT), csrfSynchronisedProtection, testimonialController.toggleActive);
+router.post('/page/testimonials/restore', requireCapability(CAPABILITIES.TESTIMONIALS_EDIT), csrfSynchronisedProtection, testimonialController.restoreTestimonialDraft);
+router.post('/page/testimonials/section/save', requireCapability(CAPABILITIES.TESTIMONIALS_EDIT), csrfSynchronisedProtection, testimonialController.saveSectionSettings);
+router.post('/page/testimonials/section/publish', requireCapability(CAPABILITIES.TESTIMONIALS_PUBLISH), csrfSynchronisedProtection, testimonialController.publishSectionSettings);
+
 // ── Preview ──
 router.get('/page/preview', requireCapability(CAPABILITIES.PAGE_MANAGE), controller.preview);
 

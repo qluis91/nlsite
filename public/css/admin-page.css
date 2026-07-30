@@ -1046,3 +1046,88 @@ a.btn:focus-visible {
   .social-feed-card { flex-direction: column; align-items: flex-start; }
   .card-actions { width: 100%; justify-content: flex-start; }
 }
+
+/* ── Phase 2D: Admin Testimonials list ── */
+
+.testimonials-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.testimonial-admin-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  transition: box-shadow 0.15s ease;
+}
+
+.testimonial-admin-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.testimonial-admin-card .card-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  min-width: 120px;
+}
+
+.testimonial-admin-card .card-platform {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f3f4f6;
+}
+
+.testimonial-admin-card .card-rating {
+  color: #f59e0b;
+  font-size: 0.85rem;
+}
+
+.testimonial-admin-card .card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.testimonial-admin-card .card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+}
+
+.testimonial-admin-card .card-desc {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.testimonial-admin-card .card-meta {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.testimonial-admin-card .card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.avatar-preview-img {
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #e5e7eb;
+}
+
+@media (max-width: 768px) {
+  .testimonial-admin-card { flex-direction: column; align-items: flex-start; }
+  .testimonial-admin-card .card-actions { width: 100%; justify-content: flex-start; }
+}
