@@ -25,23 +25,28 @@ async function fetch(url) {
 async function fetchFacebookPosts(pageId, accessToken, maxResults = MAX_POSTS_DEFAULT) {
   const limit = Math.min(100, Math.max(1, maxResults));
   const baseUrl = metaOAuth.getBaseUrl();
+
+  // Use /{page-id}/posts (Page-owned posts) — only requires pages_read_engagement.
+  // /feed would require pages_read_user_content or Page Public Content Access.
   const fields = [
-    'id', 'message', 'full_picture', 'created_time', 'permalink_url', 'type',
+    'id', 'message', 'full_picture', 'created_time', 'permalink_url',
   ].join(',');
 
-  const url = `${baseUrl}/${pageId}/feed?fields=${encodeURIComponent(fields)}&limit=${limit}&access_token=${encodeURIComponent(accessToken)}`;
+  const url = `${baseUrl}/${pageId}/posts?fields=${encodeURIComponent(fields)}&limit=${limit}&access_token=${encodeURIComponent(accessToken)}`;
   const { status, data } = await fetch(url);
 
   if (status !== 200) {
-    const isAuth = status === 401 || status === 403 || data?.error?.code === 190;
+    // Error #10 = permission/endpoint error (OAuthException with code 10)
+    const isPermission = data?.error?.code === 10;
+    const isAuth = status === 401 || status === 403 || data?.error?.code === 190 || isPermission;
     throw Object.assign(new Error(`Facebook API error: ${data?.error?.message || status}`), {
-      code: 'FB_API_ERROR', status, authError: isAuth, retryable: !isAuth && (status >= 500 || status === 429),
+      code: 'FB_API_ERROR', status, data, authError: isAuth, retryable: !isAuth && (status >= 500 || status === 429),
     });
   }
 
   return (data.data || [])
     .filter(item => {
-      if (item.is_published === false) return false;
+      // /posts returns only published Page-owned posts — no need to filter is_published
       if (!item.message && !item.full_picture) return false;
       return true;
     })
@@ -63,7 +68,6 @@ function normalizeFacebookPost(item) {
     fullPicture,
     permalink,
     createdTime,
-    type: item.type || '',
   };
 }
 
@@ -133,7 +137,7 @@ async function syncFacebook(intRow) {
     throw Object.assign(new Error('Facebook Page ID no configurado.'), { code: 'NO_PAGE_ID' });
   }
 
-  // Validate token before syncing
+  // Validate user token before syncing
   const validation = await metaOAuth.validateToken(PROVIDER);
   if (!validation.valid) {
     await metaOAuth.handleConnectionFailure(PROVIDER, validation.category);
@@ -143,15 +147,42 @@ async function syncFacebook(intRow) {
     );
   }
 
-  // Use Page access token for Page feed calls
+  // Use Page Access Token exclusively for Page-owned posts (/posts endpoint).
+  // The user token's permissions are insufficient for Page content queries.
   const pageToken = await metaOAuth.getPageAccessToken(pageId);
-  const accessToken = pageToken || await metaOAuth.getUserAccessToken(PROVIDER);
-  if (!accessToken) {
-    throw Object.assign(new Error('Token de acceso no disponible para Facebook.'), { code: 'NO_TOKEN' });
+  if (!pageToken) {
+    throw Object.assign(
+      new Error('Page Access Token no disponible. Reconecta la integración de Facebook para regenerarlo.'),
+      { code: 'NO_PAGE_TOKEN', authError: true }
+    );
   }
+  const accessToken = pageToken;
+
+  // Safe diagnostics: log endpoint, page ID hash, token type
+  const pageIdHash = pageId ? pageId.substring(0, 4) + '...' + pageId.slice(-4) : 'none';
+  console.log(JSON.stringify({
+    ts: new Date().toISOString(), provider: PROVIDER, stage: 'facebook_sync_start',
+    endpoint: 'page_posts', pageIdHash, tokenType: 'page',
+  }));
 
   const maxResults = Math.min(100, Math.max(1, Number(config.maxPosts) || MAX_POSTS_DEFAULT));
-  const items = await fetchFacebookPosts(pageId, accessToken, maxResults);
+  let items;
+  try {
+    items = await fetchFacebookPosts(pageId, accessToken, maxResults);
+  } catch (err) {
+    // Classify error #10 specifically for a clean Admin message
+    if (err.status && err.data?.error?.code === 10) {
+      console.log(JSON.stringify({
+        ts: new Date().toISOString(), provider: PROVIDER, stage: 'facebook_permission_error',
+        pageIdHash, errorCode: 10, endpoint: 'page_posts',
+      }));
+      throw Object.assign(
+        new Error('Facebook rechazó la consulta de publicaciones de la página. Verificá que el Page Access Token sea válido y que el permiso pages_read_engagement esté concedido.'),
+        { code: 'FB_PERMISSION_ERROR', status: err.status, authError: true, retryable: false }
+      );
+    }
+    throw err;
+  }
 
   const conn = await pool.getConnection();
   let imported = 0, skipped = 0, updated = 0;
@@ -175,6 +206,11 @@ async function syncFacebook(intRow) {
   } finally {
     conn.release();
   }
+
+  console.log(JSON.stringify({
+    ts: new Date().toISOString(), provider: PROVIDER, stage: 'facebook_sync_done',
+    pageIdHash, imported, skipped, updated,
+  }));
 
   return { imported, skipped, updated };
 }

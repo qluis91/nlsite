@@ -496,12 +496,11 @@ test('normalizeInstagramMedia handles carousel with first child thumbnail', () =
 // Facebook unsupported items
 // ═══════════════════════════════════════════════════════════
 
-test('fetchFacebookPosts skips unpublished posts', async () => {
+test('fetchFacebookPosts uses /posts endpoint (Page-owned posts only)', async () => {
   facebook.setHttpGet(async () => ({
     status: 200, data: { data: [
       { id: 'a_1', message: 'Published', created_time: '2026-01-01T00:00:00Z', permalink_url: 'https://fb.com/a1' },
-      { id: 'a_2', message: 'Unpublished', created_time: '2026-01-01T00:00:00Z', permalink_url: 'https://fb.com/a2', is_published: false },
-      { id: 'a_3', message: '', created_time: '2026-01-01T00:00:00Z', permalink_url: 'https://fb.com/a3' },
+      { id: 'a_2', message: '', created_time: '2026-01-01T00:00:00Z', permalink_url: 'https://fb.com/a3' },
     ]},
   }));
   const items = await facebook.fetchFacebookPosts('pg', 'tk', 10);
