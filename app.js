@@ -496,6 +496,9 @@ app.use('/cuenta', isAuthenticated, accountRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminOrderRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminRoutes);
 
+// ── Public legal pages (no auth) ──
+app.use('/', require('./routes/legalRoutes'));
+
 // ── SEO: robots.txt (Phase 12D — uses BASE_URL from above) ──
 app.get('/robots.txt', (_req, res) => {
   res.type('text/plain');

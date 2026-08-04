@@ -1,0 +1,169 @@
+<% /* ── Política de Privacidad — NinjaLabCR ── */ %>
+<main class="legal-page" aria-labelledby="legal-title">
+  <div class="legal-page__inner">
+    <h1 id="legal-title" class="legal-page__title">Política de Privacidad</h1>
+    <p class="legal-page__update">Última actualización: <%= updateDate %></p>
+
+    <nav class="legal-page__toc" aria-label="Tabla de contenidos">
+      <h2 class="legal-page__toc-title">Contenido</h2>
+      <ol>
+        <li><a href="#identidad">Identidad y contacto</a></li>
+        <li><a href="#datos-recopilados">Datos que recopilamos</a></li>
+        <li><a href="#integraciones">Integraciones con redes sociales</a></li>
+        <li><a href="#proposito">Propósito del tratamiento</a></li>
+        <li><a href="#almacenamiento">Almacenamiento y seguridad</a></li>
+        <li><a href="#cookies">Cookies y sesiones</a></li>
+        <li><a href="#retencion">Retención de datos</a></li>
+        <li><a href="#derechos">Tus derechos</a></li>
+        <li><a href="#cambios">Cambios a esta política</a></li>
+      </ol>
+    </nav>
+
+    <section id="identidad" class="legal-page__section">
+      <h2>1. Identidad y contacto</h2>
+      <p>
+        Esta política de privacidad describe cómo <strong><%= site.name %></strong> recopila, usa y protege la información
+        personal obtenida a través de este sitio web (<%= siteUrl %>) y sus servicios asociados.
+      </p>
+      <p>
+        Para cualquier consulta sobre esta política o sobre el tratamiento de tus datos, podés contactarnos en:
+        <a href="mailto:<%= contactEmail %>"><%= contactEmail %></a>.
+      </p>
+      <p>
+        <%= site.name %> es un servicio de impresión 3D, diseño, pintura y modelado operado desde Costa Rica.
+      </p>
+    </section>
+
+    <section id="datos-recopilados" class="legal-page__section">
+      <h2>2. Datos que recopilamos</h2>
+      <p>Recopilamos únicamente los datos necesarios para operar el sitio web y brindar nuestros servicios:</p>
+      <ul>
+        <li><strong>Datos de cuenta:</strong> nombre, correo electrónico y contraseña (almacenada con hash) cuando creás una cuenta.</li>
+        <li><strong>Datos de pedido:</strong> productos solicitados, direcciones de envío o entrega, y comprobantes de pago cuando realizás un pedido.</li>
+        <li><strong>Datos de contacto:</strong> mensajes y consultas enviadas a través de nuestros formularios o correo electrónico.</li>
+        <li><strong>Datos de integraciones:</strong> información limitada obtenida a través de conexiones con plataformas externas (ver sección 3).</li>
+      </ul>
+      <p>No recopilamos información de pago sensible (números de tarjeta, cuentas bancarias). Los pagos se procesan a través de proveedores externos.</p>
+    </section>
+
+    <section id="integraciones" class="legal-page__section">
+      <h2>3. Integraciones con redes sociales</h2>
+      <p>
+        <%= site.name %> puede conectarse con plataformas de redes sociales — incluyendo Facebook, Instagram, YouTube y TikTok —
+        para importar y mostrar publicaciones públicas en nuestro sitio web. Estas integraciones son opcionales
+        y solo se activan mediante autorización explícita del administrador del sitio.
+      </p>
+      <h3>3.1 Datos obtenidos a través de OAuth y APIs</h3>
+      <p>Cuando un administrador autoriza una conexión, podemos acceder a:</p>
+      <ul>
+        <li>Identificadores de cuenta y página de Facebook o Instagram Professional asociados.</li>
+        <li>Identificador de canal de YouTube.</li>
+        <li>Identificador de cuenta de TikTok y metadatos públicos del perfil.</li>
+        <li>Publicaciones, videos e imágenes públicas de las cuentas o páginas conectadas.</li>
+        <li>Metadatos de publicaciones: títulos, descripciones, fechas, URLs públicas y miniaturas.</li>
+      </ul>
+      <h3>3.2 Tokens de acceso</h3>
+      <p>
+        Los tokens de acceso necesarios para estas integraciones se almacenan <strong>exclusivamente en el servidor</strong>,
+        cifrados con AES-256-GCM. Nunca se almacenan como texto plano, no se transmiten al navegador y no aparecen
+        en registros (logs), páginas HTML ni URLs.
+      </p>
+      <h3>3.3 Datos que NO recopilamos</h3>
+      <ul>
+        <li>No accedemos a mensajes privados, comentarios ni conversaciones.</li>
+        <li>No recopilamos información de perfiles privados.</li>
+        <li>No almacenamos contraseñas de redes sociales.</li>
+        <li>No importamos historias, contenido efímero ni medios no públicos.</li>
+      </ul>
+      <h3>3.4 Revocación de autorización</h3>
+      <p>
+        Podés revocar el acceso de <%= site.name %> a tus cuentas de redes sociales en cualquier momento.
+        Consultá nuestra <a href="/eliminacion-de-datos">página de eliminación de datos</a> para instrucciones detalladas.
+      </p>
+    </section>
+
+    <section id="proposito" class="legal-page__section">
+      <h2>4. Propósito del tratamiento</h2>
+      <p>Usamos los datos recopilados exclusivamente para:</p>
+      <ul>
+        <li>Procesar y entregar pedidos de impresión 3D y productos personalizados.</li>
+        <li>Gestionar cuentas de usuario y comunicación sobre pedidos.</li>
+        <li>Importar y mostrar publicaciones públicas de redes sociales en nuestro sitio web.</li>
+        <li>Mejorar nuestros servicios y la experiencia del sitio web.</li>
+        <li>Cumplir con obligaciones legales aplicables.</li>
+      </ul>
+      <p><strong>No vendemos, alquilamos ni compartimos datos personales con terceros</strong> con fines comerciales o publicitarios.</p>
+    </section>
+
+    <section id="almacenamiento" class="legal-page__section">
+      <h2>5. Almacenamiento y seguridad</h2>
+      <p>
+        Los datos se almacenan en servidores seguros con acceso restringido. Aplicamos medidas técnicas y organizativas
+        razonables para proteger tu información, incluyendo:
+      </p>
+      <ul>
+        <li>Cifrado de tokens de acceso de proveedores externos (AES-256-GCM).</li>
+        <li>Contraseñas almacenadas con hash (bcrypt).</li>
+        <li>Conexiones HTTPS para todas las comunicaciones.</li>
+        <li>Cabeceras de seguridad HTTP (CSP, HSTS, X-Frame-Options).</li>
+        <li>Acceso administrativo protegido con autenticación y CSRF.</li>
+      </ul>
+    </section>
+
+    <section id="cookies" class="legal-page__section">
+      <h2>6. Cookies y sesiones</h2>
+      <p>
+        Utilizamos cookies de sesión esenciales para el funcionamiento del sitio web (inicio de sesión, carrito de compras,
+        protección CSRF). Estas cookies son necesarias y no requieren consentimiento bajo la legislación aplicable.
+      </p>
+      <p>
+        Las sesiones se almacenan en nuestra base de datos y expiran automáticamente después de un período de inactividad
+        configurable (por defecto 8 horas). Las sesiones inactivas se limpian periódicamente.
+      </p>
+      <p>
+        Utilizamos Google Analytics 4 (GA4) para medir el uso del sitio web. GA4 solo se carga después de que
+        aceptás el banner de consentimiento de cookies. Si no aceptás o rechazás el consentimiento, no se envía
+        ningún dato a Google. Podés cambiar tu preferencia en cualquier momento limpiando el almacenamiento local
+        de tu navegador.
+      </p>
+    </section>
+
+    <section id="retencion" class="legal-page__section">
+      <h2>7. Retención de datos</h2>
+      <p>Conservamos los datos personales únicamente durante el tiempo necesario para cumplir con los propósitos descritos:</p>
+      <ul>
+        <li><strong>Cuentas de usuario:</strong> mientras la cuenta permanezca activa. Podés solicitar la eliminación de tu cuenta en cualquier momento.</li>
+        <li><strong>Pedidos:</strong> conservados como registro comercial según la legislación costarricense aplicable.</li>
+        <li><strong>Tokens de integración:</strong> almacenados solo mientras la integración esté activa. Se eliminan inmediatamente al desconectar el proveedor.</li>
+        <li><strong>Publicaciones importadas:</strong> permanecen en el sitio mientras no sean eliminadas manualmente por el administrador. Desconectar un proveedor no elimina automáticamente las publicaciones ya importadas.</li>
+      </ul>
+    </section>
+
+    <section id="derechos" class="legal-page__section">
+      <h2>8. Tus derechos</h2>
+      <p>De acuerdo con la legislación aplicable, tenés derecho a:</p>
+      <ul>
+        <li><strong>Acceso:</strong> solicitar información sobre los datos personales que tenemos sobre vos.</li>
+        <li><strong>Rectificación:</strong> corregir datos inexactos o incompletos.</li>
+        <li><strong>Eliminación:</strong> solicitar la eliminación de tus datos personales, sujeto a obligaciones legales de conservación.</li>
+        <li><strong>Oposición:</strong> oponerte al tratamiento de tus datos en ciertas circunstancias.</li>
+        <li><strong>Revocación:</strong> revocar la autorización de integraciones con redes sociales en cualquier momento.</li>
+      </ul>
+      <p>
+        Para ejercer cualquiera de estos derechos, envianos un correo a
+        <a href="mailto:<%= contactEmail %>"><%= contactEmail %></a>
+        con el asunto "Solicitud de privacidad". Incluí tu nombre y una descripción clara de tu solicitud.
+        Podemos solicitar verificación adicional de identidad para procesar solicitudes de eliminación o acceso.
+      </p>
+    </section>
+
+    <section id="cambios" class="legal-page__section">
+      <h2>9. Cambios a esta política</h2>
+      <p>
+        Podemos actualizar esta política de privacidad periódicamente. La fecha de la última actualización se indica
+        al inicio de esta página. Te recomendamos revisar esta política cada vez que uses nuestros servicios.
+        Los cambios sustanciales serán notificados a través del sitio web o por correo electrónico cuando sea aplicable.
+      </p>
+    </section>
+  </div>
+</main>

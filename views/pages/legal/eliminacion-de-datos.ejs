@@ -1,0 +1,144 @@
+<% /* ── Eliminación de Datos — NinjaLabCR ── */ %>
+<main class="legal-page" aria-labelledby="legal-title">
+  <div class="legal-page__inner">
+    <h1 id="legal-title" class="legal-page__title">Eliminación de Datos</h1>
+    <p class="legal-page__update">Última actualización: <%= updateDate %></p>
+
+    <p>
+      Esta página explica cómo podés revocar la autorización de <%= site.name %> para acceder a tus cuentas de redes sociales
+      y cómo solicitar la eliminación de tus datos personales. Cumplimos con los requisitos de las plataformas Meta
+      (Facebook e Instagram), YouTube y TikTok en materia de privacidad y protección de datos.
+    </p>
+
+    <nav class="legal-page__toc" aria-label="Tabla de contenidos">
+      <h2 class="legal-page__toc-title">Contenido</h2>
+      <ol>
+        <li><a href="#revocar-meta">Revocar autorización de Facebook e Instagram</a></li>
+        <li><a href="#revocar-tiktok">Revocar autorización de TikTok</a></li>
+        <li><a href="#revocar-youtube">Revocar autorización de YouTube</a></li>
+        <li><a href="#solicitar-ninjalab">Solicitar eliminación a <%= site.name %></a></li>
+        <li><a href="#que-se-elimina">Qué datos se eliminan</a></li>
+        <li><a href="#que-no-se-elimina">Qué datos no se eliminan automáticamente</a></li>
+        <li><a href="#tiempos">Tiempos de procesamiento</a></li>
+      </ol>
+    </nav>
+
+    <section id="revocar-meta" class="legal-page__section">
+      <h2>1. Revocar autorización de Facebook e Instagram</h2>
+      <p>
+        Si anteriormente autorizaste a <%= site.name %> para acceder a tus cuentas de Facebook o Instagram Professional,
+        podés revocar ese acceso de dos maneras:
+      </p>
+
+      <h3>Opción A — Desde <%= site.name %></h3>
+      <ol>
+        <li>Iniciá sesión en <%= site.name %> como administrador.</li>
+        <li>Navegá a <strong>Administrar página → Integraciones sociales</strong>.</li>
+        <li>Junto a Instagram o Facebook, seleccioná <strong>Desconectar</strong>.</li>
+        <li>Esto eliminará inmediatamente los tokens de acceso almacenados y desactivará la sincronización automática.</li>
+      </ol>
+
+      <h3>Opción B — Desde tu cuenta de Meta</h3>
+      <ol>
+        <li>Visitá <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener noreferrer">facebook.com/settings?tab=business_tools</a>.</li>
+        <li>En la sección «Aplicaciones y sitios web», buscá <strong><%= site.name %></strong>.</li>
+        <li>Seleccioná <strong>Eliminar</strong> o <strong>Quitar</strong>.</li>
+        <li>Si también usaste Instagram, repetí el proceso desde <a href="https://www.instagram.com/accounts/manage_access/" target="_blank" rel="noopener noreferrer">instagram.com/accounts/manage_access/</a>.</li>
+      </ol>
+      <p>
+        Después de revocar el acceso, <%= site.name %> ya no podrá acceder a tus publicaciones, fotos o información de perfil
+        a través de las APIs de Meta.
+      </p>
+    </section>
+
+    <section id="revocar-tiktok" class="legal-page__section">
+      <h2>2. Revocar autorización de TikTok</h2>
+      <p>Para revocar el acceso de <%= site.name %> a tu cuenta de TikTok:</p>
+      <ol>
+        <li>Iniciá sesión en TikTok desde un navegador o la aplicación.</li>
+        <li>Andá a <strong>Configuración y privacidad → Seguridad y permisos → Aplicaciones autorizadas</strong>.</li>
+        <li>Buscá <strong><%= site.name %></strong> en la lista de aplicaciones conectadas.</li>
+        <li>Seleccioná <strong>Eliminar acceso</strong>.</li>
+      </ol>
+      <p>También podés desconectar la integración desde <strong>Administrar página → Integraciones sociales → TikTok → Desconectar</strong> en el panel de administración.</p>
+    </section>
+
+    <section id="revocar-youtube" class="legal-page__section">
+      <h2>3. Revocar autorización de YouTube</h2>
+      <p>
+        La integración con YouTube utiliza una clave de API, no una conexión OAuth a cuentas personales.
+        <%= site.name %> importa únicamente videos públicos de canales configurados manualmente por el administrador.
+      </p>
+      <p>
+        Para desactivar la importación de videos de un canal, el administrador del sitio puede hacerlo desde
+        <strong>Administrar página → Integraciones sociales → YouTube → Desconectar</strong>.
+        Esto elimina la configuración del canal y detiene la sincronización automática.
+      </p>
+    </section>
+
+    <section id="solicitar-ninjalab" class="legal-page__section">
+      <h2>4. Solicitar eliminación a <%= site.name %></h2>
+      <p>
+        Para solicitar la eliminación de tus datos personales de nuestros sistemas, envianos un correo electrónico a
+        <a href="mailto:<%= contactEmail %>"><%= contactEmail %></a>.
+      </p>
+      <p><strong>Tu solicitud debe incluir:</strong></p>
+      <ul>
+        <li>Tu nombre completo.</li>
+        <li>El correo electrónico asociado a tu cuenta en <%= site.name %> (si tenés una).</li>
+        <li>Qué datos específicos deseás eliminar (cuenta, integración con redes sociales, pedidos, etc.).</li>
+        <li>Para solicitudes relacionadas con integraciones de redes sociales: el nombre de la plataforma (Facebook, Instagram, TikTok) y, si es posible, el nombre de la cuenta o página conectada.</li>
+      </ul>
+      <p>
+        Por seguridad, podemos solicitar información adicional para verificar tu identidad antes de procesar la solicitud.
+        Esto es necesario para evitar la eliminación no autorizada de datos.
+      </p>
+    </section>
+
+    <section id="que-se-elimina" class="legal-page__section">
+      <h2>5. Qué datos se eliminan</h2>
+      <p>Al recibir y verificar una solicitud de eliminación relacionada con integraciones, eliminaremos:</p>
+      <ul>
+        <li>Tokens de acceso y tokens de actualización asociados a la cuenta conectada (eliminación inmediata al desconectar).</li>
+        <li>Configuración de la integración (IDs de página, cuenta o canal).</li>
+        <li>Metadatos de cuenta almacenados (nombre de visualización, avatar de referencia).</li>
+        <li>Datos de tu cuenta de usuario, si así lo solicitás.</li>
+      </ul>
+    </section>
+
+    <section id="que-no-se-elimina" class="legal-page__section">
+      <h2>6. Qué datos no se eliminan automáticamente</h2>
+      <p>Tené en cuenta lo siguiente:</p>
+      <ul>
+        <li>
+          <strong>Publicaciones ya importadas en el sitio:</strong> las publicaciones de redes sociales que ya fueron
+          importadas y publicadas en el administrador de contenido (CMS) de <%= site.name %> pueden permanecer visibles
+          en el sitio web. Estas publicaciones no contienen datos personales tuyos — solo muestran contenido público
+          que ya era visible en la plataforma original. Si deseás que también sean eliminadas del sitio, indicalo
+          explícitamente en tu solicitud.
+        </li>
+        <li>
+          <strong>Registros de pedidos:</strong> la información de pedidos completados puede conservarse como registro
+          comercial según la legislación aplicable.
+        </li>
+        <li>
+          <strong>Copias de seguridad:</strong> los datos eliminados pueden persistir en copias de seguridad
+          automatizadas durante un período limitado, pero no serán restaurados activamente.
+        </li>
+      </ul>
+    </section>
+
+    <section id="tiempos" class="legal-page__section">
+      <h2>7. Tiempos de procesamiento</h2>
+      <p>
+        Procesaremos tu solicitud de eliminación en un plazo razonable después de verificar tu identidad.
+        El tiempo exacto depende del volumen de solicitudes y de la complejidad de los datos involucrados.
+        Te notificaremos por correo electrónico una vez que la eliminación haya sido completada.
+      </p>
+      <p>
+        Para consultas sobre el estado de tu solicitud, podés escribirnos a
+        <a href="mailto:<%= contactEmail %>"><%= contactEmail %></a>.
+      </p>
+    </section>
+  </div>
+</main>

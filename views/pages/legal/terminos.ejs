@@ -1,0 +1,163 @@
+<% /* ── Términos de Servicio — NinjaLabCR ── */ %>
+<main class="legal-page" aria-labelledby="legal-title">
+  <div class="legal-page__inner">
+    <h1 id="legal-title" class="legal-page__title">Términos de Servicio</h1>
+    <p class="legal-page__update">Última actualización: <%= updateDate %></p>
+
+    <nav class="legal-page__toc" aria-label="Tabla de contenidos">
+      <h2 class="legal-page__toc-title">Contenido</h2>
+      <ol>
+        <li><a href="#general">Disposiciones generales</a></li>
+        <li><a href="#catalogo">Catálogo, cotizaciones y pedidos</a></li>
+        <li><a href="#cuentas">Cuentas de usuario</a></li>
+        <li><a href="#uso-aceptable">Uso aceptable</a></li>
+        <li><a href="#contenido">Contenido externo de redes sociales</a></li>
+        <li><a href="#propiedad">Propiedad intelectual</a></li>
+        <li><a href="#terceros">Proveedores externos</a></li>
+        <li><a href="#disponibilidad">Disponibilidad y modificaciones</a></li>
+        <li><a href="#responsabilidad">Limitación de responsabilidad</a></li>
+        <li><a href="#ley">Legislación aplicable</a></li>
+        <li><a href="#contacto">Contacto</a></li>
+      </ol>
+    </nav>
+
+    <section id="general" class="legal-page__section">
+      <h2>1. Disposiciones generales</h2>
+      <p>
+        Estos Términos de Servicio rigen el uso del sitio web <strong><%= siteUrl %></strong> («el Sitio»),
+        operado por <strong><%= site.name %></strong> («nosotros», «el Proveedor»), un servicio de impresión 3D,
+        diseño, pintura y modelado.
+      </p>
+      <p>
+        Al acceder o usar el Sitio, aceptás estos términos en su totalidad. Si no estás de acuerdo con alguna parte,
+        no uses el Sitio.
+      </p>
+    </section>
+
+    <section id="catalogo" class="legal-page__section">
+      <h2>2. Catálogo, cotizaciones y pedidos</h2>
+      <p>
+        El Sitio ofrece productos de impresión 3D, diseño y figuras personalizadas. Los productos mostrados en el catálogo
+        pueden variar en disponibilidad, color, tamaño o acabado respecto a las imágenes de referencia.
+      </p>
+      <p>
+        Para productos personalizados, el proceso requiere cotización previa. Las cotizaciones son válidas por el período
+        indicado en cada caso y pueden estar sujetas a cambios según la complejidad del diseño, materiales y tiempos de producción.
+      </p>
+      <p>
+        Nos reservamos el derecho de rechazar pedidos, limitar cantidades o modificar precios sin previo aviso.
+        Los pedidos confirmados serán procesados según los términos acordados en cada caso.
+      </p>
+    </section>
+
+    <section id="cuentas" class="legal-page__section">
+      <h2>3. Cuentas de usuario</h2>
+      <p>
+        Para realizar pedidos o acceder a ciertas funcionalidades, podés crear una cuenta proporcionando información
+        veraz y completa. Sos responsable de mantener la confidencialidad de tus credenciales y de toda la actividad
+        que ocurra bajo tu cuenta.
+      </p>
+      <p>
+        Nos reservamos el derecho de suspender o cancelar cuentas que violen estos términos, proporcionen información
+        falsa o realicen actividades que consideremos perjudiciales para el Sitio u otros usuarios.
+      </p>
+    </section>
+
+    <section id="uso-aceptable" class="legal-page__section">
+      <h2>4. Uso aceptable</h2>
+      <p>Al usar el Sitio, aceptás no:</p>
+      <ul>
+        <li>Violar leyes o regulaciones aplicables.</li>
+        <li>Intentar acceder sin autorización a sistemas, cuentas o datos de otros usuarios.</li>
+        <li>Interferir con el funcionamiento normal del Sitio mediante bots, scraping o ataques de denegación de servicio.</li>
+        <li>Publicar contenido ilegal, difamatorio, fraudulento o que infrinja derechos de terceros.</li>
+        <li>Usar el Sitio para distribuir malware, spam o contenido no solicitado.</li>
+      </ul>
+    </section>
+
+    <section id="contenido" class="legal-page__section">
+      <h2>5. Contenido externo de redes sociales</h2>
+      <p>
+        El Sitio puede mostrar contenido importado de plataformas de redes sociales como Facebook, Instagram, YouTube y TikTok
+        («Contenido de Terceros»), incluyendo publicaciones, videos e imágenes públicas de cuentas autorizadas.
+      </p>
+      <p>
+        <%= site.name %> no es responsable por el Contenido de Terceros, que permanece sujeto a los términos y condiciones
+        de las plataformas originales. No reclamamos propiedad sobre dicho contenido.
+      </p>
+      <p>
+        Si considerás que algún Contenido de Terceros mostrado en el Sitio infringe tus derechos, contactanos en
+        <a href="mailto:<%= contactEmail %>"><%= contactEmail %></a> para su revisión.
+      </p>
+    </section>
+
+    <section id="propiedad" class="legal-page__section">
+      <h2>6. Propiedad intelectual</h2>
+      <p>
+        Todo el contenido original del Sitio — incluyendo texto, imágenes, logotipos, diseños, código fuente y elementos
+        visuales — es propiedad de <%= site.name %> o de sus licenciantes, y está protegido por las leyes de propiedad
+        intelectual aplicables.
+      </p>
+      <p>
+        No se permite la reproducción, distribución, modificación o uso comercial del contenido del Sitio sin autorización
+        previa por escrito.
+      </p>
+    </section>
+
+    <section id="terceros" class="legal-page__section">
+      <h2>7. Proveedores externos</h2>
+      <p>
+        El Sitio puede integrar servicios de terceros para procesamiento de pagos, envío de correos electrónicos
+        y visualización de contenido de redes sociales. Estos proveedores operan bajo sus propios términos y políticas
+        de privacidad.
+      </p>
+      <p>
+        <%= site.name %> no es responsable por las prácticas, contenido o disponibilidad de sitios o servicios de terceros
+        enlazados desde el Sitio.
+      </p>
+    </section>
+
+    <section id="disponibilidad" class="legal-page__section">
+      <h2>8. Disponibilidad y modificaciones</h2>
+      <p>
+        Nos esforzamos por mantener el Sitio disponible, pero no garantizamos acceso ininterrumpido. Podemos suspender
+        o modificar el Sitio en cualquier momento por mantenimiento, actualizaciones o razones operativas.
+      </p>
+      <p>
+        Estos términos pueden ser actualizados periódicamente. La fecha de la última actualización se indica al inicio
+        de esta página. El uso continuado del Sitio después de cambios constituye tu aceptación de los nuevos términos.
+      </p>
+    </section>
+
+    <section id="responsabilidad" class="legal-page__section">
+      <h2>9. Limitación de responsabilidad</h2>
+      <p>
+        <%= site.name %> proporciona el Sitio y sus servicios «tal cual» y según disponibilidad. En la medida permitida
+        por la ley aplicable, no ofrecemos garantías expresas o implícitas sobre la exactitud, integridad o adecuación
+        del contenido del Sitio para un propósito particular.
+      </p>
+      <p>
+        <%= site.name %> no será responsable por daños indirectos, incidentales o consecuentes derivados del uso o la
+        imposibilidad de usar el Sitio, incluyendo pérdida de datos, interrupción de negocio o daños a equipos.
+        Nuestra responsabilidad total, en cualquier circunstancia, se limitará al monto pagado por el producto o servicio
+        específico que dio origen a la reclamación.
+      </p>
+    </section>
+
+    <section id="ley" class="legal-page__section">
+      <h2>10. Legislación aplicable</h2>
+      <p>
+        Estos términos se rigen por las leyes de la República de Costa Rica. Cualquier disputa relacionada con estos
+        términos será sometida a la jurisdicción de los tribunales competentes de Costa Rica.
+      </p>
+    </section>
+
+    <section id="contacto" class="legal-page__section">
+      <h2>11. Contacto</h2>
+      <p>
+        Para consultas sobre estos Términos de Servicio, contactanos en:
+        <a href="mailto:<%= contactEmail %>"><%= contactEmail %></a>.
+      </p>
+    </section>
+  </div>
+</main>
