@@ -3239,7 +3239,7 @@ body.is-social-embed-open {
   }
 
   .hero-eyebrow {
-    margin: 0 0 clamp(0.5rem, 1svh, 0.7rem);
+    margin: 0 0 clamp(0.85rem, 1.8svh, 1.15rem);
     padding-bottom: clamp(0.45rem, 0.8svh, 0.55rem);
     font-size: clamp(0.72rem, 2.2vw, 0.86rem);
     line-height: 1.2;
@@ -3254,7 +3254,7 @@ body.is-social-embed-open {
   }
 
   .hero-support {
-    margin: clamp(0.3rem, 0.6svh, 0.4rem) 0 0;
+    margin: clamp(1rem, 2.2svh, 1.4rem) 0 0;
     font-size: clamp(0.86rem, 3.4vw, 0.95rem);
     line-height: 1.55;
     max-width: 42ch;
@@ -3280,7 +3280,7 @@ body.is-social-embed-open {
     position: static;
     justify-content: center;
     width: min(calc(100% - 1.5rem), 520px);
-    margin: clamp(0.6rem, 1.5svh, 1rem) auto 0;
+    margin: clamp(0.3rem, 0.8svh, 0.55rem) auto clamp(1.15rem, 2.4svh, 1.6rem);
     padding: 0;
     justify-self: center;
   }
@@ -3291,7 +3291,7 @@ body.is-social-embed-open {
     grid-template-columns: 1fr 1fr;
     width: min(calc(100% - 1.5rem), 520px);
     gap: clamp(0.55rem, 1vw, 0.75rem);
-    margin: clamp(1rem, 2.2svh, 1.5rem) auto clamp(0.75rem, 1.5svh, 1.25rem);
+    margin: 0 auto clamp(0.75rem, 1.5svh, 1.25rem);
     justify-self: center;
   }
 
@@ -3337,7 +3337,7 @@ body.is-social-embed-open {
   .hero-ctas {
     grid-template-columns: 1fr;
     gap: 0.55rem;
-    margin-top: clamp(0.7rem, 1.8svh, 0.9rem);
+    margin-top: 0;
     margin-bottom: clamp(0.6rem, 1.5svh, 0.9rem);
   }
 
@@ -3380,7 +3380,7 @@ body.is-social-embed-open {
   }
 
   .hero-ctas {
-    margin-top: clamp(0.5rem, 1svh, 0.7rem);
+    margin-top: 0;
     gap: 0.45rem;
   }
 
@@ -3396,7 +3396,8 @@ body.is-social-embed-open {
   }
 
   .hero-social {
-    margin-top: 0.25rem;
+    margin-top: 0.2rem;
+    margin-bottom: clamp(0.7rem, 1.5svh, 0.9rem);
   }
 }
 
