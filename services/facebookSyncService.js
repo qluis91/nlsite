@@ -71,6 +71,23 @@ function normalizeFacebookPost(item) {
   };
 }
 
+// ── URL validation ──
+
+function isValidMetaImageUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    if (parsed.username || parsed.password) return false;
+    const hostname = parsed.hostname.toLowerCase();
+    if (!hostname.endsWith('.cdninstagram.com') &&
+        !hostname.endsWith('.fbcdn.net')) return false;
+    const suffix = hostname.endsWith('.cdninstagram.com') ? '.cdninstagram.com' : '.fbcdn.net';
+    if (hostname.indexOf(suffix) !== hostname.length - suffix.length) return false;
+    return true;
+  } catch { return false; }
+}
+
 // ── Upsert ──
 
 async function upsertPost(conn, post, intRow) {
@@ -85,7 +102,17 @@ async function upsertPost(conn, post, intRow) {
   if (existing) {
     if (existing.archived_at) return { action: 'skipped', reason: 'archived' };
     if (existing.is_imported) {
-      await conn.query('UPDATE social_posts SET provider_synced_at = NOW() WHERE id = ?', [existing.id]);
+      // Backfill/refresh provider thumbnail for existing imported posts
+      const thumbnailUrl = isValidMetaImageUrl(post.fullPicture) ? post.fullPicture : '';
+      const expiresAt = thumbnailUrl
+        ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ')
+        : null;
+      await conn.query(
+        `UPDATE social_posts SET provider_synced_at = NOW(),
+          provider_thumbnail_url = ?, provider_thumbnail_expires_at = ?
+         WHERE id = ?`,
+        [thumbnailUrl || '', expiresAt, existing.id]
+      );
       return { action: 'updated', publicId: existing.public_id };
     }
     return { action: 'skipped', reason: 'manual_post' };
@@ -104,6 +131,11 @@ async function upsertPost(conn, post, intRow) {
   const description = post.message.length > 300 ? post.message.slice(300, 800) : '';
   const status = autoPublish ? 'published' : 'draft';
 
+  const thumbnailUrl = isValidMetaImageUrl(post.fullPicture) ? post.fullPicture : '';
+  const expiresAt = thumbnailUrl
+    ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ')
+    : null;
+
   const publishedContentJson = autoPublish ? JSON.stringify({
     platform: 'facebook',
     postUrl: post.permalink,
@@ -118,10 +150,12 @@ async function upsertPost(conn, post, intRow) {
   await conn.query(
     `INSERT INTO social_posts
       (public_id, platform, post_url, title, description, thumbnail_media_ref,
+       provider_thumbnail_url, provider_thumbnail_expires_at,
        embed_enabled, display_mode, is_active, is_featured, sort_order, status,
        published_content_json, provider, provider_external_id, provider_synced_at, is_imported)
-     VALUES (?, ?, ?, ?, ?, ?, 0, 'external', 1, 0, 0, ?, ?, ?, ?, NOW(), 1)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'external', 1, 0, 0, ?, ?, ?, ?, NOW(), 1)`,
     [publicId, 'facebook', post.permalink, title, description, '',
+     thumbnailUrl, expiresAt,
      status, publishedContentJson, PROVIDER, post.externalId]
   );
 
@@ -221,5 +255,6 @@ module.exports = {
   fetchFacebookPosts,
   normalizeFacebookPost,
   upsertPost,
+  isValidMetaImageUrl,
   setHttpGet,
 };

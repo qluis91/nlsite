@@ -111,7 +111,7 @@ const helmetConfig = {
         'https://www.googletagmanager.com',
         'https://www.google-analytics.com',
       ],
-      imgSrc: ["'self'", 'data:', 'https://www.google-analytics.com', 'https://www.googletagmanager.com', 'https://img.youtube.com'],
+      imgSrc: ["'self'", 'data:', 'https://www.google-analytics.com', 'https://www.googletagmanager.com', 'https://img.youtube.com', 'https://*.cdninstagram.com', 'https://*.fbcdn.net', 'https://*.tiktokcdn.com'],
       
       connectSrc: [
         "'self'",

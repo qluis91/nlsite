@@ -84,7 +84,24 @@ function normalizeInstagramMedia(item) {
   };
 }
 
-// ── Upsert ──
+// ── URL validation ──
+
+function isValidMetaImageUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    if (parsed.username || parsed.password) return false;
+    const hostname = parsed.hostname.toLowerCase();
+    // Official Meta image CDNs
+    if (!hostname.endsWith('.cdninstagram.com') &&
+        !hostname.endsWith('.fbcdn.net')) return false;
+    // Reject lookalike domains (e.g. fbcdn.net.attacker.com)
+    const suffix = hostname.endsWith('.cdninstagram.com') ? '.cdninstagram.com' : '.fbcdn.net';
+    if (hostname.indexOf(suffix) !== hostname.length - suffix.length) return false;
+    return true;
+  } catch { return false; }
+}
 
 async function upsertPost(conn, media, intRow) {
   const requireApproval = intRow.require_approval === 1;
@@ -98,7 +115,17 @@ async function upsertPost(conn, media, intRow) {
   if (existing) {
     if (existing.archived_at) return { action: 'skipped', reason: 'archived' };
     if (existing.is_imported) {
-      await conn.query('UPDATE social_posts SET provider_synced_at = NOW() WHERE id = ?', [existing.id]);
+      // Backfill/refresh provider thumbnail for existing imported posts
+      const thumbnailUrl = isValidMetaImageUrl(media.thumbnailUrl) ? media.thumbnailUrl : '';
+      const expiresAt = thumbnailUrl
+        ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ')
+        : null;
+      await conn.query(
+        `UPDATE social_posts SET provider_synced_at = NOW(),
+          provider_thumbnail_url = ?, provider_thumbnail_expires_at = ?
+         WHERE id = ?`,
+        [thumbnailUrl || '', expiresAt, existing.id]
+      );
       return { action: 'updated', publicId: existing.public_id };
     }
     return { action: 'skipped', reason: 'manual_post' };
@@ -117,6 +144,11 @@ async function upsertPost(conn, media, intRow) {
   const description = media.caption.length > 300 ? media.caption.slice(300, 800) : '';
   const status = autoPublish ? 'published' : 'draft';
 
+  const thumbnailUrl = isValidMetaImageUrl(media.thumbnailUrl) ? media.thumbnailUrl : '';
+  const expiresAt = thumbnailUrl
+    ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ')
+    : null;
+
   const publishedContentJson = autoPublish ? JSON.stringify({
     platform: 'instagram',
     postUrl: media.permalink,
@@ -131,10 +163,12 @@ async function upsertPost(conn, media, intRow) {
   await conn.query(
     `INSERT INTO social_posts
       (public_id, platform, post_url, title, description, thumbnail_media_ref,
+       provider_thumbnail_url, provider_thumbnail_expires_at,
        embed_enabled, display_mode, is_active, is_featured, sort_order, status,
        published_content_json, provider, provider_external_id, provider_synced_at, is_imported)
-     VALUES (?, ?, ?, ?, ?, ?, 0, 'external', 1, 0, 0, ?, ?, ?, ?, NOW(), 1)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'external', 1, 0, 0, ?, ?, ?, ?, NOW(), 1)`,
     [publicId, 'instagram', media.permalink, title, description, '',
+     thumbnailUrl, expiresAt,
      status, publishedContentJson, PROVIDER, media.externalId]
   );
 
@@ -200,5 +234,6 @@ module.exports = {
   fetchInstagramMedia,
   normalizeInstagramMedia,
   upsertPost,
+  isValidMetaImageUrl,
   setHttpGet,
 };
