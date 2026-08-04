@@ -3458,6 +3458,8 @@ body.is-home-nav-open {
   padding: 0;
 }
 
+/* Desktop compact scrolled state only — mobile uses its own layout at ≤768px */
+@media (min-width: 1041px) {
 .hero-header.is-scrolled .hero-search--desktop svg {
   width: 0.85rem;
   height: 0.85rem;
@@ -3533,6 +3535,7 @@ body.is-home-nav-open {
   line-height: 1;
   padding-block: 0.2rem;
 }
+} /* end @media (min-width: 1041px) — desktop compact scrolled */
 
 /* ═══════════════════════════════════════════════
    Panel 3: Services Circular Carousel
