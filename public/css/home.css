@@ -3236,6 +3236,9 @@ body.is-social-embed-open {
     justify-self: center;
     width: min(calc(100% - 1.5rem), 520px);
     padding: clamp(0.5rem, 1svh, 0.75rem) 0 0;
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .hero-eyebrow {
@@ -3251,13 +3254,30 @@ body.is-social-embed-open {
     font-size: clamp(2rem, 8.5vw, 3rem);
     line-height: 0.96;
     letter-spacing: -0.04em;
+    margin-top: 0.1rem !important;
   }
 
   .hero-support {
-    margin: clamp(1rem, 2.2svh, 1.4rem) 0 0;
+    display: block !important;
+    width: 100% !important;
+    max-width: 42ch !important;
+  
+    margin: 0.7rem 0 0 !important;
+  
     font-size: clamp(0.86rem, 3.4vw, 0.95rem);
     line-height: 1.55;
-    max-width: 42ch;
+  
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  
+    -webkit-line-clamp: unset !important;
+    line-clamp: unset !important;
+    -webkit-box-orient: unset !important;
   }
 
   .hero-3d {
@@ -3280,9 +3300,12 @@ body.is-social-embed-open {
     position: static;
     justify-content: center;
     width: min(calc(100% - 1.5rem), 520px);
-    margin: clamp(0.3rem, 0.8svh, 0.55rem) auto clamp(1.15rem, 2.4svh, 1.6rem);
+  
+    margin: 0 auto clamp(1.7rem, 3.5svh, 2.25rem);
     padding: 0;
     justify-self: center;
+  
+    transform: translateY(-1.2rem);
   }
 
   .hero-ctas {
@@ -3293,6 +3316,7 @@ body.is-social-embed-open {
     gap: clamp(0.55rem, 1vw, 0.75rem);
     margin: 0 auto clamp(0.75rem, 1.5svh, 1.25rem);
     justify-self: center;
+    transform: translateY(-0.9rem);
   }
 
   .hero-btn {
