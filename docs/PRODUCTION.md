@@ -164,6 +164,91 @@ Production startup aborts (exits non-zero) when:
 - The primary database is unreachable (5-second retry loop).
 - The session store cannot connect.
 
+## Social Integrations (Phase 2E)
+
+### Providers
+
+| Provider  | Auth type       | Required env vars                          | Auto-sync |
+|-----------|----------------|---------------------------------------------|-----------|
+| YouTube   | API Key (env)   | `YOUTUBE_API_KEY`                          | Yes       |
+| Instagram | OAuth (Meta)    | `META_APP_ID`, `META_APP_SECRET`, `SOCIAL_TOKEN_ENCRYPTION_KEY`, `SITE_URL` | Yes |
+| Facebook  | OAuth (Meta)    | `META_APP_ID`, `META_APP_SECRET`, `SOCIAL_TOKEN_ENCRYPTION_KEY`, `SITE_URL` | Yes |
+| TikTok    | OAuth (TikTok)  | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `SOCIAL_TOKEN_ENCRYPTION_KEY`, `SITE_URL` | Yes |
+
+### Global Scheduler
+
+- `SOCIAL_SYNC_INTERVAL_MINUTES` — Enable automatic synchronization (min: 60).
+- Leave unset to disable all automatic sync. Manual sync remains available in Admin.
+- The scheduler starts after HTTP server + DB are ready. First check: ~30s delay, then recurring.
+- Railway multi-instance: MySQL advisory locks prevent duplicate imports.
+
+### OAuth Callback Paths
+
+| Provider | Callback URL                                      |
+|----------|---------------------------------------------------|
+| Meta     | `{SITE_URL}/admin/page/integrations/meta-callback` |
+| TikTok   | `{SITE_URL}/admin/page/integrations/tiktok-callback` |
+
+- Callbacks require HTTPS in production (`NODE_ENV=production`).
+- States are session-bound, single-use, and expire after 10 minutes.
+- Authorization codes and tokens are never exposed in redirects, logs, or HTML.
+
+### Encryption Key (`SOCIAL_TOKEN_ENCRYPTION_KEY`)
+
+- AES-256-GCM authenticated encryption for OAuth tokens.
+- Never stored plaintext — only `social_token_secrets` holds encrypted blobs.
+- If the key is missing or invalid, token operations fail closed (integration non-functional).
+- Changing the key invalidates existing encrypted tokens. Reconnect each provider via Admin.
+- The application and manual Social Feed remain fully functional without this key.
+
+### Disabling Sync
+
+- Set `SOCIAL_SYNC_INTERVAL_MINUTES` empty or remove it — global scheduler disabled.
+- Per provider: set `is_enabled=0` and `auto_sync=0` in Admin → Integraciones sociales.
+- Manual posts and existing published content are never affected by sync status.
+- Failed syncs never remove published posts. Imported posts retain draft/published state.
+
+### Migration Sequence
+
+- Migrations 27–34 run idempotently during `npm start` or `npm run migrate:deploy`.
+- `migrateSocialPostsProviderThumbnail` (34) adds provider thumbnail columns.
+- All historical checksums verified at deployment. No destructive migrations exist.
+
+### Rollout Order
+
+1. Deploy migrations 27–34 (fresh DB gets all schema automatically).
+2. Configure environment variables for desired providers.
+3. Enable global scheduler (`SOCIAL_SYNC_INTERVAL_MINUTES`).
+4. Connect providers via Admin → Integraciones sociales.
+5. Imported posts appear as drafts in Admin → Social Feed. Review and publish.
+
+### Rollback Behavior
+
+- Migrations are additive — no automatic rollback.
+- To disable a provider: Admin → Integraciones sociales → Desconectar.
+- To stop all sync: remove `SOCIAL_SYNC_INTERVAL_MINUTES` and restart.
+- Published snapshots and existing posts are never deleted by sync operations.
+
+### Provider Dashboard Setup
+
+**YouTube:**
+1. Google Cloud Console → APIs & Services → Enable YouTube Data API v3.
+2. Credentials → Create API Key → restrict to YouTube Data API v3.
+3. Set `YOUTUBE_API_KEY` in Railway environment.
+
+**Meta (Instagram + Facebook):**
+1. developers.facebook.com → Create App (type: Business).
+2. Add product: Facebook Login for Business.
+3. Configure redirect URI: `{SITE_URL}/admin/page/integrations/meta-callback` (HTTPS required).
+4. Required scopes: `pages_show_list`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`.
+5. Connect via Admin → Integraciones sociales → Conectar.
+
+**TikTok:**
+1. developers.tiktok.com → Create app.
+2. Configure redirect URI: `{SITE_URL}/admin/page/integrations/tiktok-callback` (HTTPS required).
+3. Required scopes: `user.info.basic`, `video.list`.
+4. Connect via Admin → Integraciones sociales → Conectar.
+
 ## Backup & Recovery
 
 ### MySQL Backup

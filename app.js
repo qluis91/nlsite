@@ -903,6 +903,20 @@ async function startServer() {
     console.log('  ➜ http://localhost:' + PORT);
     console.log('  🌐 Entorno: ' + (process.env.NODE_ENV || 'development'));
     console.log('  💾 Sesiones: MySQL (persistentes)');
+
+    // Phase 2E-A: Start social sync scheduler after server is ready
+    try {
+      const scheduler = require('./services/socialSyncScheduler');
+      if (scheduler.isSchedulerEnabled()) {
+        scheduler.start();
+      } else {
+        console.log('  🔗 Sync social: deshabilitado (SOCIAL_SYNC_INTERVAL_MINUTES no configurado)');
+      }
+    } catch (e) {
+      // Scheduler is optional — startup must never fail
+      console.log('  🔗 Sync social: no disponible');
+    }
+
     console.log('═══════════════════════════════════════');
   });
 }
@@ -917,6 +931,13 @@ let _shutdownHandlersRegistered = false;
 
 function gracefulShutdown(signal) {
   console.log(`\n⏳ Señal ${signal} recibida. Cerrando servidor...`);
+
+  // Stop sync scheduler first (clear timers)
+  try {
+    const scheduler = require('./services/socialSyncScheduler');
+    scheduler.stop();
+  } catch (_) {}
+
   if (server) {
     server.close(() => {
       console.log('✅ Servidor HTTP cerrado.');

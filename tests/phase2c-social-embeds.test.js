@@ -111,7 +111,7 @@ test.before(async () => {
 
   await createPublished('external', {
     postUrl: 'https://www.youtube.com/watch?v=abcdefghijk',
-    displayMode: 'external_link',
+    displayMode: 'external',
     embedEnabled: 1,
   });
   await createPublished('youtube', {});

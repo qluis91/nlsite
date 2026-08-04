@@ -62,7 +62,7 @@ async function createTestPost(data = {}) {
     description: 'Test description',
     thumbnailMediaRef: '',
     embedEnabled: 0,
-    displayMode: 'external_link',
+    displayMode: 'external',
     isActive: 1,
     isFeatured: 0,
     ...data,
@@ -186,7 +186,7 @@ test('valid post passes validation', async () => {
     postUrl: 'https://example.com/test123',
     title: 'Test title',
     description: 'Test description',
-    displayMode: 'external_link',
+    displayMode: 'external',
     thumbnailMediaRef: '',
   });
   assert.ok(result.valid);
@@ -314,7 +314,7 @@ test('updatePost modifies fields and stays draft', async () => {
   const updated = await updatePost(post.publicId, {
     platform: 'instagram', postUrl: 'https://www.instagram.com/p/abc/', title: 'Updated Title',
     description: 'Updated desc', thumbnailMediaRef: '', embedEnabled: 0,
-    displayMode: 'external_link', isActive: 1, isFeatured: 1,
+    displayMode: 'external', isActive: 1, isFeatured: 1,
   }, 0);
   assert.equal(updated.title, 'Updated Title');
   assert.equal(updated.status, 'draft');
@@ -324,7 +324,7 @@ test('updatePost modifies fields and stays draft', async () => {
 test('updatePost throws for missing post', async () => {
   await assert.rejects(() => updatePost('nonexistent', {
     platform: 'other', postUrl: 'https://example.com', title: 'X',
-    embedEnabled: 0, displayMode: 'external_link', isActive: 1, isFeatured: 0,
+    embedEnabled: 0, displayMode: 'external', isActive: 1, isFeatured: 0,
   }, 0));
 });
 
@@ -335,7 +335,7 @@ test('updatePost rejects stale updatedAt (optimistic concurrency)', async () => 
   await assert.rejects(
     () => updatePost(post.publicId, {
       platform: 'other', postUrl: post.postUrl, title: 'Stale', description: '',
-      thumbnailMediaRef: '', embedEnabled: 0, displayMode: 'external_link',
+      thumbnailMediaRef: '', embedEnabled: 0, displayMode: 'external',
       isActive: 1, isFeatured: 0,
     }, 0, { expectedUpdatedAt: pastDate }),
     (err) => err.code === 'STALE_UPDATE'
@@ -405,7 +405,7 @@ test('restorePostDraft restores from published snapshot as draft only', async ()
   await updatePost(post.publicId, {
     platform: 'other', postUrl: post.postUrl, title: 'Modified Title',
     description: 'Modified desc', thumbnailMediaRef: '', embedEnabled: 0,
-    displayMode: 'external_link', isActive: 1, isFeatured: 0,
+    displayMode: 'external', isActive: 1, isFeatured: 0,
   }, 0);
 
   // Restore from published snapshot
@@ -480,7 +480,7 @@ test('save returns validation errors and preserves values (create)', async () =>
     postUrl: 'not-a-url',
     title: '',
     description: '',
-    displayMode: 'external_link',
+    displayMode: 'external',
     embedEnabled: '0',
     isFeatured: '0',
     isActive: '1',
@@ -509,7 +509,7 @@ test('save returns validation errors on edit form', async () => {
     postUrl: 'javascript:void(0)',
     title: '',
     description: '',
-    displayMode: 'external_link',
+    displayMode: 'external',
     embedEnabled: '0',
     isFeatured: '0',
     isActive: '1',
@@ -552,7 +552,7 @@ test('restore via HTTP succeeds and creates draft', async () => {
   // Modify draft
   await updatePost(post.publicId, {
     platform: 'other', postUrl: post.postUrl, title: 'Modified', description: '',
-    thumbnailMediaRef: '', embedEnabled: 0, displayMode: 'external_link',
+    thumbnailMediaRef: '', embedEnabled: 0, displayMode: 'external',
     isActive: 1, isFeatured: 0,
   }, 0);
 
@@ -588,7 +588,7 @@ test('stale update returns alert on list', async () => {
     postUrl: 'https://example.com/stale',
     title: 'Stale Update',
     description: '',
-    displayMode: 'external_link',
+    displayMode: 'external',
     embedEnabled: '0',
     isFeatured: '0',
     isActive: '1',
@@ -633,9 +633,9 @@ test('form.ejs has zero inline event handlers', () => {
 // 12. Migration count
 // ════════════════════════════════════════════════════════════
 
-test('migration registry has 26 entries after additive Phase 2D migration', () => {
+test('migration registry has 29 entries after additive Phase 2E-A migrations', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 26);
+  assert.equal(MIGRATION_REGISTRY.length, 34);
 });
 
 test('social_post entity type is registered', () => {

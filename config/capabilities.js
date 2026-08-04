@@ -56,6 +56,10 @@ const CAPABILITIES = Object.freeze({
   TESTIMONIALS_VIEW: 'testimonials.view',
   TESTIMONIALS_EDIT: 'testimonials.edit',
   TESTIMONIALS_PUBLISH: 'testimonials.publish',
+  // Phase 2E-A — Social Integrations
+  SOCIAL_INTEGRATIONS_VIEW: 'social.integrations.view',
+  SOCIAL_INTEGRATIONS_EDIT: 'social.integrations.edit',
+  SOCIAL_INTEGRATIONS_SYNC: 'social.integrations.sync',
 });
 
 const CAPABILITY_VALUES = Object.freeze(Object.values(CAPABILITIES));

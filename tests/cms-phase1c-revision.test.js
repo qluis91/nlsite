@@ -555,7 +555,7 @@ describe('Phase 1C — Regression', () => {
 
   it('54. migration tracker has 26 entries (Phase 2D added Testimonials)', () => {
     const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-    assert.equal(MIGRATION_REGISTRY.length, 26);
+    assert.equal(MIGRATION_REGISTRY.length, 34);
   });
 
   it('55. diffEngine exports expected functions', () => {

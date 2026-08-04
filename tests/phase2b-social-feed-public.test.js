@@ -74,7 +74,7 @@ async function makePost(overrides = {}, publish = true) {
     description: 'Descripción pública corta.',
     thumbnailMediaRef: '',
     embedEnabled: 0,
-    displayMode: 'external_link',
+    displayMode: 'external',
     isActive: 1,
     isFeatured: 0,
     ...overrides,
@@ -223,7 +223,7 @@ test('featured, platform, and maximum filters use published snapshots', async ()
 });
 
 test('safe external/embed links and local thumbnail fallback render on homepage', async () => {
-  const external = await makePost({ title: `${marker} external`, displayMode: 'external_link' });
+  const external = await makePost({ title: `${marker} external`, displayMode: 'external' });
   const embed = await makePost({
     title: `${marker} embed`,
     displayMode: 'embed',

@@ -237,7 +237,7 @@ describe('Phase 1G additive migration and Store regressions', () => {
 
   test('registry keeps migration 22 immediately after Phase 1F', () => {
     const registry = require('../scripts/migrationTracker').MIGRATION_REGISTRY;
-    assert.equal(registry.length, 26);
+    assert.equal(registry.length, 34);
     assert.equal(registry[20].name, 'migrateStoreHeroCms');
     assert.equal(registry[21].name, 'migrateCategoryStoreHero');
     assert.equal(registry[22].name, 'migrateAboutPageCms');

@@ -88,6 +88,25 @@ router.post('/page/testimonials/restore', requireCapability(CAPABILITIES.TESTIMO
 router.post('/page/testimonials/section/save', requireCapability(CAPABILITIES.TESTIMONIALS_EDIT), csrfSynchronisedProtection, testimonialController.saveSectionSettings);
 router.post('/page/testimonials/section/publish', requireCapability(CAPABILITIES.TESTIMONIALS_PUBLISH), csrfSynchronisedProtection, testimonialController.publishSectionSettings);
 
+// ── Social Integrations (Phase 2E-A) ──
+const socialSyncController = require('../controllers/adminSocialSyncController');
+router.get('/page/integrations', requireCapability(CAPABILITIES.SOCIAL_INTEGRATIONS_VIEW), socialSyncController.showList);
+router.get('/page/integrations/edit', requireCapability(CAPABILITIES.SOCIAL_INTEGRATIONS_VIEW), socialSyncController.showEdit);
+router.post('/page/integrations/save', requireCapability(CAPABILITIES.SOCIAL_INTEGRATIONS_EDIT), csrfSynchronisedProtection, socialSyncController.saveConfig);
+router.post('/page/integrations/test', requireCapability(CAPABILITIES.SOCIAL_INTEGRATIONS_EDIT), csrfSynchronisedProtection, socialSyncController.testConnection);
+router.post('/page/integrations/sync', requireCapability(CAPABILITIES.SOCIAL_INTEGRATIONS_SYNC), csrfSynchronisedProtection, socialSyncController.syncNow);
+router.post('/page/integrations/disconnect', requireCapability(CAPABILITIES.SOCIAL_INTEGRATIONS_EDIT), csrfSynchronisedProtection, socialSyncController.disconnect);
+
+// Meta OAuth
+router.get('/page/integrations/meta-connect', requireCapability(CAPABILITIES.SOCIAL_INTEGRATIONS_EDIT), socialSyncController.startMetaOAuth);
+router.get('/page/integrations/meta-callback', socialSyncController.metaOAuthCallback);
+router.get('/page/integrations/select-account', requireCapability(CAPABILITIES.SOCIAL_INTEGRATIONS_EDIT), socialSyncController.showSelectAccount);
+router.post('/page/integrations/select-account', requireCapability(CAPABILITIES.SOCIAL_INTEGRATIONS_EDIT), csrfSynchronisedProtection, socialSyncController.confirmSelection);
+
+// TikTok OAuth
+router.get('/page/integrations/tiktok-connect', requireCapability(CAPABILITIES.SOCIAL_INTEGRATIONS_EDIT), socialSyncController.startTikTokOAuth);
+router.get('/page/integrations/tiktok-callback', socialSyncController.tiktokOAuthCallback);
+
 // ── Preview ──
 router.get('/page/preview', requireCapability(CAPABILITIES.PAGE_MANAGE), controller.preview);
 

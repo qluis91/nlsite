@@ -42,6 +42,14 @@ const MIGRATION_REGISTRY = [
   { name: 'migrateSocialFeed', file: './migrate-social-feed', exportName: 'migrateSocialFeed', passPool: true },
   { name: 'migrateSocialFeedHomeSection', file: './migrate-social-feed-home-section', exportName: 'migrateSocialFeedHomeSection', passPool: true },
   { name: 'migrateTestimonials', file: './migrate-testimonials', exportName: 'migrateTestimonials', passPool: true },
+  { name: 'migrateSocialIntegrations', file: './migrate-social-integrations', exportName: 'migrateSocialIntegrations', passPool: true },
+  { name: 'migrateSocialSyncRuns', file: './migrate-social-sync-runs', exportName: 'migrateSocialSyncRuns', passPool: true },
+  { name: 'migrateSocialPostsImportFields', file: './migrate-social-posts-import-fields', exportName: 'migrateSocialPostsImportFields', passPool: true },
+  { name: 'migrateSocialTokenSecrets', file: './migrate-social-token-secrets', exportName: 'migrateSocialTokenSecrets', passPool: true },
+  { name: 'migrateSocialOAuthStates', file: './migrate-social-oauth-states', exportName: 'migrateSocialOAuthStates', passPool: true },
+  { name: 'migrateSeedMetaIntegrations', file: './migrate-seed-meta-integrations', exportName: 'migrateSeedMetaIntegrations', passPool: true },
+  { name: 'migrateSeedTikTok', file: './migrate-seed-tiktok', exportName: 'migrateSeedTikTok', passPool: true },
+  { name: 'migrateSocialPostsProviderThumbnail', file: './migrate-social-posts-provider-thumbnail', exportName: 'migrateSocialPostsProviderThumbnail', passPool: true },
 ];
 
 async function ensureMigrationsTable(pool) {

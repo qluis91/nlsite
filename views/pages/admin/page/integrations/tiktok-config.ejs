@@ -1,0 +1,123 @@
+<div class="page-header">
+  <div>
+    <h1>Configurar TikTok</h1>
+    <p>Conecta tu cuenta de TikTok para importar videos automáticamente.</p>
+  </div>
+</div>
+
+<% if (!hasCredentials) { %>
+  <div class="card" style="border-left: 4px solid var(--color-warning); margin-bottom: 1.5rem;">
+    <p style="margin: 0;">
+      <strong>⚠ TikTok App no configurada.</strong><br>
+      Configura <code>TIKTOK_CLIENT_KEY</code> y <code>TIKTOK_CLIENT_SECRET</code> en las variables de entorno del servidor.
+    </p>
+  </div>
+<% } %>
+
+<div class="card" style="margin-bottom: 1.5rem;">
+  <h3>Conexión OAuth</h3>
+  <% if (integration.is_connected) { %>
+    <div style="color: var(--color-success);">
+      ✅ Conectado<% if (integration.config_json?.displayName) { %> — <%= integration.config_json.displayName %><% } %>
+    </div>
+    <% if (integration.config_json?.scope) { %>
+      <small style="color: var(--color-secondary);">Scopes: <%= integration.config_json.scope %></small>
+    <% } %>
+    <% if (tokenExpiration) { %>
+      <div style="margin-top: 0.5rem; font-size: 0.85rem; color: <%= tokenExpiration.warning ? 'var(--color-warning)' : 'var(--color-secondary)' %>;">
+        <%= tokenExpiration.warning ? '⚠' : 'ℹ' %> <%= tokenExpiration.message %>
+      </div>
+    <% } %>
+    <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+      <a class="btn btn-outline" href="/admin/page/integrations/tiktok-connect">Reconectar</a>
+      <form method="POST" action="/admin/page/integrations/disconnect" style="display:inline" onsubmit="return confirm('¿Desconectar TikTok?')">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="provider" value="tiktok">
+        <button type="submit" class="btn btn-danger">Desconectar</button>
+      </form>
+    </div>
+  <% } else { %>
+    <p>No hay una cuenta TikTok conectada.</p>
+    <a class="btn btn-primary" href="/admin/page/integrations/tiktok-connect">Conectar con TikTok</a>
+  <% } %>
+</div>
+
+<% if (integration.is_connected) { %>
+  <form method="POST" action="/admin/page/integrations/save">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="provider" value="tiktok">
+
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <h3>Comportamiento de importación</h3>
+
+      <div class="form-group">
+        <label for="maxVideos">Máximo de videos por sincronización</label>
+        <input type="number" id="maxVideos" name="maxVideos" class="form-control"
+               value="<%= (integration.config_json?.maxVideos) || 25 %>" min="1" max="50" style="max-width: 6rem;">
+        <small>Entre 1 y 50.</small>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="isEnabled" value="1" <%= integration.is_enabled ? 'checked' : '' %>>
+          <span>Habilitar importación</span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="autoSync" value="1" <%= integration.auto_sync ? 'checked' : '' %>>
+          <span>Sincronización automática</span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="requireApproval" value="1" <%= integration.require_approval ? 'checked' : '' %>>
+          <span>Requerir aprobación (importar como borrador)</span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="defaultPublished" value="1" <%= integration.config_json?.defaultPublished ? 'checked' : '' %>>
+          <span>Publicar automáticamente al importar</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <h3>Acciones</h3>
+      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <form method="POST" action="/admin/page/integrations/test" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="provider" value="tiktok">
+          <button type="submit" class="btn btn-outline">Probar conexión</button>
+        </form>
+        <form method="POST" action="/admin/page/integrations/sync" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="provider" value="tiktok">
+          <button type="submit" class="btn btn-primary">Sincronizar ahora</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="sticky-actions">
+      <a href="/admin/page/integrations" class="btn btn-outline">Volver</a>
+      <button type="submit" class="btn btn-primary">Guardar configuración</button>
+    </div>
+  </form>
+<% } %>
+
+<div class="card" style="margin-top: 2rem; padding: 1rem; background: var(--color-bg);">
+  <h3 style="margin-top: 0; font-size: 1rem;">Seguridad</h3>
+  <p style="font-size: 0.85rem; color: var(--color-secondary); margin: 0;">
+    Los tokens de acceso y refresh se almacenan cifrados con AES-256-GCM. Nunca se muestran en HTML,
+    logs, ni se almacenan en texto plano. La clave de cifrado reside en
+    <code>SOCIAL_TOKEN_ENCRYPTION_KEY</code>.
+  </p>
+  <p style="font-size: 0.85rem; color: var(--color-secondary); margin: 0.5rem 0 0 0;">
+    Las imágenes de portada de TikTok tienen TTL corto y se actualizan automáticamente en cada sincronización.
+    Si la URL expira, se usa el fallback local del Social Feed.
+  </p>
+</div>

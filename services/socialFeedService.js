@@ -9,7 +9,7 @@ const cmsContent = require('./cmsContentService');
 const { deriveSocialEmbed } = require('./socialEmbedService');
 
 const ALLOWED_PLATFORMS = Object.freeze(['instagram', 'facebook', 'tiktok', 'youtube', 'other']);
-const ALLOWED_DISPLAY_MODES = Object.freeze(['external_link', 'embed']);
+const ALLOWED_DISPLAY_MODES = Object.freeze(['external_link', 'external', 'embed']);
 const MAX_TITLE = 300;
 const MAX_DESC = 500;
 const MAX_URL = 2048;
@@ -89,8 +89,10 @@ async function validatePost(body) {
   const errors = [];
   const platform = h(body.platform).toLowerCase() || 'other';
   if (!ALLOWED_PLATFORMS.includes(platform)) errors.push('Plataforma no válida.');
-  const displayMode = h(body.displayMode).toLowerCase() || 'external_link';
-  if (!ALLOWED_DISPLAY_MODES.includes(displayMode)) errors.push('Modo de visualización no válido.');
+  const displayMode = h(body.displayMode).toLowerCase() || 'external';
+  // Normalize legacy external_link to canonical external
+  const normalizedMode = displayMode === 'external_link' ? 'external' : displayMode;
+  if (!ALLOWED_DISPLAY_MODES.includes(normalizedMode)) errors.push('Modo de visualización no válido.');
 
   const title = h(body.title);
   if (!title) errors.push('El título es obligatorio.');
@@ -121,7 +123,7 @@ async function validatePost(body) {
       description,                 // plain text, escaped at EJS output
       thumbnailMediaRef: h(body.thumbnailMediaRef),
       embedEnabled: body.embedEnabled === '1' || body.embedEnabled === 'true' ? 1 : 0,
-      displayMode,
+      displayMode: normalizedMode,
       isActive: body.isActive === '0' || body.isActive === 'false' ? 0 : 1,
       isFeatured: body.isFeatured === '1' || body.isFeatured === 'true' ? 1 : 0,
     },
@@ -365,7 +367,7 @@ async function restorePostDraft(publicId, userId, sourceRevisionId) {
       snapshot.description || existing.description,
       snapshot.thumbnailMediaRef || existing.thumbnailMediaRef,
       snapshot.embedEnabled ? 1 : 0,
-      snapshot.displayMode || 'external_link',
+      snapshot.displayMode === 'embed' ? 'embed' : 'external',
       snapshot.isFeatured ? 1 : 0,
       userId,
       publicId,
@@ -423,7 +425,8 @@ async function getPublicFeed(settings = {}) {
   if (!platformFilters.length) return [];
 
   const [rows] = await pool.query(
-    `SELECT id, public_id, sort_order, published_at, published_content_json
+    `SELECT id, public_id, sort_order, published_at, published_content_json,
+            thumbnail_media_ref, provider_thumbnail_url, provider_thumbnail_expires_at
        FROM social_posts
       WHERE status = 'published' AND is_active = 1 AND archived_at IS NULL
         AND published_content_json IS NOT NULL
@@ -445,6 +448,9 @@ async function getPublicFeed(settings = {}) {
       title: h(snapshot.title),
       description: h(snapshot.description),
       thumbnailMediaRef: h(snapshot.thumbnailMediaRef),
+      // Provider thumbnail from social_posts row (not snapshot — refreshed by sync)
+      providerThumbnailUrl: h(row.provider_thumbnail_url),
+      providerThumbnailExpiresAt: row.provider_thumbnail_expires_at,
       displayMode: snapshot.displayMode === 'embed' ? 'embed' : 'external',
       embedEnabled: snapshot.embedEnabled === true,
       isFeatured: snapshot.isFeatured === true,
@@ -461,10 +467,26 @@ async function getPublicFeed(settings = {}) {
 
   const selected = posts.slice(0, maximumPosts);
   await Promise.all(selected.map(async (post) => {
+    // 1. Local Media Library thumbnail (takes precedence)
     const media = post.thumbnailMediaRef
       ? await cmsContent.resolveMediaReference(post.thumbnailMediaRef, null)
       : null;
-    post.thumbnailUrl = media?.thumbnailUrl || media?.url || '/images/social-feed-fallback.svg';
+    let thumbnail = media?.thumbnailUrl || media?.url || null;
+
+    // 2. Provider thumbnail (only if not expired and no local media selected)
+    if (!thumbnail) {
+      const provUrl = post.providerThumbnailUrl;
+      const provExpires = post.providerThumbnailExpiresAt;
+      if (provUrl && provExpires) {
+        const expiresMs = new Date(provExpires).getTime();
+        if (Date.now() < expiresMs) {
+          thumbnail = provUrl;
+        }
+      }
+    }
+
+    // 3. Final fallback
+    post.thumbnailUrl = thumbnail || '/images/social-feed-fallback.svg';
     post.thumbnailAlt = media?.altText || post.title || `Publicación de ${post.platform}`;
     post.embed = deriveSocialEmbed(post);
   }));
@@ -480,6 +502,7 @@ async function nextSortOrder() {
 
 module.exports = {
   ALLOWED_PLATFORMS,
+  ALLOWED_DISPLAY_MODES,
   validatePost,
   validateMediaRef,
   listPosts,
