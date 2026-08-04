@@ -30,6 +30,10 @@ function getAppSecret() {
   return process.env.META_APP_SECRET || '';
 }
 
+function getConfigId() {
+  return process.env.META_CONFIG_ID || '';
+}
+
 function getSiteUrl() {
   return (process.env.SITE_URL || process.env.CALLBACK_BASE || 'http://localhost:3000').replace(/\/$/, '');
 }
@@ -166,6 +170,9 @@ function getAuthorizationUrl(provider, sessionId) {
   const appId = getAppId();
   if (!appId) throw Object.assign(new Error('META_APP_ID no configurada.'), { code: 'NO_APP_ID' });
 
+  const configId = getConfigId();
+  if (!configId) throw Object.assign(new Error('META_CONFIG_ID no configurada. Requerida para Facebook Login for Business.'), { code: 'NO_CONFIG_ID' });
+
   // Enforce HTTPS in production
   const redirectUri = getRedirectUri();
   if (isProduction() && !redirectUri.startsWith('https://')) {
@@ -174,12 +181,13 @@ function getAuthorizationUrl(provider, sessionId) {
 
   const { id: stateId, sessionId: sid } = generateState(sessionId);
 
-  const scopes = ['instagram_basic', 'pages_show_list', 'pages_read_engagement'];
+  const scopes = ['instagram_basic', 'pages_show_list', 'pages_read_engagement', 'business_management'];
 
   const params = new URLSearchParams({
     client_id: appId,
     redirect_uri: redirectUri,
     state: stateId,
+    config_id: configId,
     scope: scopes.join(','),
     response_type: 'code',
   });
@@ -239,9 +247,29 @@ async function exchangeCodeForToken(code, receivedState, sessionId) {
 
 // ── Account discovery ──
 
+/**
+ * Read granted and declined permissions from /me/permissions.
+ * Returns { granted: string[], declined: string[] } for diagnostics.
+ */
+async function getGrantedPermissions(accessToken) {
+  try {
+    const { status, data } = await httpGet(
+      `${getBaseUrl()}/me/permissions?access_token=${encodeURIComponent(accessToken)}`
+    );
+    if (status !== 200) return { granted: [], declined: [] };
+    const permissions = data.data || [];
+    return {
+      granted: permissions.filter(p => p.status === 'granted').map(p => p.permission),
+      declined: permissions.filter(p => p.status === 'declined').map(p => p.permission),
+    };
+  } catch {
+    return { granted: [], declined: [] };
+  }
+}
+
 async function getPages(accessToken) {
   const { status, data } = await httpGet(
-    `${getBaseUrl()}/me/accounts?fields=id,name,access_token,picture&access_token=${encodeURIComponent(accessToken)}`
+    `${getBaseUrl()}/me/accounts?fields=id,name,access_token,picture,instagram_business_account{id,username,name}&access_token=${encodeURIComponent(accessToken)}`
   );
   if (status !== 200) {
     throw Object.assign(new Error(`Page discovery failed: ${data?.error?.message || status}`), {
@@ -253,10 +281,60 @@ async function getPages(accessToken) {
     name: p.name,
     accessToken: p.access_token,
     picture: p.picture?.data?.url || '',
+    instagram_business_account: p.instagram_business_account || null,
   }));
 }
 
+/**
+ * Try Business-managed asset discovery when /me/accounts returns empty.
+ * Only used when business_management permission is granted.
+ * Steps:
+ *   1. GET /me/businesses to get client business IDs.
+ *   2. For each business, GET /BUSINESS_ID/client_pages to list owned pages.
+ *   3. Use the same access_token (user token) for page access_token.
+ */
+async function discoverBusinessPages(accessToken) {
+  try {
+    // Step 1: Get business portfolios
+    const businessRes = await httpGet(
+      `${getBaseUrl()}/me/businesses?access_token=${encodeURIComponent(accessToken)}`
+    );
+    if (businessRes.status !== 200) return [];
+
+    const businesses = businessRes.data?.data || [];
+    const allPages = [];
+
+    // Step 2: For each business, get client pages
+    for (const biz of businesses) {
+      try {
+        const pagesRes = await httpGet(
+          `${getBaseUrl()}/${biz.id}/client_pages?fields=id,name,access_token,picture,instagram_business_account{id,username,name}&access_token=${encodeURIComponent(accessToken)}`
+        );
+        if (pagesRes.status === 200 && Array.isArray(pagesRes.data?.data)) {
+          for (const p of pagesRes.data.data) {
+            allPages.push({
+              id: p.id,
+              name: p.name,
+              accessToken: p.access_token || null,
+              picture: p.picture?.data?.url || '',
+              instagram_business_account: p.instagram_business_account || null,
+            });
+          }
+        }
+      } catch {
+        // Skip individual business failures
+      }
+    }
+
+    return allPages;
+  } catch {
+    return [];
+  }
+}
+
 async function getInstagramAccount(pageAccessToken, pageId) {
+  // Now handled inline via instagram_business_account in getPages.
+  // Kept for backward compatibility with discoverAccountOptions fallback.
   try {
     const { status, data } = await httpGet(
       `${getBaseUrl()}/${pageId}?fields=instagram_business_account{id,username,name,profile_picture_url}&access_token=${encodeURIComponent(pageAccessToken)}`
@@ -277,15 +355,46 @@ async function getInstagramAccount(pageAccessToken, pageId) {
 
 /**
  * Discover all valid Page + Instagram options after OAuth.
- * Returns an array of { page, instagram } objects where instagram may be null.
+ *
+ * Flow:
+ *   1. Try /me/accounts (works for personal-page grants or business with config_id).
+ *   2. If empty and business_management is granted, try Business-managed asset discovery.
+ *   3. Inline instagram_business_account from getPages to avoid extra API calls.
  */
 async function discoverAccountOptions(accessToken) {
-  const pages = await getPages(accessToken);
+  const permissions = await getGrantedPermissions(accessToken);
+
+  // Method 1: /me/accounts
+  let pages = await getPages(accessToken);
+
+  // Method 2: Business-managed asset discovery (fallback)
+  if (pages.length === 0 && permissions.granted.includes('business_management')) {
+    pages = await discoverBusinessPages(accessToken);
+  }
+
+  // Build options: inline IG data from getPages/discoverBusinessPages
   const options = [];
   for (const page of pages) {
-    const ig = await getInstagramAccount(page.accessToken, page.id);
-    options.push({ page, instagram: ig || null });
+    let ig = null;
+    const igb = page.instagram_business_account;
+    if (igb) {
+      ig = {
+        id: igb.id,
+        username: igb.username || '',
+        name: igb.name || '',
+        profilePicture: igb.profile_picture_url || '',
+      };
+    } else if (page.accessToken) {
+      // Fallback to separate API call only for pages from getPages
+      ig = await getInstagramAccount(page.accessToken, page.id);
+    }
+    // Clone page without instagram_business_account raw object
+    const cleanPage = {
+      id: page.id, name: page.name, accessToken: page.accessToken, picture: page.picture,
+    };
+    options.push({ page: cleanPage, instagram: ig || null });
   }
+
   return options;
 }
 
@@ -502,6 +611,7 @@ module.exports = {
   getBaseUrl,
   getAppId,
   getAppSecret,
+  getConfigId,
   getSiteUrl,
   getRedirectUri,
   isProduction,
@@ -512,7 +622,9 @@ module.exports = {
   consumeState,
   getAuthorizationUrl,
   exchangeCodeForToken,
+  getGrantedPermissions,
   getPages,
+  discoverBusinessPages,
   getInstagramAccount,
   discoverAccountOptions,
   completeConnection,

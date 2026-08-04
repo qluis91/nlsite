@@ -84,6 +84,7 @@ function checkMetaEnv() {
   const missing = [];
   if (!process.env.META_APP_ID) missing.push('META_APP_ID');
   if (!process.env.META_APP_SECRET) missing.push('META_APP_SECRET');
+  if (!process.env.META_CONFIG_ID) missing.push('META_CONFIG_ID');
   // META_GRAPH_API_VERSION has a default
   return missing;
 }
@@ -454,7 +455,14 @@ async function metaOAuthCallback(req, res, next) {
     const tokenData = await metaOAuth.exchangeCodeForToken(code, state, sessionId);
     structuredLog('callback_token_exchange', 'meta', { requestId: reqId, success: true });
 
-    // Stage 3: Discover Page + Instagram options
+    // Stage 3: Check granted permissions for diagnostics
+    const permissions = await metaOAuth.getGrantedPermissions(tokenData.accessToken);
+    structuredLog('callback_permissions', 'meta', {
+      requestId: reqId, success: true,
+      details: `granted:${permissions.granted.join(',') || 'none'}; declined:${permissions.declined.join(',') || 'none'}`,
+    });
+
+    // Stage 4: Discover Page + Instagram options
     const options = await metaOAuth.discoverAccountOptions(tokenData.accessToken);
     const validOptions = options.filter(o => o.page);
     structuredLog('callback_account_discovery', 'meta', {
@@ -464,7 +472,7 @@ async function metaOAuthCallback(req, res, next) {
 
     if (validOptions.length === 0) {
       structuredLog('callback_no_pages', 'meta', { requestId: reqId, errorCategory: 'no_pages_found' });
-      setAlerts(req, [ninja('oauth', 'error', 'No se encontraron Facebook Pages asociadas a esta cuenta.')]);
+      setAlerts(req, [ninja('oauth', 'error', 'No se encontraron Facebook Pages asociadas a esta cuenta. Verificá que la configuración de negocio (config_id) sea correcta y que hayás concedido todos los permisos solicitados.')]);
       await saveSession(req);
       return res.redirect(BASE_PATH);
     }

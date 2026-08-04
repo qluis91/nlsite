@@ -190,8 +190,10 @@ test('state rejects provider mismatch in callback', async () => {
 test('getAuthorizationUrl uses HTTPS in production', () => {
   const saved = process.env.NODE_ENV;
   const savedUrl = process.env.SITE_URL;
+  const savedConfig = process.env.META_CONFIG_ID;
   process.env.NODE_ENV = 'production';
   process.env.SITE_URL = 'http://mysite.com';
+  process.env.META_CONFIG_ID = 'test_config';
   try {
     assert.throws(
       () => metaOAuth.getAuthorizationUrl('instagram', 'sess-prod'),
@@ -200,6 +202,7 @@ test('getAuthorizationUrl uses HTTPS in production', () => {
   } finally {
     process.env.NODE_ENV = saved;
     process.env.SITE_URL = savedUrl;
+    if (savedConfig) process.env.META_CONFIG_ID = savedConfig; else delete process.env.META_CONFIG_ID;
   }
 });
 

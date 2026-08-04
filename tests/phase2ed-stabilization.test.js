@@ -114,14 +114,17 @@ test('homepage does not load provider scripts initially', () => {
 
 test('Meta OAuth callback enforces HTTPS in production', () => {
   const saved = process.env.NODE_ENV;
+  const savedConfig = process.env.META_CONFIG_ID;
   process.env.NODE_ENV = 'production';
   process.env.SITE_URL = 'http://mysite.com';
+  process.env.META_CONFIG_ID = 'test_config';
   try {
     const metaOAuth = require('../services/metaOAuthService');
     assert.throws(() => metaOAuth.getAuthorizationUrl('instagram', 'sess'), { code: 'HTTPS_REQUIRED' });
   } finally {
     process.env.NODE_ENV = saved;
     process.env.SITE_URL = 'http://localhost:3000';
+    if (savedConfig) process.env.META_CONFIG_ID = savedConfig; else delete process.env.META_CONFIG_ID;
   }
 });
 
