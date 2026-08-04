@@ -48,9 +48,14 @@
             Error: <%= integration.lastSyncError.replace(/AIza[0-9A-Za-z\-_]{35}/g, '[API_KEY]').replace(/ya29\.[0-9A-Za-z\-_]+/g, '[TOKEN]') %>
           </p>
         <% } %>
-        <% if (!hasApiKey) { %>
+        <% if (!hasApiKey && integration.provider === 'youtube') { %>
           <p style="color: var(--color-warning); margin-top: 0.25rem;">
             ⚠ No hay YOUTUBE_API_KEY configurada. Agrégala en el <code>.env</code> del servidor.
+          </p>
+        <% } %>
+        <% if (credentialWarnings && credentialWarnings[integration.provider]) { %>
+          <p style="color: var(--color-warning); margin-top: 0.25rem;">
+            ⚠ <%= credentialWarnings[integration.provider] %>
           </p>
         <% } %>
       </div>

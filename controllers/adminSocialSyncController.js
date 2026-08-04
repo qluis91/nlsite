@@ -18,7 +18,7 @@ function csrfFor(req) {
 }
 
 function ninja(key, type, text) {
-  return { type, text, id: key };
+  return { type, title: String(text || ''), id: key };
 }
 
 function setAlerts(req, alerts) {
@@ -47,6 +47,63 @@ function redactTokens(msg) {
     .replace(/[0-9]{15,}/g, '[ID]');
 }
 
+// ── Structured diagnostic logging ──
+
+function structuredLog(stage, provider, opts) {
+  const ts = new Date().toISOString();
+  const reqId = opts?.requestId || '';
+  const sanitized = redactTokens(opts?.errorMsg || opts?.details || '');
+  console.log(JSON.stringify({
+    ts, provider: provider || 'meta', stage, reqId,
+    status: opts?.success ? 'success' : 'failure',
+    httpStatus: opts?.httpStatus || null,
+    errorCode: opts?.errorCode || null,
+    errorSubcode: opts?.errorSubcode || null,
+    errorCategory: opts?.errorCategory || null,
+    pages: opts?.pageCount ?? null,
+    ig: opts?.igCount ?? null,
+    detail: sanitized || undefined,
+  }));
+}
+
+// ── Session save helper ──
+// Express-session with resave:false may not auto-save before redirect.
+// Explicit save ensures alerts and OAuth data persist across the redirect.
+function saveSession(req) {
+  return new Promise((resolve) => {
+    req.session.save((err) => {
+      if (err) console.error(JSON.stringify({ ts: new Date().toISOString(), stage: 'session_save_error', error: 'session_save_failed' }));
+      resolve();
+    });
+  });
+}
+
+// ── Environment readiness helpers ──
+
+function checkMetaEnv() {
+  const missing = [];
+  if (!process.env.META_APP_ID) missing.push('META_APP_ID');
+  if (!process.env.META_APP_SECRET) missing.push('META_APP_SECRET');
+  // META_GRAPH_API_VERSION has a default
+  return missing;
+}
+
+function checkTikTokEnv() {
+  const missing = [];
+  if (!process.env.TIKTOK_CLIENT_KEY) missing.push('TIKTOK_CLIENT_KEY');
+  if (!process.env.TIKTOK_CLIENT_SECRET) missing.push('TIKTOK_CLIENT_SECRET');
+  return missing;
+}
+
+function checkSchedulerEnv() {
+  const interval = parseInt(process.env.SOCIAL_SYNC_INTERVAL_MINUTES, 10);
+  return !isNaN(interval) && interval >= 60;
+}
+
+function checkEncryptionEnv() {
+  return !!process.env.SOCIAL_TOKEN_ENCRYPTION_KEY;
+}
+
 // ── List integrations ──
 
 async function showList(req, res, next) {
@@ -55,6 +112,22 @@ async function showList(req, res, next) {
     const scheduler = require('../services/socialSyncScheduler');
     const pageAlerts = req.session?.cms_alerts || [];
     if (req.session?.cms_alerts) delete req.session.cms_alerts;
+
+    // Provider-specific credential warnings
+    const credentialWarnings = {};
+    for (const int of integrations) {
+      if (int.provider === 'instagram' || int.provider === 'facebook') {
+        const missing = checkMetaEnv();
+        if (missing.length > 0) credentialWarnings[int.provider] = `Faltan variables de entorno: ${missing.join(', ')}`;
+        if (!checkEncryptionEnv()) credentialWarnings[int.provider] = (credentialWarnings[int.provider] || '') + ' Falta SOCIAL_TOKEN_ENCRYPTION_KEY.';
+      } else if (int.provider === 'tiktok') {
+        const missing = checkTikTokEnv();
+        if (missing.length > 0) credentialWarnings[int.provider] = `Faltan variables de entorno: ${missing.join(', ')}`;
+        if (!checkEncryptionEnv()) credentialWarnings[int.provider] = (credentialWarnings[int.provider] || '') + ' Falta SOCIAL_TOKEN_ENCRYPTION_KEY.';
+      } else if (int.provider === 'youtube') {
+        if (!youtubeService.getYoutubeApiKey()) credentialWarnings[int.provider] = 'Falta YOUTUBE_API_KEY en las variables de entorno.';
+      }
+    }
 
     // Check token expiration for Meta and TikTok integrations
     const expirationWarnings = [];
@@ -89,6 +162,7 @@ async function showList(req, res, next) {
       schedulerIntervalMs: scheduler.effectiveIntervalMs(),
       schedulerRunning: scheduler.isRunning(),
       expirationWarnings,
+      credentialWarnings,
     });
   } catch (error) {
     next(error);
@@ -337,42 +411,61 @@ async function disconnect(req, res, next) {
 // ── Meta OAuth Flow ──
 
 async function startMetaOAuth(req, res, next) {
+  const reqId = crypto.randomBytes(6).toString('hex');
   try {
     const provider = String(req.query.provider || 'instagram').trim();
+    structuredLog('oauth_start', provider, { requestId: reqId, success: true });
     const sessionId = getOrCreateSessionId(req);
     const { url } = metaOAuth.getAuthorizationUrl(provider, sessionId);
     return res.redirect(url);
   } catch (error) {
-    const safeMsg = redactTokens(error.message || 'Error OAuth');
+    structuredLog('oauth_start', 'meta', { requestId: reqId, errorMsg: error.message, errorCode: error.code || 'UNKNOWN' });
+    const safeMsg = redactTokens(error.message || 'Error al iniciar OAuth con Meta.');
     setAlerts(req, [ninja('oauth', 'error', safeMsg)]);
+    await saveSession(req);
     return res.redirect(BASE_PATH);
   }
 }
 
 async function metaOAuthCallback(req, res, next) {
+  const reqId = crypto.randomBytes(6).toString('hex');
   try {
     const { code, state, error, error_description } = req.query;
 
     if (error) {
-      setAlerts(req, [ninja('oauth', 'error', `Meta rechazó la conexión: ${error_description || error}`)]);
+      structuredLog('callback_provider_error', 'meta', { requestId: reqId, errorMsg: error_description || error });
+      setAlerts(req, [ninja('oauth', 'error', `Meta rechazó la conexión: ${error_description || 'Error del proveedor'}`)]);
+      await saveSession(req);
       return res.redirect(BASE_PATH);
     }
 
     if (!code) {
+      structuredLog('callback_no_code', 'meta', { requestId: reqId, errorCategory: 'missing_code' });
       setAlerts(req, [ninja('oauth', 'error', 'No se recibió código de autorización.')]);
+      await saveSession(req);
       return res.redirect(BASE_PATH);
     }
 
-    // Exchange code for token with session-bound state validation
+    // Stage 1: Validate OAuth state
     const sessionId = req.session?.metaOAuthSessionId;
-    const tokenData = await metaOAuth.exchangeCodeForToken(code, state, sessionId);
+    structuredLog('callback_validate_state', 'meta', { requestId: reqId, success: true });
 
-    // Discover all Page + Instagram options
+    // Stage 2: Exchange code for token
+    const tokenData = await metaOAuth.exchangeCodeForToken(code, state, sessionId);
+    structuredLog('callback_token_exchange', 'meta', { requestId: reqId, success: true });
+
+    // Stage 3: Discover Page + Instagram options
     const options = await metaOAuth.discoverAccountOptions(tokenData.accessToken);
-    const validOptions = options.filter(o => o.page); // Must have at least a Page
+    const validOptions = options.filter(o => o.page);
+    structuredLog('callback_account_discovery', 'meta', {
+      requestId: reqId, success: true,
+      pageCount: options.length, igCount: options.filter(o => o.instagram).length,
+    });
 
     if (validOptions.length === 0) {
+      structuredLog('callback_no_pages', 'meta', { requestId: reqId, errorCategory: 'no_pages_found' });
       setAlerts(req, [ninja('oauth', 'error', 'No se encontraron Facebook Pages asociadas a esta cuenta.')]);
+      await saveSession(req);
       return res.redirect(BASE_PATH);
     }
 
@@ -382,14 +475,26 @@ async function metaOAuthCallback(req, res, next) {
     req.session.metaOAuthOptions = validOptions;
     req.session.metaOAuthProvider = tokenData.provider;
 
+    await saveSession(req);
     return res.redirect(`${BASE_PATH}/select-account`);
   } catch (error) {
     if (error.code === 'INVALID_STATE') {
+      structuredLog('callback_invalid_state', 'meta', { requestId: reqId, errorCategory: 'invalid_state' });
       setAlerts(req, [ninja('oauth', 'error', 'Solicitud OAuth inválida, expirada o de otra sesión. Intenta conectar nuevamente.')]);
+      await saveSession(req);
       return res.redirect(BASE_PATH);
     }
-    const safeMsg = redactTokens(error.message || 'Error en callback OAuth');
+    structuredLog('callback_error', 'meta', {
+      requestId: reqId,
+      errorMsg: error.message,
+      errorCode: error.code || 'UNKNOWN',
+      errorCategory: error.code || 'unknown',
+      httpStatus: error.status || null,
+      errorSubcode: error.data?.error?.error_subcode || null,
+    });
+    const safeMsg = redactTokens(error.message || 'Error al procesar la autorización de Meta.');
     setAlerts(req, [ninja('oauth', 'error', safeMsg)]);
+    await saveSession(req);
     return res.redirect(BASE_PATH);
   }
 }
@@ -403,6 +508,7 @@ async function showSelectAccount(req, res, next) {
 
     if (!options || options.length === 0) {
       setAlerts(req, [ninja('oauth', 'error', 'Sesión de selección expirada. Conecta nuevamente.')]);
+      await saveSession(req);
       return res.redirect(BASE_PATH);
     }
 
@@ -424,6 +530,7 @@ async function showSelectAccount(req, res, next) {
 }
 
 async function confirmSelection(req, res, next) {
+  const reqId = crypto.randomBytes(6).toString('hex');
   try {
     const pageId = String(req.body.pageId || '').trim();
     const provider = req.session?.metaOAuthProvider;
@@ -433,17 +540,35 @@ async function confirmSelection(req, res, next) {
 
     if (!pageId || !accessToken || !provider) {
       setAlerts(req, [ninja('oauth', 'error', 'Selección inválida o sesión expirada.')]);
+      await saveSession(req);
       return res.redirect(BASE_PATH);
     }
 
     const selected = options.find(o => o.page.id === pageId);
     if (!selected) {
       setAlerts(req, [ninja('oauth', 'error', 'Página no encontrada en las opciones disponibles.')]);
+      await saveSession(req);
+      return res.redirect(BASE_PATH);
+    }
+
+    // Environment readiness check before persistence
+    const missingEnv = checkMetaEnv();
+    if (missingEnv.length > 0) {
+      structuredLog('account_selection_missing_env', 'meta', { requestId: reqId, errorMsg: missingEnv.join(', ') });
+      setAlerts(req, [ninja('oauth', 'error', `Faltan variables de entorno requeridas: ${missingEnv.join(', ')}.`)]);
+      await saveSession(req);
+      return res.redirect(BASE_PATH);
+    }
+    if (!checkEncryptionEnv()) {
+      structuredLog('account_selection_missing_encryption', 'meta', { requestId: reqId, errorCategory: 'missing_encryption_key' });
+      setAlerts(req, [ninja('oauth', 'error', 'Falta SOCIAL_TOKEN_ENCRYPTION_KEY en las variables de entorno.')]);
+      await saveSession(req);
       return res.redirect(BASE_PATH);
     }
 
     const sessionId = req.session?.metaOAuthSessionId;
     await metaOAuth.completeConnection(provider, accessToken, expiresIn, selected.page, selected.instagram, sessionId);
+    structuredLog('account_selection_complete', provider, { requestId: reqId, success: true, pages: 1, ig: selected.instagram ? 1 : 0 });
 
     const pageDesc = selected.page.name ? ` (${selected.page.name})` : '';
     const igDesc = selected.instagram ? ` — Instagram: @${selected.instagram.username}` : '';
@@ -454,11 +579,59 @@ async function confirmSelection(req, res, next) {
     delete req.session.metaOAuthExpiresIn;
     delete req.session.metaOAuthOptions;
     delete req.session.metaOAuthProvider;
-
+    await saveSession(req);
     return res.redirect(BASE_PATH);
   } catch (error) {
-    const safeMsg = redactTokens(error.message || 'Error al confirmar selección.');
+    structuredLog('account_selection_error', 'meta', { requestId: reqId, errorMsg: error.message, errorCode: error.code || 'UNKNOWN', errorCategory: error.code || 'unknown' });
+    const safeMsg = redactTokens(error.message || 'Error al confirmar selección de cuenta.');
     setAlerts(req, [ninja('oauth', 'error', safeMsg)]);
+    await saveSession(req);
+    return res.redirect(BASE_PATH);
+  }
+}
+
+// ── Switch Meta account (without re-OAuth) ──
+
+async function switchMetaAccount(req, res, next) {
+  const reqId = crypto.randomBytes(6).toString('hex');
+  try {
+    const pageId = String(req.body.pageId || '').trim();
+    const provider = req.session?.metaOAuthProvider;
+    const accessToken = req.session?.metaOAuthToken;
+    const options = req.session?.metaOAuthOptions || [];
+
+    if (!pageId || !accessToken || !provider) {
+      setAlerts(req, [ninja('oauth', 'error', 'Selección inválida o sesión expirada.')]);
+      await saveSession(req);
+      return res.redirect(BASE_PATH);
+    }
+
+    const selected = options.find(o => o.page.id === pageId);
+    if (!selected) {
+      setAlerts(req, [ninja('oauth', 'error', 'Página no encontrada en las opciones disponibles.')]);
+      await saveSession(req);
+      return res.redirect(BASE_PATH);
+    }
+
+    const sessionId = req.session?.metaOAuthSessionId;
+    await metaOAuth.completeConnection(provider, accessToken,
+      req.session?.metaOAuthExpiresIn, selected.page, selected.instagram, sessionId);
+    structuredLog('account_switch', provider, { requestId: reqId, success: true, pages: 1, ig: selected.instagram ? 1 : 0 });
+
+    const igDesc = selected.instagram ? ` — Instagram: @${selected.instagram.username}` : '';
+    setAlerts(req, [ninja('oauth', 'success', `Cuenta cambiada a ${selected.page.name}${igDesc}.`)]);
+
+    delete req.session.metaOAuthToken;
+    delete req.session.metaOAuthExpiresIn;
+    delete req.session.metaOAuthOptions;
+    delete req.session.metaOAuthProvider;
+    await saveSession(req);
+    return res.redirect(BASE_PATH);
+  } catch (error) {
+    structuredLog('account_switch_error', 'meta', { requestId: reqId, errorMsg: error.message, errorCode: error.code || 'UNKNOWN' });
+    const safeMsg = redactTokens(error.message || 'Error al cambiar de cuenta.');
+    setAlerts(req, [ninja('oauth', 'error', safeMsg)]);
+    await saveSession(req);
     return res.redirect(BASE_PATH);
   }
 }
@@ -466,59 +639,79 @@ async function confirmSelection(req, res, next) {
 // ── TikTok OAuth Flow ──
 
 async function startTikTokOAuth(req, res, next) {
+  const reqId = crypto.randomBytes(6).toString('hex');
   try {
     const tiktokOAuth = require('../services/tiktokOAuthService');
     const provider = 'tiktok';
+    structuredLog('tiktok_oauth_start', provider, { requestId: reqId, success: true });
     const sessionId = getOrCreateSessionId(req);
     const { url } = tiktokOAuth.getAuthorizationUrl(provider, sessionId);
     return res.redirect(url);
   } catch (error) {
-    const safeMsg = redactTokens(error.message || 'Error OAuth TikTok');
+    structuredLog('tiktok_oauth_start_error', 'tiktok', { requestId: reqId, errorMsg: error.message, errorCode: error.code || 'UNKNOWN' });
+    const safeMsg = redactTokens(error.message || 'Error al iniciar OAuth con TikTok.');
     setAlerts(req, [ninja('oauth', 'error', safeMsg)]);
+    await saveSession(req);
     return res.redirect(BASE_PATH);
   }
 }
 
 async function tiktokOAuthCallback(req, res, next) {
+  const reqId = crypto.randomBytes(6).toString('hex');
   try {
     const tiktokOAuth = require('../services/tiktokOAuthService');
     const { code, state, error, error_description } = req.query;
 
     if (error) {
-      const desc = error_description || error;
-      setAlerts(req, [ninja('oauth', 'error', `TikTok rechazó la conexión: ${desc}`)]);
+      structuredLog('tiktok_callback_provider_error', 'tiktok', { requestId: reqId, errorMsg: error_description || error });
+      setAlerts(req, [ninja('oauth', 'error', `TikTok rechazó la conexión: ${error_description || 'Error del proveedor'}`)]);
+      await saveSession(req);
       return res.redirect(BASE_PATH);
     }
 
     if (!code) {
+      structuredLog('tiktok_callback_no_code', 'tiktok', { requestId: reqId, errorCategory: 'missing_code' });
       setAlerts(req, [ninja('oauth', 'error', 'No se recibió código de autorización.')]);
+      await saveSession(req);
       return res.redirect(BASE_PATH);
     }
 
     // Exchange code for token with session-bound state validation
     const sessionId = req.session?.metaOAuthSessionId;
     const tokenData = await tiktokOAuth.exchangeCodeForToken(code, state, sessionId);
+    structuredLog('tiktok_token_exchange', 'tiktok', { requestId: reqId, success: true });
 
     // Complete connection (stores tokens and fetches user info)
     await tiktokOAuth.completeConnection('tiktok', tokenData, sessionId);
+    structuredLog('tiktok_connection_complete', 'tiktok', { requestId: reqId, success: true });
 
     const displayName = tokenData.openId || 'TikTok';
     setAlerts(req, [ninja('oauth', 'success', `Conectado a TikTok (${displayName}).`)]);
-
+    await saveSession(req);
     return res.redirect(BASE_PATH);
   } catch (error) {
     if (error.code === 'INVALID_STATE') {
+      structuredLog('tiktok_callback_invalid_state', 'tiktok', { requestId: reqId, errorCategory: 'invalid_state' });
       setAlerts(req, [ninja('oauth', 'error', 'Solicitud OAuth inválida, expirada o de otra sesión. Intenta conectar nuevamente.')]);
+      await saveSession(req);
       return res.redirect(BASE_PATH);
     }
-    const safeMsg = redactTokens(error.message || 'Error en callback TikTok OAuth');
+    structuredLog('tiktok_callback_error', 'tiktok', {
+      requestId: reqId, errorMsg: error.message, errorCode: error.code || 'UNKNOWN',
+      errorCategory: error.code || 'unknown', httpStatus: error.status || null,
+    });
+    const safeMsg = redactTokens(error.message || 'Error al procesar la autorización de TikTok.');
     setAlerts(req, [ninja('oauth', 'error', safeMsg)]);
+    await saveSession(req);
     return res.redirect(BASE_PATH);
   }
 }
 
 module.exports = {
   redactTokens,
+  structuredLog,
+  saveSession,
+  ninja,
   showList,
   showEdit,
   saveConfig,
@@ -529,6 +722,10 @@ module.exports = {
   metaOAuthCallback,
   showSelectAccount,
   confirmSelection,
+  switchMetaAccount,
   startTikTokOAuth,
   tiktokOAuthCallback,
+  checkMetaEnv,
+  checkTikTokEnv,
+  checkEncryptionEnv,
 };
