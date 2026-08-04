@@ -3204,35 +3204,42 @@ body.is-social-embed-open {
   .home-panel--hero {
     min-height: 100svh;
     height: auto;
-    padding-top: 5.5rem;
-    padding-bottom: clamp(0.5rem, 1.5svh, 1rem);
+    /* ── More space below fixed navbar ── */
+    padding-top: clamp(7.25rem, 14svh, 9rem);
+    padding-bottom: clamp(0.75rem, 1.5svh, 1.25rem);
     overflow: visible;
-  }
-
-  .hero-content {
-    flex: none;
+    /* Grid so hero-content children + hero-social + hero-ctas flow together */
+    display: grid;
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "text"
-      "ctas"
-      "stage";
-    grid-template-rows: auto auto auto;
+      "stage"
+      "social"
+      "ctas";
+    grid-template-rows: auto auto auto auto;
     row-gap: 0;
-    width: min(calc(100% - 1.5rem), 520px);
-    margin-inline: auto;
-    padding: clamp(0.5rem, 1svh, 0.75rem) 0 0;
+  }
+
+  /* Flatten hero-content so its children participate in the panel grid */
+  .hero-content {
+    display: contents;
   }
 
   .hero-text {
+    grid-area: text;
     width: 100%;
     max-width: none;
     display: flex;
     flex-direction: column;
     gap: 0;
+    /* Center the text block within the grid column */
+    justify-self: center;
+    width: min(calc(100% - 1.5rem), 520px);
+    padding: clamp(0.5rem, 1svh, 0.75rem) 0 0;
   }
 
   .hero-eyebrow {
-    margin: 0 0 clamp(1.1rem, 2svh, 1.4rem);
+    margin: 0 0 clamp(0.5rem, 1svh, 0.7rem);
     padding-bottom: clamp(0.45rem, 0.8svh, 0.55rem);
     font-size: clamp(0.72rem, 2.2vw, 0.86rem);
     line-height: 1.2;
@@ -3240,25 +3247,52 @@ body.is-social-embed-open {
 
   .hero-heading {
     max-width: 100%;
-    margin: 0 0 clamp(1.1rem, 2svh, 1.4rem);
+    margin: 0;
     font-size: clamp(2rem, 8.5vw, 3rem);
     line-height: 0.96;
     letter-spacing: -0.04em;
   }
 
   .hero-support {
-    margin: 0;
+    margin: clamp(0.3rem, 0.6svh, 0.4rem) 0 0;
     font-size: clamp(0.86rem, 3.4vw, 0.95rem);
     line-height: 1.55;
     max-width: 42ch;
   }
 
+  .hero-3d {
+    grid-area: stage;
+    width: min(calc(100% - 1.5rem), 520px);
+    height: clamp(260px, 35svh, 400px);
+    min-height: 0;
+    margin-top: clamp(0.75rem, 1.8svh, 1.25rem);
+    justify-self: center;
+  }
+
+  .hero-canvas {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+  }
+
+  .hero-social {
+    grid-area: social;
+    position: static;
+    justify-content: center;
+    width: min(calc(100% - 1.5rem), 520px);
+    margin: clamp(0.6rem, 1.5svh, 1rem) auto 0;
+    padding: 0;
+    justify-self: center;
+  }
+
   .hero-ctas {
+    grid-area: ctas;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    width: 100%;
+    width: min(calc(100% - 1.5rem), 520px);
     gap: clamp(0.55rem, 1vw, 0.75rem);
-    margin-top: clamp(1.25rem, 2.5svh, 1.6rem);
+    margin: clamp(1rem, 2.2svh, 1.5rem) auto clamp(0.75rem, 1.5svh, 1.25rem);
+    justify-self: center;
   }
 
   .hero-btn {
@@ -3274,29 +3308,6 @@ body.is-social-embed-open {
   .hero-btn-arrow {
     width: clamp(0.7rem, 2vw, 0.85em);
     height: clamp(0.7rem, 2vw, 0.85em);
-  }
-
-  .hero-3d {
-    width: 100%;
-    height: clamp(260px, 35svh, 400px);
-    min-height: 0;
-    margin-top: clamp(0.35rem, 0.8svh, 0.5rem);
-    align-self: center;
-  }
-
-  .hero-canvas {
-    width: 100%;
-    height: 100%;
-    max-width: 100%;
-  }
-
-  .hero-social {
-    position: static;
-    align-self: auto;
-    justify-content: flex-end;
-    width: min(calc(100% - 1.5rem), 520px);
-    margin: clamp(0.3rem, 0.8svh, 0.5rem) auto 0;
-    padding: 0;
   }
 }
 
@@ -3327,6 +3338,7 @@ body.is-social-embed-open {
     grid-template-columns: 1fr;
     gap: 0.55rem;
     margin-top: clamp(0.7rem, 1.8svh, 0.9rem);
+    margin-bottom: clamp(0.6rem, 1.5svh, 0.9rem);
   }
 
   .hero-btn {
@@ -3344,15 +3356,10 @@ body.is-social-embed-open {
   }
 }
 
-@media (max-width: 430px) {
-  .hero-social {
-    justify-content: center;
-  }
-}
-
 @media (max-width: 360px) {
-  .hero-content,
-  .hero-social {
+  .hero-text,
+  .hero-social,
+  .hero-ctas {
     width: calc(100% - 1rem);
   }
 }
