@@ -111,7 +111,7 @@ async function showPanel2(req, res, next) {
       title: 'Panel 2 — Showcase',
       layout: 'layouts/admin',
       pageStyles: ['/css/admin-page.css'],
-      pageScripts: ['/js/admin/media-selector.js', '/js/admin/carousel-image-position.js', '/js/admin/panel2-editor.js', '/js/admin/cms-editor-state.js'],
+      pageScripts: ['/js/admin/media-selector.js', '/js/admin/carousel-image-position.js', '/js/admin/item-editor-drawer.js', '/js/admin/panel2-editor.js', '/js/admin/cms-editor-state.js'],
       content,
       style,
       bgMedia,
@@ -200,25 +200,33 @@ async function publishPanel2(req, res) {
 
 // ── LogoLoop items ──
 
+async function persistLogoLoopItem(req, editing) {
+  const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
+  const values = {
+    item_type: req.body.item_type || 'text',
+    text_content: req.body.text_content?.trim() || null,
+    media_public_id: mediaPublicId,
+    url: req.body.url?.trim() || null,
+    link_type: req.body.link_type || 'internal',
+    target: req.body.target || '_self',
+    alt_text: req.body.alt_text?.trim() || null,
+    is_visible: req.body.is_visible === '0' ? 0 : 1,
+  };
+  if (editing) {
+    return repeatable.saveItem('logo_loop_items', req.body.public_id, values, { actorId: actorId(req) });
+  }
+  const section = await getSectionId('home', 'showcase');
+  return repeatable.createItem('logo_loop_items', section.id, {
+    ...values, status: 'draft', sort_order: 999,
+  }, { actorId: actorId(req) });
+}
+
 async function createLogoLoopItem(req, res) {
   const errors = validator.validateLogoLoopItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'logo', errors);
 
   try {
-    const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
-    const section = await getSectionId('home', 'showcase');
-    await repeatable.createItem('logo_loop_items', section.id, {
-      item_type: req.body.item_type || 'text',
-      text_content: req.body.text_content?.trim() || null,
-      media_public_id: mediaPublicId,
-      url: req.body.url?.trim() || null,
-      link_type: req.body.link_type || 'internal',
-      target: req.body.target || '_self',
-      alt_text: req.body.alt_text?.trim() || null,
-      is_visible: req.body.is_visible === '0' ? 0 : 1,
-      status: 'draft',
-      sort_order: 999,
-    }, { actorId: actorId(req) });
+    await persistLogoLoopItem(req, false);
     return successRedirect(req, res, '/admin/page/home/panel-2', 'Elemento agregado.');
   } catch (e) {
     console.error('Create logo loop item:', e);
@@ -230,17 +238,7 @@ async function saveLogoLoopItem(req, res) {
   const errors = validator.validateLogoLoopItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'logo', errors);
   try {
-    const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
-    await repeatable.saveItem('logo_loop_items', req.body.public_id, {
-      item_type: req.body.item_type,
-      text_content: req.body.text_content?.trim() || null,
-      media_public_id: mediaPublicId,
-      url: req.body.url?.trim() || null,
-      link_type: req.body.link_type || 'internal',
-      target: req.body.target || '_self',
-      alt_text: req.body.alt_text?.trim() || null,
-      is_visible: req.body.is_visible === '0' ? 0 : 1,
-    }, { actorId: actorId(req) });
+    await persistLogoLoopItem(req, true);
     return successRedirect(req, res, '/admin/page/home/panel-2', 'Elemento guardado.');
   } catch (e) {
     console.error('Save logo loop item:', e);
@@ -283,35 +281,57 @@ async function publishLogoLoop(req, res) {
   }
 }
 
+async function saveAndPublishLogoLoopItem(req, res) {
+  const errors = validator.validateLogoLoopItem(req.body);
+  if (errors.length) return renderItemFailure(req, res, showPanel2, 'logo', errors);
+  try {
+    await persistLogoLoopItem(req, Boolean(req.body.public_id));
+    const section = await getSectionId('home', 'showcase');
+    await repeatable.publishCollection('logo_loop_items', section.id, 'logoLoop_home', { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Elemento guardado y LogoLoop publicado.');
+  } catch (e) {
+    console.error('Save and publish logo loop item:', e);
+    return renderItemFailure(req, res, showPanel2, 'logo', [e.code === 'CMS_VALIDATION' ? e.message : 'No se pudo guardar y publicar LogoLoop.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
+  }
+}
+
 // ── Carousel items ──
+
+async function persistCarouselItem(req, editing) {
+  const position = validator.normalizeCarouselPosition(req.body);
+  const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
+  const previewMediaPublicId = await verifyImagePublicId(req.body.preview_media_public_id);
+  const values = {
+    eyebrow: req.body.eyebrow?.trim() || null,
+    title: req.body.title?.trim(),
+    description: req.body.description?.trim() || null,
+    button_label: req.body.button_label?.trim() || null,
+    button_url: req.body.button_url?.trim() || null,
+    button_target: req.body.button_target || '_self',
+    media_public_id: mediaPublicId,
+    media_alt: req.body.media_alt?.trim() || null,
+    preview_media_public_id: previewMediaPublicId,
+    preview_media_alt: req.body.preview_media_alt?.trim() || null,
+    position_x: position.x,
+    position_y: position.y,
+    theme_key: req.body.theme_key?.trim() || null,
+    is_visible: req.body.is_visible === '0' ? 0 : 1,
+  };
+  if (editing) {
+    return repeatable.saveItem('home_carousel_items', req.body.public_id, values, { actorId: actorId(req) });
+  }
+  const section = await getSectionId('home', 'showcase');
+  return repeatable.createItem('home_carousel_items', section.id, {
+    ...values, status: 'draft', sort_order: 999,
+  }, { actorId: actorId(req) });
+}
 
 async function createCarouselItem(req, res) {
   const errors = validator.validateCarouselItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
 
   try {
-    const position = validator.normalizeCarouselPosition(req.body);
-    const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
-    const previewMediaPublicId = await verifyImagePublicId(req.body.preview_media_public_id);
-    const section = await getSectionId('home', 'showcase');
-    await repeatable.createItem('home_carousel_items', section.id, {
-      eyebrow: req.body.eyebrow?.trim() || null,
-      title: req.body.title?.trim(),
-      description: req.body.description?.trim() || null,
-      button_label: req.body.button_label?.trim() || null,
-      button_url: req.body.button_url?.trim() || null,
-      button_target: req.body.button_target || '_self',
-      media_public_id: mediaPublicId,
-      media_alt: req.body.media_alt?.trim() || null,
-      preview_media_public_id: previewMediaPublicId,
-      preview_media_alt: req.body.preview_media_alt?.trim() || null,
-      position_x: position.x,
-      position_y: position.y,
-      theme_key: req.body.theme_key?.trim() || null,
-      is_visible: req.body.is_visible === '0' ? 0 : 1,
-      status: 'draft',
-      sort_order: 999,
-    }, { actorId: actorId(req) });
+    await persistCarouselItem(req, false);
     return successRedirect(req, res, '/admin/page/home/panel-2', 'Proyecto agregado.');
   } catch (e) {
     return renderItemFailure(req, res, showPanel2, 'carousel', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al crear el proyecto.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
@@ -322,25 +342,7 @@ async function saveCarouselItem(req, res) {
   const errors = validator.validateCarouselItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
   try {
-    const position = validator.normalizeCarouselPosition(req.body);
-    const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
-    const previewMediaPublicId = await verifyImagePublicId(req.body.preview_media_public_id);
-    await repeatable.saveItem('home_carousel_items', req.body.public_id, {
-      eyebrow: req.body.eyebrow?.trim() || null,
-      title: req.body.title?.trim(),
-      description: req.body.description?.trim() || null,
-      button_label: req.body.button_label?.trim() || null,
-      button_url: req.body.button_url?.trim() || null,
-      button_target: req.body.button_target || '_self',
-      media_public_id: mediaPublicId,
-      media_alt: req.body.media_alt?.trim() || null,
-      preview_media_public_id: previewMediaPublicId,
-      preview_media_alt: req.body.preview_media_alt?.trim() || null,
-      position_x: position.x,
-      position_y: position.y,
-      theme_key: req.body.theme_key?.trim() || null,
-      is_visible: req.body.is_visible === '0' ? 0 : 1,
-    }, { actorId: actorId(req) });
+    await persistCarouselItem(req, true);
     return successRedirect(req, res, '/admin/page/home/panel-2', 'Proyecto guardado.');
   } catch (e) {
     return renderItemFailure(req, res, showPanel2, 'carousel', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al guardar el proyecto.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
@@ -382,6 +384,20 @@ async function publishCarousel(req, res) {
   }
 }
 
+async function saveAndPublishCarouselItem(req, res) {
+  const errors = validator.validateCarouselItem(req.body);
+  if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
+  try {
+    await persistCarouselItem(req, Boolean(req.body.public_id));
+    const section = await getSectionId('home', 'showcase');
+    await repeatable.publishCollection('home_carousel_items', section.id, 'carousel_home', { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-2', 'Proyecto guardado y carrusel publicado.');
+  } catch (e) {
+    console.error('Save and publish carousel item:', e);
+    return renderItemFailure(req, res, showPanel2, 'carousel', [e.code === 'CMS_VALIDATION' ? e.message : 'No se pudo guardar y publicar el carrusel.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
+  }
+}
+
 // ── Panel 3: Services ──
 
 async function showPanel3(req, res, next) {
@@ -405,7 +421,7 @@ async function showPanel3(req, res, next) {
       title: 'Panel 3 — Servicios',
       layout: 'layouts/admin',
       pageStyles: ['/css/admin-page.css'],
-      pageScripts: ['/js/admin/media-selector.js', '/js/admin/panel3-editor.js', '/js/admin/cms-editor-state.js'],
+      pageScripts: ['/js/admin/media-selector.js', '/js/admin/item-editor-drawer.js', '/js/admin/panel3-editor.js', '/js/admin/cms-editor-state.js'],
       content,
       style,
       items,
@@ -502,30 +518,38 @@ async function publishPanel3(req, res) {
 
 // ── Feature items ──
 
+async function persistFeatureItem(req, editing) {
+  const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
+  const values = {
+    title: req.body.title?.trim(),
+    description: req.body.description?.trim() || null,
+    detail_text: req.body.detail_text?.trim() || null,
+    button_label: req.body.button_label?.trim() || null,
+    icon_type: req.body.icon_type || 'builtin',
+    icon_key: req.body.icon_key?.trim() || null,
+    media_public_id: mediaPublicId,
+    media_alt: req.body.media_alt?.trim() || null,
+    url: req.body.url?.trim() || null,
+    link_aria_label: req.body.link_aria_label?.trim() || null,
+    link_type: req.body.link_type || 'internal',
+    target: req.body.target || '_self',
+    style_variant: req.body.style_variant?.trim() || null,
+    is_visible: req.body.is_visible === '0' ? 0 : 1,
+  };
+  if (editing) {
+    return repeatable.saveItem('home_feature_items', req.body.public_id, values, { actorId: actorId(req) });
+  }
+  const section = await getSectionId('home', 'services');
+  return repeatable.createItem('home_feature_items', section.id, {
+    ...values, status: 'draft', sort_order: 999,
+  }, { actorId: actorId(req) });
+}
+
 async function createFeatureItem(req, res) {
   const errors = validator.validateFeatureItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel3, 'feature', errors);
   try {
-    const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
-    const section = await getSectionId('home', 'services');
-    await repeatable.createItem('home_feature_items', section.id, {
-      title: req.body.title?.trim(),
-      description: req.body.description?.trim() || null,
-      detail_text: req.body.detail_text?.trim() || null,
-      button_label: req.body.button_label?.trim() || null,
-      icon_type: req.body.icon_type || 'builtin',
-      icon_key: req.body.icon_key?.trim() || null,
-      media_public_id: mediaPublicId,
-      media_alt: req.body.media_alt?.trim() || null,
-      url: req.body.url?.trim() || null,
-      link_aria_label: req.body.link_aria_label?.trim() || null,
-      link_type: req.body.link_type || 'internal',
-      target: req.body.target || '_self',
-      style_variant: req.body.style_variant?.trim() || null,
-      is_visible: req.body.is_visible === '0' ? 0 : 1,
-      status: 'draft',
-      sort_order: 999,
-    }, { actorId: actorId(req) });
+    await persistFeatureItem(req, false);
     return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjeta agregada.');
   } catch (e) {
     return renderItemFailure(req, res, showPanel3, 'feature', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al crear la tarjeta.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
@@ -536,23 +560,7 @@ async function saveFeatureItem(req, res) {
   const errors = validator.validateFeatureItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel3, 'feature', errors);
   try {
-    const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
-    await repeatable.saveItem('home_feature_items', req.body.public_id, {
-      title: req.body.title?.trim(),
-      description: req.body.description?.trim() || null,
-      detail_text: req.body.detail_text?.trim() || null,
-      button_label: req.body.button_label?.trim() || null,
-      icon_type: req.body.icon_type || 'builtin',
-      icon_key: req.body.icon_key?.trim() || null,
-      media_public_id: mediaPublicId,
-      media_alt: req.body.media_alt?.trim() || null,
-      url: req.body.url?.trim() || null,
-      link_aria_label: req.body.link_aria_label?.trim() || null,
-      link_type: req.body.link_type || 'internal',
-      target: req.body.target || '_self',
-      style_variant: req.body.style_variant?.trim() || null,
-      is_visible: req.body.is_visible === '0' ? 0 : 1,
-    }, { actorId: actorId(req) });
+    await persistFeatureItem(req, true);
     return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjeta guardada.');
   } catch (e) {
     return renderItemFailure(req, res, showPanel3, 'feature', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al guardar la tarjeta.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
@@ -594,10 +602,24 @@ async function publishFeatureItems(req, res) {
   }
 }
 
+async function saveAndPublishFeatureItem(req, res) {
+  const errors = validator.validateFeatureItem(req.body);
+  if (errors.length) return renderItemFailure(req, res, showPanel3, 'feature', errors);
+  try {
+    await persistFeatureItem(req, Boolean(req.body.public_id));
+    const section = await getSectionId('home', 'services');
+    await repeatable.publishCollection('home_feature_items', section.id, 'features_home', { actorId: actorId(req) });
+    return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjeta guardada y características publicadas.');
+  } catch (e) {
+    console.error('Save and publish feature item:', e);
+    return renderItemFailure(req, res, showPanel3, 'feature', [e.code === 'CMS_VALIDATION' ? e.message : 'No se pudo guardar y publicar la colección.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
+  }
+}
+
 module.exports = {
   showPanel2, savePanel2Draft, publishPanel2,
-  createLogoLoopItem, saveLogoLoopItem, archiveLogoLoopItem, reorderLogoLoopItems, publishLogoLoop,
-  createCarouselItem, saveCarouselItem, archiveCarouselItem, reorderCarouselItems, publishCarousel,
+  createLogoLoopItem, saveLogoLoopItem, saveAndPublishLogoLoopItem, archiveLogoLoopItem, reorderLogoLoopItems, publishLogoLoop,
+  createCarouselItem, saveCarouselItem, saveAndPublishCarouselItem, archiveCarouselItem, reorderCarouselItems, publishCarousel,
   showPanel3, savePanel3Draft, publishPanel3,
-  createFeatureItem, saveFeatureItem, archiveFeatureItem, reorderFeatureItems, publishFeatureItems,
+  createFeatureItem, saveFeatureItem, saveAndPublishFeatureItem, archiveFeatureItem, reorderFeatureItems, publishFeatureItems,
 };

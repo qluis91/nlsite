@@ -117,7 +117,7 @@ describe('EJS compile — Panel 2 & 3 views', () => {
     assert.ok(!html.includes('onclick="editLogoItem'), 'Should not have inline onclick for LogoLoop');
   });
 
-  it('panel2.ejs carousel form has scoped ID and no orphan </form>', async () => {
+  it('panel2.ejs carousel form is inside the carousel drawer, no legacy <details>', async () => {
     const ejs = require('ejs');
     const viewPath = path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'panel2.ejs');
     const html = await ejs.renderFile(viewPath, {
@@ -125,7 +125,16 @@ describe('EJS compile — Panel 2 & 3 views', () => {
       logoItems: [], carouselItems: [],
       csrfToken: 'test-token', safeJsonScript, error: null, saved: null,
     });
-    assert.ok(html.includes('id="carousel-edit-details"'), 'Carousel edit details should have scoped id');
+    // Carousel form exists exactly once inside the carousel drawer
+    assert.ok(html.includes('id="carousel-form"'), 'Carousel form should exist');
+    assert.equal((html.match(/id="carousel-form"/g) || []).length, 1, 'Carousel form must appear exactly once');
+    const carouselDrawerIndex = html.indexOf('data-item-editor-drawer="carousel"');
+    const carouselFormIndex = html.indexOf('id="carousel-form"');
+    assert.ok(carouselFormIndex > carouselDrawerIndex, 'Carousel form must be inside carousel drawer');
+    // No legacy <details> wrapper
+    assert.doesNotMatch(html, /<details[^>]*>\s*<summary[^>]*>Agregar \/ Editar/);
+    assert.doesNotMatch(html, /<summary>Agregar \/ Editar proyecto<\/summary>/);
+    // Form tags must balance
     const openCount = (html.match(/<form /g) || []).length;
     const closeCount = (html.match(/<\/form>/g) || []).length;
     assert.equal(openCount, closeCount, 'form tags must balance');

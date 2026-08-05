@@ -1,0 +1,122 @@
+<form method="POST"
+      action="/admin/page/home/panel-3/items"
+      class="cms-form item-editor-drawer__form"
+      id="feature-form"
+      data-cms-editor-form
+      data-item-editor-form
+      novalidate>
+  <div class="item-editor-drawer__body">
+    <%- include('item-editor-errors', { errors: submittedKind === 'feature' ? fieldErrors : [] }) %>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="public_id" id="feature-edit-id" value="">
+
+    <div class="form-group">
+      <label class="field-label" for="feature-title">Título <span class="required">*</span></label>
+      <input type="text" id="feature-title" name="title" class="form-input" maxlength="160" required data-item-editor-autofocus>
+    </div>
+    <div class="form-group">
+      <label class="field-label" for="feature-desc">Descripción</label>
+      <textarea id="feature-desc" name="description" class="form-input" rows="3" maxlength="1000"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="field-label" for="feature-detail">Texto detallado</label>
+      <textarea id="feature-detail" name="detail_text" class="form-input" rows="3" maxlength="1500"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="field-label" for="feature-button-label">Etiqueta del botón</label>
+      <input id="feature-button-label" name="button_label" class="form-input" maxlength="80" value="VER DETALLE">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label" for="feature-icon-type">Tipo de icono</label>
+        <select name="icon_type" id="feature-icon-type" class="form-input">
+          <option value="builtin">Icono integrado</option>
+          <option value="media">Imagen de biblioteca</option>
+        </select>
+      </div>
+      <div class="form-group" id="feature-builtin-group">
+        <label class="field-label" for="feature-icon-key">Ícono integrado</label>
+        <select name="icon_key" id="feature-icon-key" class="form-input">
+          <option value="">Seleccionar...</option>
+          <option value="diseno-3d">Diseño 3D</option>
+          <option value="escaneo-3d">Escaneo 3D</option>
+          <option value="diseno-grafico">Diseño Gráfico</option>
+          <option value="desarrollo-web">Desarrollo Web</option>
+          <option value="prendas">Prendas</option>
+          <option value="impresion-3d">Impresión 3D</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group" id="feature-media-group" hidden>
+      <%- include('../../../../components/media-selector', {
+        fieldName: 'media_public_id',
+        currentValue: '',
+        label: 'Icono desde biblioteca',
+        kindLabel: 'Icono/Imagen',
+        allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
+        allowedCategories: ['icon'],
+        uploadProfile: 'feature-icon',
+      }) %>
+    </div>
+    <div class="form-group">
+      <label class="field-label" for="feature-media-alt">Texto alternativo del icono</label>
+      <input id="feature-media-alt" name="media_alt" class="form-input" maxlength="250">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label" for="feature-url">URL (opcional)</label>
+        <input type="text" id="feature-url" name="url" class="form-input" maxlength="500">
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="feature-link-aria">Etiqueta accesible del enlace</label>
+        <input id="feature-link-aria" name="link_aria_label" class="form-input" maxlength="180">
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="feature-link-type">Tipo de enlace</label>
+        <select name="link_type" id="feature-link-type" class="form-input">
+          <option value="internal">Interno</option>
+          <option value="external">Externo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="feature-target">Target</label>
+        <select name="target" id="feature-target" class="form-input">
+          <option value="_self">Misma pestaña</option>
+          <option value="_blank">Nueva pestaña</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label" for="feature-style">Variante de estilo</label>
+        <select name="style_variant" id="feature-style" class="form-input">
+          <option value="">Default</option>
+          <option value="default">Default</option>
+          <option value="highlight">Highlight</option>
+          <option value="minimal">Minimal</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="feature-visible">Visible</label>
+        <select name="is_visible" id="feature-visible" class="form-input">
+          <option value="1">Sí</option>
+          <option value="0">No</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <footer class="item-editor-drawer__footer">
+    <button type="button" class="btn btn-secondary" data-item-editor-close>Cancelar</button>
+    <button type="submit" class="btn btn-save" id="feature-submit-btn">Guardar borrador</button>
+    <% if (canPublish) { %>
+      <button type="submit"
+              class="btn btn-publish"
+              formaction="/admin/page/home/panel-3/items/save-publish">Guardar y publicar características</button>
+    <% } %>
+  </footer>
+</form>

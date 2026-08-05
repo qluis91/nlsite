@@ -77,7 +77,11 @@
 <div class="cms-tab-panel" role="tabpanel" data-panel="logoloop" hidden>
   <div class="cms-section-header">
     <h3>Elementos del LogoLoop</h3>
-    <span class="badge"><%= logoItems.filter(i => i.status === 'published').length %> publicados · <%= logoItems.filter(i => i.status === 'draft').length %> borradores · <%= logoItems.length %> total</span>
+    <div class="cms-section-header__actions">
+      <span class="badge"><%= logoItems.filter(i => i.status === 'published').length %> publicados · <%= logoItems.filter(i => i.status === 'draft').length %> borradores · <%= logoItems.length %> total</span>
+      <button type="button" class="btn btn-primary"
+              data-item-editor-open data-editor-type="logo" data-mode="create" data-logo-add>Agregar elemento</button>
+    </div>
   </div>
 
   <table class="cms-table">
@@ -101,7 +105,9 @@
           <td><span class="badge badge-<%= item.status === 'published' ? 'published' : 'draft' %>"><%= item.status %></span></td>
           <td><%= item.sort_order %></td>
           <td class="cms-actions-cell">
-            <button type="button" class="btn btn-sm btn-secondary" data-logo-edit-id="<%= item.public_id %>">Editar</button>
+            <button type="button" class="btn btn-sm btn-secondary"
+                    data-item-editor-open data-editor-type="logo" data-mode="edit"
+                    data-item-id="<%= item.public_id %>" data-logo-edit-id="<%= item.public_id %>">Editar</button>
             <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/archive" class="cms-form--inline">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <input type="hidden" name="public_id" value="<%= item.public_id %>">
@@ -113,88 +119,15 @@
     </tbody>
   </table>
 
-  <details class="cms-card">
-    <summary class="cms-card-title">Agregar / Editar elemento</summary>
-    <form method="POST" action="/admin/page/home/panel-2/logo-loop/items" class="cms-form" id="logo-form" data-cms-editor-form novalidate>
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="public_id" id="logo-edit-id" value="">
-      <input type="hidden" name="action" id="logo-action" value="create">
 
-      <div class="form-row">
-        <div class="form-group">
-          <label class="field-label">Tipo</label>
-          <select name="item_type" id="logo-type" class="form-input">
-            <option value="text">Texto</option>
-            <option value="image">Imagen</option>
-            <option value="logo">Logo</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="field-label">Visible</label>
-          <select name="is_visible" id="logo-visible" class="form-input">
-            <option value="1">Sí</option>
-            <option value="0">No</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-group" id="logo-text-group">
-        <label class="field-label" for="logo-text-content">Contenido de texto</label>
-        <input type="text" id="logo-text-content" name="text_content" class="form-input" maxlength="160">
-      </div>
-
-      <div class="form-group" id="logo-media-group" hidden>
-        <%- include('../../../components/media-selector', {
-          fieldName: 'media_public_id',
-          currentValue: '',
-          label: 'Imagen/Logo',
-          kindLabel: 'Imagen',
-          allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
-          allowedCategories: ['logo'],
-          uploadProfile: 'logo-loop',
-        }) %>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="field-label" for="logo-url">URL (opcional)</label>
-          <input type="text" id="logo-url" name="url" class="form-input" maxlength="500" aria-describedby="logo-url-help" placeholder="/pagina o #seccion o https://...">
-          <%- include('../../../components/field-help', { id: 'logo-url', text: 'Para páginas internas usa /ruta. Para anclas usa #seccion. Enlaces externos deben incluir https://.' }) %>
-        </div>
-        <div class="form-group">
-          <label class="field-label">Tipo de enlace</label>
-          <select name="link_type" id="logo-link-type" class="form-input">
-            <option value="internal">Interno</option>
-            <option value="external">Externo</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="field-label">Target</label>
-          <select name="target" id="logo-target" class="form-input">
-            <option value="_self">Misma pestaña</option>
-            <option value="_blank">Nueva pestaña</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-group" id="logo-alt-group" hidden>
-        <label class="field-label" for="logo-alt">Texto alternativo</label>
-        <input type="text" id="logo-alt" name="alt_text" class="form-input" maxlength="250">
-      </div>
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary" id="logo-submit-btn">Agregar elemento</button>
-        <button type="button" class="btn btn-secondary" id="logo-cancel-btn" hidden>Cancelar</button>
-      </div>
-    </form>
-
-    <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/reorder" class="cms-form cms-form--inline" style="margin-top:1rem">
+  <div class="cms-card">
+    <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/reorder" class="cms-form cms-form--inline">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <label class="field-label">Reordenar (IDs separados por coma)</label>
       <input type="text" name="ids" class="form-input" value="<%= logoItems.map(i => i.public_id).join(',') %>" style="width:100%">
       <button type="submit" class="btn btn-secondary btn-sm">Actualizar orden</button>
     </form>
-  </details>
+  </div>
 
   <div class="cms-section-footer">
     <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/publish" class="cms-form" data-cms-publish-form>
@@ -208,7 +141,11 @@
 <div class="cms-tab-panel" role="tabpanel" data-panel="carousel" hidden>
   <div class="cms-section-header">
     <h3>Proyectos del carrusel</h3>
-    <span class="badge"><%= carouselItems.filter(i => i.status === 'published').length %> publicados · <%= carouselItems.filter(i => i.status === 'draft').length %> borradores</span>
+    <div class="cms-section-header__actions">
+      <span class="badge"><%= carouselItems.filter(i => i.status === 'published').length %> publicados · <%= carouselItems.filter(i => i.status === 'draft').length %> borradores</span>
+      <button type="button" class="btn btn-primary"
+              data-item-editor-open data-editor-type="carousel" data-mode="create" data-carousel-add>Agregar proyecto</button>
+    </div>
   </div>
 
   <% carouselItems.forEach(function(item) { %>
@@ -230,7 +167,9 @@
             <small>Tema: <%= item.theme_key || '-' %> · Visible: <%= item.is_visible ? 'Sí' : 'No' %> · <%= item.status %></small>
           </p>
           <div class="cms-actions-cell">
-            <button type="button" class="btn btn-sm btn-secondary" data-carousel-edit-id="<%= item.public_id %>">Editar</button>
+            <button type="button" class="btn btn-sm btn-secondary"
+                    data-item-editor-open data-editor-type="carousel" data-mode="edit"
+                    data-item-id="<%= item.public_id %>" data-carousel-edit-id="<%= item.public_id %>">Editar</button>
             <form method="POST" action="/admin/page/home/panel-2/carousel/items/archive" class="cms-form--inline">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <input type="hidden" name="public_id" value="<%= item.public_id %>">
@@ -243,127 +182,18 @@
   <% }); %>
 
   <% if (!carouselItems.length) { %>
-    <div class="empty-state">Sin proyectos en el carrusel. Agregue uno usando el formulario abajo.</div>
+    <div class="empty-state">Sin proyectos en el carrusel. Use “Agregar proyecto” para crear uno.</div>
   <% } %>
 
-  <details class="cms-card" id="carousel-edit-details">
-    <summary class="cms-card-title">Agregar / Editar proyecto</summary>
-    <form method="POST" action="/admin/page/home/panel-2/carousel/items" class="cms-form" id="carousel-form" data-cms-editor-form novalidate>
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="public_id" id="carousel-edit-id" value="">
 
-      <div class="form-row">
-        <div class="form-group">
-          <label class="field-label" for="carousel-eyebrow">Eyebrow</label>
-          <input type="text" id="carousel-eyebrow" name="eyebrow" class="form-input" maxlength="120">
-        </div>
-        <div class="form-group">
-          <label class="field-label" for="carousel-theme">Tema</label>
-          <select name="theme_key" id="carousel-theme" class="form-input">
-            <option value="graphite">Graphite</option>
-            <option value="lime">Lime</option>
-            <option value="silver">Silver</option>
-            <option value="ink">Ink</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label class="field-label" for="carousel-title">Título <span class="required">*</span></label>
-        <input type="text" id="carousel-title" name="title" class="form-input" maxlength="180" required>
-      </div>
-
-      <div class="form-group">
-        <label class="field-label" for="carousel-desc">Descripción</label>
-        <textarea id="carousel-desc" name="description" class="form-input" rows="3" maxlength="1200"></textarea>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="field-label" for="carousel-btn-label">Etiqueta del botón</label>
-          <input type="text" id="carousel-btn-label" name="button_label" class="form-input" maxlength="80">
-        </div>
-        <div class="form-group">
-          <label class="field-label" for="carousel-btn-url">URL del botón</label>
-          <input type="text" id="carousel-btn-url" name="button_url" class="form-input" maxlength="500">
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label class="field-label">Target del botón</label>
-        <select name="button_target" id="carousel-btn-target" class="form-input">
-          <option value="_self">Misma pestaña</option>
-          <option value="_blank">Nueva pestaña</option>
-        </select>
-      </div>
-
-      <div class="form-group" id="carousel-media-group">
-        <%- include('../../../components/media-selector', {
-          fieldName: 'media_public_id',
-          currentValue: '',
-          label: 'Imagen principal / fondo',
-          kindLabel: 'Imagen de proyecto',
-          allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
-          allowedCategories: ['carousel'],
-          uploadProfile: 'carousel-main',
-        }) %>
-      </div>
-      <div class="form-group"><label class="field-label" for="carousel-media-alt">Texto alternativo de la imagen</label><input id="carousel-media-alt" name="media_alt" class="form-input" maxlength="250"></div>
-
-      <fieldset class="carousel-focal-editor" data-carousel-focal-editor data-carousel-media-field="media_public_id">
-        <legend>Encuadre de la imagen</legend>
-        <div class="carousel-focal-editor__frame" data-carousel-focal-frame aria-describedby="carousel-focal-help">
-          <img alt="" data-carousel-focal-preview draggable="false" hidden>
-          <span class="carousel-focal-editor__empty" data-carousel-focal-empty>Selecciona una imagen para previsualizar el encuadre.</span>
-        </div>
-        <p id="carousel-focal-help" class="text-muted">Arrastra la imagen para ajustar el encuadre. Los controles de rango permiten un ajuste accesible y preciso.</p>
-        <div class="carousel-focal-editor__controls">
-          <label class="field-label" for="carousel-position-x">
-            Horizontal: <output for="carousel-position-x" data-carousel-position-x-output>50</output>
-          </label>
-          <input class="form-input carousel-focal-editor__range" type="range" id="carousel-position-x" name="position_x" min="0" max="100" step="1" value="50" data-carousel-position-x>
-          <label class="field-label" for="carousel-position-y">
-            Vertical: <output for="carousel-position-y" data-carousel-position-y-output>50</output>
-          </label>
-          <input class="form-input carousel-focal-editor__range" type="range" id="carousel-position-y" name="position_y" min="0" max="100" step="1" value="50" data-carousel-position-y>
-          <button type="button" class="btn btn-secondary" data-carousel-position-center>Centrar</button>
-        </div>
-      </fieldset>
-
-      <div class="form-group" id="carousel-preview-media-group">
-        <%- include('../../../components/media-selector', {
-          fieldName: 'preview_media_public_id',
-          currentValue: '',
-          label: 'Imagen de preview (opcional)',
-          kindLabel: 'Imagen preview',
-          allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
-          allowedCategories: ['carousel'],
-          uploadProfile: 'carousel-preview',
-        }) %>
-      </div>
-      <div class="form-group"><label class="field-label" for="carousel-preview-alt">Texto alternativo del preview</label><input id="carousel-preview-alt" name="preview_media_alt" class="form-input" maxlength="250"></div>
-
-      <div class="form-group">
-        <label class="field-label">Visible</label>
-        <select name="is_visible" id="carousel-visible" class="form-input">
-          <option value="1">Sí</option>
-          <option value="0">No</option>
-        </select>
-      </div>
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary" id="carousel-submit-btn">Agregar proyecto</button>
-        <button type="button" class="btn btn-secondary" id="carousel-cancel-btn" hidden>Cancelar</button>
-      </div>
-    </form>
-
-    <form method="POST" action="/admin/page/home/panel-2/carousel/items/reorder" class="cms-form cms-form--inline" style="margin-top:1rem">
+  <div class="cms-card">
+    <form method="POST" action="/admin/page/home/panel-2/carousel/items/reorder" class="cms-form cms-form--inline">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <label class="field-label">Reordenar (IDs separados por coma)</label>
       <input type="text" name="ids" class="form-input" value="<%= carouselItems.map(i => i.public_id).join(',') %>" style="width:100%">
       <button type="submit" class="btn btn-secondary btn-sm">Actualizar orden</button>
     </form>
-  </details>
+  </div>
 
   <div class="cms-section-footer">
     <form method="POST" action="/admin/page/home/panel-2/carousel/items/publish" class="cms-form" data-cms-publish-form>
@@ -403,6 +233,32 @@
 <form id="panel2-publish-form" method="POST" action="/admin/page/home/panel-2/publish" style="display:none" data-cms-publish-form>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 </form>
+
+<% /* Drawer form partials preserve the existing components/media-selector integration. */ %>
+<%- include('../../../components/admin/item-editor-drawer', {
+  kind: 'logo',
+  createTitle: 'Agregar elemento de LogoLoop',
+  editTitle: 'Editar elemento de LogoLoop',
+  formPartial: '../../pages/admin/page/partials/logo-loop-form',
+  formLocals: {
+    csrfToken: csrfToken,
+    canPublish: typeof capabilities !== 'undefined' && capabilities.includes('home.logoLoop.publish'),
+    fieldErrors: typeof fieldErrors !== 'undefined' ? fieldErrors : [],
+    submittedKind: typeof submittedItem !== 'undefined' && submittedItem ? submittedItem.kind : null
+  }
+}) %>
+<%- include('../../../components/admin/item-editor-drawer', {
+  kind: 'carousel',
+  createTitle: 'Agregar proyecto',
+  editTitle: 'Editar proyecto',
+  formPartial: '../../pages/admin/page/partials/carousel-form',
+  formLocals: {
+    csrfToken: csrfToken,
+    canPublish: typeof capabilities !== 'undefined' && capabilities.includes('home.carousel.publish'),
+    fieldErrors: typeof fieldErrors !== 'undefined' ? fieldErrors : [],
+    submittedKind: typeof submittedItem !== 'undefined' && submittedItem ? submittedItem.kind : null
+  }
+}) %>
 </div>
 
 <script type="application/json" id="panel2-submitted-item-data"><%- safeJsonScript(typeof submittedItem !== 'undefined' ? submittedItem : null) %></script>

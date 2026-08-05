@@ -1,0 +1,35 @@
+<%
+  const editorKind = String(kind || 'item');
+  const drawerId = `item-editor-drawer-${editorKind}`;
+  const drawerTitleId = `${drawerId}-title`;
+%>
+<div class="item-editor-drawer"
+     data-item-editor-drawer="<%= editorKind %>"
+     data-create-title="<%= createTitle %>"
+     data-edit-title="<%= editTitle %>"
+     hidden>
+  <button type="button"
+          class="item-editor-drawer__overlay"
+          data-item-editor-close
+          tabindex="-1"
+          aria-label="Cerrar editor"></button>
+
+  <section class="item-editor-drawer__panel"
+           role="dialog"
+           aria-modal="true"
+           aria-labelledby="<%= drawerTitleId %>"
+           tabindex="-1">
+    <header class="item-editor-drawer__header">
+      <div>
+        <p class="item-editor-drawer__eyebrow" data-item-editor-mode-label>Nuevo elemento</p>
+        <h2 id="<%= drawerTitleId %>" data-item-editor-title><%= createTitle %></h2>
+      </div>
+      <button type="button"
+              class="item-editor-drawer__close"
+              data-item-editor-close
+              aria-label="Cerrar editor">&times;</button>
+    </header>
+
+    <%- include(formPartial, formLocals) %>
+  </section>
+</div>

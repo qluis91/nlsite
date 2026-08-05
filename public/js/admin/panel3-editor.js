@@ -25,6 +25,7 @@
   }
 
   var featureItems = loadItemsData();
+  var drawer = window.AdminItemEditorDrawer;
   var submittedItem = (function () {
     var node = document.getElementById('panel3-submitted-item-data');
     if (!node) return null;
@@ -106,25 +107,20 @@
     el('feature-target').value = item.target || '_self';
     el('feature-style').value = item.style_variant || '';
     el('feature-visible').value = item.is_visible ? '1' : '0';
-    el('feature-submit-btn').textContent = 'Guardar cambios';
-    el('feature-cancel-btn').hidden = false;
     form.action = '/admin/page/home/panel-3/items/save';
     updateIconFields();
-    var tc = document.querySelector('[data-tab="cards"]');
-    if (tc) tc.click();
-    var summary = document.querySelector('.cms-card summary');
-    if (summary) summary.click();
   }
 
   function resetFeatureForm() {
     var form = document.getElementById('feature-form');
-    var el = getEl;
-    el('feature-edit-id').value = '';
-    el('feature-submit-btn').textContent = 'Agregar tarjeta';
-    el('feature-cancel-btn').hidden = true;
     if (form) {
       form.action = '/admin/page/home/panel-3/items';
       form.reset();
+      var selector = form.querySelector('[data-media-selector]');
+      if (selector) selector.dispatchEvent(new CustomEvent('media-selector:load', {
+        bubbles: true,
+        detail: { value: '', publicId: '', thumbnailUrl: '', publicUrl: '', title: '' }
+      }));
     }
     updateIconFields();
   }
@@ -134,41 +130,50 @@
     return document.getElementById(id) || {};
   }
 
-  // ── Delegate edit clicks via data-feature-edit-id attributes ──
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest('button');
-    if (!btn) return;
-
-    if (btn.dataset.featureEditId) {
-      var fi = findFeatureItem(btn.dataset.featureEditId);
-      if (fi) editFeatureItem(fi);
-      return;
-    }
-
-    if (btn.id === 'feature-cancel-btn') {
-      resetFeatureForm();
-    }
-  });
+  if (drawer) {
+    drawer.register('feature', {
+      create: function () {
+        var tab = document.querySelector('[data-tab="cards"]');
+        if (tab) tab.click();
+        resetFeatureForm();
+      },
+      edit: function (id) {
+        var item = findFeatureItem(id);
+        if (!item) return;
+          var tab = document.querySelector('[data-tab="cards"]');
+          if (tab) tab.click();
+        editFeatureItem(item);
+      },
+    });
+  }
 
   if (submittedItem && submittedItem.kind === 'feature' && submittedItem.values) {
     var values = submittedItem.values;
-    editFeatureItem({
-      id: values.public_id || '',
-      title: values.title,
-      description: values.description,
-      detail_text: values.detail_text,
-      button_label: values.button_label,
-      icon_type: values.icon_type,
-      icon_key: values.icon_key,
-      media_public_id: values.media_public_id || '',
-      media_alt: values.media_alt,
-      url: values.url,
-      link_aria_label: values.link_aria_label,
-      link_type: values.link_type,
-      target: values.target,
-      style_variant: values.style_variant,
-      is_visible: values.is_visible !== '0',
+    if (drawer) drawer.requestOpen('feature', {
+      trigger: null,
+      mode: values.public_id ? 'edit' : 'create',
+      prepare: function () {
+        var tab = document.querySelector('[data-tab="cards"]');
+        if (tab) tab.click();
+        editFeatureItem({
+          id: values.public_id || '',
+          title: values.title,
+          description: values.description,
+          detail_text: values.detail_text,
+          button_label: values.button_label,
+          icon_type: values.icon_type,
+          icon_key: values.icon_key,
+          media_public_id: values.media_public_id || '',
+          media_alt: values.media_alt,
+          url: values.url,
+          link_aria_label: values.link_aria_label,
+          link_type: values.link_type,
+          target: values.target,
+          style_variant: values.style_variant,
+          is_visible: values.is_visible !== '0',
+        });
+        if (!values.public_id) document.getElementById('feature-form').action = '/admin/page/home/panel-3/items';
+      }
     });
-    if (!values.public_id) document.getElementById('feature-form').action = '/admin/page/home/panel-3/items';
   }
 })();

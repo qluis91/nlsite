@@ -1,0 +1,124 @@
+<form method="POST"
+      action="/admin/page/home/panel-2/carousel/items"
+      class="cms-form item-editor-drawer__form"
+      id="carousel-form"
+      data-cms-editor-form
+      data-item-editor-form
+      novalidate>
+  <div class="item-editor-drawer__body">
+    <%- include('item-editor-errors', { errors: submittedKind === 'carousel' ? fieldErrors : [] }) %>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="public_id" id="carousel-edit-id" value="">
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label" for="carousel-eyebrow">Eyebrow</label>
+        <input type="text" id="carousel-eyebrow" name="eyebrow" class="form-input" maxlength="120" data-item-editor-autofocus>
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="carousel-theme">Tema</label>
+        <select name="theme_key" id="carousel-theme" class="form-input">
+          <option value="graphite">Graphite</option>
+          <option value="lime">Lime</option>
+          <option value="silver">Silver</option>
+          <option value="ink">Ink</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="field-label" for="carousel-title">Título <span class="required">*</span></label>
+      <input type="text" id="carousel-title" name="title" class="form-input" maxlength="180" required>
+    </div>
+
+    <div class="form-group">
+      <label class="field-label" for="carousel-desc">Descripción</label>
+      <textarea id="carousel-desc" name="description" class="form-input" rows="3" maxlength="1200"></textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label" for="carousel-btn-label">Etiqueta del botón</label>
+        <input type="text" id="carousel-btn-label" name="button_label" class="form-input" maxlength="80">
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="carousel-btn-url">URL del botón</label>
+        <input type="text" id="carousel-btn-url" name="button_url" class="form-input" maxlength="500">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="field-label" for="carousel-btn-target">Target del botón</label>
+      <select name="button_target" id="carousel-btn-target" class="form-input">
+        <option value="_self">Misma pestaña</option>
+        <option value="_blank">Nueva pestaña</option>
+      </select>
+    </div>
+
+    <div class="form-group" id="carousel-media-group">
+      <%- include('../../../../components/media-selector', {
+        fieldName: 'media_public_id',
+        currentValue: '',
+        label: 'Imagen principal / fondo',
+        kindLabel: 'Imagen de proyecto',
+        allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
+        allowedCategories: ['carousel'],
+        uploadProfile: 'carousel-main',
+      }) %>
+    </div>
+    <div class="form-group">
+      <label class="field-label" for="carousel-media-alt">Texto alternativo de la imagen</label>
+      <input id="carousel-media-alt" name="media_alt" class="form-input" maxlength="250">
+    </div>
+
+    <fieldset class="carousel-focal-editor" data-carousel-focal-editor data-carousel-media-field="media_public_id">
+      <legend>Encuadre de la imagen</legend>
+      <div class="carousel-focal-editor__frame" data-carousel-focal-frame aria-describedby="carousel-focal-help">
+        <img alt="" data-carousel-focal-preview draggable="false" hidden>
+        <span class="carousel-focal-editor__empty" data-carousel-focal-empty>Selecciona una imagen para previsualizar el encuadre.</span>
+      </div>
+      <p id="carousel-focal-help" class="text-muted">Arrastra la imagen para ajustar el encuadre. Los controles de rango permiten un ajuste accesible y preciso.</p>
+      <div class="carousel-focal-editor__controls">
+        <label class="field-label" for="carousel-position-x">Horizontal: <output for="carousel-position-x" data-carousel-position-x-output>50%</output></label>
+        <input class="form-input carousel-focal-editor__range" type="range" id="carousel-position-x" name="position_x" min="0" max="100" step="1" value="50" data-carousel-position-x>
+        <label class="field-label" for="carousel-position-y">Vertical: <output for="carousel-position-y" data-carousel-position-y-output>50%</output></label>
+        <input class="form-input carousel-focal-editor__range" type="range" id="carousel-position-y" name="position_y" min="0" max="100" step="1" value="50" data-carousel-position-y>
+        <button type="button" class="btn btn-secondary" data-carousel-position-center>Centrar</button>
+      </div>
+    </fieldset>
+
+    <div class="form-group" id="carousel-preview-media-group">
+      <%- include('../../../../components/media-selector', {
+        fieldName: 'preview_media_public_id',
+        currentValue: '',
+        label: 'Imagen de preview (opcional)',
+        kindLabel: 'Imagen preview',
+        allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
+        allowedCategories: ['carousel'],
+        uploadProfile: 'carousel-preview',
+      }) %>
+    </div>
+    <div class="form-group">
+      <label class="field-label" for="carousel-preview-alt">Texto alternativo del preview</label>
+      <input id="carousel-preview-alt" name="preview_media_alt" class="form-input" maxlength="250">
+    </div>
+
+    <div class="form-group">
+      <label class="field-label" for="carousel-visible">Visible</label>
+      <select name="is_visible" id="carousel-visible" class="form-input">
+        <option value="1">Sí</option>
+        <option value="0">No</option>
+      </select>
+    </div>
+  </div>
+
+  <footer class="item-editor-drawer__footer">
+    <button type="button" class="btn btn-secondary" data-item-editor-close>Cancelar</button>
+    <button type="submit" class="btn btn-save" id="carousel-submit-btn">Guardar borrador</button>
+    <% if (canPublish) { %>
+      <button type="submit"
+              class="btn btn-publish"
+              formaction="/admin/page/home/panel-2/carousel/items/save-publish">Guardar y publicar carrusel</button>
+    <% } %>
+  </footer>
+</form>

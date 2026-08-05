@@ -1,0 +1,85 @@
+<form method="POST"
+      action="/admin/page/home/panel-2/logo-loop/items"
+      class="cms-form item-editor-drawer__form"
+      id="logo-form"
+      data-cms-editor-form
+      data-item-editor-form
+      novalidate>
+  <div class="item-editor-drawer__body">
+    <%- include('item-editor-errors', { errors: submittedKind === 'logo' ? fieldErrors : [] }) %>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="public_id" id="logo-edit-id" value="">
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label" for="logo-type">Tipo</label>
+        <select name="item_type" id="logo-type" class="form-input" data-item-editor-autofocus>
+          <option value="text">Texto</option>
+          <option value="image">Imagen</option>
+          <option value="logo">Logo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="logo-visible">Visible</label>
+        <select name="is_visible" id="logo-visible" class="form-input">
+          <option value="1">Sí</option>
+          <option value="0">No</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group" id="logo-text-group">
+      <label class="field-label" for="logo-text-content">Contenido de texto</label>
+      <input type="text" id="logo-text-content" name="text_content" class="form-input" maxlength="160">
+    </div>
+
+    <div class="form-group" id="logo-media-group" hidden>
+      <%- include('../../../../components/media-selector', {
+        fieldName: 'media_public_id',
+        currentValue: '',
+        label: 'Imagen/Logo',
+        kindLabel: 'Imagen',
+        allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
+        allowedCategories: ['logo'],
+        uploadProfile: 'logo-loop',
+      }) %>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label" for="logo-url">URL (opcional)</label>
+        <input type="text" id="logo-url" name="url" class="form-input" maxlength="500" aria-describedby="logo-url-help" placeholder="/pagina o #seccion o https://...">
+        <%- include('../../../../components/field-help', { id: 'logo-url', text: 'Para páginas internas usa /ruta. Para anclas usa #seccion. Enlaces externos deben incluir https://.' }) %>
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="logo-link-type">Tipo de enlace</label>
+        <select name="link_type" id="logo-link-type" class="form-input">
+          <option value="internal">Interno</option>
+          <option value="external">Externo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="logo-target">Target</label>
+        <select name="target" id="logo-target" class="form-input">
+          <option value="_self">Misma pestaña</option>
+          <option value="_blank">Nueva pestaña</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group" id="logo-alt-group" hidden>
+      <label class="field-label" for="logo-alt">Texto alternativo</label>
+      <input type="text" id="logo-alt" name="alt_text" class="form-input" maxlength="250">
+    </div>
+  </div>
+
+  <footer class="item-editor-drawer__footer">
+    <button type="button" class="btn btn-secondary" data-item-editor-close>Cancelar</button>
+    <button type="submit" class="btn btn-save" id="logo-submit-btn">Guardar borrador</button>
+    <% if (canPublish) { %>
+      <button type="submit"
+              class="btn btn-publish"
+              formaction="/admin/page/home/panel-2/logo-loop/items/save-publish">Guardar y publicar LogoLoop</button>
+    <% } %>
+  </footer>
+</form>

@@ -1,0 +1,8 @@
+<% if (Array.isArray(errors) && errors.length) { %>
+  <div class="alert alert-error item-editor-drawer__errors" role="alert" data-item-editor-errors>
+    <strong>No se pudo guardar.</strong>
+    <ul class="cms-field-errors">
+      <% errors.forEach(function(message) { %><li><%= message %></li><% }); %>
+    </ul>
+  </div>
+<% } %>

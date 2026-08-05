@@ -75,8 +75,8 @@ describe('External editor scripts', () => {
     assert.ok(fs.existsSync(fpath), 'panel2-editor.js must exist');
     const content = fs.readFileSync(fpath, 'utf-8');
     try { new Function(content); } catch (e) { assert.fail(`panel2-editor.js syntax: ${e.message}`); }
-    assert.ok(content.includes('logoEditId'), 'should handle data attribute');
-    assert.ok(content.includes('carouselEditId'), 'should handle carousel');
+    assert.ok(content.includes("drawer.register('logo'"), 'should register LogoLoop drawer handlers');
+    assert.ok(content.includes("drawer.register('carousel'"), 'should register carousel drawer handlers');
   });
 
   it('panel3-editor.js exists and is syntactically valid', () => {
@@ -84,7 +84,7 @@ describe('External editor scripts', () => {
     assert.ok(fs.existsSync(fpath), 'panel3-editor.js must exist');
     const content = fs.readFileSync(fpath, 'utf-8');
     try { new Function(content); } catch (e) { assert.fail(`panel3-editor.js syntax: ${e.message}`); }
-    assert.ok(content.includes('featureEditId'), 'should handle feature edit');
+    assert.ok(content.includes("drawer.register('feature'"), 'should register feature drawer handlers');
   });
 
   it('media-selector.js exists and is valid', () => {

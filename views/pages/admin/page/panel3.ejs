@@ -69,7 +69,11 @@
 <div class="cms-tab-panel" role="tabpanel" data-panel="cards" hidden>
   <div class="cms-section-header">
     <h3>Tarjetas de servicios</h3>
-    <span class="badge"><%= items.filter(i => i.status === 'published').length %> publicadas · <%= items.filter(i => i.status === 'draft').length %> borradores · <%= items.length %> total</span>
+    <div class="cms-section-header__actions">
+      <span class="badge"><%= items.filter(i => i.status === 'published').length %> publicadas · <%= items.filter(i => i.status === 'draft').length %> borradores · <%= items.length %> total</span>
+      <button type="button" class="btn btn-primary"
+              data-item-editor-open data-editor-type="feature" data-mode="create" data-feature-add>Agregar tarjeta</button>
+    </div>
   </div>
 
   <table class="cms-table">
@@ -94,7 +98,9 @@
           <td><span class="badge badge-<%= item.status === 'published' ? 'published' : 'draft' %>"><%= item.status %></span></td>
           <td><%= item.sort_order %></td>
           <td class="cms-actions-cell">
-            <button type="button" class="btn btn-sm btn-secondary" data-feature-edit-id="<%= item.public_id %>">Editar</button>
+            <button type="button" class="btn btn-sm btn-secondary"
+                    data-item-editor-open data-editor-type="feature" data-mode="edit"
+                    data-item-id="<%= item.public_id %>" data-feature-edit-id="<%= item.public_id %>">Editar</button>
             <form method="POST" action="/admin/page/home/panel-3/items/archive" class="cms-form--inline">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <input type="hidden" name="public_id" value="<%= item.public_id %>">
@@ -106,117 +112,15 @@
     </tbody>
   </table>
 
-  <details class="cms-card">
-    <summary class="cms-card-title">Agregar / Editar tarjeta</summary>
-    <form method="POST" action="/admin/page/home/panel-3/items" class="cms-form" id="feature-form" data-cms-editor-form novalidate>
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="public_id" id="feature-edit-id" value="">
 
-      <div class="form-group">
-        <label class="field-label" for="feature-title">Título <span class="required">*</span></label>
-        <input type="text" id="feature-title" name="title" class="form-input" maxlength="160" required>
-      </div>
-
-      <div class="form-group">
-        <label class="field-label" for="feature-desc">Descripción</label>
-        <textarea id="feature-desc" name="description" class="form-input" rows="3" maxlength="1000"></textarea>
-      </div>
-
-      <div class="form-group">
-        <label class="field-label" for="feature-detail">Texto detallado</label>
-        <textarea id="feature-detail" name="detail_text" class="form-input" rows="3" maxlength="1500"></textarea>
-      </div>
-      <div class="form-group"><label class="field-label" for="feature-button-label">Etiqueta del botón</label><input id="feature-button-label" name="button_label" class="form-input" maxlength="80" value="VER DETALLE"></div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="field-label">Tipo de icono</label>
-          <select name="icon_type" id="feature-icon-type" class="form-input">
-            <option value="builtin">Icono integrado</option>
-            <option value="media">Imagen de biblioteca</option>
-          </select>
-        </div>
-        <div class="form-group" id="feature-builtin-group">
-          <label class="field-label">Ícono integrado</label>
-          <select name="icon_key" id="feature-icon-key" class="form-input">
-            <option value="">Seleccionar...</option>
-            <option value="diseno-3d">Diseño 3D</option>
-            <option value="escaneo-3d">Escaneo 3D</option>
-            <option value="diseno-grafico">Diseño Gráfico</option>
-            <option value="desarrollo-web">Desarrollo Web</option>
-            <option value="prendas">Prendas</option>
-            <option value="impresion-3d">Impresión 3D</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-group" id="feature-media-group" hidden>
-        <%- include('../../../components/media-selector', {
-          fieldName: 'media_public_id',
-          currentValue: '',
-          label: 'Icono desde biblioteca',
-          kindLabel: 'Icono/Imagen',
-          allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
-          allowedCategories: ['icon'],
-          uploadProfile: 'feature-icon',
-        }) %>
-      </div>
-      <div class="form-group"><label class="field-label" for="feature-media-alt">Texto alternativo del icono</label><input id="feature-media-alt" name="media_alt" class="form-input" maxlength="250"></div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="field-label" for="feature-url">URL (opcional)</label>
-          <input type="text" id="feature-url" name="url" class="form-input" maxlength="500">
-        </div>
-        <div class="form-group"><label class="field-label" for="feature-link-aria">Etiqueta accesible del enlace</label><input id="feature-link-aria" name="link_aria_label" class="form-input" maxlength="180"></div>
-        <div class="form-group">
-          <label class="field-label">Tipo de enlace</label>
-          <select name="link_type" id="feature-link-type" class="form-input">
-            <option value="internal">Interno</option>
-            <option value="external">Externo</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="field-label">Target</label>
-          <select name="target" id="feature-target" class="form-input">
-            <option value="_self">Misma pestaña</option>
-            <option value="_blank">Nueva pestaña</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="field-label">Variante de estilo</label>
-          <select name="style_variant" id="feature-style" class="form-input">
-            <option value="">Default</option>
-            <option value="default">Default</option>
-            <option value="highlight">Highlight</option>
-            <option value="minimal">Minimal</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="field-label">Visible</label>
-          <select name="is_visible" id="feature-visible" class="form-input">
-            <option value="1">Sí</option>
-            <option value="0">No</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary" id="feature-submit-btn">Agregar tarjeta</button>
-        <button type="button" class="btn btn-secondary" id="feature-cancel-btn" hidden>Cancelar</button>
-      </div>
-    </form>
-
-    <form method="POST" action="/admin/page/home/panel-3/items/reorder" class="cms-form cms-form--inline" style="margin-top:1rem">
+  <div class="cms-card">
+    <form method="POST" action="/admin/page/home/panel-3/items/reorder" class="cms-form cms-form--inline">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <label class="field-label">Reordenar (IDs separados por coma)</label>
       <input type="text" name="ids" class="form-input" value="<%= items.map(i => i.public_id).join(',') %>" style="width:100%">
       <button type="submit" class="btn btn-secondary btn-sm">Actualizar orden</button>
     </form>
-  </details>
+  </div>
 
   <div class="cms-section-footer">
     <form method="POST" action="/admin/page/home/panel-3/items/publish" class="cms-form" data-cms-publish-form>
@@ -256,6 +160,20 @@
 <form id="panel3-publish-form" method="POST" action="/admin/page/home/panel-3/publish" style="display:none" data-cms-publish-form>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 </form>
+
+<% /* Drawer form partial preserves the existing components/media-selector integration. */ %>
+<%- include('../../../components/admin/item-editor-drawer', {
+  kind: 'feature',
+  createTitle: 'Agregar tarjeta',
+  editTitle: 'Editar tarjeta',
+  formPartial: '../../pages/admin/page/partials/feature-form',
+  formLocals: {
+    csrfToken: csrfToken,
+    canPublish: typeof capabilities !== 'undefined' && capabilities.includes('home.services.publish'),
+    fieldErrors: typeof fieldErrors !== 'undefined' ? fieldErrors : [],
+    submittedKind: typeof submittedItem !== 'undefined' && submittedItem ? submittedItem.kind : null
+  }
+}) %>
 </div>
 </div>
 

@@ -28,6 +28,7 @@
   var carouselItems = loadItemsData('panel2-carousel-items-data');
   var submittedItem = loadItemsData('panel2-submitted-item-data');
   var focalPosition = window.CarouselImagePosition;
+  var drawer = window.AdminItemEditorDrawer;
 
   function bindFocalEditors(scope) {
     if (!focalPosition) return;
@@ -232,25 +233,16 @@
     el('logo-target').value = item.target || '_self';
     el('logo-alt').value = item.alt_text || '';
     el('logo-visible').value = item.is_visible ? '1' : '0';
-    el('logo-submit-btn').textContent = 'Guardar cambios';
-    el('logo-cancel-btn').hidden = false;
     form.action = '/admin/page/home/panel-2/logo-loop/items/save';
     updateLogoFields();
-    var tl = document.querySelector('[data-tab="logoloop"]');
-    if (tl) tl.click();
-    var summary = document.querySelector('.cms-card summary');
-    if (summary) summary.click();
   }
 
   function resetLogoForm() {
     var form = document.getElementById('logo-form');
-    var el = getEl;
-    el('logo-edit-id').value = '';
-    el('logo-submit-btn').textContent = 'Agregar elemento';
-    el('logo-cancel-btn').hidden = true;
     if (form) {
       form.action = '/admin/page/home/panel-2/logo-loop/items';
       form.reset();
+      form.querySelectorAll('[data-media-selector]').forEach(clearMediaSelector);
     }
     updateLogoFields();
   }
@@ -298,36 +290,32 @@
     }
     el('carousel-theme').value = item.theme_key || 'graphite';
     el('carousel-visible').value = item.is_visible ? '1' : '0';
-    el('carousel-submit-btn').textContent = 'Guardar cambios';
-    el('carousel-cancel-btn').hidden = false;
     form.action = '/admin/page/home/panel-2/carousel/items/save';
-    var tc = document.querySelector('[data-tab="carousel"]');
-    if (tc) tc.click();
-    var details = document.getElementById('carousel-edit-details');
-    if (details) {
-      var sum = details.querySelector('summary');
-      if (sum) sum.click();
-    }
     var focalEditor = form.querySelector('[data-carousel-focal-editor]');
     if (focalEditor && focalEditor.__syncCarouselFocalEditor) focalEditor.__syncCarouselFocalEditor();
   }
 
   function resetCarouselForm() {
     var form = document.getElementById('carousel-form');
-    var el = getEl;
-    el('carousel-edit-id').value = '';
-    el('carousel-submit-btn').textContent = 'Agregar proyecto';
-    el('carousel-cancel-btn').hidden = true;
     if (form) {
       form.action = '/admin/page/home/panel-2/carousel/items';
       form.reset();
-      form.querySelectorAll('[data-media-selector]').forEach(function (selector) {
-        selector.dispatchEvent(new CustomEvent('media-selector:load', {
-          bubbles: true,
-          detail: { value: '', publicId: '', thumbnailUrl: '', publicUrl: '', title: '' }
-        }));
-      });
+      form.querySelectorAll('[data-media-selector]').forEach(clearMediaSelector);
+      var focalEditor = form.querySelector('[data-carousel-focal-editor]');
+      if (focalEditor && focalEditor.__syncCarouselFocalEditor) focalEditor.__syncCarouselFocalEditor();
     }
+  }
+
+  function clearMediaSelector(selector) {
+    selector.dispatchEvent(new CustomEvent('media-selector:load', {
+      bubbles: true,
+      detail: { value: '', publicId: '', thumbnailUrl: '', publicUrl: '', title: '' }
+    }));
+  }
+
+  function selectTab(name) {
+    var tab = document.querySelector('[data-tab="' + name + '"]');
+    if (tab) tab.click();
   }
 
   // ── Helper: getElementById with safety ──
@@ -335,33 +323,32 @@
     return document.getElementById(id) || {};
   }
 
-  // ── Delegate edit clicks via data-xxx-edit-id attributes ──
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest('button');
-    if (!btn) return;
-
-    if (btn.dataset.logoEditId) {
-      var li = findLogoItem(btn.dataset.logoEditId);
-      if (li) editLogoItem(li);
-      return;
-    }
-
-    if (btn.dataset.carouselEditId) {
-      var ci = findCarouselItem(btn.dataset.carouselEditId);
-      if (ci) editCarouselItem(ci);
-      return;
-    }
-
-    if (btn.id === 'logo-cancel-btn') {
-      resetLogoForm();
-      return;
-    }
-
-    if (btn.id === 'carousel-cancel-btn') {
-      resetCarouselForm();
-      return;
-    }
-  });
+  if (drawer) {
+    drawer.register('logo', {
+      create: function () {
+        selectTab('logoloop');
+        resetLogoForm();
+      },
+      edit: function (id) {
+        var item = findLogoItem(id);
+        if (!item) return;
+        selectTab('logoloop');
+        editLogoItem(item);
+      },
+    });
+    drawer.register('carousel', {
+      create: function () {
+        selectTab('carousel');
+        resetCarouselForm();
+      },
+      edit: function (id) {
+        var item = findCarouselItem(id);
+        if (!item) return;
+        selectTab('carousel');
+        editCarouselItem(item);
+      },
+    });
+  }
 
   window.NLCarouselFocalEditor = { init: bindFocalEditors };
   bindFocalEditors(document);
@@ -369,37 +356,43 @@
   if (submittedItem && submittedItem.kind && submittedItem.values) {
     var values = submittedItem.values;
     if (submittedItem.kind === 'logo') {
-      editLogoItem({
-        id: values.public_id || '',
-        item_type: values.item_type,
-        text_content: values.text_content,
-        media: values.media_public_id || '',
-        url: values.url,
-        link_type: values.link_type,
-        target: values.target,
-        alt_text: values.alt_text,
-        is_visible: values.is_visible !== '0',
+      openDrawer('logo', null, values.public_id ? 'edit' : 'create', function () {
+        selectTab('logoloop');
+        editLogoItem({
+          id: values.public_id || '',
+          item_type: values.item_type,
+          text_content: values.text_content,
+          media: values.media_public_id || '',
+          url: values.url,
+          link_type: values.link_type,
+          target: values.target,
+          alt_text: values.alt_text,
+          is_visible: values.is_visible !== '0',
+        });
+        if (!values.public_id) document.getElementById('logo-form').action = '/admin/page/home/panel-2/logo-loop/items';
       });
-      if (!values.public_id) document.getElementById('logo-form').action = '/admin/page/home/panel-2/logo-loop/items';
     } else if (submittedItem.kind === 'carousel') {
-      editCarouselItem({
-        id: values.public_id || '',
-        eyebrow: values.eyebrow,
-        title: values.title,
-        description: values.description,
-        button_label: values.button_label,
-        button_url: values.button_url,
-        button_target: values.button_target,
-        media_public_id: values.media_public_id || '',
-        preview_media_public_id: values.preview_media_public_id || '',
-        media_alt: values.media_alt,
-        preview_media_alt: values.preview_media_alt,
-        position_x: values.position_x,
-        position_y: values.position_y,
-        theme_key: values.theme_key,
-        is_visible: values.is_visible !== '0',
+      openDrawer('carousel', null, values.public_id ? 'edit' : 'create', function () {
+        selectTab('carousel');
+        editCarouselItem({
+          id: values.public_id || '',
+          eyebrow: values.eyebrow,
+          title: values.title,
+          description: values.description,
+          button_label: values.button_label,
+          button_url: values.button_url,
+          button_target: values.button_target,
+          media_public_id: values.media_public_id || '',
+          preview_media_public_id: values.preview_media_public_id || '',
+          media_alt: values.media_alt,
+          preview_media_alt: values.preview_media_alt,
+          position_x: values.position_x,
+          position_y: values.position_y,
+          theme_key: values.theme_key,
+          is_visible: values.is_visible !== '0',
+        });
+        if (!values.public_id) document.getElementById('carousel-form').action = '/admin/page/home/panel-2/carousel/items';
       });
-      if (!values.public_id) document.getElementById('carousel-form').action = '/admin/page/home/panel-2/carousel/items';
     }
   }
 })();
