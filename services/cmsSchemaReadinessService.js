@@ -28,6 +28,8 @@ const CMS_SCHEMA_REQUIREMENTS = Object.freeze({
   }),
   home_carousel_items: Object.freeze({
     published_data: JSON_TYPES,
+    position_x: Object.freeze(['tinyint']),
+    position_y: Object.freeze(['tinyint']),
   }),
   home_feature_items: Object.freeze({
     published_data: JSON_TYPES,

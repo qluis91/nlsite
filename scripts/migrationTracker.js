@@ -50,6 +50,7 @@ const MIGRATION_REGISTRY = [
   { name: 'migrateSeedMetaIntegrations', file: './migrate-seed-meta-integrations', exportName: 'migrateSeedMetaIntegrations', passPool: true },
   { name: 'migrateSeedTikTok', file: './migrate-seed-tiktok', exportName: 'migrateSeedTikTok', passPool: true },
   { name: 'migrateSocialPostsProviderThumbnail', file: './migrate-social-posts-provider-thumbnail', exportName: 'migrateSocialPostsProviderThumbnail', passPool: true },
+  { name: 'migrateCarouselImagePosition', file: './migrate-carousel-image-position', exportName: 'migrateCarouselImagePosition', passPool: true },
 ];
 
 async function ensureMigrationsTable(pool) {

@@ -24,6 +24,7 @@ const crypto = require('node:crypto');
 const http = require('node:http');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { buildIsolatedTestEnvironment } = require('../config/testProcessEnvironment');
 const bcrypt = require('bcryptjs');
 const pool = require('../config/db');
 const youtube = require('../services/youtubeSyncService');
@@ -137,7 +138,7 @@ test.before(async () => {
   // Start server
   serverProcess = spawn(process.execPath, ['app.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), NODE_ENV: 'test', YOUTUBE_API_KEY: 'test-api-key-2ea' },
+    env: buildIsolatedTestEnvironment(process.env, { PORT: String(port), YOUTUBE_API_KEY: 'test-api-key-2ea' }),
     stdio: 'ignore',
     windowsHide: true,
   });
@@ -650,7 +651,7 @@ test('Testimonials capability still registered', () => {
 
 test('MIGRATION_REGISTRY has all entries (26 base + 3 new = 29)', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 34);
+  assert.equal(MIGRATION_REGISTRY.length, 35);
 });
 
 // ── Cleanup: reset mock ──

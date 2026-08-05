@@ -10,6 +10,7 @@ const http = require('node:http');
 const net = require('node:net');
 const path = require('node:path');
 const { promisify } = require('node:util');
+const { buildIsolatedTestEnvironment } = require('../config/testProcessEnvironment');
 
 const execFileAsync = promisify(execFile);
 const HOST = '127.0.0.1';
@@ -190,7 +191,7 @@ async function createTestServer() {
   const baseUrl = `http://${HOST}:${port}`;
   const child = spawn(process.execPath, ['app.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, HOST, PORT: String(port), NODE_ENV: 'test' },
+    env: buildIsolatedTestEnvironment(process.env, { HOST, PORT: String(port) }),
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
     detached: process.platform !== 'win32',

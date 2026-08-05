@@ -9,6 +9,7 @@ const revisions = require('./contentRevisionService');
 const usageService = require('./mediaUsageService');
 const { invalidateNamespace } = require('./cmsPublishingService');
 const { withDeadlockRetry } = require('./mysqlRetry');
+const { normalizePosition } = require('../public/js/admin/carousel-image-position');
 
 function serialize(value) { return value === null || value === undefined ? null : JSON.stringify(value); }
 
@@ -33,7 +34,7 @@ const PUBLISHED_FIELDS = Object.freeze({
   home_carousel_items: Object.freeze([
     'eyebrow', 'title', 'description', 'button_label', 'button_url', 'button_target',
     'media_public_id', 'media_alt', 'preview_media_public_id', 'preview_media_alt',
-    'theme_key', 'sort_order', 'is_visible',
+    'position_x', 'position_y', 'theme_key', 'sort_order', 'is_visible',
   ]),
   home_feature_items: Object.freeze([
     'title', 'description', 'detail_text', 'button_label', 'icon_type', 'icon_key',
@@ -45,7 +46,21 @@ const PUBLISHED_FIELDS = Object.freeze({
 function publishedSnapshot(table, row) {
   const fields = PUBLISHED_FIELDS[table];
   if (!fields) throw new Error('Colección CMS no permitida.');
-  return Object.fromEntries(fields.map((field) => [field, row[field] ?? null]));
+  const snapshot = Object.fromEntries(fields.map((field) => [field, row[field] ?? null]));
+  if (table === 'home_carousel_items') {
+    snapshot.position_x = normalizePosition(row.position_x);
+    snapshot.position_y = normalizePosition(row.position_y);
+  }
+  return snapshot;
+}
+
+function normalizedDraftData(table, data) {
+  if (table !== 'home_carousel_items') return { ...data };
+  return {
+    ...data,
+    position_x: normalizePosition(data.position_x),
+    position_y: normalizePosition(data.position_y),
+  };
 }
 
 async function getSectionId(connection, pageKey, sectionKey) {
@@ -66,6 +81,13 @@ async function listItems(table, sectionId, { includeArchived = false } = {}) {
     `SELECT * FROM ${table} WHERE ${conds.join(' AND ')} ORDER BY sort_order ASC, id ASC`,
     [sectionId]
   );
+  if (table === 'home_carousel_items') {
+    return rows.map((row) => ({
+      ...row,
+      position_x: normalizePosition(row.position_x),
+      position_y: normalizePosition(row.position_y),
+    }));
+  }
   return rows;
 }
 
@@ -81,7 +103,12 @@ async function getPublishedItems(table, sectionId) {
       const data = typeof row.published_data === 'string'
         ? JSON.parse(row.published_data)
         : row.published_data;
-      return { id: row.id, public_id: row.public_id, page_section_id: row.page_section_id, status: 'published', ...data };
+      const item = { id: row.id, public_id: row.public_id, page_section_id: row.page_section_id, status: 'published', ...data };
+      if (table === 'home_carousel_items') {
+        item.position_x = normalizePosition(data.position_x);
+        item.position_y = normalizePosition(data.position_y);
+      }
+      return item;
     })
     .filter((row) => Number(row.is_visible) === 1)
     .sort((a, b) => Number(a.sort_order) - Number(b.sort_order) || Number(a.id) - Number(b.id));
@@ -97,6 +124,7 @@ async function actorMeta(actorId) {
 }
 
 async function createItem(table, sectionId, data, { actorId = null } = {}) {
+  data = normalizedDraftData(table, data);
   const publicId = crypto.randomUUID();
   const connection = await pool.getConnection();
   try {
@@ -128,6 +156,7 @@ async function createItem(table, sectionId, data, { actorId = null } = {}) {
 }
 
 async function saveItem(table, publicId, data, { actorId = null } = {}) {
+  data = normalizedDraftData(table, data);
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -375,6 +404,7 @@ module.exports = {
   archiveItem,
   reorderItems,
   publishCollection,
+  publishedSnapshot,
   PUBLISHED_FIELDS,
   registerPanelUsageSources,
 };

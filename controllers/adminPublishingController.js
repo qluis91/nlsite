@@ -16,6 +16,7 @@ const revisionService = require('../services/contentRevisionService');
 const diffEngine = require('../services/diffEngine');
 const registry = require('../services/moduleRegistry');
 const pool = require('../config/db');
+const { normalizePosition } = require('../public/js/admin/carousel-image-position');
 
 // ── Helpers ──
 
@@ -440,6 +441,7 @@ async function restoreRevision(req, res, next) {
 
     // ── 3. Restore content based on entity type ──
     let restored = false;
+    let restoredSnapshot = snapshot;
     let restoredEntityLabel = rev.entity_type;
 
     if (rev.entity_type === 'page_section') {
@@ -457,7 +459,8 @@ async function restoreRevision(req, res, next) {
     } else if (
       ['logo_loop_item', 'carousel_item', 'feature_item', 'social_item'].includes(rev.entity_type)
     ) {
-      restored = await restoreRepeatableItem(connection, rev, snapshot, actorId);
+      restoredSnapshot = normalizeRepeatableRestoreSnapshot(rev.entity_type, snapshot);
+      restored = await restoreRepeatableItem(connection, rev, restoredSnapshot, actorId);
       restoredEntityLabel = 'Elemento';
     } else {
       await connection.rollback();
@@ -479,8 +482,8 @@ async function restoreRevision(req, res, next) {
       entityType: rev.entity_type,
       entityId: rev.entity_id,
       action: 'restore',
-      previousData: { status: 'draft', ...snapshot },
-      newData: { status: publishAfter ? 'published' : 'draft', ...snapshot },
+      previousData: { status: 'draft', ...restoredSnapshot },
+      newData: { status: publishAfter ? 'published' : 'draft', ...restoredSnapshot },
       changeSummary: restoreSummary,
       changedBy: actorId,
       actorName: actor.name,
@@ -631,7 +634,7 @@ async function restoreRepeatableItem(connection, rev, snapshot, actorId) {
   const updates = [];
   const params = [];
 
-  // Pass through non-internal scalar fields from snapshot
+  // Pass through non-internal scalar fields from snapshot.
   const skip = new Set(['id', 'public_id', 'page_section_id', 'created_at', 'updated_at', 'deleted_at', 'created_by', 'updated_by', 'revision_number', 'status']);
   for (const [key, val] of Object.entries(snapshot)) {
     if (skip.has(key)) continue;
@@ -654,6 +657,27 @@ async function restoreRepeatableItem(connection, rev, snapshot, actorId) {
   return true;
 }
 
+function normalizeRepeatableRestoreSnapshot(entityType, snapshot) {
+  if (entityType !== 'carousel_item') return snapshot;
+  const published = snapshot && snapshot.published_data;
+  const publishedData = published && typeof published === 'object' && !Array.isArray(published)
+    ? published
+    : {};
+  return {
+    ...snapshot,
+    position_x: normalizePosition(
+      Object.prototype.hasOwnProperty.call(snapshot, 'position_x')
+        ? snapshot.position_x
+        : publishedData.position_x
+    ),
+    position_y: normalizePosition(
+      Object.prototype.hasOwnProperty.call(snapshot, 'position_y')
+        ? snapshot.position_y
+        : publishedData.position_y
+    ),
+  };
+}
+
 module.exports = {
   showPublishingDashboard,
   publishSelected,
@@ -663,4 +687,5 @@ module.exports = {
   showCompare,
   showRestore,
   restoreRevision,
+  normalizeRepeatableRestoreSnapshot,
 };

@@ -292,7 +292,20 @@
       if (!state.selectedPublicId) return;
       input.value = `media://${state.selectedPublicId}`;
       updatePreview(state.selectedAssetData || { public_id: state.selectedPublicId });
+      notifyChange(state.selectedAssetData || {});
       closeModal('selected');
+    }
+
+    function notifyChange(asset) {
+      const data = asset && typeof asset === 'object' ? asset : {};
+      root.dispatchEvent(new CustomEvent('media-selector:change', {
+        bubbles: true,
+        detail: {
+          fieldName,
+          previewUrl: data.public_url || data.url || data.thumbnail_url || data.thumbnail_path || '',
+          cleared: !input.value,
+        },
+      }));
     }
 
     function updatePreview(asset) {
@@ -338,6 +351,7 @@
           <p class="empty-state">Sin ${escapeHtml(kindLabel.toLowerCase())} seleccionado.</p>
           <button type="button" class="btn btn-primary" data-ms-select>Seleccionar desde biblioteca</button>
         </div>`;
+      notifyChange(null);
     }
 
     function handlePreviewClick(event) {
@@ -439,6 +453,7 @@
 
         input.value = `media://${payload.asset.public_id}`;
         updatePreview(payload.asset);
+        notifyChange(payload.asset);
         if (uploadStatus) uploadStatus.textContent = 'Completado';
         closeModal('uploaded');
         return true;
@@ -476,14 +491,17 @@
       const detail = event.detail || {};
       if (!detail.value) return clearSelection();
       input.value = detail.value;
-      updatePreview({
+      const asset = {
         public_id: detail.publicId || detail.value.replace(/^media:\/\//, '') || '',
         title: detail.title || '',
+        public_url: detail.publicUrl || '',
         thumbnail_url: detail.thumbnailUrl || '',
         mime_type: detail.mimeType || '',
         category: detail.category || '',
         dimensions: detail.dimensions || '',
-      });
+      };
+      updatePreview(asset);
+      notifyChange(asset);
     });
 
     tabs.forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.msTab)));

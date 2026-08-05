@@ -1,8 +1,5 @@
 const http = require('http');
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
-
-process.env.NODE_ENV = 'test';
+require('./config/testBootstrap');
 process.env.PORT = '0';
 
 const app = require('./app');

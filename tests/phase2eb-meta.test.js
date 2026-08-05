@@ -98,7 +98,7 @@ test('migration 32 adds session_id column to social_oauth_states', async () => {
 
 test('MIGRATION_REGISTRY has 32 entries (31 base + 1 new)', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 34);
+  assert.equal(MIGRATION_REGISTRY.length, 35);
 });
 
 // ═══════════════════════════════════════════════════════════

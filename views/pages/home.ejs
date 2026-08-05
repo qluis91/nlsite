@@ -364,6 +364,7 @@ const heroVisible = hasCmsHero ? heroContent.isVisible !== false : true;
             data-project-theme="<%= item.theme_key || 'graphite' %>"
             data-project-preview-image="<%= previewSrc %>"
             data-project-preview-alt="<%= item.preview_media_alt || item.media_alt || item.title %>"
+            style="--carousel-position-x:<%= item.position_x %>%;--carousel-position-y:<%= item.position_y %>%"
             aria-label="<%= idx + 1 %> de <%= cmsCarouselItems.length %>"
           >
             <div class="project-carousel__card" data-panel2-animate="card">

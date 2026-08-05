@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const http = require('node:http');
 const { spawn } = require('node:child_process');
+const { buildIsolatedTestEnvironment } = require('../config/testProcessEnvironment');
 const bcrypt = require('bcryptjs');
 const pool = require('../config/db');
 const customerOrders = require('../services/customerOrderService');
@@ -138,7 +139,7 @@ test.before(async () => {
   await setupFixtures();
   serverProcess = spawn(process.execPath, ['app.js'], {
     cwd: require('node:path').join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), NODE_ENV: 'test' }, stdio: 'ignore', windowsHide: true,
+    env: buildIsolatedTestEnvironment(process.env, { PORT: String(port) }), stdio: 'ignore', windowsHide: true,
   });
   await waitForServer();
 });

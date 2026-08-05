@@ -58,6 +58,17 @@ class Element {
     return event;
   }
 
+  dispatchEvent(event) {
+    if (!event || typeof event.type !== 'string') {
+      throw new TypeError('dispatchEvent requires an Event.');
+    }
+    event.target = event.target || this;
+    event.currentTarget = this;
+    for (const handler of this.listeners.get(event.type) || []) handler(event);
+    if (event.bubbles && this.parent?.dispatchEvent) this.parent.dispatchEvent(event);
+    return !event.defaultPrevented;
+  }
+
   appendChild(child) {
     child.parent = this;
     this.children.push(child);
@@ -233,6 +244,20 @@ function createRuntime(selectors, fetchImpl) {
     console,
     URLSearchParams,
     AbortController,
+    CustomEvent: class CustomEvent {
+      constructor(type, options = {}) {
+        if (!type) throw new TypeError('CustomEvent type is required.');
+        this.type = String(type);
+        this.detail = options.detail ?? null;
+        this.bubbles = Boolean(options.bubbles);
+        this.cancelable = Boolean(options.cancelable);
+        this.defaultPrevented = false;
+      }
+
+      preventDefault() {
+        if (this.cancelable) this.defaultPrevented = true;
+      }
+    },
     FormData: class {
       constructor() { this.entries = []; }
       append(key, value) { this.entries.push([key, value]); }
@@ -459,6 +484,49 @@ test('all action controls rendered by the selector are non-submitting buttons', 
   runtime.controller().select({ public_id: 'asset-1', title: 'Asset' });
   runtime.controller().applySelection();
   assert.match(selector.nodes.preview.innerHTML, /button type="button"/);
+});
+
+test('select, replace, clear, upload, and programmatic load dispatch scoped change events', async () => {
+  const first = createSelector();
+  const second = createSelector({ fieldName: 'secondary_image' });
+  const runtime = createRuntime([first, second], async (url) => {
+    if (url.includes('/upload')) {
+      return jsonResponse({
+        success: true,
+        asset: { public_id: 'uploaded-1', public_url: '/uploads/uploaded.webp' },
+      });
+    }
+    return jsonResponse({ assets: [] });
+  });
+  const firstEvents = [];
+  const secondEvents = [];
+  first.root.addEventListener('media-selector:change', event => firstEvents.push(event.detail));
+  second.root.addEventListener('media-selector:change', event => secondEvents.push(event.detail));
+
+  const controller = runtime.controller(0);
+  controller.select({ public_id: 'selected-1', public_url: '/uploads/selected.webp' });
+  controller.applySelection();
+  controller.select({ public_id: 'replacement-1', thumbnail_url: '/uploads/replacement.webp' });
+  controller.applySelection();
+  controller.clear();
+  first.root.emit('media-selector:load', {
+    detail: {
+      value: 'media://loaded-1',
+      publicId: 'loaded-1',
+      publicUrl: '/uploads/loaded.webp',
+    },
+  });
+  controller.handleFile({ name: 'upload.webp', size: 100 });
+  assert.equal(await controller.upload(), true);
+
+  assert.deepEqual(JSON.parse(JSON.stringify(firstEvents)), [
+    { fieldName: 'hero_image', previewUrl: '/uploads/selected.webp', cleared: false },
+    { fieldName: 'hero_image', previewUrl: '/uploads/replacement.webp', cleared: false },
+    { fieldName: 'hero_image', previewUrl: '', cleared: true },
+    { fieldName: 'hero_image', previewUrl: '/uploads/loaded.webp', cleared: false },
+    { fieldName: 'hero_image', previewUrl: '/uploads/uploaded.webp', cleared: false },
+  ]);
+  assert.deepEqual(secondEvents, []);
 });
 
 test('Navbar and Panels 1-3 each render initialized, independent selector markup', () => {

@@ -11,6 +11,7 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 const { spawn } = require('node:child_process');
+const { buildIsolatedTestEnvironment } = require('../config/testProcessEnvironment');
 const bcrypt = require('bcryptjs');
 const sharp = require('sharp');
 
@@ -37,10 +38,11 @@ const createdItemIds = [];
 const createdAssetIds = [];
 
 function assertSafeLocalDatabase() {
-  const host = String(process.env.DB_HOST || 'localhost').toLowerCase();
-  const database = String(process.env.DB_NAME || 'nlsite_db').toLowerCase();
-  assert.ok(['localhost', '127.0.0.1', '::1'].includes(host), `integration DB host must be local, got ${host}`);
-  assert.doesNotMatch(database, /prod|production|railway/, `integration DB name must not be production-like, got ${database}`);
+  const { assertSafeTestDatabase } = require('../config/testDatabaseGuard');
+  assertSafeTestDatabase({
+    host: process.env.DB_HOST || 'localhost',
+    database: process.env.DB_NAME || '',
+  }, { requireMutationOptIn: true });
 }
 
 function request(method, requestPath, body = null, extraHeaders = {}) {
@@ -102,12 +104,10 @@ function multipart(fields, file) {
 async function startServer() {
   child = spawn(process.execPath, ['app.js'], {
     cwd: path.join(__dirname, '..'),
-    env: {
-      ...process.env,
+    env: buildIsolatedTestEnvironment(process.env, {
       PORT: String(port),
-      NODE_ENV: 'test',
       UPLOAD_PUBLIC_DIR: volumeRoot,
-    },
+    }),
     stdio: 'ignore',
     windowsHide: true,
   });

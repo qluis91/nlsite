@@ -53,6 +53,8 @@ describe('Carousel persistence — create & save with media', () => {
       button_target: '_self',
       media_public_id: 'main-img-uuid',
       preview_media_public_id: 'prev-img-uuid',
+      position_x: '25.7',
+      position_y: 110,
       theme_key: 'graphite',
       is_visible: 1,
       status: 'draft',
@@ -63,6 +65,8 @@ describe('Carousel persistence — create & save with media', () => {
     assert.equal(rows.length, 1, 'must create one row');
     assert.equal(rows[0].media_public_id, 'main-img-uuid', 'main image UUID stored');
     assert.equal(rows[0].preview_media_public_id, 'prev-img-uuid', 'preview image UUID stored');
+    assert.equal(rows[0].position_x, 26, 'horizontal focal position rounded');
+    assert.equal(rows[0].position_y, 100, 'vertical focal position clamped');
     assert.equal(rows[0].title, 'PERSIST_TEST_BOTH');
     createdItemId = result.public_id;
   });
@@ -117,6 +121,8 @@ describe('Carousel persistence — create & save with media', () => {
       button_target: '_self',
       media_public_id: 'new-main-uuid',
       preview_media_public_id: 'new-preview-uuid',
+      position_x: -20,
+      position_y: '72.6',
       theme_key: 'silver',
       is_visible: 1,
       status: 'draft',
@@ -126,6 +132,8 @@ describe('Carousel persistence — create & save with media', () => {
     assert.equal(rows.length, 1, 'must still be one row');
     assert.equal(rows[0].media_public_id, 'new-main-uuid', 'main updated');
     assert.equal(rows[0].preview_media_public_id, 'new-preview-uuid', 'preview updated');
+    assert.equal(rows[0].position_x, 0, 'horizontal focal position clamped on save');
+    assert.equal(rows[0].position_y, 73, 'vertical focal position rounded on save');
     assert.equal(rows[0].description, 'Updated desc');
     assert.equal(rows[0].theme_key, 'silver');
   });
@@ -184,6 +192,7 @@ describe('Carousel persistence — create & save with media', () => {
       eyebrow: null, description: null, button_label: null, button_url: null,
       button_target: '_self',
       media_public_id: 'pub-main', preview_media_public_id: 'pub-preview',
+      position_x: 31, position_y: 79,
       theme_key: 'graphite', is_visible: 1, status: 'draft', sort_order: 994,
     });
 
@@ -196,6 +205,11 @@ describe('Carousel persistence — create & save with media', () => {
     assert.ok(rows.length > 0, 'item must be published');
     assert.equal(rows[0].media_public_id, 'pub-main', 'media survives publication');
     assert.equal(rows[0].preview_media_public_id, 'pub-preview', 'preview survives publication');
+    const published = typeof rows[0].published_data === 'string'
+      ? JSON.parse(rows[0].published_data)
+      : rows[0].published_data;
+    assert.equal(published.position_x, 31, 'published snapshot owns horizontal focal position');
+    assert.equal(published.position_y, 79, 'published snapshot owns vertical focal position');
   });
 
   it('getPublishedItems excludes draft and archived items', async () => {

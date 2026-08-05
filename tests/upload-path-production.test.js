@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { buildIsolatedTestEnvironment } = require('../config/testProcessEnvironment');
 
 const projectRoot = path.join(__dirname, '..');
 
@@ -19,7 +20,7 @@ test('UPLOAD_PUBLIC_DIR is resolved once as the canonical absolute upload root',
   ].join(';');
   const result = spawnSync(process.execPath, ['-e', script], {
     cwd: projectRoot,
-    env: { ...process.env, UPLOAD_PUBLIC_DIR: configuredRoot },
+    env: buildIsolatedTestEnvironment(process.env, { UPLOAD_PUBLIC_DIR: configuredRoot }),
     encoding: 'utf8',
   });
   assert.equal(result.status, 0, result.stderr);

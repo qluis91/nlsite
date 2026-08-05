@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { buildIsolatedTestEnvironment } = require('../config/testProcessEnvironment');
 const sharp = require('sharp');
 const demo = require('../scripts/seed-gallery-demo');
 
@@ -29,7 +30,12 @@ test.after(async () => {
 test('production CLI execution is blocked before loading database dependencies', () => {
   const result = spawnSync(process.execPath, ['scripts/seed-gallery-demo.js'], {
     cwd: root,
-    env: { ...process.env, NODE_ENV: 'production', ALLOW_PRODUCTION_DEMO_SEED: '' },
+    env: {
+      ...buildIsolatedTestEnvironment(process.env),
+      NODE_ENV: 'production',
+      NLSITE_TEST_BOOTSTRAP_PRESERVE_NODE_ENV: 'true',
+      ALLOW_PRODUCTION_DEMO_SEED: '',
+    },
     encoding: 'utf8',
     windowsHide: true,
   });

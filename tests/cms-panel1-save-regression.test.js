@@ -29,10 +29,11 @@ let originalSection;
 let originalSocialCount;
 
 function assertSafeLocalDatabase() {
-  const host = String(process.env.DB_HOST || 'localhost').toLowerCase();
-  const database = String(process.env.DB_NAME || 'nlsite_db').toLowerCase();
-  assert.ok(['localhost', '127.0.0.1', '::1'].includes(host), `integration DB host must be local, got ${host}`);
-  assert.doesNotMatch(database, /prod|production|railway/, `integration DB must be local, got ${database}`);
+  const { assertSafeTestDatabase } = require('../config/testDatabaseGuard');
+  assertSafeTestDatabase({
+    host: process.env.DB_HOST || 'localhost',
+    database: process.env.DB_NAME || '',
+  }, { requireMutationOptIn: true });
 }
 
 async function request(method, requestPath, fields = null) {

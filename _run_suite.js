@@ -1,9 +1,9 @@
-require('dotenv').config();
 const { execFileSync } = require('child_process');
+const { buildIsolatedTestEnvironment } = require('./config/testProcessEnvironment');
 try {
   const result = execFileSync(process.execPath, ['--test', '--test-concurrency=1'], {
     cwd: __dirname,
-    env: { ...process.env, NODE_ENV: 'test' },
+    env: buildIsolatedTestEnvironment(process.env),
     timeout: 600000,
     maxBuffer: 50 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],

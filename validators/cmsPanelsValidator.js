@@ -3,6 +3,7 @@
  * Strict backend validation for all CMS fields.
  */
 const { MEDIA_KINDS } = require('../config/cmsOptions');
+const carouselPosition = require('../public/js/admin/carousel-image-position');
 
 const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:']);
 const ALLOWED_TARGETS = new Set(['_self', '_blank']);
@@ -146,6 +147,10 @@ function validateCarouselItem(body = {}) {
   return errors;
 }
 
+function normalizeCarouselPosition(body = {}) {
+  return carouselPosition.normalizePositionPair(body.position_x, body.position_y);
+}
+
 // ── Panel 3 general ──
 
 function validatePanel3Content(body = {}) {
@@ -247,6 +252,7 @@ module.exports = {
   validatePanel2Style,
   validateLogoLoopItem,
   validateCarouselItem,
+  normalizeCarouselPosition,
   validatePanel3Content,
   validatePanel3Style,
   validateFeatureItem,

@@ -6,6 +6,7 @@
  */
 const session = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
+const { resolveValidatedDatabaseConfig } = require('./databaseConfig');
 
 function parseSessionMaxAge() {
   const hours = parseInt(process.env.SESSION_MAX_AGE_HOURS, 10);
@@ -15,11 +16,10 @@ function parseSessionMaxAge() {
 const sessionMaxAge = parseSessionMaxAge();
 
 const storeOptions = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT, 10) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'nlsite_db',
+  ...resolveValidatedDatabaseConfig({
+    requireMutationOptIn: process.env.NODE_ENV === 'test'
+      || typeof process.env.NODE_TEST_CONTEXT === 'string',
+  }),
   createDatabaseTable: true,
   expiration: sessionMaxAge,
   clearExpired: true,

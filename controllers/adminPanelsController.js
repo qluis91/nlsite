@@ -111,7 +111,7 @@ async function showPanel2(req, res, next) {
       title: 'Panel 2 — Showcase',
       layout: 'layouts/admin',
       pageStyles: ['/css/admin-page.css'],
-      pageScripts: ['/js/admin/media-selector.js', '/js/admin/panel2-editor.js', '/js/admin/cms-editor-state.js'],
+      pageScripts: ['/js/admin/media-selector.js', '/js/admin/carousel-image-position.js', '/js/admin/panel2-editor.js', '/js/admin/cms-editor-state.js'],
       content,
       style,
       bgMedia,
@@ -290,6 +290,7 @@ async function createCarouselItem(req, res) {
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
 
   try {
+    const position = validator.normalizeCarouselPosition(req.body);
     const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
     const previewMediaPublicId = await verifyImagePublicId(req.body.preview_media_public_id);
     const section = await getSectionId('home', 'showcase');
@@ -304,6 +305,8 @@ async function createCarouselItem(req, res) {
       media_alt: req.body.media_alt?.trim() || null,
       preview_media_public_id: previewMediaPublicId,
       preview_media_alt: req.body.preview_media_alt?.trim() || null,
+      position_x: position.x,
+      position_y: position.y,
       theme_key: req.body.theme_key?.trim() || null,
       is_visible: req.body.is_visible === '0' ? 0 : 1,
       status: 'draft',
@@ -319,6 +322,7 @@ async function saveCarouselItem(req, res) {
   const errors = validator.validateCarouselItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
   try {
+    const position = validator.normalizeCarouselPosition(req.body);
     const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
     const previewMediaPublicId = await verifyImagePublicId(req.body.preview_media_public_id);
     await repeatable.saveItem('home_carousel_items', req.body.public_id, {
@@ -332,6 +336,8 @@ async function saveCarouselItem(req, res) {
       media_alt: req.body.media_alt?.trim() || null,
       preview_media_public_id: previewMediaPublicId,
       preview_media_alt: req.body.preview_media_alt?.trim() || null,
+      position_x: position.x,
+      position_y: position.y,
       theme_key: req.body.theme_key?.trim() || null,
       is_visible: req.body.is_visible === '0' ? 0 : 1,
     }, { actorId: actorId(req) });
