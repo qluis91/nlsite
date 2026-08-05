@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { buildIsolatedTestEnvironment } = require('../config/testProcessEnvironment');
 const bcrypt = require('bcryptjs');
 const sharp = require('sharp');
 const pool = require('../config/db');
@@ -200,7 +201,7 @@ test.before(async () => {
 
   serverProcess = spawn(process.execPath, ['app.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), NODE_ENV: 'test' },
+    env: buildIsolatedTestEnvironment(process.env, { PORT: String(port) }),
     stdio: 'ignore',
     windowsHide: true,
   });

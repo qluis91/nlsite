@@ -1,6 +1,5 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-require('dotenv').config();
 const pool = require('../config/db');
 const publishing = require('../services/cmsPublishingService');
 const validator = require('../validators/cmsPageValidator');

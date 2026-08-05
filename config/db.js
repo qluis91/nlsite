@@ -1,32 +1,59 @@
-// config/db.js
 const mysql = require('mysql2');
-require('dotenv').config();
+const { isTestProcessContext, loadEnvironment } = require('./environment');
+const { resolveValidatedDatabaseConfig } = require('./databaseConfig');
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'nlsite_db',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
+loadEnvironment();
 
-// Exportamos la versión con soporte para async/await
-const db = pool.promise();
+function createPromisePool(config) {
+  return mysql.createPool({
+    ...config,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+  }).promise();
+}
 
-// Prueba rápida de conexión
-// Test workers must not open a socket merely because a pure unit imported a service.
-const isTestProcess = process.env.NODE_ENV === 'test'
-  || typeof process.env.NODE_TEST_CONTEXT === 'string';
-if (!isTestProcess) pool.getConnection((err, connection) => {
-  if (err) {
-    console.error('❌ Error al conectar a la base de datos en XAMPP:', err.message);
-  } else {
-    console.log('✅ Conexión exitosa a MySQL (nlsite_db)');
-    connection.release();
+function createLazyTestPool() {
+  let pool = null;
+
+  function getPool() {
+    if (pool) return pool;
+    const config = resolveValidatedDatabaseConfig({ requireMutationOptIn: true });
+    pool = createPromisePool(config);
+    return pool;
   }
-});
 
-module.exports = db;
+  return Object.freeze({
+    query(...args) {
+      return getPool().query(...args);
+    },
+    getConnection(...args) {
+      return getPool().getConnection(...args);
+    },
+    async end() {
+      if (!pool) return;
+      const active = pool;
+      pool = null;
+      await active.end();
+    },
+  });
+}
+
+if (isTestProcessContext()) {
+  // Pure test imports receive a lazy, guarded facade. No pool exists until a
+  // test explicitly requests a database operation.
+  module.exports = createLazyTestPool();
+} else {
+  // Preserve the original development/production contract: export the native
+  // mysql2 PromisePool and eagerly probe the configured connection.
+  const db = createPromisePool(resolveValidatedDatabaseConfig());
+  db.getConnection()
+    .then((connection) => {
+      console.log('✅ Conexión exitosa a MySQL (nlsite_db)');
+      connection.release();
+    })
+    .catch((error) => {
+      console.error('❌ Error al conectar a la base de datos en XAMPP:', error.message);
+    });
+  module.exports = db;
+}

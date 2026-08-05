@@ -28,10 +28,11 @@ let adminId;
 let adminJar = { cookie: '' };
 
 function assertSafeLocalDatabase() {
-  const host = String(process.env.DB_HOST || 'localhost').toLowerCase();
-  const database = String(process.env.DB_NAME || 'nlsite_db').toLowerCase();
-  assert.ok(['localhost', '127.0.0.1', '::1'].includes(host));
-  assert.doesNotMatch(database, /prod|production|railway/);
+  const { assertSafeTestDatabase } = require('../config/testDatabaseGuard');
+  assertSafeTestDatabase({
+    host: process.env.DB_HOST || 'localhost',
+    database: process.env.DB_NAME || '',
+  }, { requireMutationOptIn: true });
 }
 
 function csrf(html) {
@@ -635,7 +636,7 @@ test('form.ejs has zero inline event handlers', () => {
 
 test('migration registry has 29 entries after additive Phase 2E-A migrations', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 34);
+  assert.equal(MIGRATION_REGISTRY.length, 35);
 });
 
 test('social_post entity type is registered', () => {

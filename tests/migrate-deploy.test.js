@@ -1,176 +1,202 @@
 /**
- * Phase 13 tests — Safe automatic database migrations.
- * Run: node --test tests/migrate-deploy.test.js
+ * Phase 13 migration deployment unit tests.
+ * These tests use dependency-injected fakes and must never import config/db or
+ * execute scripts/migrate-deploy.js in a child process.
  */
-const { describe, before, after, it } = require('node:test');
-const assert = require('node:assert');
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const pool = require('../config/db');
+const vm = require('node:vm');
+
 const tracker = require('../scripts/migrationTracker');
 
-after(async () => {
-  await pool.end();
-});
+function loadDeployRunnerWithFakes(dependencies) {
+  const filename = path.resolve(__dirname, '../scripts/migrate-deploy.js');
+  const source = fs.readFileSync(filename, 'utf8');
+  const module = { exports: {} };
+  const fakeRequire = (request) => {
+    const replacements = {
+      dotenv: { config() {} },
+      '../config/db': dependencies.pool,
+      './migrationTracker': dependencies.tracker,
+      '../services/cmsSchemaReadinessService': {
+        assertCmsSchemaReady: dependencies.assertCmsSchemaReady,
+      },
+      '../services/catalogSchemaReadinessService': {
+        assertCatalogSchemaReady: dependencies.assertCatalogSchemaReady,
+        inspectCatalogDatabaseCompatibility: dependencies.inspectCatalogDatabaseCompatibility,
+      },
+    };
+    if (!Object.prototype.hasOwnProperty.call(replacements, request)) {
+      throw new Error(`Unexpected runner dependency: ${request}`);
+    }
+    return replacements[request];
+  };
+  const wrapper = vm.runInThisContext(
+    `(function (exports, require, module, __filename, __dirname, console) {${source}\n})`,
+    { filename }
+  );
+  wrapper(module.exports, fakeRequire, module, filename, path.dirname(filename), dependencies.logger);
+  return module.exports;
+}
 
-describe('Phase 13 — migrationTracker', () => {
-  it('MIGRATION_REGISTRY has 32 entries (Phase 2E-B close added Meta seeds)', () => {
-    assert.equal(tracker.MIGRATION_REGISTRY.length, 34);
+describe('Phase 13 — migration registry', () => {
+  it('contains the current 35 registered migrations exactly once', () => {
+    assert.equal(tracker.MIGRATION_REGISTRY.length, 35);
+    assert.equal(new Set(tracker.MIGRATION_REGISTRY.map((entry) => entry.name)).size, 35);
     assert.equal(
       tracker.MIGRATION_REGISTRY.filter((entry) => entry.name === 'migrateCatalogSchemaRepair').length,
       1
     );
   });
 
-  it('each registry entry has name, file, exportName', () => {
-    for (const e of tracker.MIGRATION_REGISTRY) {
-      assert.ok(e.name, `Missing name`);
-      assert.ok(e.file, `Missing file for ${e.name}`);
-      assert.ok(typeof e.exportName === 'string', `Missing exportName for ${e.name}`);
+  it('keeps meaningful registry metadata', () => {
+    for (const entry of tracker.MIGRATION_REGISTRY) {
+      assert.ok(entry.name, 'migration name is required');
+      assert.ok(entry.file, `migration file is required for ${entry.name}`);
+      assert.equal(typeof entry.exportName, 'string', `migration export is required for ${entry.name}`);
     }
   });
 
-  it('LOCK_NAME is migrate_deploy', () => {
+  it('uses the production advisory-lock contract', () => {
     assert.equal(tracker.LOCK_NAME, 'migrate_deploy');
-  });
-
-  it('LOCK_TIMEOUT_SEC is positive', () => {
     assert.ok(tracker.LOCK_TIMEOUT_SEC > 0);
   });
 });
 
-describe('Phase 13 — Checksum', () => {
-  it('computeChecksum returns 64-char hex', () => {
-    const cs = tracker.computeChecksum(path.resolve(__dirname, '../scripts/migrate-catalog-seo.js'));
-    assert.equal(cs.length, 64);
-    assert.ok(/^[a-f0-9]{64}$/.test(cs));
+describe('Phase 13 — checksum and tracker SQL contracts', () => {
+  it('computes deterministic, distinct SHA-256 checksums', () => {
+    const catalogSeo = path.resolve(__dirname, '../scripts/migrate-catalog-seo.js');
+    const cms = path.resolve(__dirname, '../scripts/migrate-cms.js');
+    const first = tracker.computeChecksum(catalogSeo);
+    assert.match(first, /^[a-f0-9]{64}$/);
+    assert.equal(first, tracker.computeChecksum(catalogSeo));
+    assert.notEqual(first, tracker.computeChecksum(cms));
   });
 
-  it('computeChecksum is deterministic', () => {
-    const a = tracker.computeChecksum(path.resolve(__dirname, '../scripts/migrate-catalog-seo.js'));
-    const b = tracker.computeChecksum(path.resolve(__dirname, '../scripts/migrate-catalog-seo.js'));
-    assert.equal(a, b);
+  it('models schema_migrations creation without a database', async () => {
+    const calls = [];
+    await tracker.ensureMigrationsTable({ query: async (sql, params) => calls.push({ sql, params }) });
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].sql, /CREATE TABLE IF NOT EXISTS schema_migrations/);
+    assert.match(calls[0].sql, /checksum VARCHAR\(64\) NOT NULL/);
+    assert.match(calls[0].sql, /status ENUM\('ok','failed'\)/);
   });
 
-  it('computeChecksum differs for different files', () => {
-    const a = tracker.computeChecksum(path.resolve(__dirname, '../scripts/migrate-catalog-seo.js'));
-    const b = tracker.computeChecksum(path.resolve(__dirname, '../scripts/migrate-cms.js'));
-    assert.notEqual(a, b);
-  });
-});
-
-describe('Phase 13 — schema_migrations table', () => {
-  it('schema_migrations table exists', async () => {
-    const [rows] = await pool.query(
-      "SELECT COUNT(*) c FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'schema_migrations'"
-    );
-    assert.equal(Number(rows[0].c), 1);
+  it('models successful and failed migration records without executing SQL', async () => {
+    const calls = [];
+    const fakePool = { query: async (sql, params) => calls.push({ sql, params }) };
+    await tracker.recordMigration(fakePool, 'one', 'abc', 12);
+    await tracker.recordMigrationFailure(fakePool, 'two', 'def', 7, 'failure');
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls[0].params, ['one', 'abc', 12, 'ok']);
+    assert.deepEqual(calls[1].params, ['two', 'def', 7, 'failed', 'failure']);
   });
 
-  it('schema_migrations has required columns', async () => {
-    const [cols] = await pool.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'schema_migrations'"
-    );
-    const names = cols.map(c => c.column_name);
-    for (const required of ['name', 'checksum', 'executed_at', 'duration_ms', 'status']) {
-      assert.ok(names.includes(required), `Missing column: ${required}`);
-    }
-  });
-
-  it('ensureMigrationsTable is idempotent', async () => {
-    await tracker.ensureMigrationsTable(pool);
-    await tracker.ensureMigrationsTable(pool);
-    assert.ok(true);
-  });
-});
-
-describe('Phase 13 — Migration records', () => {
-  it('deploy recorded at least 14 migrations', async () => {
-    const [rows] = await pool.query(
-      "SELECT COUNT(*) c FROM schema_migrations WHERE status = 'ok'"
-    );
-    assert.ok(Number(rows[0].c) >= 14, `Expected >=14, got ${rows[0].c}`);
-  });
-
-  it('all recorded migrations have checksum', async () => {
-    const [rows] = await pool.query(
-      "SELECT COUNT(*) c FROM schema_migrations WHERE status = 'ok' AND (checksum IS NULL OR checksum = '')"
-    );
-    assert.equal(Number(rows[0].c), 0);
-  });
-
-  it('all recorded migrations have positive duration', async () => {
-    const [rows] = await pool.query(
-      "SELECT COUNT(*) c FROM schema_migrations WHERE status = 'ok' AND duration_ms <= 0"
-    );
-    assert.equal(Number(rows[0].c), 0);
+  it('keeps catalog reconciliation meaningful with an injected migration', async () => {
+    let migrationCalls = 0;
+    const fakePool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS schema_migrations/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status/.test(sql)) {
+          return [[{ name: 'repair', checksum: 'same', status: 'ok' }], []];
+        }
+        throw new Error(`Unexpected fake query: ${sql}`);
+      },
+    };
+    const result = await tracker.runPendingMigrations(fakePool, {
+      registry: [{
+        name: 'repair', file: './fake-repair', exportName: 'repair',
+        capability: 'catalog', passPool: true, reconcileOnDrift: true,
+      }],
+      checksumFor: () => 'same',
+      inspectCatalog: async () => ({ ready: false }),
+      formatCatalogIssues: () => 'missing capability',
+      loadMigration: () => ({ repair: async (receivedPool) => {
+        assert.equal(receivedPool, fakePool);
+        migrationCalls += 1;
+      } }),
+    });
+    assert.equal(migrationCalls, 1);
+    assert.deepEqual(result, { ran: 0, skipped: 0, reconciled: 1 });
   });
 });
 
-describe('Phase 13 — Deploy idempotency', () => {
-  it('migrate-deploy skips all on second run', async () => {
-    const { execSync } = require('child_process');
-    const options = { cwd: path.resolve(__dirname, '..'), encoding: 'utf-8' };
-    execSync('node scripts/migrate-deploy.js', options);
-    const secondRun = execSync('node scripts/migrate-deploy.js', options);
-    assert.ok(secondRun.includes('0 ran'), `Expected skip, got: ${secondRun.slice(0, 200)}`);
+describe('Phase 13 — dependency-injected deploy runner', () => {
+  function createFakes() {
+    const state = { trackerRuns: 0, releases: 0, closes: 0, sqlCalls: 0, logs: [] };
+    const connection = {
+      query: async () => { state.sqlCalls += 1; throw new Error('Runner fake must not execute SQL.'); },
+      release: () => { state.releases += 1; },
+    };
+    const pool = {
+      getConnection: async () => connection,
+      query: async () => { state.sqlCalls += 1; throw new Error('Runner fake must not execute SQL.'); },
+      end: async () => { state.closes += 1; },
+    };
+    const trackerFake = {
+      acquireLock: async () => true,
+      releaseLock: async () => {},
+      runPendingMigrations: async () => {
+        state.trackerRuns += 1;
+        return state.trackerRuns === 1
+          ? { ran: 1, skipped: 34, reconciled: 0 }
+          : { ran: 0, skipped: 35, reconciled: 0 };
+      },
+    };
+    const logger = {
+      log: (message) => state.logs.push(message),
+      warn: (message) => state.logs.push(message),
+    };
+    const deployer = loadDeployRunnerWithFakes({
+      pool,
+      tracker: trackerFake,
+      assertCmsSchemaReady: async () => ({ ready: true }),
+      assertCatalogSchemaReady: async () => ({ ready: true }),
+      inspectCatalogDatabaseCompatibility: async () => ({
+        engine: 'fake', version: '1', dataType: 'json', columnType: 'json',
+        compatible: true, typeAlteration: 'not-needed',
+      }),
+      logger,
+    });
+    return { deployer, state };
+  }
+
+  it('simulates migration deployment without loading modules or executing SQL', async () => {
+    const { deployer, state } = createFakes();
+    assert.deepEqual(await deployer.run(), { ran: 1, skipped: 34, reconciled: 0 });
+    assert.equal(state.sqlCalls, 0);
+    assert.equal(state.releases, 1);
+  });
+
+  it('remains side-effect free when simulated twice', async () => {
+    const { deployer, state } = createFakes();
+    await deployer.run();
+    assert.deepEqual(await deployer.run(), { ran: 0, skipped: 35, reconciled: 0 });
+    assert.equal(state.sqlCalls, 0);
+    assert.equal(state.releases, 2);
+    assert.equal(state.trackerRuns, 2);
+  });
+
+  it('has no real-pool import or migration child process in the test source', () => {
+    const source = fs.readFileSync(__filename, 'utf8');
+    assert.doesNotMatch(source, /require\(['"]\.\.\/config\/db['"]\)/);
+    assert.doesNotMatch(source, /execSync\(['"]node scripts\/migrate-deploy\.js/);
   });
 });
 
-describe('Phase 13 — Advisory lock', () => {
-  it('acquireLock returns true when no lock held', async () => {
-    const conn = await pool.getConnection();
-    try {
-      const ok = await tracker.acquireLock(conn, 2);
-      assert.ok(ok);
-    } finally {
-      await tracker.releaseLock(conn);
-      conn.release();
-    }
-  });
-
-  it('second acquireLock fails while lock held', async () => {
-    const conn1 = await pool.getConnection();
-    const conn2 = await pool.getConnection();
-    try {
-      const ok1 = await tracker.acquireLock(conn1, 5);
-      assert.ok(ok1);
-      const ok2 = await tracker.acquireLock(conn2, 1);
-      assert.equal(ok2, false, 'Second acquire should fail');
-    } finally {
-      await tracker.releaseLock(conn1).catch(() => {});
-      await tracker.releaseLock(conn2).catch(() => {});
-      conn1.release();
-      conn2.release();
-    }
-  });
-});
-
-describe('Phase 13 — package.json scripts', () => {
-  it('has prestart script', () => {
+describe('Phase 13 — package and schema contracts', () => {
+  it('keeps production and development commands unchanged', () => {
     const pkg = require('../package.json');
     assert.equal(pkg.scripts.prestart, 'node scripts/prestart.js');
-  });
-
-  it('has migrate:deploy script', () => {
-    const pkg = require('../package.json');
     assert.equal(pkg.scripts['migrate:deploy'], 'node scripts/migrate-deploy.js');
-  });
-
-  it('start is unchanged', () => {
-    const pkg = require('../package.json');
     assert.equal(pkg.scripts.start, 'node app.js');
-  });
-
-  it('dev migrate is unchanged', () => {
-    const pkg = require('../package.json');
     assert.equal(pkg.scripts.migrate, 'node scripts/migrate-all.js');
   });
-});
 
-describe('Phase 13 — schema.sql', () => {
-  it('includes schema_migrations table', () => {
-    const sql = fs.readFileSync(path.resolve(__dirname, '../schema.sql'), 'utf-8');
-    assert.ok(sql.includes('schema_migrations'));
+  it('keeps schema_migrations in the canonical schema', () => {
+    const sql = fs.readFileSync(path.resolve(__dirname, '../schema.sql'), 'utf8');
+    assert.match(sql, /schema_migrations/);
   });
 });

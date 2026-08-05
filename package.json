@@ -7,10 +7,10 @@
     "prestart": "node scripts/prestart.js",
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "test": "node --test tests/*.test.js",
+    "test": "node --require ./config/testBootstrap.js --test tests/*.test.js",
     "migrate": "node scripts/migrate-all.js",
     "migrate:deploy": "node scripts/migrate-deploy.js",
-    "check": "node --test tests/*.test.js && npm audit --omit=dev"
+    "check": "npm test && npm audit --omit=dev"
   },
   "keywords": [
     "boilerplate",

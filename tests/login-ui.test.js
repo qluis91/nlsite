@@ -6,6 +6,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert');
 const http = require('node:http');
 const { spawn } = require('node:child_process');
+const { buildIsolatedTestEnvironment } = require('../config/testProcessEnvironment');
 const path = require('path');
 
 const port = 36000 + Math.floor(Math.random() * 500);
@@ -32,7 +33,7 @@ describe('Login Page UI', () => {
   it('server is reachable', { timeout: 20000 }, async () => {
     serverProc = spawn(process.execPath, ['app.js'], {
       cwd: path.join(__dirname, '..'),
-      env: { ...process.env, PORT: String(port), NODE_ENV: 'test' },
+      env: buildIsolatedTestEnvironment(process.env, { PORT: String(port) }),
       stdio: 'ignore',
       windowsHide: true,
     });

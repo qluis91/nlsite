@@ -184,14 +184,15 @@ test('historical ok record with missing physical schema runs and records the ded
 
 test('empty and partial local MariaDB schemas are repaired without losing legacy rows', async (t) => {
   const host = process.env.DB_HOST || 'localhost';
-  const sourceDatabase = process.env.DB_NAME || 'nlsite_db';
-  if (!['localhost', '127.0.0.1', '::1'].includes(host) || sourceDatabase !== 'nlsite_db') {
-    return t.skip('destructive fixture creation is restricted to the local nlsite_db test target');
-  }
+  const sourceDatabase = process.env.DB_NAME || '';
+  const { assertSafeTestDatabase } = require('../config/testDatabaseGuard');
+  assertSafeTestDatabase({ host, database: sourceDatabase }, {
+    requireMutationOptIn: true,
+  });
 
   const mysql = require('mysql2/promise');
-  const fixtureName = `nlsite_catalog_repair_${process.pid}_${Date.now()}`;
-  assert.match(fixtureName, /^nlsite_catalog_repair_\d+_\d+$/);
+  const fixtureName = `nlsite_catalog_repair_${process.pid}_${Date.now()}_test`;
+  assert.match(fixtureName, /^nlsite_catalog_repair_\d+_\d+_test$/);
   const admin = await mysql.createConnection({
     host,
     port: Number(process.env.DB_PORT || 3306),
