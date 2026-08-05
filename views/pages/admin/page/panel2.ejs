@@ -216,7 +216,7 @@
       <div class="carousel-preview-card__inner">
         <div class="carousel-preview-card__image">
           <% if (item.media_public_id_resolved) { %>
-            <img src="<%= item.media_public_id_resolved.thumbnail_url || item.media_public_id_resolved.url %>" alt="" style="width:100%;height:auto;border-radius:6px">
+            <img src="<%= item.media_public_id_resolved.thumbnail_url || item.media_public_id_resolved.url %>" alt="" class="carousel-preview-card__media" style="--carousel-position-x:<%= item.position_x %>%;--carousel-position-y:<%= item.position_y %>%">
           <% } else { %>
             <div class="empty-state" style="padding:2rem;text-align:center">Sin imagen</div>
           <% } %>
@@ -309,6 +309,26 @@
         }) %>
       </div>
       <div class="form-group"><label class="field-label" for="carousel-media-alt">Texto alternativo de la imagen</label><input id="carousel-media-alt" name="media_alt" class="form-input" maxlength="250"></div>
+
+      <fieldset class="carousel-focal-editor" data-carousel-focal-editor data-carousel-media-field="media_public_id">
+        <legend>Encuadre de la imagen</legend>
+        <div class="carousel-focal-editor__frame" data-carousel-focal-frame aria-describedby="carousel-focal-help">
+          <img alt="" data-carousel-focal-preview draggable="false" hidden>
+          <span class="carousel-focal-editor__empty" data-carousel-focal-empty>Selecciona una imagen para previsualizar el encuadre.</span>
+        </div>
+        <p id="carousel-focal-help" class="text-muted">Arrastra la imagen para ajustar el encuadre. Los controles de rango permiten un ajuste accesible y preciso.</p>
+        <div class="carousel-focal-editor__controls">
+          <label class="field-label" for="carousel-position-x">
+            Horizontal: <output for="carousel-position-x" data-carousel-position-x-output>50</output>
+          </label>
+          <input class="form-input carousel-focal-editor__range" type="range" id="carousel-position-x" name="position_x" min="0" max="100" step="1" value="50" data-carousel-position-x>
+          <label class="field-label" for="carousel-position-y">
+            Vertical: <output for="carousel-position-y" data-carousel-position-y-output>50</output>
+          </label>
+          <input class="form-input carousel-focal-editor__range" type="range" id="carousel-position-y" name="position_y" min="0" max="100" step="1" value="50" data-carousel-position-y>
+          <button type="button" class="btn btn-secondary" data-carousel-position-center>Centrar</button>
+        </div>
+      </fieldset>
 
       <div class="form-group" id="carousel-preview-media-group">
         <%- include('../../../components/media-selector', {
@@ -414,10 +434,13 @@
     button_target: item.button_target || '_self',
     media_public_id: item.media_public_id ? 'media://' + item.media_public_id : '',
     media_thumb: item.media_public_id_resolved ? (item.media_public_id_resolved.thumbnail_url || item.media_public_id_resolved.url || '') : '',
+    media_url: item.media_public_id_resolved ? (item.media_public_id_resolved.url || item.media_public_id_resolved.thumbnail_url || '') : '',
     media_title: item.media_public_id_resolved ? (item.media_public_id_resolved.title || '') : '',
     preview_media_public_id: item.preview_media_public_id ? 'media://' + item.preview_media_public_id : '',
     preview_media_thumb: item.preview_media_public_id_resolved ? (item.preview_media_public_id_resolved.thumbnail_url || item.preview_media_public_id_resolved.url || '') : '',
     preview_media_title: item.preview_media_public_id_resolved ? (item.preview_media_public_id_resolved.title || '') : '',
+    position_x: item.position_x,
+    position_y: item.position_y,
     media_alt: item.media_alt || '',
     preview_media_alt: item.preview_media_alt || '',
     theme_key: item.theme_key || 'graphite',

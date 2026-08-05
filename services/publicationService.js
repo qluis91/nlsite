@@ -12,6 +12,7 @@ const publishing = require('./cmsPublishingService');
 const repeatable = require('./cmsRepeatableService');
 const revisions = require('./contentRevisionService');
 const registry = require('./moduleRegistry');
+const { normalizePosition } = require('../public/js/admin/carousel-image-position');
 
 function batchPublicId() {
   return crypto.randomUUID();
@@ -515,6 +516,15 @@ async function publishTestimonialsInTx(connection, actorId) {
   return { publishedRevId, sourceRevId: null, previousSnapshot: null, newSnapshot: null, skipped: false };
 }
 
+function buildCollectionPublicationSnapshot(table, fields, item) {
+  const snapshot = Object.fromEntries(fields.map((field) => [field, item[field]]));
+  if (table === 'home_carousel_items') {
+    snapshot.position_x = normalizePosition(item.position_x);
+    snapshot.position_y = normalizePosition(item.position_y);
+  }
+  return snapshot;
+}
+
 async function publishCollectionInTx(connection, table, entityType, actorId) {
   const [before] = await connection.query(
     `SELECT * FROM \`${table}\`
@@ -546,7 +556,7 @@ async function publishCollectionInTx(connection, table, entityType, actorId) {
       });
       continue;
     }
-    const snapshot = Object.fromEntries(fields.map((field) => [field, item[field]]));
+    const snapshot = buildCollectionPublicationSnapshot(table, fields, item);
     await connection.query(
       `UPDATE \`${table}\`
           SET published_data = ?, published_at = NOW(), status = 'published',
@@ -582,4 +592,5 @@ module.exports = {
   validateModules,
   publishModules,
   batchPublicId,
+  buildCollectionPublicationSnapshot,
 };

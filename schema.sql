@@ -524,6 +524,8 @@ CREATE TABLE IF NOT EXISTS home_carousel_items (
   media_alt VARCHAR(250) NULL,
   preview_media_public_id CHAR(36) NULL,
   preview_media_alt VARCHAR(250) NULL,
+  position_x TINYINT UNSIGNED NOT NULL DEFAULT 50,
+  position_y TINYINT UNSIGNED NOT NULL DEFAULT 50,
   theme_key VARCHAR(40) NULL COMMENT 'graphite | lime | silver | ink',
   sort_order INT NOT NULL DEFAULT 0,
   is_visible TINYINT(1) NOT NULL DEFAULT 1,

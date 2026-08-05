@@ -27,6 +27,128 @@
   var logoItems = loadItemsData('panel2-logo-items-data');
   var carouselItems = loadItemsData('panel2-carousel-items-data');
   var submittedItem = loadItemsData('panel2-submitted-item-data');
+  var focalPosition = window.CarouselImagePosition;
+
+  function bindFocalEditors(scope) {
+    if (!focalPosition) return;
+    (scope || document).querySelectorAll('[data-carousel-focal-editor]').forEach(function (root) {
+      if (root.dataset.carouselFocalBound) return;
+      root.dataset.carouselFocalBound = '1';
+
+      var form = root.closest('form');
+      var frame = root.querySelector('[data-carousel-focal-frame]');
+      var image = root.querySelector('[data-carousel-focal-preview]');
+      var empty = root.querySelector('[data-carousel-focal-empty]');
+      var xInput = root.querySelector('[data-carousel-position-x]');
+      var yInput = root.querySelector('[data-carousel-position-y]');
+      var xOutput = root.querySelector('[data-carousel-position-x-output]');
+      var yOutput = root.querySelector('[data-carousel-position-y-output]');
+      var centerButton = root.querySelector('[data-carousel-position-center]');
+      if (!form || !frame || !image || !xInput || !yInput) return;
+
+      function sync() {
+        var position = focalPosition.normalizePositionPair(xInput.value, yInput.value);
+        xInput.value = String(position.x);
+        yInput.value = String(position.y);
+        xInput.setAttribute('aria-valuenow', String(position.x));
+        yInput.setAttribute('aria-valuenow', String(position.y));
+        if (xOutput) xOutput.textContent = position.x + '%';
+        if (yOutput) yOutput.textContent = position.y + '%';
+        focalPosition.applyPreviewPosition(image, position.x, position.y);
+      }
+
+      function setPreview(url) {
+        var safeUrl = typeof url === 'string' ? url.trim() : '';
+        if (safeUrl) {
+          image.src = safeUrl;
+          image.hidden = false;
+          if (empty) empty.hidden = true;
+        } else {
+          image.removeAttribute('src');
+          image.hidden = true;
+          if (empty) empty.hidden = false;
+        }
+        sync();
+      }
+
+      xInput.addEventListener('input', sync);
+      yInput.addEventListener('input', sync);
+      image.addEventListener('dragstart', function (event) { event.preventDefault(); });
+      if (centerButton) {
+        centerButton.addEventListener('click', function () {
+          var centered = focalPosition.resetPosition();
+          xInput.value = String(centered.x);
+          yInput.value = String(centered.y);
+          sync();
+          centerButton.focus();
+        });
+      }
+
+      var drag = null;
+      frame.addEventListener('pointerdown', function (event) {
+        if (image.hidden || !event.isPrimary || (event.button !== undefined && event.button !== 0)) return;
+        event.preventDefault();
+        var rect = frame.getBoundingClientRect();
+        drag = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          position: focalPosition.normalizePositionPair(xInput.value, yInput.value),
+          width: rect.width,
+          height: rect.height,
+        };
+        if (frame.setPointerCapture) frame.setPointerCapture(event.pointerId);
+        frame.classList.add('is-dragging');
+      });
+      frame.addEventListener('pointermove', function (event) {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        event.preventDefault();
+        var position = focalPosition.pointerDeltaToPosition(
+          drag.position.x,
+          drag.position.y,
+          event.clientX - drag.startX,
+          event.clientY - drag.startY,
+          drag.width,
+          drag.height
+        );
+        xInput.value = String(position.x);
+        yInput.value = String(position.y);
+        sync();
+      });
+      function stopDrag(event) {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        if (frame.hasPointerCapture && frame.hasPointerCapture(drag.pointerId)) {
+          frame.releasePointerCapture(drag.pointerId);
+        }
+        drag = null;
+        frame.classList.remove('is-dragging');
+      }
+      frame.addEventListener('pointerup', stopDrag);
+      frame.addEventListener('pointercancel', stopDrag);
+      frame.addEventListener('lostpointercapture', function () {
+        drag = null;
+        frame.classList.remove('is-dragging');
+      });
+
+      var fieldName = root.dataset.carouselMediaField;
+      var mediaSelector = fieldName
+        ? form.querySelector('[data-media-selector][data-field-name="' + fieldName + '"]')
+        : null;
+      if (mediaSelector) {
+        mediaSelector.addEventListener('media-selector:change', function (event) {
+          var detail = event.detail || {};
+          setPreview(detail.cleared ? '' : detail.previewUrl);
+        });
+        mediaSelector.addEventListener('media-selector:load', function (event) {
+          var detail = event.detail || {};
+          setPreview(detail.publicUrl || detail.thumbnailUrl || '');
+        });
+      }
+
+      root.__syncCarouselFocalEditor = sync;
+      sync();
+    });
+  }
 
   function findLogoItem(id) {
     for (var i = 0; i < logoItems.length; i++) {
@@ -148,6 +270,8 @@
     el('carousel-btn-target').value = item.button_target || '_self';
     el('carousel-media-alt').value = item.media_alt || '';
     el('carousel-preview-alt').value = item.preview_media_alt || '';
+    el('carousel-position-x').value = focalPosition ? focalPosition.normalizePosition(item.position_x) : 50;
+    el('carousel-position-y').value = focalPosition ? focalPosition.normalizePosition(item.position_y) : 50;
     var selectors = form.querySelectorAll('[data-media-selector]');
     if (selectors.length >= 1) {
       selectors[0].dispatchEvent(new CustomEvent('media-selector:load', {
@@ -156,6 +280,7 @@
           value: item.media_public_id || '',
           publicId: (item.media_public_id || '').replace('media://', ''),
           thumbnailUrl: item.media_thumb || '',
+          publicUrl: item.media_url || '',
           title: item.media_title || '',
         }
       }));
@@ -183,6 +308,8 @@
       var sum = details.querySelector('summary');
       if (sum) sum.click();
     }
+    var focalEditor = form.querySelector('[data-carousel-focal-editor]');
+    if (focalEditor && focalEditor.__syncCarouselFocalEditor) focalEditor.__syncCarouselFocalEditor();
   }
 
   function resetCarouselForm() {
@@ -194,6 +321,12 @@
     if (form) {
       form.action = '/admin/page/home/panel-2/carousel/items';
       form.reset();
+      form.querySelectorAll('[data-media-selector]').forEach(function (selector) {
+        selector.dispatchEvent(new CustomEvent('media-selector:load', {
+          bubbles: true,
+          detail: { value: '', publicId: '', thumbnailUrl: '', publicUrl: '', title: '' }
+        }));
+      });
     }
   }
 
@@ -230,6 +363,9 @@
     }
   });
 
+  window.NLCarouselFocalEditor = { init: bindFocalEditors };
+  bindFocalEditors(document);
+
   if (submittedItem && submittedItem.kind && submittedItem.values) {
     var values = submittedItem.values;
     if (submittedItem.kind === 'logo') {
@@ -258,6 +394,8 @@
         preview_media_public_id: values.preview_media_public_id || '',
         media_alt: values.media_alt,
         preview_media_alt: values.preview_media_alt,
+        position_x: values.position_x,
+        position_y: values.position_y,
         theme_key: values.theme_key,
         is_visible: values.is_visible !== '0',
       });
