@@ -226,8 +226,8 @@
         card.setAttribute('data-ms-item', asset.public_id);
         card.innerHTML =
           `<div class="media-selector__item-thumb">
-            ${asset.thumbnail_url
-              ? `<img src="${escapeHtml(asset.thumbnail_url)}" alt="" loading="lazy">`
+            ${(asset.thumbnail_url || asset.thumbnail_path)
+              ? `<img src="${escapeHtml(asset.thumbnail_url || asset.thumbnail_path)}" alt="" loading="lazy">`
               : '<span class="media-selector__item-icon">📄</span>'}
           </div>
           <div class="media-selector__item-body">

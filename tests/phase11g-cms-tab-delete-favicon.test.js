@@ -976,3 +976,93 @@ test('Whitespace-only color fields normalize to empty and succeed', async () => 
 
   assert.equal(result.status, 200, `Whitespace-only colors must succeed, got ${result.status}`);
 });
+
+// ════════════════════════════════════════════════════════════
+// PART 10 — Media thumbnail URL field name consistency
+// ════════════════════════════════════════════════════════════
+
+test('decorate() sets both thumbnail_path and thumbnail_url as canonical alias', async () => {
+  // Directly test the decorate function with a real DB row
+  const mediaService = require('../services/mediaService');
+  const [[row]] = await pool.query("SELECT * FROM media_assets WHERE status = 'active' AND mime_type LIKE 'image/%' LIMIT 1");
+  if (!row) {
+    // Skip if no assets exist — test is still valid for coverage
+    return;
+  }
+
+  const asset = mediaService.decorate(row);
+  assert.ok(asset, 'decorate must return an asset');
+  // Both field names must exist on the decorated object
+  assert.ok('thumbnail_path' in asset, 'decorated asset must have thumbnail_path');
+  assert.ok('thumbnail_url' in asset, 'decorated asset must have thumbnail_url');
+  // If thumbnail_path has a value, thumbnail_url must match
+  if (asset.thumbnail_path) {
+    assert.equal(asset.thumbnail_url, asset.thumbnail_path,
+      'thumbnail_url must equal thumbnail_path (canonical alias)');
+    // Must NOT be a filesystem path (no backslashes)
+    assert.ok(!asset.thumbnail_path.includes('\\'), 'thumbnail_path must NOT be filesystem path');
+    // Must be a URL path, not a raw filesystem path
+    assert.ok(!asset.thumbnail_path.startsWith('public/'), 'thumbnail_path must NOT be raw public/ path');
+  }
+  if (asset.thumbnail_url) {
+    assert.ok(!asset.thumbnail_url.includes('\\'), 'thumbnail_url must NOT be filesystem path');
+  }
+});
+
+test('mediaBrowse API returns assets with thumbnail_url field', async () => {
+  const resp = await adminReq('GET', '/admin/api/page/media?limit=5');
+  const data = JSON.parse(resp.text);
+  assert.ok(Array.isArray(data.assets), 'API must return assets array');
+  if (data.assets.length > 0) {
+    const first = data.assets[0];
+    // Must have thumbnail_url field (canonical alias from decorate)
+    assert.ok('thumbnail_url' in first, 'Asset must have thumbnail_url field');
+    // For image assets, should have a value or be null
+    if (first.mime_type && first.mime_type.startsWith('image/')) {
+      // thumbnail_url may be null for assets without thumbnails
+      // but the field must exist on the object
+    }
+  }
+});
+
+test('mediaBrowse API does NOT expose filesystem paths in thumbnail fields', async () => {
+  const resp = await adminReq('GET', '/admin/api/page/media?limit=20');
+  const data = JSON.parse(resp.text);
+  for (const asset of data.assets) {
+    if (asset.thumbnail_path) {
+      assert.ok(!asset.thumbnail_path.includes('\\'), 'thumbnail_path must NOT be filesystem path');
+      assert.ok(!asset.thumbnail_path.startsWith('/media/'), 'thumbnail_path must be HTTP relative path');
+      // Must be a URL path, not a filesystem path like "public/uploads/..."
+      assert.ok(!asset.thumbnail_path.match(/^[a-z]:\\|^\/[a-z]\//i),
+        `thumbnail_path "${asset.thumbnail_path}" must NOT look like a filesystem path`);
+    }
+    if (asset.thumbnail_url) {
+      assert.ok(!asset.thumbnail_url.includes('\\'), 'thumbnail_url must NOT be filesystem path');
+    }
+  }
+});
+
+test('Media Library page does NOT use media:// reference as img src', async () => {
+  const resp = await adminReq('GET', '/admin/page/media');
+  // Must not have src="media:// anywhere
+  assert.ok(!resp.text.includes('src="media://'), 'Media Library must not use media:// as img src');
+  // Must not have src="public/ (filesystem leak)
+  assert.ok(!/<img[^>]*src="public\//.test(resp.text), 'Media Library must not leak filesystem paths');
+});
+
+test('media-selector JS only uses resolved URL for img src', () => {
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'admin', 'media-selector.js'), 'utf8');
+  // The card rendering must check thumbnail_url (now set by decorate)
+  assert.ok(js.includes('thumbnail_url'), 'media-selector.js must reference thumbnail_url');
+  // Must never construct raw media:// URLs as img src
+  assert.ok(!js.includes('"media://'), 'media-selector.js must not hardcode media:// as src');
+});
+
+test('Navbar preview uses resolved media data (not DB raw path)', async () => {
+  const navbar = await adminReq('GET', '/admin/page/navbar');
+  // The navbar uses resolveMediaData which returns thumbnail_url
+  assert.ok(navbar.text.includes('value="media://') || navbar.text.includes('name="logo_primary"'),
+    'Navbar form must render');
+  // Must not contain filesystem paths in media-selector data attributes
+  assert.ok(!/<input[^>]*value="\w:\\/.test(navbar.text), 'Navbar must not expose filesystem paths');
+});

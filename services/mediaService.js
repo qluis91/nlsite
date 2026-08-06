@@ -55,11 +55,15 @@ function decorate(row) {
   } catch {
     resolvedPaths = null;
   }
+  const thumbnailUrl = resolvedPaths?.thumbnailUrl || null;
   return {
     ...row,
     storage_path: resolvedPaths?.storagePath || row.storage_path,
     public_url: resolvedPaths?.publicUrl || null,
-    thumbnail_path: resolvedPaths?.thumbnailUrl || null,
+    thumbnail_path: thumbnailUrl,
+    // Canonical alias: both media-selector JS (thumbnail_url) and Media Library (thumbnail_path)
+    // resolve to the same browser-ready URL after Decorate.
+    thumbnail_url: thumbnailUrl,
     path_contract_valid: Boolean(resolvedPaths),
     path_contract_legacy: Boolean(resolvedPaths?.isLegacy),
     variants: storage.parseVariants(row.variants_json),
