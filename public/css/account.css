@@ -14,6 +14,150 @@
 .account-page .navbar,
 .account-page .footer { flex: 0 0 auto; }
 
+/* ── Account header bar (replaces public navbar on /cuenta) ── */
+.account-header-bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid var(--account-border);
+  background: rgba(8, 19, 28, .97);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.account-header-bar__inner {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  height: 56px;
+}
+.account-header-bar__left { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
+.account-header-bar__brand {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: var(--account-text);
+}
+.account-header-bar__logo { max-height: 36px; width: auto; object-fit: contain; }
+.account-header-bar__name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: var(--account-text);
+  white-space: nowrap;
+}
+.account-header-bar__nav {
+  display: flex;
+  align-items: center;
+  gap: .15rem;
+  margin-left: .5rem;
+}
+.account-header-bar__nav-link {
+  padding: .4rem .75rem;
+  border-radius: 8px;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--account-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color .15s, background .15s;
+}
+.account-header-bar__nav-link:hover { color: var(--account-text); background: rgba(148, 163, 184, .08); }
+.account-header-bar__nav-link.is-active { color: var(--account-accent); }
+
+.account-header-bar__right {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.account-header-bar__admin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .35rem .85rem;
+  border: 1px solid rgba(74, 222, 128, .3);
+  border-radius: 8px;
+  background: rgba(34, 197, 94, .12);
+  color: #bbf7d0;
+  font-size: .8rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.account-header-bar__admin-btn:hover { background: rgba(34, 197, 94, .2); border-color: rgba(74, 222, 128, .5); }
+.account-header-bar__admin-icon { font-size: .9rem; line-height: 1; }
+
+.account-header-bar__user {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding-left: .5rem;
+}
+.account-header-bar__user-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(74, 222, 128, .3);
+  background: linear-gradient(135deg, #17354a, #0f5132);
+  color: var(--account-muted);
+  flex-shrink: 0;
+}
+.account-header-bar__user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.account-header-bar__user-avatar-initials {
+  font-size: .7rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--account-text);
+}
+.account-header-bar__user-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--account-text);
+}
+.account-header-bar__logout { display: flex; align-items: center; }
+.account-header-bar__logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--account-muted);
+  cursor: pointer;
+  transition: color .15s, background .15s;
+}
+.account-header-bar__logout-btn:hover { color: #f87171; background: rgba(239, 68, 68, .1); }
+
+/* Admin section in sidebar */
+.account-sidebar__nav--admin {
+  padding-bottom: .8rem;
+  margin-bottom: .3rem;
+  border-bottom: 1px solid var(--account-border);
+}
+.account-sidebar__link--admin {
+  color: #bbf7d0;
+  border-color: rgba(74, 222, 128, .15);
+  background: rgba(34, 197, 94, .06);
+}
+.account-sidebar__link--admin:hover { background: rgba(34, 197, 94, .14); }
+.account-sidebar__link--admin > span { color: var(--account-accent); }
+
 .account-shell {
   display: grid;
   grid-template-columns: minmax(220px, 270px) minmax(0, 1fr);
@@ -332,10 +476,14 @@
   .account-sidebar__nav { display: flex; gap: .4rem; margin: 0; overflow-x: auto; scrollbar-width: thin; }
   .account-sidebar__link { width: auto; min-width: max-content; min-height: 44px; }
   .account-sidebar__logout { margin-top: .5rem; padding-top: .5rem; }
+  .account-header-bar__inner { padding: 0 .8rem; }
+  .account-header-bar__nav { display: none; }
+  .account-header-bar__user-name { max-width: 80px; }
   .account-main { padding: 1.5rem 1rem 3rem; }
   .account-form__grid { grid-template-columns: 1fr; }
   .account-avatar-editor { align-items: flex-start; }
   .account-addresses { grid-template-columns: 1fr; }
+  .account-header-bar__admin-btn { padding: .3rem .6rem; font-size: .75rem; gap: .2rem; }
 }
 
 @media (max-width: 520px) {
@@ -351,4 +499,6 @@
   .account-address-card__actions .account-button { width: 100%; }
   .account-latest-order { grid-template-columns: 1fr; }
   .account-latest-order .account-button { grid-column: auto; justify-self: stretch; }
+  .account-header-bar__user-name { display: none; }
+  .account-header-bar__admin-btn { font-size: .72rem; padding: .25rem .5rem; }
 }

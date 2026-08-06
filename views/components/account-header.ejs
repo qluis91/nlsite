@@ -1,0 +1,49 @@
+<!-- Account header — dark theme, site logo, navigation, admin access, user controls -->
+<header class="account-header-bar" role="banner">
+  <div class="account-header-bar__inner">
+    <div class="account-header-bar__left">
+      <a href="/" class="account-header-bar__brand" aria-label="Ir al inicio">
+        <% if (typeof accountLogo !== 'undefined' && accountLogo && accountLogo.url) { %>
+          <img src="<%= accountLogo.url %>" alt="<%= accountLogo.alt %>" class="account-header-bar__logo" width="auto" height="36">
+        <% } else { %>
+          <span class="account-header-bar__name"><%= typeof accountSiteName !== 'undefined' ? accountSiteName : site.name %></span>
+        <% } %>
+      </a>
+    </div>
+
+    <nav class="account-header-bar__nav" aria-label="Navegación del sitio">
+      <a href="/" class="account-header-bar__nav-link">Inicio</a>
+      <a href="/tienda" class="account-header-bar__nav-link">Tienda</a>
+      <a href="/galeria" class="account-header-bar__nav-link">Galería</a>
+      <a href="/nosotros" class="account-header-bar__nav-link">Nosotros</a>
+    </nav>
+
+    <div class="account-header-bar__right">
+      <% if (typeof isAdmin !== 'undefined' && isAdmin) { %>
+        <a href="/admin" class="account-header-bar__admin-btn" aria-label="Ir al panel administrativo">
+          <span class="account-header-bar__admin-icon" aria-hidden="true">&#9881;</span>
+          Administración
+        </a>
+      <% } %>
+
+      <div class="account-header-bar__user">
+        <div class="account-header-bar__user-avatar" aria-hidden="true">
+          <% if (accountUser && accountUser.avatar_path) { %>
+            <img src="<%= accountUser.avatar_path %>" alt="" width="28" height="28">
+          <% } else { %>
+            <span class="account-header-bar__user-avatar-initials" aria-hidden="true"><%= (typeof accountInitials !== 'undefined' && accountInitials) ? accountInitials : (accountUser ? (accountUser.name || '').charAt(0).toUpperCase() : '?') %></span>
+          <% } %>
+        </div>
+        <span class="account-header-bar__user-name" title="<%= typeof accountFullName !== 'undefined' ? accountFullName : (accountUser ? accountUser.name : '') %>">
+          <%= typeof accountFullName !== 'undefined' ? accountFullName : (accountUser ? accountUser.name : '') %>
+        </span>
+        <form action="/auth/logout" method="POST" class="account-header-bar__logout">
+          <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+          <button type="submit" class="account-header-bar__logout-btn" title="Cerrar sesión" aria-label="Cerrar sesión">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M16 17l5-5m0 0l-5-5m5 5H9"/><path d="M12 17v1a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2h5a2 2 0 012 2v1"/></svg>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</header>

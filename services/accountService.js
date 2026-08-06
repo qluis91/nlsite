@@ -96,9 +96,17 @@ async function updatePassword(userId, passwordHash) {
 }
 
 function getInitials(user) {
-  const parts = [user?.name, user?.last_name].filter(Boolean);
-  const initials = parts.map((part) => String(part).trim().charAt(0)).join('').slice(0, 2);
-  return initials.toUpperCase() || 'NL';
+  // Try name + last_name fields first.
+  const first = String(user?.name || '').trim();
+  const last = String(user?.last_name || '').trim();
+  if (first && last) return (first.charAt(0) + last.charAt(0)).toUpperCase();
+  // Single-name field: split on whitespace and take first+last word initials.
+  if (first) {
+    const words = first.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+    return first.charAt(0).toUpperCase();
+  }
+  return 'NL';
 }
 
 module.exports = {

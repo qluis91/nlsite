@@ -5,6 +5,66 @@ const imageProcessing = require('../services/imageProcessingService');
 const { validateProfile, validatePasswordChange } = require('../validators/accountValidator');
 const { captureCartForRegeneration, restoreCartAfterRegeneration } = require('../services/cartService');
 const { mapRole } = require('../config/roles');
+const { isAdminUser } = require('../config/capabilities');
+const cmsPublishing = require('../services/cmsPublishingService');
+const storage = require('../services/mediaStorageService');
+const siteConfig = require('../config/site');
+const pool = require('../config/db');
+
+// ── Resolve account-header logo ──
+// Priority for dark-account header:
+//   1. site.logo_light (intended for dark backgrounds)
+//   2. site.logo_primary
+//   3. null → text fallback
+// Checks both draft and published settings.
+// Returns { url, alt } where url is a browser-ready path or null.
+async function resolveAccountSiteLogo() {
+  const logoKeys = ['site.logo_light', 'site.logo_primary'];
+  try {
+    // Check draft settings first, then published as fallback
+    const draft = await cmsPublishing.getDraftSettings(logoKeys);
+    const published = await cmsPublishing.getPublishedSettings(logoKeys);
+
+    for (const key of logoKeys) {
+      const ref = draft[key] || published[key];
+      if (!ref || typeof ref !== 'string' || !ref.startsWith('media://')) continue;
+      const publicId = ref.slice('media://'.length);
+      const [[row]] = await pool.query(
+        "SELECT storage_path, public_url, variants_json, alt_text, title, original_name FROM media_assets WHERE public_id = ? AND status = 'active' AND deleted_at IS NULL LIMIT 1",
+        [publicId]
+      );
+      if (!row) continue;
+      try {
+        const paths = storage.resolvedAssetPaths(row);
+        if (paths?.publicUrl) {
+          return {
+            url: paths.publicUrl,
+            alt: row.alt_text || row.title || siteConfig.name,
+          };
+        }
+      } catch { /* skip unresolvable asset */ }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Resolve account site name ──
+// Priority: CMS global.site_name → .env SITE_NAME → NinjaLab CR
+async function resolveAccountSiteName() {
+  try {
+    const [draft, published] = await Promise.all([
+      cmsPublishing.getDraftSettings(['global.site_name']),
+      cmsPublishing.getPublishedSettings(['global.site_name']),
+    ]);
+    const cmsName = draft['global.site_name'] || published['global.site_name'];
+    if (cmsName && typeof cmsName === 'string' && cmsName.trim()) {
+      return cmsName.trim();
+    }
+  } catch { /* fall through */ }
+  return siteConfig.name;
+}
 
 function accountViewOptions(accountUser, accountSection, extra = {}) {
   return {
@@ -14,6 +74,8 @@ function accountViewOptions(accountUser, accountSection, extra = {}) {
     accountUser,
     accountInitials: accountService.getInitials(accountUser),
     accountSection,
+    isAdmin: isAdminUser(accountUser),
+    accountFullName: [accountUser.name, accountUser.last_name].filter(Boolean).join(' '),
     ...extra,
   };
 }
@@ -25,14 +87,18 @@ function redirectWithError(req, path, message) {
 
 exports.dashboard = async (req, res, next) => {
   try {
-    const [accountUser, summary] = await Promise.all([
+    const [accountUser, summary, accountLogo, accountSiteName] = await Promise.all([
       accountService.getUserProfile(req.session.user.id),
       customerOrders.getAccountDashboardSummary(req.session.user.id),
+      resolveAccountSiteLogo(),
+      resolveAccountSiteName(),
     ]);
     if (!accountUser) return res.redirect('/auth/login');
     return res.render('pages/account/dashboard', accountViewOptions(accountUser, 'dashboard', {
       title: 'Mi cuenta',
       summary,
+      accountLogo,
+      accountSiteName,
     }));
   } catch (error) {
     return next(error);
@@ -41,7 +107,11 @@ exports.dashboard = async (req, res, next) => {
 
 exports.showProfile = async (req, res, next) => {
   try {
-    const accountUser = await accountService.getUserProfile(req.session.user.id);
+    const [accountUser, accountLogo, accountSiteName] = await Promise.all([
+      accountService.getUserProfile(req.session.user.id),
+      resolveAccountSiteLogo(),
+      resolveAccountSiteName(),
+    ]);
     if (!accountUser) return res.redirect('/auth/login');
     const submitted = req.session.accountProfileForm || null;
     delete req.session.accountProfileForm;
@@ -54,6 +124,8 @@ exports.showProfile = async (req, res, next) => {
       title: 'Mi perfil',
       form,
       fieldErrors: submitted?.errors || {},
+      accountLogo,
+      accountSiteName,
     }));
   } catch (error) {
     return next(error);
@@ -125,13 +197,19 @@ exports.removeAvatar = async (req, res, next) => {
 
 exports.showSecurity = async (req, res, next) => {
   try {
-    const accountUser = await accountService.getUserProfile(req.session.user.id);
+    const [accountUser, accountLogo, accountSiteName] = await Promise.all([
+      accountService.getUserProfile(req.session.user.id),
+      resolveAccountSiteLogo(),
+      resolveAccountSiteName(),
+    ]);
     if (!accountUser) return res.redirect('/auth/login');
     const fieldErrors = req.session.accountPasswordErrors || {};
     delete req.session.accountPasswordErrors;
     return res.render('pages/account/security', accountViewOptions(accountUser, 'security', {
       title: 'Seguridad',
       fieldErrors,
+      accountLogo,
+      accountSiteName,
     }));
   } catch (error) {
     return next(error);
@@ -190,4 +268,6 @@ exports.changePassword = async (req, res, next) => {
   }
 };
 
+exports.resolveAccountSiteLogo = resolveAccountSiteLogo;
+exports.resolveAccountSiteName = resolveAccountSiteName;
 exports.accountViewOptions = accountViewOptions;

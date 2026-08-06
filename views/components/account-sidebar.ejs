@@ -6,31 +6,39 @@
       <span class="account-avatar account-avatar--sidebar account-avatar--initials" aria-hidden="true"><%= accountInitials %></span>
     <% } %>
     <div>
-      <strong><%= accountUser.name %><%= accountUser.last_name ? ' ' + accountUser.last_name : '' %></strong>
-      <span><%= accountUser.email %></span>
+      <strong title="<%= accountUser.name %><%= accountUser.last_name ? ' ' + accountUser.last_name : '' %>"><%= accountUser.name %><%= accountUser.last_name ? ' ' + accountUser.last_name : '' %></strong>
+      <span title="<%= accountUser.email %>"><%= accountUser.email %></span>
     </div>
   </div>
 
+  <% if (typeof isAdmin !== 'undefined' && isAdmin) { %>
+  <nav class="account-sidebar__nav account-sidebar__nav--admin" aria-label="Administración del sitio">
+    <a class="account-sidebar__link account-sidebar__link--admin" href="/admin">
+      <span aria-hidden="true">&#9881;</span> Administración
+    </a>
+  </nav>
+  <% } %>
+
   <nav class="account-sidebar__nav" aria-label="Secciones de la cuenta">
     <a class="account-sidebar__link <%= accountSection === 'dashboard' ? 'is-active' : '' %>" href="/cuenta" <%- accountSection === 'dashboard' ? 'aria-current="page"' : '' %>>
-      <span aria-hidden="true">⌂</span> Resumen
+      <span aria-hidden="true">&#8962;</span> Resumen
     </a>
     <a class="account-sidebar__link <%= accountSection === 'orders' ? 'is-active' : '' %>" href="/cuenta/pedidos" <%- accountSection === 'orders' ? 'aria-current="page"' : '' %>>
-      <span aria-hidden="true">□</span> Mis pedidos
+      <span aria-hidden="true">&#9633;</span> Mis pedidos
     </a>
     <a class="account-sidebar__link <%= accountSection === 'profile' ? 'is-active' : '' %>" href="/cuenta/perfil" <%- accountSection === 'profile' ? 'aria-current="page"' : '' %>>
-      <span aria-hidden="true">○</span> Mi perfil
+      <span aria-hidden="true">&#9675;</span> Mi perfil
     </a>
     <a class="account-sidebar__link <%= accountSection === 'addresses' ? 'is-active' : '' %>" href="/cuenta/direcciones" <%- accountSection === 'addresses' ? 'aria-current="page"' : '' %>>
-      <span aria-hidden="true">⌖</span> Direcciones
+      <span aria-hidden="true">&#8978;</span> Direcciones
     </a>
     <a class="account-sidebar__link <%= accountSection === 'security' ? 'is-active' : '' %>" href="/cuenta/seguridad" <%- accountSection === 'security' ? 'aria-current="page"' : '' %>>
-      <span aria-hidden="true">◇</span> Seguridad
+      <span aria-hidden="true">&#9671;</span> Seguridad
     </a>
   </nav>
 
   <form class="account-sidebar__logout" action="/auth/logout" method="POST">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <button class="account-sidebar__link" type="submit"><span aria-hidden="true">↗</span> Cerrar sesión</button>
+    <button class="account-sidebar__link" type="submit"><span aria-hidden="true">&#8599;</span> Cerrar sesión</button>
   </form>
 </aside>
