@@ -65,7 +65,7 @@ function decorate(row) {
     variants: storage.parseVariants(row.variants_json),
     model_metadata: storage.parseVariants(row.model_metadata),
     kind: kindOf(row),
-    reference: usage.buildReference(row.public_id),
+    reference: UUID_PATTERN.test(String(row.public_id || '')) ? usage.buildReference(row.public_id) : null,
     is_archived: row.status === MEDIA_STATUSES.ARCHIVED,
   };
 }

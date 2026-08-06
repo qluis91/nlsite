@@ -16,6 +16,9 @@ test('homepage public values have matching CMS fields', () => {
   const home = read('views/pages/home.ejs');
   const panel1 = read('views/pages/admin/page/panel1.ejs');
   const panel2 = read('views/pages/admin/page/panel2.ejs');
+  // Carousel and feature forms live in partials included via item-editor-drawer
+  const carouselForm = read('views/pages/admin/page/partials/carousel-form.ejs');
+  const featureForm = read('views/pages/admin/page/partials/feature-form.ejs');
   const panel3 = read('views/pages/admin/page/panel3.ejs');
 
   for (const field of [
@@ -24,13 +27,19 @@ test('homepage public values have matching CMS fields', () => {
   ]) assert.match(panel1, new RegExp(`name="${field}"`));
   for (const field of [
     'carouselControlsAriaLabel', 'carouselPreviousLabel', 'carouselNextLabel',
-    'media_alt', 'preview_media_alt',
   ]) assert.match(panel2, new RegExp(`name="${field}"`));
+  // media_alt and preview_media_alt are in the carousel partial form
+  for (const field of [
+    'media_alt', 'preview_media_alt',
+  ]) assert.match(carouselForm, new RegExp(`name="${field}"`));
   for (const field of [
     'carouselAriaLabel', 'carouselControlsAriaLabel', 'carouselPreviousLabel',
-    'carouselNextLabel', 'defaultButtonLabel', 'button_label', 'media_alt',
-    'link_aria_label',
+    'carouselNextLabel', 'defaultButtonLabel',
   ]) assert.match(panel3, new RegExp(`name="${field}"`));
+  // Fields from the feature-item form partial
+  for (const field of [
+    'button_label', 'media_alt', 'link_aria_label',
+  ]) assert.match(featureForm, new RegExp(`name="${field}"`));
 
   assert.match(home, /item\.profile_url/);
   assert.match(home, /item\.media_alt \|\| item\.title/);

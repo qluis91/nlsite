@@ -12,8 +12,16 @@ const publicationService = require('../services/publicationService');
 
 // ── Helpers ──
 
+const ALLOWED_TABS_PANEL2 = new Set(['general', 'logoloop', 'carousel', 'style']);
+const ALLOWED_TABS_PANEL3 = new Set(['general', 'cards', 'style']);
+
 function actorId(req) {
   return req.session?.user?.id || null;
+}
+
+function tabRedirect(basePath, activeTab, allowedSet) {
+  const tab = allowedSet.has(activeTab) ? activeTab : null;
+  return tab ? `${basePath}?tab=${tab}` : basePath;
 }
 
 function errorRedirect(req, res, url, errors) {
@@ -107,6 +115,12 @@ async function showPanel2(req, res, next) {
     let bgMedia = null;
     if (style.backgroundMedia) bgMedia = await resolveMediaData(style.backgroundMedia);
 
+    // Determine active tab — server-rendered, not JS-dependent.
+    // When there's a validation error, the form's kind tells us the tab;
+    // otherwise read from the ?tab= query param (set by tabRedirect).
+    const kindTab = ({ logo: 'logoloop', carousel: 'carousel' })[req.cmsSubmittedItem?.kind];
+    const activeTab = kindTab || (ALLOWED_TABS_PANEL2.has(req.query.tab) ? req.query.tab : 'general');
+
     res.status(req.cmsEditorStatus || 200).render('pages/admin/page/panel2', {
       title: 'Panel 2 — Showcase',
       layout: 'layouts/admin',
@@ -117,6 +131,7 @@ async function showPanel2(req, res, next) {
       bgMedia,
       logoItems,
       carouselItems,
+      activeTab,
       error: null,
       saved: null,
       fieldErrors: req.cmsEditorErrors || [],
@@ -137,6 +152,7 @@ async function showPanel2(req, res, next) {
 }
 
 async function savePanel2Draft(req, res) {
+  const activeTab = String(req.body.active_tab || 'general');
   const section = await getSectionId('home', 'showcase');
   const storedContent = (typeof section.content_json === 'string' ? JSON.parse(section.content_json) : section.content_json) || {};
   const storedStyle = (typeof section.style_json === 'string' ? JSON.parse(section.style_json) : section.style_json) || {};
@@ -174,7 +190,7 @@ async function savePanel2Draft(req, res) {
   try {
     await publishing.saveSectionDraft('home', 'showcase', content, style, { actorId: actorId(req) });
 
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Borrador del Panel 2 guardado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Borrador del Panel 2 guardado.');
   } catch (e) {
     console.error('Panel 2 save error:', e);
     req.cmsEditorOverride = { content, style };
@@ -185,16 +201,17 @@ async function savePanel2Draft(req, res) {
 }
 
 async function publishPanel2(req, res) {
+  const activeTab = String(req.body.active_tab || 'general');
   try {
     await publicationService.publishModules(
       ['home.showcase', 'home.logoLoop', 'home.carousel'],
       'module',
       { actorId: actorId(req) }
     );
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Panel 2 publicado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Panel 2 publicado.');
   } catch (e) {
     console.error('Panel 2 publish error:', e);
-    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al publicar.']);
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), ['Error al publicar.']);
   }
 }
 
@@ -222,12 +239,13 @@ async function persistLogoLoopItem(req, editing) {
 }
 
 async function createLogoLoopItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'logoloop');
   const errors = validator.validateLogoLoopItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'logo', errors);
 
   try {
     await persistLogoLoopItem(req, false);
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Elemento agregado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Elemento agregado.');
   } catch (e) {
     console.error('Create logo loop item:', e);
     return renderItemFailure(req, res, showPanel2, 'logo', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al crear el elemento.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
@@ -235,11 +253,12 @@ async function createLogoLoopItem(req, res) {
 }
 
 async function saveLogoLoopItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'logoloop');
   const errors = validator.validateLogoLoopItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'logo', errors);
   try {
     await persistLogoLoopItem(req, true);
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Elemento guardado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Elemento guardado.');
   } catch (e) {
     console.error('Save logo loop item:', e);
     return renderItemFailure(req, res, showPanel2, 'logo', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al guardar el elemento.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
@@ -247,15 +266,17 @@ async function saveLogoLoopItem(req, res) {
 }
 
 async function archiveLogoLoopItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'logoloop');
   try {
     await repeatable.archiveItem('logo_loop_items', req.body.public_id, { actorId: actorId(req) });
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Elemento archivado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Elemento archivado.');
   } catch (e) {
-    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al archivar.']);
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), ['Error al archivar.']);
   }
 }
 
 async function reorderLogoLoopItems(req, res) {
+  const activeTab = String(req.body.active_tab || 'logoloop');
   try {
     const section = await getSectionId('home', 'showcase');
     let ids = req.body.ids;
@@ -265,33 +286,75 @@ async function reorderLogoLoopItems(req, res) {
       try { ids = JSON.parse(ids || '[]'); } catch { ids = []; }
     }
     await repeatable.reorderItems('logo_loop_items', section.id, ids, { actorId: actorId(req) });
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Orden actualizado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Orden actualizado.');
   } catch (e) {
-    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al reordenar.']);
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), ['Error al reordenar.']);
   }
 }
 
 async function publishLogoLoop(req, res) {
+  const activeTab = String(req.body.active_tab || 'logoloop');
   try {
     const section = await getSectionId('home', 'showcase');
     await repeatable.publishCollection('logo_loop_items', section.id, 'logoLoop_home', { actorId: actorId(req) });
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'LogoLoop publicado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'LogoLoop publicado.');
   } catch (e) {
-    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al publicar.']);
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), ['Error al publicar.']);
   }
 }
 
 async function saveAndPublishLogoLoopItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'logoloop');
   const errors = validator.validateLogoLoopItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'logo', errors);
   try {
     await persistLogoLoopItem(req, Boolean(req.body.public_id));
     const section = await getSectionId('home', 'showcase');
     await repeatable.publishCollection('logo_loop_items', section.id, 'logoLoop_home', { actorId: actorId(req) });
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Elemento guardado y LogoLoop publicado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Elemento guardado y LogoLoop publicado.');
   } catch (e) {
     console.error('Save and publish logo loop item:', e);
     return renderItemFailure(req, res, showPanel2, 'logo', [e.code === 'CMS_VALIDATION' ? e.message : 'No se pudo guardar y publicar LogoLoop.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
+  }
+}
+
+// LogoLoop — hard delete
+async function deleteLogoLoopItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'logoloop');
+  if (!req.body.public_id) {
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), ['Falta el identificador del elemento.']);
+  }
+  try {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query('SELECT * FROM logo_loop_items WHERE public_id = ? FOR UPDATE', [req.body.public_id]);
+      if (!rows[0]) {
+        await connection.rollback().catch(() => {});
+        return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), ['Elemento no encontrado.']);
+      }
+      const item = rows[0];
+      // Hard-delete the row — does NOT touch the referenced media asset.
+      // Record a minimal revision for audit trail before deleting.
+      const [[maxRev]] = await connection.query(
+        'SELECT COALESCE(MAX(revision_number), 0) + 1 AS next_rev FROM content_revisions WHERE entity_type = ? AND entity_id = ?',
+        ['logo_loop_item', item.id]
+      );
+      await connection.query(
+        'INSERT INTO content_revisions (entity_type, entity_id, revision_number, action, previous_data, change_summary, changed_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        ['logo_loop_item', item.id, maxRev.next_rev, 'permanent_delete',
+         JSON.stringify({ public_id: item.public_id, status: item.status, label: item.item_type }),
+         'Elemento eliminado.', actorId(req)]
+      );
+      await connection.query('DELETE FROM logo_loop_items WHERE id = ?', [item.id]);
+      await connection.commit();
+    } catch (e) {
+      await connection.rollback().catch(() => {});
+      throw e;
+    } finally { connection.release(); }
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Elemento eliminado.');
+  } catch (e) {
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), ['Error al eliminar el elemento.']);
   }
 }
 
@@ -327,38 +390,42 @@ async function persistCarouselItem(req, editing) {
 }
 
 async function createCarouselItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'carousel');
   const errors = validator.validateCarouselItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
 
   try {
     await persistCarouselItem(req, false);
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Proyecto agregado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Proyecto agregado.');
   } catch (e) {
     return renderItemFailure(req, res, showPanel2, 'carousel', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al crear el proyecto.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
   }
 }
 
 async function saveCarouselItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'carousel');
   const errors = validator.validateCarouselItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
   try {
     await persistCarouselItem(req, true);
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Proyecto guardado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Proyecto guardado.');
   } catch (e) {
     return renderItemFailure(req, res, showPanel2, 'carousel', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al guardar el proyecto.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
   }
 }
 
 async function archiveCarouselItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'carousel');
   try {
     await repeatable.archiveItem('home_carousel_items', req.body.public_id, { actorId: actorId(req) });
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Proyecto archivado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Proyecto archivado.');
   } catch (e) {
-    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al archivar.']);
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), ['Error al archivar.']);
   }
 }
 
 async function reorderCarouselItems(req, res) {
+  const activeTab = String(req.body.active_tab || 'carousel');
   try {
     const section = await getSectionId('home', 'showcase');
     let ids = req.body.ids;
@@ -368,30 +435,32 @@ async function reorderCarouselItems(req, res) {
       try { ids = JSON.parse(ids || '[]'); } catch { ids = []; }
     }
     await repeatable.reorderItems('home_carousel_items', section.id, ids, { actorId: actorId(req) });
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Orden actualizado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Orden actualizado.');
   } catch (e) {
-    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al reordenar.']);
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), ['Error al reordenar.']);
   }
 }
 
 async function publishCarousel(req, res) {
+  const activeTab = String(req.body.active_tab || 'carousel');
   try {
     const section = await getSectionId('home', 'showcase');
     await repeatable.publishCollection('home_carousel_items', section.id, 'carousel_home', { actorId: actorId(req) });
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Carrusel publicado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Carrusel publicado.');
   } catch (e) {
-    return errorRedirect(req, res, '/admin/page/home/panel-2', ['Error al publicar.']);
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), ['Error al publicar.']);
   }
 }
 
 async function saveAndPublishCarouselItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'carousel');
   const errors = validator.validateCarouselItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
   try {
     await persistCarouselItem(req, Boolean(req.body.public_id));
     const section = await getSectionId('home', 'showcase');
     await repeatable.publishCollection('home_carousel_items', section.id, 'carousel_home', { actorId: actorId(req) });
-    return successRedirect(req, res, '/admin/page/home/panel-2', 'Proyecto guardado y carrusel publicado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Proyecto guardado y carrusel publicado.');
   } catch (e) {
     console.error('Save and publish carousel item:', e);
     return renderItemFailure(req, res, showPanel2, 'carousel', [e.code === 'CMS_VALIDATION' ? e.message : 'No se pudo guardar y publicar el carrusel.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
@@ -417,6 +486,10 @@ async function showPanel3(req, res, next) {
     const items = await repeatable.listItems('home_feature_items', section.id);
     await resolveItemMediaData(items, ['media_public_id']);
 
+    // Determine active tab — server-rendered, not JS-dependent.
+    const kindTab = req.cmsSubmittedItem?.kind === 'feature' ? 'cards' : undefined;
+    const activeTab = kindTab || (ALLOWED_TABS_PANEL3.has(req.query.tab) ? req.query.tab : 'general');
+
     res.render('pages/admin/page/panel3', {
       title: 'Panel 3 — Servicios',
       layout: 'layouts/admin',
@@ -425,6 +498,7 @@ async function showPanel3(req, res, next) {
       content,
       style,
       items,
+      activeTab,
       error: null,
       saved: null,
       fieldErrors: req.cmsEditorErrors || [],
@@ -445,6 +519,7 @@ async function showPanel3(req, res, next) {
 }
 
 async function savePanel3Draft(req, res) {
+  const activeTab = String(req.body.active_tab || 'general');
   const section = await getSectionId('home', 'services');
   const storedContent = (typeof section.content_json === 'string' ? JSON.parse(section.content_json) : section.content_json) || {};
   const storedStyle = (typeof section.style_json === 'string' ? JSON.parse(section.style_json) : section.style_json) || {};
@@ -481,7 +556,7 @@ async function savePanel3Draft(req, res) {
   try {
     await publishing.saveSectionDraft('home', 'services', content, style, { actorId: actorId(req) });
 
-    return successRedirect(req, res, '/admin/page/home/panel-3', 'Borrador del Panel 3 guardado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-3', activeTab, ALLOWED_TABS_PANEL3), 'Borrador del Panel 3 guardado.');
   } catch (e) {
     console.error('Panel 3 save error:', e);
     req.cmsEditorOverride = { content, style };
@@ -504,15 +579,16 @@ async function verifyImagePublicId(value) {
 }
 
 async function publishPanel3(req, res) {
+  const activeTab = String(req.body.active_tab || 'general');
   try {
     await publicationService.publishModules(
       ['home.services', 'home.features'],
       'module',
       { actorId: actorId(req) }
     );
-    return successRedirect(req, res, '/admin/page/home/panel-3', 'Panel 3 publicado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-3', activeTab, ALLOWED_TABS_PANEL3), 'Panel 3 publicado.');
   } catch (e) {
-    return errorRedirect(req, res, '/admin/page/home/panel-3', ['Error al publicar.']);
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-3', activeTab, ALLOWED_TABS_PANEL3), ['Error al publicar.']);
   }
 }
 
@@ -546,37 +622,41 @@ async function persistFeatureItem(req, editing) {
 }
 
 async function createFeatureItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'cards');
   const errors = validator.validateFeatureItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel3, 'feature', errors);
   try {
     await persistFeatureItem(req, false);
-    return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjeta agregada.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-3', activeTab, ALLOWED_TABS_PANEL3), 'Tarjeta agregada.');
   } catch (e) {
     return renderItemFailure(req, res, showPanel3, 'feature', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al crear la tarjeta.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
   }
 }
 
 async function saveFeatureItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'cards');
   const errors = validator.validateFeatureItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel3, 'feature', errors);
   try {
     await persistFeatureItem(req, true);
-    return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjeta guardada.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-3', activeTab, ALLOWED_TABS_PANEL3), 'Tarjeta guardada.');
   } catch (e) {
     return renderItemFailure(req, res, showPanel3, 'feature', [e.code === 'CMS_VALIDATION' ? e.message : 'Error de servidor al guardar la tarjeta.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
   }
 }
 
 async function archiveFeatureItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'cards');
   try {
     await repeatable.archiveItem('home_feature_items', req.body.public_id, { actorId: actorId(req) });
-    return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjeta archivada.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-3', activeTab, ALLOWED_TABS_PANEL3), 'Tarjeta archivada.');
   } catch (e) {
-    return errorRedirect(req, res, '/admin/page/home/panel-3', ['Error al archivar.']);
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-3', activeTab, ALLOWED_TABS_PANEL3), ['Error al archivar.']);
   }
 }
 
 async function reorderFeatureItems(req, res) {
+  const activeTab = String(req.body.active_tab || 'cards');
   try {
     const section = await getSectionId('home', 'services');
     let ids = req.body.ids;
@@ -586,30 +666,32 @@ async function reorderFeatureItems(req, res) {
       try { ids = JSON.parse(ids || '[]'); } catch { ids = []; }
     }
     await repeatable.reorderItems('home_feature_items', section.id, ids, { actorId: actorId(req) });
-    return successRedirect(req, res, '/admin/page/home/panel-3', 'Orden actualizado.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-3', activeTab, ALLOWED_TABS_PANEL3), 'Orden actualizado.');
   } catch (e) {
-    return errorRedirect(req, res, '/admin/page/home/panel-3', ['Error al reordenar.']);
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-3', activeTab, ALLOWED_TABS_PANEL3), ['Error al reordenar.']);
   }
 }
 
 async function publishFeatureItems(req, res) {
+  const activeTab = String(req.body.active_tab || 'cards');
   try {
     const section = await getSectionId('home', 'services');
     await repeatable.publishCollection('home_feature_items', section.id, 'features_home', { actorId: actorId(req) });
-    return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjetas publicadas.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-3', activeTab, ALLOWED_TABS_PANEL3), 'Tarjetas publicadas.');
   } catch (e) {
-    return errorRedirect(req, res, '/admin/page/home/panel-3', ['Error al publicar.']);
+    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-3', activeTab, ALLOWED_TABS_PANEL3), ['Error al publicar.']);
   }
 }
 
 async function saveAndPublishFeatureItem(req, res) {
+  const activeTab = String(req.body.active_tab || 'cards');
   const errors = validator.validateFeatureItem(req.body);
   if (errors.length) return renderItemFailure(req, res, showPanel3, 'feature', errors);
   try {
     await persistFeatureItem(req, Boolean(req.body.public_id));
     const section = await getSectionId('home', 'services');
     await repeatable.publishCollection('home_feature_items', section.id, 'features_home', { actorId: actorId(req) });
-    return successRedirect(req, res, '/admin/page/home/panel-3', 'Tarjeta guardada y características publicadas.');
+    return successRedirect(req, res, tabRedirect('/admin/page/home/panel-3', activeTab, ALLOWED_TABS_PANEL3), 'Tarjeta guardada y características publicadas.');
   } catch (e) {
     console.error('Save and publish feature item:', e);
     return renderItemFailure(req, res, showPanel3, 'feature', [e.code === 'CMS_VALIDATION' ? e.message : 'No se pudo guardar y publicar la colección.'], e.code === 'CMS_VALIDATION' ? 422 : 500);
@@ -618,7 +700,7 @@ async function saveAndPublishFeatureItem(req, res) {
 
 module.exports = {
   showPanel2, savePanel2Draft, publishPanel2,
-  createLogoLoopItem, saveLogoLoopItem, saveAndPublishLogoLoopItem, archiveLogoLoopItem, reorderLogoLoopItems, publishLogoLoop,
+  createLogoLoopItem, saveLogoLoopItem, saveAndPublishLogoLoopItem, archiveLogoLoopItem, reorderLogoLoopItems, publishLogoLoop, deleteLogoLoopItem,
   createCarouselItem, saveCarouselItem, saveAndPublishCarouselItem, archiveCarouselItem, reorderCarouselItems, publishCarousel,
   showPanel3, savePanel3Draft, publishPanel3,
   createFeatureItem, saveFeatureItem, saveAndPublishFeatureItem, archiveFeatureItem, reorderFeatureItems, publishFeatureItems,

@@ -16,6 +16,14 @@ before(async () => {
   await pool.query("DELETE FROM logo_loop_items WHERE page_section_id IN (SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = 'showcase') AND (text_content = 'PERSIST_TEST' OR text_content LIKE 'media_prod_%')").catch(() => {});
   await pool.query("DELETE FROM home_carousel_items WHERE page_section_id IN (SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = 'showcase') AND (title = 'PERSIST_TEST' OR title LIKE 'media_prod_%')").catch(() => {});
   await pool.query("DELETE FROM home_feature_items WHERE page_section_id IN (SELECT s.id FROM page_sections s WHERE s.section_key = 'services') AND title = 'PERSIST_TEST'").catch(() => {});
+  // Reset any seed items that were deleted or replaced by other suites.
+  // Hard-delete everything so migratePanels re-seeds from scratch.
+  const [[svc]] = await pool.query(
+    "SELECT s.id FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key = 'home' AND s.section_key = 'services'"
+  );
+  if (svc) {
+    await pool.query("DELETE FROM home_feature_items WHERE page_section_id = ?", [svc.id]);
+  }
   await migratePanels();
   // Clean any leftover content_revisions to prevent ER_DUP_ENTRY
   await pool.query('DELETE FROM content_revisions');

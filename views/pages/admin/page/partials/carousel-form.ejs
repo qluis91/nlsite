@@ -9,6 +9,7 @@
     <%- include('item-editor-errors', { errors: submittedKind === 'carousel' ? fieldErrors : [] }) %>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="public_id" id="carousel-edit-id" value="">
+    <input type="hidden" name="active_tab" value="carousel">
 
     <div class="form-row">
       <div class="form-group">

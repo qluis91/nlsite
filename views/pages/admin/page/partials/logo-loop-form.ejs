@@ -9,6 +9,7 @@
     <%- include('item-editor-errors', { errors: submittedKind === 'logo' ? fieldErrors : [] }) %>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="public_id" id="logo-edit-id" value="">
+    <input type="hidden" name="active_tab" value="logoloop">
 
     <div class="form-row">
       <div class="form-group">

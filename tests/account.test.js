@@ -129,7 +129,10 @@ async function waitForServer() {
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error('Isolated account test server did not start');
+  throw new Error(
+    'Isolated account test server did not start.'
+    + (childStderr ? '\nChild stderr: ' + childStderr.slice(-1000) : '')
+  );
 }
 
 async function stopServer() {
@@ -199,12 +202,16 @@ test.before(async () => {
   fixture.refs.push(await insertOrder(fixture.userId, 'completed', 'paid'));
   fixture.otherRef = await insertOrder(fixture.otherUserId, 'completed', 'paid');
 
+let childStderr = '';
   serverProcess = spawn(process.execPath, ['app.js'], {
     cwd: path.join(__dirname, '..'),
     env: buildIsolatedTestEnvironment(process.env, { PORT: String(port) }),
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
+  serverProcess.stderr.setEncoding('utf8');
+  serverProcess.stderr.on('data', (chunk) => { childStderr += chunk; });
+  serverProcess.stdout.resume();
   await waitForServer();
 });
 

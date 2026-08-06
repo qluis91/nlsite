@@ -59,6 +59,15 @@
     });
   });
 
+  // Activate tab from URL query param (?tab=cards, …)
+  (function activateTabFromURL() {
+    var m = (window.location.search || '').match(/(?:^|&)tab=([a-zA-Z-]+)/);
+    if (m) {
+      var tab = document.querySelector('[data-tab="' + m[1] + '"]');
+      if (tab) tab.click();
+    }
+  })();
+
   // ── Icon type switching ──
   var iconTypeSel = document.getElementById('feature-icon-type');
   var builtinGroup = document.getElementById('feature-builtin-group');

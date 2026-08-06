@@ -9,6 +9,7 @@
     <%- include('item-editor-errors', { errors: submittedKind === 'feature' ? fieldErrors : [] }) %>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="public_id" id="feature-edit-id" value="">
+    <input type="hidden" name="active_tab" value="cards">
 
     <div class="form-group">
       <label class="field-label" for="feature-title">Título <span class="required">*</span></label>

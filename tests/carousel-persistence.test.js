@@ -334,16 +334,13 @@ describe('Carousel template — panel2.ejs JSON data block', () => {
   });
 
   it('carousel form includes both media selectors with correct field names', async () => {
-    // The raw source includes the fieldName parameters for the include
-    const src = fs.readFileSync(viewPath, 'utf-8');
-    // Find the carousel-form section
-    const formStart = src.indexOf('<form method="POST" action="/admin/page/home/panel-2/carousel/items"');
-    const formEnd = src.indexOf('<!-- ═══ Style tab ═══ -->');
-    const carouselFormSrc = src.substring(formStart, formEnd);
-    assert.ok(carouselFormSrc.includes("fieldName: 'media_public_id'"), 'must have main media fieldName');
-    assert.ok(carouselFormSrc.includes("fieldName: 'preview_media_public_id'"), 'must have preview media fieldName');
+    // The carousel form is in the partial file, not panel2.ejs itself
+    const partialPath = path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'partials', 'carousel-form.ejs');
+    const src = fs.readFileSync(partialPath, 'utf-8');
+    assert.ok(src.includes("fieldName: 'media_public_id'"), 'must have main media fieldName');
+    assert.ok(src.includes("fieldName: 'preview_media_public_id'"), 'must have preview media fieldName');
 
-    // Verify rendered output has the actual hidden inputs
+    // Verify rendered panel2.ejs includes the partial and produces hidden inputs
     const html = await ejs.renderFile(viewPath, {
       content: {}, style: {}, bgMedia: null,
       logoItems: [],
@@ -446,10 +443,18 @@ describe('Carousel controller — adminPanelsController', () => {
   });
 
   it('saveCarouselItem includes both media fields', () => {
+    // saveCarouselItem delegates to persistCarouselItem which handles the fields.
+    // Verify both functions reference the media fields in the controller.
     const saveIdx = ctrl.indexOf('async function saveCarouselItem');
     const saveBlock = ctrl.substring(saveIdx, saveIdx + 2000);
-    assert.ok(saveBlock.includes('media_public_id:'), 'save has media');
-    assert.ok(saveBlock.includes('preview_media_public_id:'), 'save has preview');
+    // saveCarouselItem delegates to persistCarouselItem
+    assert.ok(saveBlock.includes('persistCarouselItem'), 'saveCarouselItem must delegate to persistCarouselItem');
+
+    // persistCarouselItem contains the actual field references
+    const persistIdx = ctrl.indexOf('async function persistCarouselItem');
+    const persistBlock = ctrl.substring(persistIdx, persistIdx + 1000);
+    assert.ok(persistBlock.includes('media_public_id:'), 'persistCarouselItem has media_public_id');
+    assert.ok(persistBlock.includes('preview_media_public_id:'), 'persistCarouselItem has preview_media_public_id');
   });
 
   it('showPanel2 resolves both carousel media fields', () => {

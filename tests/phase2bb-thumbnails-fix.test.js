@@ -22,10 +22,11 @@ const metaOAuth = require('../services/metaOAuthService');
 const instagram = require('../services/instagramSyncService');
 const facebook = require('../services/facebookSyncService');
 
-after(() => {
+after(async () => {
   instagram.setHttpGet(null);
   facebook.setHttpGet(null);
   metaOAuth.setHttpGet(null);
+  await pool.end().catch(() => {});
 });
 
 // ═══════════════════════════════════════

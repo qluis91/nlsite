@@ -31,7 +31,7 @@ test('env validation returns array without throwing', () => {
 test('package.json has correct scripts', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
   assert.equal(pkg.scripts.start, 'node app.js');
-  assert.ok(['node --test', 'node --test tests/*.test.js'].includes(pkg.scripts.test), `Unexpected test script: ${pkg.scripts.test}`);
+  assert.match(pkg.scripts.test, /^node --require \.\/config\/testBootstrap\.js --test --test-concurrency=1/, `Unexpected test script: ${pkg.scripts.test}`);
   assert.equal(pkg.scripts.migrate, 'node scripts/migrate-all.js');
 });
 

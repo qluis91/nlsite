@@ -188,6 +188,15 @@
     });
   });
 
+  // Activate tab from URL query param (?tab=logoloop, ?tab=carousel, …)
+  (function activateTabFromURL() {
+    var m = (window.location.search || '').match(/(?:^|&)tab=([a-zA-Z-]+)/);
+    if (m) {
+      var tab = document.querySelector('[data-tab="' + m[1] + '"]');
+      if (tab) tab.click();
+    }
+  })();
+
   // ── LogoLoop type switching ──
   var logoType = document.getElementById('logo-type');
   var logoTextGroup = document.getElementById('logo-text-group');
@@ -352,6 +361,17 @@
 
   window.NLCarouselFocalEditor = { init: bindFocalEditors };
   bindFocalEditors(document);
+
+  // ── CSP-safe delete confirmation ──
+  document.querySelectorAll('[data-cms-delete-submit]').forEach(function (btn) {
+    if (btn.dataset.cmsDeleteBound) return;
+    btn.dataset.cmsDeleteBound = '1';
+    btn.addEventListener('click', function (e) {
+      if (!window.confirm('¿Eliminar permanentemente este elemento del LogoLoop? El medio asociado no se eliminará.')) {
+        e.preventDefault();
+      }
+    });
+  });
 
   if (submittedItem && submittedItem.kind && submittedItem.values) {
     var values = submittedItem.values;

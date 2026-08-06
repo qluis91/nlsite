@@ -443,7 +443,7 @@ describe('save-and-publish controller integration', () => {
     await controller.saveAndPublishLogoLoopItem(request({ item_type: 'text', text_content: 'Logo' }), res);
     assert.deepEqual(calls.map((call) => call[0]), ['createItem', 'publishCollection']);
     assert.deepEqual(calls[1].slice(1, 4), ['logo_loop_items', 42, 'logoLoop_home']);
-    assert.equal(res.redirectUrl, '/admin/page/home/panel-2');
+    assert.equal(res.redirectUrl, '/admin/page/home/panel-2?tab=logoloop');
   });
 
   it('edits a carousel draft then publishes the complete carousel collection', async () => {

@@ -21,6 +21,7 @@ router.post('/page/home/panel-2/logo-loop/items/save', requireCapability(CAPABIL
 router.post('/page/home/panel-2/logo-loop/items/save-publish', requireCapability(CAPABILITIES.LOGOLOOP_EDIT), requireCapability(CAPABILITIES.LOGOLOOP_PUBLISH), csrfSynchronisedProtection, controller.saveAndPublishLogoLoopItem);
 router.post('/page/home/panel-2/logo-loop/items/reorder', requireCapability(CAPABILITIES.LOGOLOOP_EDIT), csrfSynchronisedProtection, controller.reorderLogoLoopItems);
 router.post('/page/home/panel-2/logo-loop/items/archive', requireCapability(CAPABILITIES.LOGOLOOP_EDIT), csrfSynchronisedProtection, controller.archiveLogoLoopItem);
+router.post('/page/home/panel-2/logo-loop/items/delete', requireCapability(CAPABILITIES.LOGOLOOP_EDIT), csrfSynchronisedProtection, controller.deleteLogoLoopItem);
 router.post('/page/home/panel-2/logo-loop/items/publish', requireCapability(CAPABILITIES.LOGOLOOP_PUBLISH), csrfSynchronisedProtection, controller.publishLogoLoop);
 
 // Carousel items

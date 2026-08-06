@@ -64,8 +64,11 @@ describe('Phase 11D — Migration & Schema', () => {
   it('6. migration is idempotent', async () => {
     const { migratePublishing } = require('../scripts/migrate-publishing');
     await migratePublishing(); // second run
-    // Tables should still exist
-    const [[r1]] = await pool.query("SELECT COUNT(*) cnt FROM information_schema.tables WHERE table_name = 'publication_batches'");
+    // Tables should still exist — filter by current database to avoid counting
+    // tables in other schemas (e.g. nlsite_db)
+    const [[r1]] = await pool.query(
+      "SELECT COUNT(*) cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'publication_batches'"
+    );
     assert.equal(Number(r1.cnt), 1);
   });
 });

@@ -1,4 +1,4 @@
-<% const c = content || {}; const s = style || {}; const cmsEditorState = typeof editorState !== 'undefined' ? editorState : null; %>
+<% const c = content || {}; const s = style || {}; const cmsEditorState = typeof editorState !== 'undefined' ? editorState : null; const aTab = (typeof activeTab !== 'undefined') ? activeTab : 'general'; %>
 <div data-cms-editor data-editor-state="<%= cmsEditorState || 'clean' %>">
 <div class="page-header">
   <div>
@@ -21,16 +21,17 @@
 
 <!-- ── Tabs ── -->
 <nav class="cms-tabs" role="tablist" aria-label="Secciones del Panel 2">
-  <button class="cms-tab is-active" role="tab" aria-selected="true" data-tab="general">Contenido general</button>
-  <button class="cms-tab" role="tab" aria-selected="false" data-tab="logoloop">LogoLoop</button>
-  <button class="cms-tab" role="tab" aria-selected="false" data-tab="carousel">Carrusel de proyectos</button>
-  <button class="cms-tab" role="tab" aria-selected="false" data-tab="style">Apariencia</button>
+  <button class="cms-tab <%= aTab === 'general' ? 'is-active' : '' %>" role="tab" aria-selected="<%= aTab === 'general' ? 'true' : 'false' %>" data-tab="general">Contenido general</button>
+  <button class="cms-tab <%= aTab === 'logoloop' ? 'is-active' : '' %>" role="tab" aria-selected="<%= aTab === 'logoloop' ? 'true' : 'false' %>" data-tab="logoloop">LogoLoop</button>
+  <button class="cms-tab <%= aTab === 'carousel' ? 'is-active' : '' %>" role="tab" aria-selected="<%= aTab === 'carousel' ? 'true' : 'false' %>" data-tab="carousel">Carrusel de proyectos</button>
+  <button class="cms-tab <%= aTab === 'style' ? 'is-active' : '' %>" role="tab" aria-selected="<%= aTab === 'style' ? 'true' : 'false' %>" data-tab="style">Apariencia</button>
 </nav>
 
 <!-- ═══ General content tab ═══ -->
-<div class="cms-tab-panel is-active" role="tabpanel" data-panel="general">
+<div class="cms-tab-panel <%= aTab === 'general' ? 'is-active' : '' %>" role="tabpanel" data-panel="general"<%= aTab !== 'general' ? ' hidden' : '' %>>
   <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form" data-cms-editor-form novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="active_tab" value="general">
     <div class="form-group"><label class="field-label"><input type="checkbox" name="isVisible" value="1" <%= c.isVisible !== false ? 'checked' : '' %>> Panel visible al publicar</label></div>
 
     <div class="form-group">
@@ -74,7 +75,7 @@
 </div>
 
 <!-- ═══ LogoLoop tab ═══ -->
-<div class="cms-tab-panel" role="tabpanel" data-panel="logoloop" hidden>
+<div class="cms-tab-panel <%= aTab === 'logoloop' ? 'is-active' : '' %>" role="tabpanel" data-panel="logoloop"<%= aTab !== 'logoloop' ? ' hidden' : '' %>>
   <div class="cms-section-header">
     <h3>Elementos del LogoLoop</h3>
     <div class="cms-section-header__actions">
@@ -110,8 +111,15 @@
                     data-item-id="<%= item.public_id %>" data-logo-edit-id="<%= item.public_id %>">Editar</button>
             <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/archive" class="cms-form--inline">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="active_tab" value="logoloop">
               <input type="hidden" name="public_id" value="<%= item.public_id %>">
               <button type="submit" class="btn btn-sm btn-danger">Archivar</button>
+            </form>
+            <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/delete" class="cms-form--inline" data-cms-delete-form>
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="active_tab" value="logoloop">
+              <input type="hidden" name="public_id" value="<%= item.public_id %>">
+              <button type="submit" class="btn btn-sm btn-danger" data-cms-delete-submit>Eliminar</button>
             </form>
           </td>
         </tr>
@@ -123,6 +131,7 @@
   <div class="cms-card">
     <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/reorder" class="cms-form cms-form--inline">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="active_tab" value="logoloop">
       <label class="field-label">Reordenar (IDs separados por coma)</label>
       <input type="text" name="ids" class="form-input" value="<%= logoItems.map(i => i.public_id).join(',') %>" style="width:100%">
       <button type="submit" class="btn btn-secondary btn-sm">Actualizar orden</button>
@@ -132,13 +141,14 @@
   <div class="cms-section-footer">
     <form method="POST" action="/admin/page/home/panel-2/logo-loop/items/publish" class="cms-form" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="active_tab" value="logoloop">
       <button type="submit" class="btn btn-publish">Publicar LogoLoop</button>
     </form>
   </div>
 </div>
 
 <!-- ═══ Carousel tab ═══ -->
-<div class="cms-tab-panel" role="tabpanel" data-panel="carousel" hidden>
+<div class="cms-tab-panel <%= aTab === 'carousel' ? 'is-active' : '' %>" role="tabpanel" data-panel="carousel"<%= aTab !== 'carousel' ? ' hidden' : '' %>>
   <div class="cms-section-header">
     <h3>Proyectos del carrusel</h3>
     <div class="cms-section-header__actions">
@@ -172,6 +182,7 @@
                     data-item-id="<%= item.public_id %>" data-carousel-edit-id="<%= item.public_id %>">Editar</button>
             <form method="POST" action="/admin/page/home/panel-2/carousel/items/archive" class="cms-form--inline">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="active_tab" value="carousel">
               <input type="hidden" name="public_id" value="<%= item.public_id %>">
               <button type="submit" class="btn btn-sm btn-danger">Archivar</button>
             </form>
@@ -189,6 +200,7 @@
   <div class="cms-card">
     <form method="POST" action="/admin/page/home/panel-2/carousel/items/reorder" class="cms-form cms-form--inline">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="active_tab" value="carousel">
       <label class="field-label">Reordenar (IDs separados por coma)</label>
       <input type="text" name="ids" class="form-input" value="<%= carouselItems.map(i => i.public_id).join(',') %>" style="width:100%">
       <button type="submit" class="btn btn-secondary btn-sm">Actualizar orden</button>
@@ -198,15 +210,17 @@
   <div class="cms-section-footer">
     <form method="POST" action="/admin/page/home/panel-2/carousel/items/publish" class="cms-form" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="active_tab" value="carousel">
       <button type="submit" class="btn btn-publish">Publicar carrusel</button>
     </form>
   </div>
 </div>
 
 <!-- ═══ Style tab ═══ -->
-<div class="cms-tab-panel" role="tabpanel" data-panel="style" hidden>
+<div class="cms-tab-panel <%= aTab === 'style' ? 'is-active' : '' %>" role="tabpanel" data-panel="style"<%= aTab !== 'style' ? ' hidden' : '' %>>
   <form method="POST" action="/admin/page/home/panel-2/draft" id="panel2-settings-form" class="cms-form" data-cms-editor-form novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="active_tab" value="style">
 
     <div class="form-row">
       <div class="form-group">
@@ -232,6 +246,7 @@
 </div>
 <form id="panel2-publish-form" method="POST" action="/admin/page/home/panel-2/publish" style="display:none" data-cms-publish-form>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="active_tab" value="general">
 </form>
 
 <% /* Drawer form partials preserve the existing components/media-selector integration. */ %>

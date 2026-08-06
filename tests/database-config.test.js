@@ -154,7 +154,7 @@ test('test config/db facade stays lazy and forwards common pool operations', asy
   assert.deepEqual(state, { creates: 1, resolves: 1, queries: 1, connections: 1, ends: 1 });
 });
 
-test('test DB guard resolves before any pool is created', () => {
+test('test DB guard resolves before any pool is created', async () => {
   let creates = 0;
   const db = loadCommonJs('config/db.js', {
     mysql2: {
@@ -173,7 +173,7 @@ test('test DB guard resolves before any pool is created', () => {
       },
     },
   });
-  assert.throws(() => db.query('SELECT blocked'), /unsafe test target/);
+  await assert.rejects(() => db.query('SELECT blocked'), /unsafe test target/);
   assert.equal(creates, 0);
 });
 

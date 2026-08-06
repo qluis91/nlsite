@@ -37,10 +37,11 @@ function restoreEnv(c) {
   setEnv('SOCIAL_TOKEN_ENCRYPTION_KEY', c.SOCIAL_TOKEN_ENCRYPTION_KEY);
 }
 
-after(() => {
+after(async () => {
   facebookSync.setHttpGet(null);
   metaOAuth.setHttpGet(null);
   metaOAuth.setHttpPost(null);
+  await pool.end().catch(() => {});
 });
 
 // ═══════════════════════════════════════

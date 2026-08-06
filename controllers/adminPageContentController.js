@@ -108,6 +108,22 @@ async function showNavbar(req, res, next) {
       'site.favicon', 'navbar.bg_color', 'navbar.text_color',
       'navbar.accent_color', 'navbar.border_color', 'navbar.opacity', 'navbar.logo_width',
     ]);
+    // Normalize legacy "null"/"undefined" strings stored by old serialization bug.
+    // JSON.stringify(null) → "null" was written to DB; now rendered as literal
+    // string "null" which fails media-ref and color validation on next save.
+    for (const key of ['site.logo_primary', 'site.logo_light', 'site.logo_dark', 'site.favicon']) {
+      const v = storedSettings[key];
+      if (v === 'null' || v === 'undefined') storedSettings[key] = '';
+      else if (typeof v === 'string' && v.length > 0 && !v.startsWith('media://')) {
+        // Also clean up any non-media-ref junk (old URLs, paths, etc.)
+        storedSettings[key] = '';
+      }
+    }
+    // Normalize color fields: literal "null"/"undefined" in DB → empty string
+    for (const key of ['navbar.bg_color', 'navbar.text_color', 'navbar.accent_color', 'navbar.border_color']) {
+      const v = storedSettings[key];
+      if (v === 'null' || v === 'undefined') storedSettings[key] = '';
+    }
     const settings = { ...storedSettings, ...(req.cmsSettingsOverride || {}) };
     const mediaList = await listPickableMedia({ kind: 'image' });
 
@@ -159,7 +175,25 @@ async function saveNavbarSettings(req, res, next) {
     'navbar.logo_width': req.body.logo_width || '',
   };
   try {
-    const validation = validator.validateNavbarSettings(req.body);
+    // Normalize body so omitted optional fields default to empty string.
+    // Express urlencoded may omit empty fields; the validator must never
+    // receive undefined for optional media references.
+    // Also guard against literal "null"/"undefined" strings from legacy DB.
+    const normMedia = (v) => { const s = String(v || '').trim(); return (s === 'null' || s === 'undefined') ? '' : s; };
+    const normColor = (v) => { const s = String(v || '').trim(); return (s === 'null' || s === 'undefined' || s === 'transparent' || !s.length) ? '' : s; };
+    const normalizedBody = {
+      logo_primary: normMedia(req.body.logo_primary),
+      logo_light: normMedia(req.body.logo_light),
+      logo_dark: normMedia(req.body.logo_dark),
+      favicon: normMedia(req.body.favicon),
+      bg_color: normColor(req.body.bg_color),
+      text_color: normColor(req.body.text_color),
+      accent_color: normColor(req.body.accent_color),
+      border_color: normColor(req.body.border_color),
+      opacity: req.body.opacity || '',
+      logo_width: req.body.logo_width || '',
+    };
+    const validation = validator.validateNavbarSettings(normalizedBody);
     if (!validation.valid) {
       req.cmsSettingsOverride = rawSettings;
       req.cmsEditorErrors = [validation.error];
@@ -169,16 +203,16 @@ async function saveNavbarSettings(req, res, next) {
 
     const vals = validation.value;
     const settings = [
-      ['site.logo_primary', vals.logo_primary, 'media', 'navbar'],
-      ['site.logo_light', vals.logo_light, 'media', 'navbar'],
-      ['site.logo_dark', vals.logo_dark, 'media', 'navbar'],
-      ['site.favicon', vals.favicon, 'media', 'navbar'],
-      ['navbar.bg_color', vals.bg_color, 'string', 'navbar'],
-      ['navbar.text_color', vals.text_color, 'string', 'navbar'],
-      ['navbar.accent_color', vals.accent_color, 'string', 'navbar'],
-      ['navbar.border_color', vals.border_color, 'string', 'navbar'],
-      ['navbar.opacity', vals.opacity === null ? null : String(vals.opacity), 'number', 'navbar'],
-      ['navbar.logo_width', vals.logo_width === null ? null : String(vals.logo_width), 'number', 'navbar'],
+      ['site.logo_primary', vals.logo_primary || '', 'media', 'navbar'],
+      ['site.logo_light', vals.logo_light || '', 'media', 'navbar'],
+      ['site.logo_dark', vals.logo_dark || '', 'media', 'navbar'],
+      ['site.favicon', vals.favicon || '', 'media', 'navbar'],
+      ['navbar.bg_color', vals.bg_color || '', 'string', 'navbar'],
+      ['navbar.text_color', vals.text_color || '', 'string', 'navbar'],
+      ['navbar.accent_color', vals.accent_color || '', 'string', 'navbar'],
+      ['navbar.border_color', vals.border_color || '', 'string', 'navbar'],
+      ['navbar.opacity', vals.opacity === null ? '' : String(vals.opacity), 'number', 'navbar'],
+      ['navbar.logo_width', vals.logo_width === null ? '' : String(vals.logo_width), 'number', 'navbar'],
     ];
 
     await publishing.saveSettingsDraft(settings, { actorId: actorId(req) });

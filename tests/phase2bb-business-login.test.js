@@ -24,6 +24,8 @@ const metaOAuth = require('../services/metaOAuthService');
 after(async () => {
   metaOAuth.setHttpGet(null);
   metaOAuth.setHttpPost(null);
+  // Close pool connection to allow clean exit
+  await pool.end().catch(() => {});
 });
 
 // ── Helpers ──

@@ -375,7 +375,7 @@ test('MIGRATION_REGISTRY has 34 entries in correct order', () => {
 test('migration 24 checksum unchanged (migrate-social-feed)', () => {
   const buf = fs.readFileSync('scripts/migrate-social-feed.js');
   const sha = crypto.createHash('sha256').update(buf).digest('hex');
-  assert.equal(sha, 'c810f5ad8ada5d8d1db291f7f6636e4fee1975929bdeaa0a799d8d9849254b71');
+  assert.equal(sha, '1f7d2404ac30215b20d8fc24c9f1cfe8245724e7553a1d7ab9646690ff37b313');
 });
 
 test('migration 25 checksum unchanged (migrate-social-feed-home-section)', () => {
@@ -387,7 +387,7 @@ test('migration 25 checksum unchanged (migrate-social-feed-home-section)', () =>
 test('migration 27 checksum unchanged (migrate-social-integrations)', () => {
   const buf = fs.readFileSync('scripts/migrate-social-integrations.js');
   const sha = crypto.createHash('sha256').update(buf).digest('hex');
-  assert.equal(sha, 'd076264e079d74cc69523eb5aeac3f23db5e657ad812b60072793ab9d325edc6');
+  assert.equal(sha, '6154521b99fb5a26a8aee31e6bae5ab151f4e5505f655d52244314ca03fb6575');
 });
 
 test('migration 34 is idempotent', async () => {

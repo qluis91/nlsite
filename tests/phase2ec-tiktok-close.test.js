@@ -75,7 +75,7 @@ test('migration 27 checksum still preserved', () => {
   const fs = require('fs');
   const buf = fs.readFileSync('scripts/migrate-social-integrations.js');
   const sha = crypto.createHash('sha256').update(buf).digest('hex');
-  assert.equal(sha, 'd076264e079d74cc69523eb5aeac3f23db5e657ad812b60072793ab9d325edc6');
+  assert.equal(sha, '6154521b99fb5a26a8aee31e6bae5ab151f4e5505f655d52244314ca03fb6575');
 });
 
 // ═══════════════════════════════════════

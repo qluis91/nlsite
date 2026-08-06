@@ -1,4 +1,4 @@
-<% const c = content || {}; const s = style || {}; const cmsEditorState = typeof editorState !== 'undefined' ? editorState : null; %>
+<% const c = content || {}; const s = style || {}; const cmsEditorState = typeof editorState !== 'undefined' ? editorState : null; const aTab = (typeof activeTab !== 'undefined') ? activeTab : 'general'; %>
 <div data-cms-editor data-editor-state="<%= cmsEditorState || 'clean' %>">
 <div class="page-header">
   <div>
@@ -21,15 +21,16 @@
 
 <!-- ── Tabs ── -->
 <nav class="cms-tabs" role="tablist" aria-label="Secciones del Panel 3">
-  <button class="cms-tab is-active" role="tab" aria-selected="true" data-tab="general">Contenido general</button>
-  <button class="cms-tab" role="tab" aria-selected="false" data-tab="cards">Tarjetas / Características</button>
-  <button class="cms-tab" role="tab" aria-selected="false" data-tab="style">Apariencia</button>
+  <button class="cms-tab <%= aTab === 'general' ? 'is-active' : '' %>" role="tab" aria-selected="<%= aTab === 'general' ? 'true' : 'false' %>" data-tab="general">Contenido general</button>
+  <button class="cms-tab <%= aTab === 'cards' ? 'is-active' : '' %>" role="tab" aria-selected="<%= aTab === 'cards' ? 'true' : 'false' %>" data-tab="cards">Tarjetas / Características</button>
+  <button class="cms-tab <%= aTab === 'style' ? 'is-active' : '' %>" role="tab" aria-selected="<%= aTab === 'style' ? 'true' : 'false' %>" data-tab="style">Apariencia</button>
 </nav>
 
 <!-- ═══ General content tab ═══ -->
-<div class="cms-tab-panel is-active" role="tabpanel" data-panel="general">
+<div class="cms-tab-panel <%= aTab === 'general' ? 'is-active' : '' %>" role="tabpanel" data-panel="general"<%= aTab !== 'general' ? ' hidden' : '' %>>
   <form method="POST" action="/admin/page/home/panel-3/draft" class="cms-form" data-cms-editor-form novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="active_tab" value="general">
     <div class="form-group"><label class="field-label"><input type="checkbox" name="isVisible" value="1" <%= c.isVisible !== false ? 'checked' : '' %>> Panel visible al publicar</label></div>
 
     <div class="form-group">
@@ -66,7 +67,7 @@
 </div>
 
 <!-- ═══ Cards tab ═══ -->
-<div class="cms-tab-panel" role="tabpanel" data-panel="cards" hidden>
+<div class="cms-tab-panel <%= aTab === 'cards' ? 'is-active' : '' %>" role="tabpanel" data-panel="cards"<%= aTab !== 'cards' ? ' hidden' : '' %>>
   <div class="cms-section-header">
     <h3>Tarjetas de servicios</h3>
     <div class="cms-section-header__actions">
@@ -103,6 +104,7 @@
                     data-item-id="<%= item.public_id %>" data-feature-edit-id="<%= item.public_id %>">Editar</button>
             <form method="POST" action="/admin/page/home/panel-3/items/archive" class="cms-form--inline">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="active_tab" value="cards">
               <input type="hidden" name="public_id" value="<%= item.public_id %>">
               <button type="submit" class="btn btn-sm btn-danger">Archivar</button>
             </form>
@@ -116,6 +118,7 @@
   <div class="cms-card">
     <form method="POST" action="/admin/page/home/panel-3/items/reorder" class="cms-form cms-form--inline">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="active_tab" value="cards">
       <label class="field-label">Reordenar (IDs separados por coma)</label>
       <input type="text" name="ids" class="form-input" value="<%= items.map(i => i.public_id).join(',') %>" style="width:100%">
       <button type="submit" class="btn btn-secondary btn-sm">Actualizar orden</button>
@@ -125,15 +128,17 @@
   <div class="cms-section-footer">
     <form method="POST" action="/admin/page/home/panel-3/items/publish" class="cms-form" data-cms-publish-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="active_tab" value="cards">
       <button type="submit" class="btn btn-publish">Publicar tarjetas</button>
     </form>
   </div>
 </div>
 
 <!-- ═══ Style tab ═══ -->
-<div class="cms-tab-panel" role="tabpanel" data-panel="style" hidden>
+<div class="cms-tab-panel <%= aTab === 'style' ? 'is-active' : '' %>" role="tabpanel" data-panel="style"<%= aTab !== 'style' ? ' hidden' : '' %>>
   <form method="POST" action="/admin/page/home/panel-3/draft" id="panel3-settings-form" class="cms-form" data-cms-editor-form novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="active_tab" value="style">
 
     <div class="form-row">
       <div class="form-group">
@@ -159,6 +164,7 @@
 </div>
 <form id="panel3-publish-form" method="POST" action="/admin/page/home/panel-3/publish" style="display:none" data-cms-publish-form>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="active_tab" value="general">
 </form>
 
 <% /* Drawer form partial preserves the existing components/media-selector integration. */ %>
