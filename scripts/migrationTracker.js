@@ -8,6 +8,28 @@ const path = require('path');
 const LOCK_TIMEOUT_SEC = 30;
 const LOCK_NAME = 'migrate_deploy';
 
+// ── Encoding-only checksum reconciliation ──────────────────────────────────
+// When a migration source file is re-encoded (e.g. UTF-16 LE → UTF-8) without
+// any logic or SQL change, the checksum drifts. Reconciliation is ONLY
+// permitted when:
+//
+//   1. stored.checksum === exact oldChecksum (proves it's the encoding change)
+//   2. currentChecksum === exact newChecksum (proves it's the UTF-8 version)
+//   3. Schema verification passes (proves DB state matches migration result)
+//
+// A future edit producing a third checksum MUST fail — even with a valid schema.
+//
+// Each entry: { oldChecksum, newChecksum, reason, verifySchema(pool) }
+
+const ENCODING_RECONCILE_REGISTRY = {
+  migrateTilopay: {
+    oldChecksum: 'b34806e579a927ebfced8a493115d3f6f0542bf06f26bc1090756a2882771c87',
+    newChecksum: '164b20c89dbb60d53d0bca3f8c2fa70edb30c6ecf49575b6ea289a88439c40bb',
+    reason: 'UTF-16 LE → UTF-8 re-encode (no logic or SQL change)',
+    verifySchema: null, // set below after _verifyTilopaySchema is defined
+  },
+};
+
 const MIGRATION_REGISTRY = [
   { name: 'migrateUserAddresses',  file: './migrate-user-addresses',  exportName: 'migrateUserAddresses' },
   { name: 'migrateUserProfile',    file: './migrate-user-profile',    exportName: 'migrateUserProfile' },
@@ -74,6 +96,72 @@ function computeChecksum(filePath) {
   return crypto.createHash('sha256').update(content).digest('hex');
 }
 
+async function _verifyTilopaySchema(pool) {
+  // Verify tilopay_transactions table exists with all expected columns
+  // and indexes matching the CREATE TABLE in scripts/migrate-tilopay.js.
+  const expectedColumns = [
+    'id', 'order_id', 'internal_reference', 'idempotency_key',
+    'provider_transaction_id', 'provider_session_token', 'status',
+    'amount', 'currency', 'checkout_url', 'provider_created_at',
+    'confirmed_at', 'failed_at', 'failure_code', 'failure_message',
+    'raw_status', 'created_at', 'updated_at',
+  ];
+
+  try {
+    const [cols] = await pool.query(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tilopay_transactions' ORDER BY ORDINAL_POSITION"
+    );
+    const actualColumns = cols.map(c => c.COLUMN_NAME);
+    const missing = expectedColumns.filter(c => !actualColumns.includes(c));
+    if (missing.length > 0) {
+      console.warn('[migrate:deploy] tilopay_transactions missing columns: ' + missing.join(', '));
+      return false;
+    }
+
+    const [idx] = await pool.query(
+      "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tilopay_transactions'"
+    );
+    const indexNames = [...new Set(idx.map(i => i.INDEX_NAME))];
+    const requiredIndexes = [
+      'PRIMARY', 'idx_tilopay_internal_ref', 'idx_tilopay_idempotency',
+      'idx_tilopay_provider_id', 'idx_tilopay_order_created', 'idx_tilopay_status',
+    ];
+    const missingIdx = requiredIndexes.filter(i => !indexNames.includes(i));
+    if (missingIdx.length > 0) {
+      console.warn('[migrate:deploy] tilopay_transactions missing indexes: ' + missingIdx.join(', '));
+      return false;
+    }
+
+    console.log('[migrate:deploy] tilopay_transactions schema verified OK.');
+    return true;
+  } catch (err) {
+    console.warn('[migrate:deploy] tilopay_transactions schema verification error: ' + err.message);
+    return false;
+  }
+}
+
+// Link the verifySchema function now that _verifyTilopaySchema is defined
+ENCODING_RECONCILE_REGISTRY.migrateTilopay.verifySchema = _verifyTilopaySchema;
+
+async function _reconcileChecksum(pool, name, newChecksum, reason) {
+  const [rows] = await pool.query(
+    "SELECT checksum FROM schema_migrations WHERE name = ? AND status = 'ok'",
+    [name]
+  );
+  if (rows.length === 0) {
+    throw new Error('No executed migration found for "' + name + '"');
+  }
+  const oldChecksum = rows[0].checksum;
+  await pool.query(
+    "UPDATE schema_migrations SET checksum = ? WHERE name = ? AND status = 'ok'",
+    [newChecksum, name]
+  );
+  console.log(
+    '[migrate:deploy] RECONCILED checksum: ' + name + ' ' +
+    oldChecksum.slice(0, 12) + '\u2026 \u2192 ' + newChecksum.slice(0, 12) + '\u2026 (' + reason + ')'
+  );
+}
+
 async function acquireLock(conn, timeoutSec) {
   const t = timeoutSec || LOCK_TIMEOUT_SEC;
   const [rows] = await conn.query('SELECT GET_LOCK(?, ?) AS locked', [LOCK_NAME, t]);
@@ -131,6 +219,32 @@ async function runPendingMigrations(pool, {
 
     if (existing) {
       if (existing.checksum !== checksum) {
+        // ── Encoding-only checksum reconciliation ──
+        // Strict exact-pair matching: only reconcile if the stored checksum
+        // matches the known old encoding AND the current checksum matches the
+        // known new encoding. A third checksum (future edit) always fails.
+        const reconcileEntry = ENCODING_RECONCILE_REGISTRY[name];
+        if (
+          reconcileEntry &&
+          reconcileEntry.oldChecksum &&
+          reconcileEntry.newChecksum &&
+          typeof reconcileEntry.verifySchema === 'function' &&
+          existing.checksum === reconcileEntry.oldChecksum &&
+          checksum === reconcileEntry.newChecksum
+        ) {
+          console.log(
+            `[migrate:deploy] "${name}" checksum drift: known encoding-only transition. Verifying schema...`
+          );
+          const schemaOk = await reconcileEntry.verifySchema(pool);
+          if (schemaOk) {
+            await _reconcileChecksum(pool, name, checksum, reconcileEntry.reason);
+            reconciled++;
+            skipped++;
+            console.log(`[migrate:deploy] Encoding-only drift reconciled for ${name}. Schema unchanged.`);
+            continue;
+          }
+          console.error(`[migrate:deploy] "${name}" schema verification FAILED. Encoding reconciliation NOT applied.`);
+        }
         throw new Error(
           `Migration "${name}" source changed after execution. ` +
           `Old: ${existing.checksum.slice(0, 12)}… New: ${checksum.slice(0, 12)}… ` +
@@ -197,6 +311,7 @@ async function runPendingMigrations(pool, {
 
 module.exports = {
   MIGRATION_REGISTRY,
+  ENCODING_RECONCILE_REGISTRY,
   ensureMigrationsTable,
   computeChecksum,
   acquireLock,
@@ -205,6 +320,8 @@ module.exports = {
   recordMigration,
   recordMigrationFailure,
   runPendingMigrations,
+  _verifyTilopaySchema,
+  _reconcileChecksum,
   LOCK_NAME,
   LOCK_TIMEOUT_SEC,
 };

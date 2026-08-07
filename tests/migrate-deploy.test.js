@@ -200,3 +200,182 @@ describe('Phase 13 — package and schema contracts', () => {
     assert.match(sql, /schema_migrations/);
   });
 });
+
+describe('Phase 3H — Tilopay encoding-only checksum reconciliation', () => {
+  const OLD = 'b34806e579a927ebfced8a493115d3f6f0542bf06f26bc1090756a2882771c87';
+  const NEW = '164b20c89dbb60d53d0bca3f8c2fa70edb30c6ecf49575b6ea289a88439c40bb';
+  const THIRD = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; // future edit
+
+  const expectedColumns = ['id', 'order_id', 'internal_reference', 'idempotency_key',
+    'provider_transaction_id', 'provider_session_token', 'status', 'amount', 'currency',
+    'checkout_url', 'provider_created_at', 'confirmed_at', 'failed_at', 'failure_code',
+    'failure_message', 'raw_status', 'created_at', 'updated_at'];
+
+  const indexNames = ['PRIMARY', 'idx_tilopay_internal_ref', 'idx_tilopay_idempotency',
+    'idx_tilopay_provider_id', 'idx_tilopay_order_created', 'idx_tilopay_status'];
+
+  function validSchemaPool(extraQueries = {}) {
+    return {
+      async query(sql, params) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) return extraQueries.executedRows || [[{ name: 'migrateTilopay', checksum: OLD, status: 'ok' }], []];
+        if (/SELECT checksum FROM schema_migrations/.test(sql)) return extraQueries.checksumRow || [[{ checksum: OLD }], []];
+        if (/INFORMATION_SCHEMA.COLUMNS.*tilopay_transactions/.test(sql)) return [expectedColumns.map(c => ({ COLUMN_NAME: c })), []];
+        if (/INFORMATION_SCHEMA.STATISTICS.*tilopay_transactions/.test(sql)) return [indexNames.map(n => ({ INDEX_NAME: n })), []];
+        if (/UPDATE schema_migrations SET checksum/.test(sql)) return [{ affectedRows: 1 }, []];
+        throw new Error('Unexpected query: ' + sql.slice(0, 60));
+      },
+    };
+  }
+
+  it('migrateTilopay is in the ENCODING_RECONCILE_REGISTRY with old+new checksums', () => {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY.migrateTilopay;
+    assert.ok(e);
+    assert.equal(typeof e.verifySchema, 'function');
+    assert.ok(e.reason.includes('UTF-16'));
+    assert.equal(e.oldChecksum, OLD);
+    assert.equal(e.newChecksum, NEW);
+  });
+
+  it('encoding reconcile registry has only one entry', () => {
+    assert.equal(Object.keys(tracker.ENCODING_RECONCILE_REGISTRY).length, 1);
+  });
+
+  it('exact old×new + valid schema reconciles', async () => {
+    const result = await tracker.runPendingMigrations(validSchemaPool(), {
+      registry: [{ name: 'migrateTilopay', file: './migrate-tilopay', exportName: 'migrate' }],
+      checksumFor: () => NEW,
+    });
+    assert.equal(result.reconciled, 1);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.ran, 0);
+  });
+
+  it('wrong old checksum + valid schema fails', async () => {
+    await assert.rejects(
+      () => tracker.runPendingMigrations(validSchemaPool({
+        executedRows: [[{ name: 'migrateTilopay', checksum: OLD.replace('b', 'c'), status: 'ok' }], []],
+      }), {
+        registry: [{ name: 'migrateTilopay', file: './migrate-tilopay', exportName: 'migrate' }],
+        checksumFor: () => NEW,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('exact old + arbitrary third checksum + VALID schema fails', async () => {
+    // Third checksum with a PERFECTLY valid schema — must still be rejected.
+    await assert.rejects(
+      () => tracker.runPendingMigrations(validSchemaPool(), {
+        registry: [{ name: 'migrateTilopay', file: './migrate-tilopay', exportName: 'migrate' }],
+        checksumFor: () => THIRD,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('arbitrary old + exact new + VALID schema fails', async () => {
+    await assert.rejects(
+      () => tracker.runPendingMigrations(validSchemaPool({
+        executedRows: [[{ name: 'migrateTilopay', checksum: THIRD, status: 'ok' }], []],
+      }), {
+        registry: [{ name: 'migrateTilopay', file: './migrate-tilopay', exportName: 'migrate' }],
+        checksumFor: () => NEW,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('rejects reconciliation when schema does not match', async () => {
+    const pool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) return [[{ name: 'migrateTilopay', checksum: OLD, status: 'ok' }], []];
+        if (/INFORMATION_SCHEMA.COLUMNS.*tilopay_transactions/.test(sql)) return [[{ COLUMN_NAME: 'id' }], []]; // missing columns
+        throw new Error('Unexpected query: ' + sql.slice(0, 60));
+      },
+    };
+    await assert.rejects(
+      () => tracker.runPendingMigrations(pool, {
+        registry: [{ name: 'migrateTilopay', file: './migrate-tilopay', exportName: 'migrate' }],
+        checksumFor: () => NEW,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('rejects drift for a non-registered migration', async () => {
+    const fakePool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) return [[{ name: 'migrateOrders', checksum: 'aaa', status: 'ok' }], []];
+        throw new Error('Unexpected query');
+      },
+    };
+    await assert.rejects(
+      () => tracker.runPendingMigrations(fakePool, {
+        registry: [{ name: 'migrateOrders', file: './migrate-orders', exportName: 'migrate' }],
+        checksumFor: () => 'bbb',
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('normal already-matching migration is unaffected', async () => {
+    const fakePool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) return [[{ name: 'migrateOrders', checksum: 'same_checksum', status: 'ok' }], []];
+        throw new Error('Unexpected query');
+      },
+    };
+    const result = await tracker.runPendingMigrations(fakePool, {
+      registry: [{ name: 'migrateOrders', file: './migrate-orders', exportName: 'migrate' }],
+      checksumFor: () => 'same_checksum',
+    });
+    assert.equal(result.reconciled, 0);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.ran, 0);
+  });
+
+  it('reconciliation updates only schema_migrations.checksum, never reruns SQL', async () => {
+    const migrationCalls = [];
+    const pool = {
+      async query(sql, params) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) return [[{ name: 'migrateTilopay', checksum: OLD, status: 'ok' }], []];
+        if (/SELECT checksum FROM schema_migrations/.test(sql)) return [[{ checksum: OLD }], []];
+        if (/INFORMATION_SCHEMA.COLUMNS.*tilopay_transactions/.test(sql)) return [expectedColumns.map(c => ({ COLUMN_NAME: c })), []];
+        if (/INFORMATION_SCHEMA.STATISTICS.*tilopay_transactions/.test(sql)) return [indexNames.map(n => ({ INDEX_NAME: n })), []];
+        if (/UPDATE schema_migrations SET checksum/.test(sql)) return [{ affectedRows: 1 }, []];
+        throw new Error('Unexpected query');
+      },
+    };
+    const result = await tracker.runPendingMigrations(pool, {
+      registry: [{ name: 'migrateTilopay', file: './migrate-tilopay', exportName: 'migrate' }],
+      checksumFor: () => NEW,
+      loadMigration: () => ({
+        migrate: async () => { migrationCalls.push('migrate called'); },
+      }),
+    });
+    assert.equal(result.reconciled, 1);
+    assert.equal(migrationCalls.length, 0, 'Migration SQL must NOT be rerun');
+  });
+
+  it('subsequent run with exact new checksum already stored follows normal skip', async () => {
+    const pool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) return [[{ name: 'migrateTilopay', checksum: NEW, status: 'ok' }], []];
+        throw new Error('Unexpected query');
+      },
+    };
+    const result = await tracker.runPendingMigrations(pool, {
+      registry: [{ name: 'migrateTilopay', file: './migrate-tilopay', exportName: 'migrate' }],
+      checksumFor: () => NEW,
+    });
+    assert.equal(result.reconciled, 0);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.ran, 0);
+  });
+});
