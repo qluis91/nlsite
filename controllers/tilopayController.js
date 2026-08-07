@@ -215,14 +215,6 @@ exports.returnFromTilopay = async (req, res) => {
     });
 
     if (result.paid) {
-      return res.redirect(
-        req.session.user
-          ? '/cuenta/pedidos/' + (tx.order_reference || '')
-          : '/consultar-pedido/' + (tx.order_reference || '')
-      );
-    }
-
-    if (result.paid) {
       req.session.success_msg = 'Tu pago ha sido confirmado. Gracias por tu compra.';
       return res.redirect(
         req.session.user
@@ -231,8 +223,14 @@ exports.returnFromTilopay = async (req, res) => {
       );
     }
 
-    // For pending/failed results, redirect to order detail with a safe message
-    req.session.error_msg = result.message || 'El pago no fue aprobado. Puedes intentarlo nuevamente.';
+    // For rejected/failed/pending results, redirect to order detail with a safe message.
+    // NEVER expose raw provider text (e.g. "Issuer unreachable") — use result.message
+    // which comes from the centralized tilopayStatusMap.mapProviderCode.
+    if (result.pending) {
+      req.session.info_msg = result.message || 'Estamos verificando tu pago. Intenta nuevamente en unos minutos.';
+    } else {
+      req.session.error_msg = result.message || 'El pago no fue aprobado. Puedes intentarlo nuevamente.';
+    }
     return res.redirect(
       req.session.user
         ? '/cuenta/pedidos/' + (tx.order_reference || '')
@@ -288,19 +286,18 @@ exports.verifyPayment = async (req, res) => {
       return res.redirect('/cuenta/pedidos');
     }
 
-    const result = await tilopayService.verifyTilopayPayment(internalRef, {
+    const result = await tilopayService.verifyAndConfirmPayment(internalRef, {
       trigger: 'customer_verify',
-      actorUserId: req.session.user.id,
+      actorUserId: req.session.user ? req.session.user.id : null,
     });
 
-    if (result.orderPaid) {
+    if (result.paid) {
       req.session.success_msg = 'Pago confirmado.';
-    } else if (result.messageCode === 'PAYMENT_PENDING') {
-      req.session.info_msg = 'El pago está en proceso.';
-    } else if (result.retryAllowed) {
-      req.session.info_msg = result.customerMessage || 'El pago no fue aprobado.';
+    } else if (result.pending) {
+      req.session.info_msg = result.message || 'El pago está en proceso.';
     } else {
-      req.session.error_msg = result.customerMessage || 'No pudimos confirmar el pago.';
+      // Terminal failure — safe message from centralized status map
+      req.session.error_msg = result.message || 'El pago no fue aprobado.';
     }
   } catch (error) {
     if (!(error instanceof tilopayService.TilopayError)) {
@@ -338,19 +335,17 @@ exports.verifyPaymentGuest = async (req, res) => {
   }
 
   try {
-    const result = await tilopayService.verifyTilopayPayment(internalRef, {
+    const result = await tilopayService.verifyAndConfirmPayment(internalRef, {
       trigger: 'guest_verify',
       actorUserId: null,
     });
 
-    if (result.orderPaid) {
+    if (result.paid) {
       req.session.success_msg = 'Pago confirmado.';
-    } else if (result.messageCode === 'PAYMENT_PENDING') {
-      req.session.info_msg = 'El pago está en proceso.';
-    } else if (result.retryAllowed) {
-      req.session.info_msg = result.customerMessage || 'El pago no fue aprobado.';
+    } else if (result.pending) {
+      req.session.info_msg = result.message || 'El pago está en proceso.';
     } else {
-      req.session.error_msg = result.customerMessage || 'No pudimos confirmar el pago.';
+      req.session.error_msg = result.message || 'El pago no fue aprobado.';
     }
   } catch (error) {
     if (!(error instanceof tilopayService.TilopayError)) {

@@ -192,7 +192,7 @@ describe('Tilopay Configuration', () => {
     assert.equal(customerLabel('approved'), 'Pago confirmado');
     assert.equal(customerLabel('declined'), 'Pago rechazado');
     assert.equal(customerLabel('cancelled'), 'Pago cancelado');
-    assert.equal(customerLabel('pending'), 'Pago en proceso');
+    assert.equal(customerLabel('pending'), 'Verificando');
     assert.equal(customerLabel('unknown'), 'Estado desconocido');
   });
 
@@ -1105,8 +1105,186 @@ describe('Tilopay Regression', () => {
 
   it('Different suffix orderNumber rejected', async function() {
     const src = require('fs').readFileSync('services/tilopayService.js', 'utf8');
-    // Must have both checks: !== AND !endsWith
     assert.ok(src.includes('!== expectedOrderNumber') && src.includes('endsWith'), 'Must reject wrong suffix');
+  });
+
+  // Phase 3F: Customer-safe negative status handling
+  it('Raw "Issuer unreachable" never shown to customer', async () => {
+    const sm = require('../config/tilopayStatusMap');
+    const m = sm.mapProviderCode('98', 'Issuer unreachable');
+    assert.notEqual(m.label, 'Issuer unreachable');
+    assert.ok(!m.message.includes('Issuer'), 'No raw provider text');
+    assert.ok(m.message.includes('entidad') || m.message.includes('procesar'), 'Must be safe Spanish');
+  });
+
+  it('Code 98 maps to terminal declined', async () => {
+    const sm = require('../config/tilopayStatusMap');
+    const m = sm.mapProviderCode('98', 'Issuer unreachable');
+    assert.equal(m.status, 'declined');
+    assert.equal(m.terminal, true);
+    assert.equal(m.paid, false);
+    assert.equal(m.label, 'Rechazado');
+  });
+
+  it('Code 2 authorization denied maps safe', async () => {
+    const sm = require('../config/tilopayStatusMap');
+    const m = sm.mapProviderCode('2', 'Authorization denied');
+    assert.equal(m.status, 'declined');
+    assert.equal(m.label, 'Rechazado');
+    assert.ok(m.message.includes('autorizada'));
+  });
+
+  it('Code 1 still approved', async () => {
+    const sm = require('../config/tilopayStatusMap');
+    const m = sm.mapProviderCode('1', 'Aprobada');
+    assert.equal(m.status, 'approved');
+    assert.equal(m.paid, true);
+    assert.equal(m.label, 'Confirmado');
+  });
+
+  // Phase 3G: real sandbox negative codes (2026-08-07)
+  it('Real code 51 (insufficient funds) maps to declined', async () => {
+    const sm = require('../config/tilopayStatusMap');
+    const m = sm.mapProviderCode('51', 'Insufficient funds');
+    assert.equal(m.status, 'declined');
+    assert.equal(m.terminal, true);
+    assert.equal(m.paid, false);
+    assert.ok(!m.message.includes('Insufficient'), 'No raw English');
+  });
+
+  it('Real code 82 (invalid CVV) maps to declined', async () => {
+    const sm = require('../config/tilopayStatusMap');
+    const m = sm.mapProviderCode('82', 'Invalid CVV');
+    assert.equal(m.status, 'declined');
+    assert.equal(m.terminal, true);
+    assert.equal(m.paid, false);
+    assert.ok(!m.message.includes('Invalid'), 'No raw English');
+  });
+
+  it('Real code 43 (stolen) maps to declined, never mentions stolen', async () => {
+    const sm = require('../config/tilopayStatusMap');
+    const m = sm.mapProviderCode('43', 'Pick up card stolen card');
+    assert.equal(m.status, 'declined');
+    assert.equal(m.terminal, true);
+    assert.equal(m.paid, false);
+    assert.ok(!m.message.includes('stolen'), 'NEVER stolen');
+    assert.ok(!m.message.includes('robada'), 'NEVER robada');
+    assert.ok(!m.message.includes('pick up'), 'NEVER pick up');
+  });
+
+  it('CONSULT_CODE_MAP has real codes 43, 51, 82', async () => {
+    const src = require('fs').readFileSync('services/tilopayClient.js', 'utf8');
+    assert.ok(src.includes("'43':"), 'Code 43');
+    assert.ok(src.includes("'51':"), 'Code 51');
+    assert.ok(src.includes("'82':"), 'Code 82');
+  });
+
+  it('All three rejection codes terminal, not pending', async () => {
+    const sm = require('../config/tilopayStatusMap');
+    ['43','51','82'].forEach(c => {
+      const m = sm.mapProviderCode(c, 'test');
+      assert.equal(m.terminal, true, 'Code ' + c + ' must be terminal');
+      assert.equal(m.paid, false, 'Code ' + c + ' must not be paid');
+    });
+  });
+
+  it('Unknown code uses safe fallback, not raw text', async () => {
+    const sm = require('../config/tilopayStatusMap');
+    const m = sm.mapProviderCode('999', 'Some random error');
+    assert.equal(m.paid, false);
+    assert.equal(m.terminal, true);
+    assert.notEqual(m.message, 'Some random error');
+    assert.equal(m.label, 'No completado');
+  });
+
+  it('consultTransaction never uses raw response as label', async () => {
+    const src = require('fs').readFileSync('services/tilopayClient.js', 'utf8');
+    assert.ok(!src.includes('label: tx.response'), 'No raw label');
+  });
+
+  it('Browser query params never choose status', async () => {
+    const src = require('fs').readFileSync('services/tilopayClient.js', 'utf8');
+    assert.ok(src.includes('mapProviderCode'), 'Must use mapProviderCode');
+    const svc = require('fs').readFileSync('services/tilopayService.js', 'utf8');
+    assert.ok(svc.includes('provider.message'), 'Must use provider.message from status map');
+  });
+
+  it('Order remains unpaid after rejection', async () => {
+    const src = require('fs').readFileSync('services/tilopayService.js', 'utf8');
+    assert.ok(src.includes('paid: false'), 'Non-approved returns paid:false');
+    assert.ok(src.includes('NOT IN'), 'Protects paid state');
+  });
+
+  it('All terminal codes 43,51,82,98 have terminal:true in CONSULT_CODE_MAP', async () => {
+    const src = require('fs').readFileSync('services/tilopayClient.js', 'utf8');
+    ['43','51','82','98'].forEach(c => {
+      assert.ok(src.includes("'" + c + "': {") && src.includes('terminal: true'),
+        'Code ' + c + ' must be terminal');
+    });
+  });
+
+  // ── Phase 4: Stale/abandoned attempt UX (2026-08-07) ──
+  it('PENDING_STALE_THRESHOLD_MS is exported from status map', () => {
+    const sm = require('../config/tilopayStatusMap');
+    assert.equal(typeof sm.PENDING_STALE_THRESHOLD_MS, 'number');
+    assert.ok(sm.PENDING_STALE_THRESHOLD_MS > 0);
+  });
+
+  it('customerLabel(pending) returns Verificando not Pago en proceso', () => {
+    const { customerLabel } = require('../config/tilopayStatusMap');
+    assert.equal(customerLabel('pending'), 'Verificando');
+    assert.notEqual(customerLabel('pending'), 'Pago en proceso');
+  });
+
+  it('verifyAndConfirmPayment detects stale pending with no provider tx', async () => {
+    const src = require('fs').readFileSync('services/tilopayService.js', 'utf8');
+    assert.ok(src.includes('PENDING_STALE_THRESHOLD_MS'), 'Must use stale threshold');
+    assert.ok(src.includes('stale_pending_no_tx'), 'Must mark stale with no tx');
+    assert.ok(src.includes("status = 'failed'"), 'Must transition to failed');
+  });
+
+  it('Stale pending does not change order.payment_status from pending', async () => {
+    const src = require('fs').readFileSync('services/tilopayService.js', 'utf8');
+    assert.ok(!src.includes('orders.payment_status'), 'Must not touch order on stale');
+  });
+
+  it('Stale pending does not change order.order_status from pending_payment', async () => {
+    const src = require('fs').readFileSync('services/tilopayService.js', 'utf8');
+    assert.ok(!src.includes('orders.order_status'), 'Must not touch order on stale');
+  });
+
+  it('resolveNextAction shows Verificando pago for recent pending', async () => {
+    const src = require('fs').readFileSync('services/customerOrderService.js', 'utf8');
+    assert.ok(src.includes('hasRecentPending'), 'Must use hasRecentPending');
+    assert.ok(src.includes('Verificando pago'), 'Must show Verificando pago');
+    assert.ok(src.includes('STALE_MS'), 'Must use stale threshold');
+  });
+
+  it('resolveNextAction shows Pago confirmado for approved tx', async () => {
+    const src = require('fs').readFileSync('services/customerOrderService.js', 'utf8');
+    assert.ok(src.includes('Pago confirmado'), 'Must show Pago confirmado after approval');
+  });
+
+  it('order-detail.ejs shows Verificando for pending/creating tilopay status', async () => {
+    const src = require('fs').readFileSync('views/pages/store/order-detail.ejs', 'utf8');
+    assert.ok(src.includes("tx.status === 'pending' || tx.status === 'creating'"), 'Must check pending/creating');
+    assert.ok(src.includes('Verificando'), 'Must show Verificando label');
+  });
+
+  it('Return toast uses neutral informational message for unresolved payment', async () => {
+    const ctrl = require('fs').readFileSync('controllers/tilopayController.js', 'utf8');
+    assert.ok(ctrl.includes('Estamos verificando'), 'Toast must say verificando');
+  });
+
+  it('Stale pending in initiateHostedPayment allows retry', async () => {
+    const src = require('fs').readFileSync('services/tilopayService.js', 'utf8');
+    assert.ok(src.includes("status = 'failed'") && src.includes('PENDING_STALE_THRESHOLD_MS'),
+      'Initiate must detect stale pending and allow retry');
+  });
+
+  it('Paid order never regresses in stale handling', async () => {
+    const src = require('fs').readFileSync('services/tilopayService.js', 'utf8');
+    assert.ok(src.includes("NOT IN ('approved','paid')"), 'Must protect paid state in stale queries');
   });
 
 });

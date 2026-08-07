@@ -899,11 +899,21 @@ async function initiateHostedPayment(orderId, customerId, options = {}) {
     if (existing.length > 0) {
       const tx = existing[0];
       if (tx.status === 'pending' && tx.checkout_url) {
-        // Reuse the existing pending attempt
-        await conn.commit();
-        return { redirect: true, url: tx.checkout_url, internalRef: tx.internal_reference };
-      }
-      if (tx.status === 'creating') {
+        // Existing pending — check staleness
+        const age = Date.now() - new Date(tx.created_at).getTime();
+        const statusMap3 = require('../config/tilopayStatusMap');
+        if (age < statusMap3.PENDING_STALE_THRESHOLD_MS) {
+          // Recent — reuse
+          await conn.commit();
+          return { redirect: true, url: tx.checkout_url, internalRef: tx.internal_reference };
+        }
+        // Stale — mark failed and allow retry
+        await conn.query(
+          "UPDATE tilopay_transactions SET status = 'failed', failed_at = NOW() WHERE id = ?",
+          [tx.id]
+        );
+        // Fall through to create new attempt
+      } else if (tx.status === 'creating') {
         // Stale creating — check age
         const age = Date.now() - new Date(tx.created_at).getTime();
         // STALE THRESHOLD: only attempts older than 60s are considered stale.
@@ -1067,22 +1077,57 @@ async function verifyAndConfirmPayment(internalRef, options) {
       currency: tx.currency,
     });
   } catch (e) {
+    var txAge2 = Date.now() - new Date(tx.created_at).getTime();
+    var statusMap2 = require('../config/tilopayStatusMap');
+    if (tx.status === 'pending' && txAge2 >= statusMap2.PENDING_STALE_THRESHOLD_MS) {
+      await pool.query(
+        "UPDATE tilopay_transactions SET status = 'failed', failed_at = NOW(), raw_status = ? WHERE internal_reference = ? AND status NOT IN ('approved','paid')",
+        [String(e.code || e.name || 'CONSULT_ERROR').slice(0, 100), internalRef]
+      );
+      await _recordMismatch(internalRef, tx.order_id, 'malformed_provider_response', {
+        errorCode: String(e.code || e.name || 'CONSULT_ERROR').slice(0, 50),
+        reason: 'stale_pending_consult_error',
+      }, { actorUserId: options.actorUserId || null, markFailed: true });
+      return { paid: false, pending: false, status: 'failed',
+        message: 'El pago no se completo. Puedes intentarlo nuevamente.' };
+    }
     await _recordMismatch(internalRef, tx.order_id, 'malformed_provider_response', {
       errorCode: String(e.code || e.name || 'CONSULT_ERROR').slice(0, 50),
     }, { actorUserId: options.actorUserId || null, markFailed: false });
-    return { paid: false, pending: true, status: 'pending', message: 'Verificando pago. Intenta de nuevo en unos minutos.' };
+    return { paid: false, pending: true, status: 'pending',
+      message: 'Estamos verificando el estado de tu pago. Esto puede tardar unos minutos.' };
   }
 
-  // 5. No transaction found
+  // 5. No transaction found — check age against stale threshold
   if (!consultResult || !consultResult.transaction) {
-    const responseRows = consultResult && consultResult.rawResponse && consultResult.rawResponse.response;
-    const mismatchType = Array.isArray(responseRows) && responseRows.length > 0
+    const statusMap = require('../config/tilopayStatusMap');
+    var txAge = Date.now() - new Date(tx.created_at).getTime();
+    var isStale = tx.status === 'pending' && txAge >= statusMap.PENDING_STALE_THRESHOLD_MS;
+
+    if (isStale) {
+      // Stale pending with no provider transaction → terminal failed
+      await pool.query(
+        "UPDATE tilopay_transactions SET status = 'failed', failed_at = NOW(), raw_status = 'STALE_NO_TX' WHERE internal_reference = ? AND status NOT IN ('approved','paid')",
+        [internalRef]
+      );
+      await _recordMismatch(internalRef, tx.order_id, 'missing_provider_transaction', {
+        expectedOrderNumber,
+        reason: 'stale_pending_no_tx',
+        age_seconds: Math.round(txAge / 1000),
+      }, { actorUserId: options.actorUserId || null, markFailed: true });
+      return { paid: false, pending: false, status: 'failed',
+        message: 'El pago no se completo. Puedes intentarlo nuevamente.' };
+    }
+
+    var responseRows = consultResult && consultResult.rawResponse && consultResult.rawResponse.response;
+    var mismatchType = Array.isArray(responseRows) && responseRows.length > 0
       ? 'order_number_mismatch'
       : 'missing_provider_transaction';
     await _recordMismatch(internalRef, tx.order_id, mismatchType, {
       expectedOrderNumber,
     }, { actorUserId: options.actorUserId || null, markFailed: mismatchType === 'order_number_mismatch' });
-    return { paid: false, pending: true, status: 'pending', message: 'El pago aun no aparece. Intenta en unos minutos.' };
+    return { paid: false, pending: true, status: 'pending',
+      message: 'Estamos verificando el estado de tu pago. Esto puede tardar unos minutos.' };
   }
 
   var provider = consultResult.transaction;
@@ -1136,7 +1181,7 @@ async function verifyAndConfirmPayment(internalRef, options) {
       paid: false,
       pending: !provider.terminal,
       status: localStatus,
-      message: provider.label || 'El pago no fue aprobado. Puedes intentarlo nuevamente.'
+      message: provider.message || provider.label || 'El pago no fue aprobado. Puedes intentarlo nuevamente.'
     };
   }
 

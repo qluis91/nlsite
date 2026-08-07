@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Tilopay HTTP client adapter — official hosted-payment API calls.
  *
  * ARCHITECTURE (Postman Collection — _local/tilopay-official.postman_collection.json):
@@ -303,16 +303,32 @@ async function processPayment(params) {
 
 /**
  * Official Tilopay transaction status mapping.
- * Extracted from Postman collection documentation.
  *
- * Consult response 'code' values:
- *   "1" = Approved (Transaccion aprobada) -> paid
+ * ALL customer-facing status information MUST come from
+ * config/tilopayStatusMap.js (mapProviderCode).
  *
- * Only code "1" with matching orderNumber, amount, and currency
- * may transition a payment to paid.
+ * This map is internal-only: status code → terminal + paid flags.
+ * Labels/messages are provided by the centralized statusMap, never
+ * by raw provider text.
+ *
+ * Known consult response codes (from Postman + real sandbox):
+ *   "1"  = Approved
+ *   "2"  = Declined / Denied
+ *   "3"  = Insufficient funds
+ *   "4"  = Invalid CVV / Invalid card data
+ *   "7"  = 3DS authentication failed
+ *   "8"  = Cancelled
+ *   "98" = Issuer unreachable (real sandbox 2026-08-07)
  */
 const CONSULT_CODE_MAP = {
-  '1': { status: 'approved', label: 'Transaccion aprobada', terminal: true, paid: true },
+  '1':  { status: 'approved',  terminal: true,  paid: true },
+  '2':  { status: 'declined',  terminal: true,  paid: false },
+  '7':  { status: 'declined',  terminal: true,  paid: false },
+  '8':  { status: 'cancelled', terminal: true,  paid: false },
+  '43': { status: 'declined',  terminal: true,  paid: false },
+  '51': { status: 'declined',  terminal: true,  paid: false },
+  '82': { status: 'declined',  terminal: true,  paid: false },
+  '98': { status: 'declined',  terminal: true,  paid: false },
 };
 
 /**
@@ -396,14 +412,19 @@ async function consultTransaction(orderNumber, expected = {}) {
 
   const tx = txs[0];
 
-  // Normalize provider fields
+  // Normalize provider fields using centralized status map.
+  // NEVER use raw provider text (tx.response) as customer-facing label.
+  const statusMap = require('../config/tilopayStatusMap');
   const providerCode = String(tx.code || '').trim();
-  const mapped = { ...(CONSULT_CODE_MAP[providerCode] || {
-    status: providerCode ? 'pending' : 'unknown',
-    label: tx.response || 'Estado desconocido',
-    terminal: false,
-    paid: false,
-  }) };
+  const mappedCode = statusMap.mapProviderCode(providerCode, tx.response || '');
+  const mapped = {
+    ...mappedCode,
+    // Preserve backward-compatible fields expected by callers
+    status: mappedCode.status,
+    label: mappedCode.label,
+    terminal: mappedCode.terminal,
+    paid: mappedCode.paid,
+  };
 
   // Validate optional expected amount/currency
   if (expected.amount !== undefined && expected.amount !== null) {

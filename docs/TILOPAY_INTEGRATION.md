@@ -1,178 +1,124 @@
 # Tilopay Payment Integration — Architecture & Status
 
-**Last updated:** 2026-08-06
+**Last updated:** 2026-08-07
 
-## Integration Status: BLOCKED — Documentation Incomplete
+## Integration Status: SANDBOX VALIDATED ✅
 
-The provider-neutral architecture is implemented and compiles cleanly, but REAL provider API calls cannot be completed until the Tilopay server-side documentation is confirmed.
+The hosted-payment integration is functionally validated end-to-end in sandbox: login, processPayment, hosted checkout, consult verification, atomic confirmation, and all negative scenarios. Production E2E remains pending.
 
-## Documentation Access Status
+## Official API Endpoints
 
-| Source | Status |
-|--------|--------|
-| SDK V1 PDF (`https://app.tilopay.com/sdk/documentation.pdf`) | ✅ Audited (v1.2.0, 2023-08-30) |
-| SDK V2 guides (`https://web.tilopay.com/documentacion/sdk`) | ❌ Behind merchant portal login — links produce Internal Server Error |
-| Postman API collection (`https://documenter.getpostman.com/view/12758640/TVKA5KUT`) | ❌ Requires JavaScript rendering |
-| Official API docs page (`https://web.tilopay.com/documentacion/api`) | ❌ Marketing content only |
-| Developer registration (`https://web.tilopay.com/developers`) | ✅ Available (credential generation) |
-| WooCommerce plugin source | ✅ Secondary evidence (credential model) |
+| Operation | Method | URL |
+|-----------|--------|-----|
+| Login (get token) | `POST` | `https://app.tilopay.com/api/v1/login` |
+| Process Payment | `POST` | `https://app.tilopay.com/api/v1/processPayment` |
+| Consult Transaction | `POST` | `https://app.tilopay.com/api/v1/consult` |
 
-## What IS Confirmed
+Source: Tilopay Postman collection (`_local/tilopay-official.postman_collection.json`).
 
-| Item | Value | Source |
-|------|-------|--------|
-| Integration mode | SDK V1 (native payment form) | SDK V1 PDF |
-| SDK script URL | `https://app.tilopay.com/sdk/v1/sdk.min.js` | SDK V1 PDF |
-| jQuery dependency | Required by SDK V1 | SDK V1 PDF |
-| Credential model | API Key + API User + API Password | WooCommerce plugin |
-| Auth method | Basic Auth + X-Api-Key header | WooCommerce plugin |
-| Client init | `Tilopay.Init({token, currency, amount, ...})` | SDK V1 PDF |
-| Client pay | `Tilopay.startPayment()` | SDK V1 PDF |
-| SDK token source | `GetTokenSdk` server-side API method | SDK V1 PDF |
-| Currency format | ISO 4217 codes (e.g., CRC, USD) | SDK V1 PDF |
-| Amount format | Decimal (e.g., 100.00) | SDK V1 PDF |
-| Domains | `app.tilopay.com` (SDK/API) | SDK V1 PDF + WooCommerce |
-| Merchant portal | `admin.tilopay.com` | Product page |
-
-## What Is UNCONFIRMED (Blocking Real API Calls)
-
-| Item | Status |
-|------|--------|
-| GetTokenSdk endpoint URL | Not documented publicly — best estimate: `POST /api/v1/token_sdk` |
-| Transaction status endpoint URL | Not documented publicly — best estimate: `GET /api/v1/transactions/:id` |
-| Webhook existence for SDK payments | Not confirmed |
-| Webhook signature mechanism | Not confirmed (no HMAC, no header names, no algorithm) |
-| Webhook payload format | Not confirmed |
-| Webhook URL registration location | Presumably merchant portal (`admin.tilopay.com`) |
-| SDK V2 API surface | Cannot access guides (behind login) |
-| Token lifetime | Not documented |
-| Server-side auth token model | Not confirmed (Basic Auth per-request vs token caching) |
-| Sandbox test cards | Requires developer registration |
-| 3DS flow behavior | Presumed SDK-handled (via `#result` div in V1) |
-
-## Best-Known Endpoint Estimates
-
-⚠️ These paths are derived from WooCommerce plugin source code and SDK V1 PDF conventions. They MUST be verified against the Tilopay merchant portal before production use.
+## Architecture: Hosted Payment Flow
 
 ```
-GetTokenSdk:      POST https://app.tilopay.com/api/v1/token_sdk
-Transaction Lookup: GET https://app.tilopay.com/api/v1/transactions/:id
+1. POST /api/v1/login        → { access_token, token_type, expires_in }
+2. POST /api/v1/processPayment → { type: "100", url: "https://secure.tilopay.com/..." }
+3. Redirect customer to hosted URL (secure.tilopay.com)
+4. Customer completes payment on Tilopay's secure page
+5. Browser redirects back → /pagos/tilopay/retorno?ref=<internalRef>
+6. Server calls POST /api/v1/consult → authoritative provider result
+7. Atomic confirmation: only code "1" (approved) with matching amount/currency marks order paid
 ```
 
-## Architecture
+Card data never reaches NLSite. The customer enters card details on Tilopay's hosted page.
 
-### Integration Mode: SDK V1 (Native Payment Form)
+## Sandbox Checkout Hosts
 
-- Card fields (`ccnumber`, `expdate`, `cvv`) render in a `.payFormTilopay` div in the merchant page
-- The Tilopay JavaScript SDK (`sdk.min.js`) controls these fields — raw card data does NOT reach the Express server
-- Server-side obtains an SDK token from Tilopay's `GetTokenSdk` API
-- Client calls `Tilopay.Init({token, currency, amount, ...})` to initialize
-- Client calls `Tilopay.startPayment()` to process payment
-- 3DS challenges (if any) are handled in the `#result` div by the SDK
-- On completion, Tilopay redirects to the configured `redirect` URL
+- `securepayment.tilopay.com`
+- `secure.tilopay.com`
 
-### Payment Initiation (3-Stage Process)
+## Production Host Allowlist
 
-```
-Stage A (inside TX):
-  - Lock order with SELECT ... FOR UPDATE
-  - Validate eligibility (method, status, total, shipping)
-  - Check for existing active attempt
-  - Create tilopay_transactions row with status=creating
-  - Insert audit event
-  - Commit
+- `secure.tilopay.com` only
 
-Stage B (outside TX):
-  - Call GetTokenSdk with server-authoritative amount/currency/order
-  - If Mock Mode: return safe test token
+`securepayment.tilopay.com` is NOT yet assumed for production.
 
-Stage C (inside TX):
-  - Persist provider session token
-  - Set status=pending
-  - Commit
-```
+All URLs must be HTTPS. Embedded credentials, non-default ports, and subdomain/suffix spoofing are rejected.
 
-### Webhook/Notification Architecture
+## Real Sandbox Consult Codes (Observed)
 
-Since webhook signature mechanism is not confirmed:
+| Code | Meaning | Internal Status | Customer Label |
+|------|---------|-----------------|----------------|
+| `1` | Approved | `approved` | Confirmado |
+| `2` | Declined / Denied | `declined` | Rechazado |
+| `7` | 3DS / authentication failed | `declined` | Rechazado |
+| `8` | Cancelled | `cancelled` | Cancelado |
+| `43` | Stolen / pick-up card | `declined` | Rechazado |
+| `51` | Insufficient funds | `declined` | Rechazado |
+| `82` | Invalid CVV | `declined` | Rechazado |
+| `98` | Issuer unreachable | `declined` | Rechazado |
 
-1. Accept JSON notification at `POST /webhooks/tilopay` (no session, no CSRF)
-2. Extract provider/internal reference from body
-3. Perform authenticated server-to-server lookup via `getTransactionStatus()`
-4. Use the lookup result — NOT the notification body — as authoritative
-5. Process via `confirmPayment()` (same path as reconciliation)
+Unknown codes use a safe generic Spanish fallback. All customer-facing messages come from the centralized `config/tilopayStatusMap.js`. Raw provider English text (e.g. "Insufficient funds", "Pick up card stolen card") is NEVER exposed to customers.
 
-When Tilopay documents a signature mechanism:
-- Add signature verification before the server-to-server lookup
-- Server-to-server lookup remains as an additional verification check
+## Security Guarantees
 
-### Payment Verification (Centralized)
+| Rule | Enforcement |
+|------|-------------|
+| Browser query params NOT authoritative | Server-to-server `/api/v1/consult` only |
+| Only confirmed approved marks paid | Code `"1"` + matching amount + matching currency |
+| Amount/currency/orderNumber validated | Exact match required before confirmation |
+| Paid orders never regress | `NOT IN ('approved','paid')` guards |
+| Confirmation atomic/idempotent | DB transaction + `FOR UPDATE` locks |
+| Webhook non-authoritative | No unauthenticated payment transitions |
+| CSP strict | `form-action 'self'`, nonce-based `script-src` |
+| No card data in NLSite | Hosted flow — card fields on Tilopay's domain |
 
-One shared `verifyTilopayPayment(internalRef, { trigger, actorUserId })` operation is the single authoritative path used by ALL verification flows:
+## Retry & Idempotency
 
-| Trigger | Route | Auth |
-|---------|-------|------|
-| `return` | `GET /pagos/tilopay/retorno?ref=` | None (public) |
-| `customer_verify` | `POST /cuenta/pedidos/:ref/tilopay/verificar` | Session + CSRF + ownership |
-| `guest_verify` | `POST /consultar-pedido/:ref/tilopay/verificar` | Guest grant + CSRF |
-| `admin` | `POST /admin/orders/:ref/tilopay/reconcile` | Admin session + CSRF |
-| `webhook` | `POST /webhooks/tilopay` | Provider notification |
+- Only one active payment attempt per order at a time (`creating` or recent `pending`)
+- Concurrent submissions reuse the existing attempt
+- Terminal declined/cancelled/failed attempts allow retry
+- A new `tilopay_transactions` row is created for each retry
+- Prior attempts are preserved for history
 
-The operation:
-1. Loads local transaction + order
-2. If already terminally resolved → returns cached result (idempotent)
-3. Calls Tilopay `getTransactionStatus()` provider endpoint
-4. Validates: provider transaction ID, amount (exact), currency, status
-5. Only `approved` with matching amount/currency → `confirmPayment()` → marks order paid
-6. Returns provider-neutral result object
+## Stale Pending Handling
 
-**Result contract:**
-```
-{ verified, localStatus, orderPaid, terminal, retryAllowed, messageCode, customerMessage }
-```
+- `PENDING_STALE_THRESHOLD_MS`: 15 minutes (900,000ms)
+- Recent pending attempts (< 15 min) show "Verificando" in the UI
+- Stale pending attempts (> 15 min) with no provider transaction → terminal `failed`
+- Stale attempts are marked `failed` when a new payment attempt is initiated
+- Order remains `payment_status=pending` and `order_status=pending_payment`
 
-**Browser return safety:**
-- Query parameters (`?success=true`, `?status=approved`, `?payment_status=paid`) NEVER mark an order paid
-- Return page uses only the `?ref=` parameter to locate the local transaction, then performs server-to-server verification
-- Provider HTTP 200 alone NEVER marks an order paid
+## Return/Abandonment Flow
 
-```
-Inside one transaction:
-  1. Lock tilopay_transactions row
-  2. Lock orders row
-  3. Verify not already terminally processed
-  4. Normalize provider status
-  5. Verify amount (exact match required)
-  6. Verify currency match
-  7. Only 'approved' → payment_status=paid, order_status=payment_confirmed
-  8. Insert exactly one approval event
-  9. Commit
-```
+- If browser returns but consult finds no transaction within the stale window → neutral "Estamos verificando tu pago..." toast
+- After stale threshold → attempt transitions to `failed`, "No completado" shown, retry available
+- Abandonment (customer never returns) → stale handler eventually closes the attempt; no browser callback required
+
+## OrderHash
+
+The Tilopay `OrderHash` field is received but NOT treated as verified. The algorithm is not documented by Tilopay. Server-to-server consultation is authoritative.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `config/tilopay.js` | Environment validation, PUBLIC_BASE_URL, derived URLs, MOCK_MODE gating |
-| `config/tilopayStatusMap.js` | Status normalization, terminal/approval/retry helpers |
-| `services/tilopayClient.js` | Provider HTTP adapter — GetTokenSdk, getTransactionStatus |
-| `services/tilopayService.js` | Business logic — initiation (3-stage), confirmation, notification, reconciliation |
-| `controllers/tilopayController.js` | Route handlers — pay, return, cancel, handleWebhook, adminReconcile |
-| `routes/tilopayRoutes.js` | User-facing routes (initiation, return, cancel) |
-| `routes/tilopayWebhookRoutes.js` | Notification route (bounded JSON, no session, no CSRF) |
+| `config/tilopay.js` | Environment validation, API URLs, MOCK_MODE gating |
+| `config/tilopayStatusMap.js` | Status normalization, stale threshold, safe Spanish messages |
+| `services/tilopayClient.js` | Provider HTTP adapter — login, processPayment, consultTransaction |
+| `services/tilopayService.js` | Business logic — initiation, verifyAndConfirmPayment, atomic confirmation |
+| `controllers/tilopayController.js` | Route handlers — initiate, return, verify |
+| `views/pages/tilopay-pay.ejs` | Hosted-payment checkout form (no card fields, no SDK) |
+| `views/pages/store/order-detail.ejs` | Order detail with Tilopay transaction history, retry buttons |
+| `services/customerOrderService.js` | resolveNextAction — age-aware payment status summary |
 | `scripts/migrate-tilopay.js` | Idempotent migration for `tilopay_transactions` |
-| `scripts/validate-tilopay-config.js` | Configuration validator (safe output, no credentials exposed) |
-| `views/pages/tilopay-pay.ejs` | Payment form with Tilopay SDK V1 + jQuery |
-| `views/pages/tilopay-result.ejs` | Payment result page (return/cancel) |
-| `tests/tilopay.test.js` | Automated tests (~30 tests) |
-| `docs/TILOPAY_CLIENT_SETUP.md` | Client installation guide |
+| `tests/tilopay.test.js` | Automated tests (144 tests, 100% passing) |
 
 ## Environment Variables
 
 ```bash
 TILOPAY_ENABLED=false              # true to enable
 TILOPAY_ENV=sandbox                # sandbox | production
-TILOPAY_PUBLIC_BASE_URL=           # Public URL of THIS site (e.g. https://cliente.example)
+TILOPAY_API_BASE_URL=              # API base URL (default: https://app.tilopay.com)
+TILOPAY_PUBLIC_BASE_URL=           # Public URL of THIS site
 TILOPAY_API_KEY=                   # Integration key from Tilopay portal
 TILOPAY_API_USER=                  # API user from Tilopay portal
 TILOPAY_API_PASSWORD=              # API password from Tilopay portal
@@ -180,47 +126,14 @@ TILOPAY_MOCK=false                 # Mock mode — DEVELOPMENT ONLY, blocked in 
 TILOPAY_REQUEST_TIMEOUT_MS=15000   # Request timeout
 ```
 
-Derived URLs (from `TILOPAY_PUBLIC_BASE_URL`):
-- Return: `{PUBLIC_BASE_URL}/pagos/tilopay/retorno`
-- Cancel: `{PUBLIC_BASE_URL}/pagos/tilopay/cancelado`
-- Webhook: `{PUBLIC_BASE_URL}/webhooks/tilopay`
-
-## PCI Boundary
-
-| Card data | Reaches NLSite server? |
-|-----------|----------------------|
-| Card number | ❌ No — in merchant DOM but handled by Tilopay SDK |
-| CVV | ❌ No — handled by Tilopay SDK |
-| Expiration | ❌ No — handled by Tilopay SDK |
-| Stored in DB | ❌ No card fields stored |
-| Stored in logs | ❌ No card fields logged |
-
-## Credential Security
-
-**⚠️ Published test credentials MUST NOT be used:**
-- `6609-5850-8330-8034-3464` (API Key — published on WooCommerce plugin page)
-- `lSrT45` (API User — published on WooCommerce plugin page)
-- `Zlb8H9` (API Password — published on WooCommerce plugin page)
-
-Required before production:
-1. Register at `https://web.tilopay.com/developers` for sandbox credentials
-2. Generate NEW production credentials from Tilopay merchant panel
-3. Place only in `.env` — never in source code, docs, or tests
-
 ## What's NOT Yet Complete
 
 | Item | Status |
 |------|--------|
-| Real Tilopay API endpoint URLs confirmed | ❌ Pending merchant portal access |
-| Webhook signature mechanism confirmed | ❌ Pending documentation |
-| Sandbox transaction completed | ❌ Pending sandbox credentials |
-| Webhook end-to-end validated | ❌ Pending callback URL + signatures |
-| Real-browser visual validation | ❌ Pending sandbox credentials |
-| Sandbox credentials obtained | ❌ Pending developer registration |
-| SDK V2 evaluated | ❌ Guides behind login |
-| Automated payment-success simulation (with DB) | ⚠ Provider-neutral logic tested; needs live DB + mock provider adapter for deterministic DB assertions |
-| Automated payment-failure simulation (declined/pending/cancelled/failed) | ⚠ Same: logic tested, DB assertions need live DB setup |
-| Concurrency test (webhook + reconciliation) | ⚠ Provider-neutral; needs mock provider delay simulation |
-| Client installation guide | ✅ `docs/TILOPAY_CLIENT_SETUP.md` |
-| Config validator | ✅ `scripts/validate-tilopay-config.js` |
-| Mock mode gated from production | ✅ `TILOPAY_MOCK=true` blocked when `NODE_ENV=production` |
+| Production E2E | Pending |
+| `TILOPAY_ENABLED=true` in production | Pending |
+| Admin reconciliation panel | Pending |
+| Scheduled reconciliation (cron/interval) | Pending |
+| Railway production deployment with correct `TILOPAY_PUBLIC_BASE_URL` | Pending |
+| Webhook signature verification | Pending official documentation |
+| SDK V1 legacy code removal | Pending Phase 2 cleanup |

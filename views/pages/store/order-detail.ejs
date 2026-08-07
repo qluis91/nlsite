@@ -130,12 +130,19 @@
                     <% if (tx.status === 'approved') { %><span class="st-order__tilopay-status st-order__tilopay-status--approved">Confirmado ✓</span>
                     <% } else if (tx.status === 'declined') { %><span class="st-order__tilopay-status st-order__tilopay-status--declined">Rechazado</span>
                     <% } else if (tx.status === 'cancelled') { %><span class="st-order__tilopay-status st-order__tilopay-status--cancelled">Cancelado</span>
-                    <% } else if (tx.status === 'failed') { %><span class="st-order__tilopay-status st-order__tilopay-status--failed">Error</span>
+                    <% } else if (tx.status === 'failed') { %><span class="st-order__tilopay-status st-order__tilopay-status--failed">No completado</span>
+                    <% } else if (tx.status === 'pending' || tx.status === 'creating') { %><span class="st-order__tilopay-status st-order__tilopay-status--pending">Verificando</span>
                     <% } else { %><span class="st-order__tilopay-status st-order__tilopay-status--pending">En proceso</span><% } %>
                   </p>
                   <p>Monto: <%= new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(tx.amount) %></p>
                   <p>Iniciado: <%= dateStr(tx.createdAt) %></p>
                   <% if (tx.confirmedAt) { %><p>Confirmado: <%= dateStr(tx.confirmedAt) %></p><% } %>
+                  <% if (tx.status === 'declined' || tx.status === 'failed' || tx.status === 'cancelled') { %>
+                    <form method="post" action="/<%= detailContext === 'account' ? 'cuenta/pedidos' : 'consultar-pedido' %>/<%= order.reference %>/pagar/tilopay" style="margin-top:0.5rem;">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit" class="st-action-card__submit st-action-card__submit--tilopay">Intentar nuevamente</button>
+                    </form>
+                  <% } %>
                 </div>
               <% }); %>
             </section>

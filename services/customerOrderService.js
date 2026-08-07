@@ -379,15 +379,29 @@ function resolveNextAction(order, proofSummary, tilopayTx) {
   const hasTilopayApproved = tilopayTx && tilopayTx.some(tx => tx.status === 'approved');
   const tilopayEligible = order.paymentMethod === 'tilopay' && order.orderStatus === 'pending_payment';
 
+  // Resolve stale threshold from centralized config (fallback: 15 min)
+  var statusMap = null;
+  try { statusMap = require('../config/tilopayStatusMap'); } catch (_) {}
+  var STALE_MS = statusMap && statusMap.PENDING_STALE_THRESHOLD_MS || 900000;
+
+  // Recent = still within the safe pending window
+  var hasRecentPending = tilopayTx && tilopayTx.some(function(tx) {
+    if (tx.status !== 'pending' && tx.status !== 'creating' && tx.status !== 'unknown') return false;
+    var age = Date.now() - new Date(tx.createdAt).getTime();
+    return age < STALE_MS;
+  });
+
   if (hasTilopayApproved) {
-    return { type: 'payment_processing', title: 'Pago en proceso',
-      description: 'Tu pago con tarjeta está siendo confirmado.', enabled: false };
+    return { type: 'payment_processing', title: 'Pago confirmado',
+      description: 'Tu pago con tarjeta fue confirmado.', enabled: false };
   }
 
-  if (hasTilopayPending && tilopayTx) {
-    const pendingTx = tilopayTx.find(tx => tx.status === 'pending' || tx.status === 'creating' || tx.status === 'unknown');
-    return { type: 'tilopay_verify', title: 'Pago en proceso',
-      description: 'Verifica el estado de tu pago con tarjeta.',
+  if (hasRecentPending && tilopayTx) {
+    var pendingTx = tilopayTx.find(function(tx) {
+      return tx.status === 'pending' || tx.status === 'creating' || tx.status === 'unknown';
+    });
+    return { type: 'tilopay_verify', title: 'Verificando pago',
+      description: 'Estamos verificando el estado de tu pago. Esto puede tardar unos minutos.',
       tilopayInternalRef: pendingTx ? pendingTx.internalRef : null, enabled: true };
   }
 
