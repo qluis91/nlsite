@@ -1,16 +1,34 @@
-/**
- * Tilopay Controller — payment initiation, return pages, webhook, admin reconciliation.
+﻿/**
+ * Initiate hosted Tilopay payment (authenticated customer).
+ * Creates the hosted payment session and redirects to Tilopay's secure page.
+ * NEVER exposes Tilopay credentials, SDK scripts, or card inputs to the browser.
  */
 const tilopayService = require('../services/tilopayService');
 const tilopayConfig = require('../config/tilopay');
 const customerOrders = require('../services/customerOrderService');
 
-// ── Helpers ──
 function normalizeRef(req) {
   return customerOrders.normalizeReference(req.params.reference);
 }
 
-// ── Initiate payment (authenticated customer) ──
+function logInitiationError(label, error) {
+  const fallback = error?.code || error?.name || 'UNEXPECTED_ERROR';
+  if (process.env.NODE_ENV === 'production') {
+    console.error(label, fallback);
+    return;
+  }
+  console.error(label, {
+    name: error?.name || null,
+    code: error?.code || null,
+    message: error?.message ? String(error.message).slice(0, 200) : null,
+    operation: error?.operation || null,
+    httpStatus: Number.isInteger(error?.httpStatus) ? error.httpStatus : null,
+    providerType: error?.providerType || null,
+    providerMessage: error?.providerMessage || null,
+    safeCause: error?.safeCause || null,
+  });
+}
+
 exports.initiatePayment = async (req, res) => {
   if (!tilopayConfig.ENABLED) {
     req.session.error_msg = 'El pago con tarjeta no está disponible en este momento.';
@@ -24,39 +42,61 @@ exports.initiatePayment = async (req, res) => {
   }
 
   try {
-    const result = await tilopayService.initiatePayment(reference, req.session.user.id, req.session);
+    const accessRecord = await customerOrders.getAccessRecord(reference);
+    if (!accessRecord) {
+      req.session.error_msg = 'Pedido no encontrado.';
+      return res.redirect('/cuenta/pedidos');
+    }
 
-    // Render the Tilopay payment page with SDK token
-    res.render('pages/tilopay-pay', {
-      pageTitle: 'Pagar con Tarjeta — ' + reference,
-      sdkToken: result.sdkToken,
-      orderReference: result.orderReference,
-      amount: Number(result.amount),
-      currency: result.currency,
-      internalRef: result.internalRef,
-      methods: result.methods,
-      csrfToken: req.csrfToken ? req.csrfToken() : (res.locals.csrfToken || ''),
-      tilopayScriptUrl: tilopayConfig.SDK_SCRIPT_URL,
-      jqueryScriptUrl: tilopayConfig.JQUERY_SCRIPT_URL,
-      returnUrl: tilopayConfig.deriveReturnUrl()
-        ? `${tilopayConfig.deriveReturnUrl()}?ref=${encodeURIComponent(result.internalRef)}`
-        : `/pagos/tilopay/retorno?ref=${encodeURIComponent(result.internalRef)}`,
-      pageClass: '',
-      pageStyles: '',
+    const allowed = customerOrders.canAccessCustomerOrder({
+      order: accessRecord, authenticatedUser: req.session.user, session: req.session,
     });
+    if (!allowed) {
+      req.session.error_msg = 'No tienes acceso a este pedido.';
+      return res.redirect('/cuenta/pedidos');
+    }
+
+    const customerData = {
+      firstName: req.session.user.name || '',
+      lastName: req.session.user.last_name || '',
+      email: req.session.user.email || '',
+      phone: req.session.user.phone || '',
+    };
+    const result = await tilopayService.initiateHostedPayment(
+      accessRecord.internal_id,
+      req.session.user.id,
+      customerData
+    );
+
+    if (result.redirect && result.url) {
+      // CSP-safe redirect: form-action 'self' would block a 302 to secure.tilopay.com.
+      // Use JS-based navigation instead (not subject to form-action CSP).
+      return res.send(`
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Redirigiendo a Tilopay</title>
+<style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f5f5f5;text-align:center;}p{font-size:1.2rem;color:#333;}</style></head>
+<body><p>Redirigiendo a la plataforma segura de Tilopay&hellip;</p>
+<script nonce="${res.locals.cspNonce || ''}">window.location.href = ${JSON.stringify(result.url)};</script>
+</body></html>`);
+    }
+
+    req.session.error_msg = 'No se pudo iniciar el pago. Intenta de nuevo.';
+    return res.redirect('/cuenta/pedidos/' + reference);
   } catch (error) {
     const message = error instanceof tilopayService.TilopayError
       ? error.message
       : 'No fue posible iniciar el pago en este momento. Inténtalo nuevamente más tarde.';
     req.session.error_msg = message;
     if (!(error instanceof tilopayService.TilopayError)) {
-      console.error('[tilopay] Initiation error:', error.message);
+      logInitiationError('[tilopay] Initiation error:', error);
     }
-    return res.redirect(`/cuenta/pedidos/${reference}`);
+    return res.redirect('/cuenta/pedidos/' + reference);
   }
 };
 
 // ── Initiate payment (guest) ──
+// ── Initiate hosted Tilopay payment (guest customer) ──
 exports.initiatePaymentGuest = async (req, res) => {
   if (!tilopayConfig.ENABLED) {
     req.session.error_msg = 'El pago con tarjeta no está disponible en este momento.';
@@ -69,51 +109,61 @@ exports.initiatePaymentGuest = async (req, res) => {
     return res.redirect('/consultar-pedido');
   }
 
-  // Guest authorization check
-  const accessRecord = await customerOrders.getAccessRecord(reference);
-  const allowed = customerOrders.canAccessCustomerOrder({
-    order: accessRecord, authenticatedUser: null, session: req.session,
-  });
-  if (!allowed) {
-    req.session.error_msg = 'Acceso no autorizado.';
-    return res.redirect('/consultar-pedido');
-  }
-
   try {
-    const result = await tilopayService.initiatePayment(reference, null, req.session);
+    const accessRecord = await customerOrders.getAccessRecord(reference);
+    if (!accessRecord) {
+      req.session.error_msg = 'Pedido no encontrado.';
+      return res.redirect('/consultar-pedido');
+    }
 
-    res.render('pages/tilopay-pay', {
-      pageTitle: 'Pagar con Tarjeta — ' + reference,
-      sdkToken: result.sdkToken,
-      orderReference: result.orderReference,
-      amount: Number(result.amount),
-      currency: result.currency,
-      internalRef: result.internalRef,
-      methods: result.methods,
-      csrfToken: req.csrfToken ? req.csrfToken() : (res.locals.csrfToken || ''),
-      tilopayScriptUrl: tilopayConfig.SDK_SCRIPT_URL,
-      jqueryScriptUrl: tilopayConfig.JQUERY_SCRIPT_URL,
-      returnUrl: tilopayConfig.deriveReturnUrl()
-        ? `${tilopayConfig.deriveReturnUrl()}?ref=${encodeURIComponent(result.internalRef)}`
-        : `/pagos/tilopay/retorno?ref=${encodeURIComponent(result.internalRef)}`,
-      pageClass: '',
-      pageStyles: '',
+    const allowed = customerOrders.canAccessCustomerOrder({
+      order: accessRecord, authenticatedUser: null, session: req.session,
     });
+    if (!allowed) {
+      req.session.error_msg = 'Acceso no autorizado.';
+      return res.redirect('/consultar-pedido');
+    }
+
+    const result = await tilopayService.initiateHostedPayment(accessRecord.internal_id, null, {
+      firstName: req.body?.firstName || accessRecord?.billing_name || '',
+      lastName: req.body?.lastName || '',
+      email: req.body?.email || accessRecord?.customer_email || '',
+      phone: req.body?.phone || accessRecord?.billing_phone || '',
+    });
+
+    if (result.redirect && result.url) {
+      // CSP-safe redirect: form-action 'self' would block a 302 to secure.tilopay.com.
+      // Use JS-based navigation instead (not subject to form-action CSP).
+      return res.send(`
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Redirigiendo a Tilopay</title>
+<style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f5f5f5;text-align:center;}p{font-size:1.2rem;color:#333;}</style></head>
+<body><p>Redirigiendo a la plataforma segura de Tilopay&hellip;</p>
+<script nonce="${res.locals.cspNonce || ''}">window.location.href = ${JSON.stringify(result.url)};</script>
+</body></html>`);
+    }
+
+    req.session.error_msg = 'No se pudo iniciar el pago. Intenta de nuevo.';
+    return res.redirect('/consultar-pedido/' + reference);
   } catch (error) {
     const message = error instanceof tilopayService.TilopayError
       ? error.message
       : 'No fue posible iniciar el pago en este momento.';
     req.session.error_msg = message;
     if (!(error instanceof tilopayService.TilopayError)) {
-      console.error('[tilopay] Guest initiation error:', error.message);
+      logInitiationError('[tilopay] Guest initiation error:', error);
     }
-    return res.redirect(`/consultar-pedido/${reference}`);
+    return res.redirect('/consultar-pedido/' + reference);
   }
 };
 
 // ── Return from Tilopay (success redirect) ──
 exports.returnFromTilopay = async (req, res) => {
-  // NEVER trust query parameters to mark payment as paid.
+  // NEVER trust browser query parameters (code, description, auth, order,
+  // tpt, tilopay-transaction, OrderHash, returnData).
+  // Payment is verified SERVER-TO-SERVER via POST /api/v1/consult.
+
   const internalRef = String(req.query.ref || '').trim();
 
   if (!internalRef) {
@@ -121,6 +171,7 @@ exports.returnFromTilopay = async (req, res) => {
       pageTitle: 'Resultado del pago',
       status: 'unknown',
       message: 'Estamos verificando el resultado del pago.',
+      orderReference: '',
       pageClass: '', pageStyles: '',
     });
   }
@@ -131,48 +182,69 @@ exports.returnFromTilopay = async (req, res) => {
       return res.render('pages/tilopay-result', {
         pageTitle: 'Resultado del pago',
         status: 'unknown',
-        message: 'Estamos verificando el resultado del pago.',
+        message: 'No se encontro la transaccion.',
+        orderReference: '',
         pageClass: '', pageStyles: '',
       });
     }
 
-    // Use centralized verification via server-to-server lookup
-    const trigger = req.session.user ? 'return' : 'return';
-    const result = await tilopayService.verifyTilopayPayment(internalRef, {
-      trigger,
+    // Already paid -> redirect
+    if (tx.status === 'approved' || tx.status === 'paid' || tx.payment_status === 'paid') {
+      return res.redirect(
+        req.session.user
+          ? '/cuenta/pedidos/' + (tx.order_reference || '')
+          : '/consultar-pedido/' + (tx.order_reference || '')
+      );
+    }
+
+    // Not in a payment state -> show status
+    if (tx.status !== 'pending' && tx.status !== 'creating' && tx.status !== 'failed') {
+      return res.render('pages/tilopay-result', {
+        pageTitle: 'Resultado del pago',
+        status: tx.status || 'unknown',
+        message: 'El pago no esta en proceso.',
+        orderReference: tx.order_reference || '',
+        pageClass: '', pageStyles: '',
+      });
+    }
+
+    // Server-to-server verification
+    const result = await tilopayService.verifyAndConfirmPayment(internalRef, {
+      trigger: 'return',
       actorUserId: req.session.user ? req.session.user.id : null,
     });
 
-    if (result.orderPaid) {
-      if (req.session.user) {
-        return res.redirect(`/cuenta/pedidos/${tx.order_reference || ''}`);
-      }
-      return res.redirect(`/consultar-pedido/${tx.order_reference || ''}`);
+    if (result.paid) {
+      return res.redirect(
+        req.session.user
+          ? '/cuenta/pedidos/' + (tx.order_reference || '')
+          : '/consultar-pedido/' + (tx.order_reference || '')
+      );
     }
 
-    if (result.messageCode === 'PAYMENT_PENDING' || result.messageCode === 'PAYMENT_UNKNOWN') {
-      return res.render('pages/tilopay-result', {
-        pageTitle: 'Pago en proceso',
-        status: 'pending',
-        message: 'Tu pago está siendo procesado. Te notificaremos cuando se confirme.',
-        pageClass: '', pageStyles: '',
-      });
+    if (result.paid) {
+      req.session.success_msg = 'Tu pago ha sido confirmado. Gracias por tu compra.';
+      return res.redirect(
+        req.session.user
+          ? '/cuenta/pedidos/' + (tx.order_reference || '')
+          : '/consultar-pedido/' + (tx.order_reference || '')
+      );
     }
 
-    return res.render('pages/tilopay-result', {
-      pageTitle: 'Resultado del pago',
-      status: tx.status,
-      message: 'El pago no fue aprobado. Puedes intentarlo nuevamente.',
-      pageClass: '', pageStyles: '',
-    });
+    // For pending/failed results, redirect to order detail with a safe message
+    req.session.error_msg = result.message || 'El pago no fue aprobado. Puedes intentarlo nuevamente.';
+    return res.redirect(
+      req.session.user
+        ? '/cuenta/pedidos/' + (tx.order_reference || '')
+        : '/consultar-pedido/' + (tx.order_reference || '')
+    );
   } catch (error) {
     console.error('[tilopay] Return error:', error.message);
-    return res.render('pages/tilopay-result', {
-      pageTitle: 'Resultado del pago',
-      status: 'unknown',
-      message: 'Estamos verificando el resultado del pago.',
-      pageClass: '', pageStyles: '',
-    });
+    return res.redirect(
+      req.session.user
+        ? '/cuenta/pedidos/' + (tx.order_reference || '')
+        : '/consultar-pedido/' + (tx.order_reference || '')
+    );
   }
 };
 

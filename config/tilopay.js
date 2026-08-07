@@ -2,33 +2,19 @@
  * Tilopay configuration — environment-variable validation, base URL selection.
  * Never exposes credential values outside this module.
  *
- * Documentation status (2026-07-23):
- *   SDK V1 PDF:    ✅ Audited (https://app.tilopay.com/sdk/documentation.pdf, v1.2.0)
- *   SDK V2 guides: ❌ Behind merchant portal login
- *   Postman API:   ❌ Requires JavaScript rendering
- *   API docs page: ❌ Marketing content only (https://web.tilopay.com/documentacion/api)
- *   Developer reg:  ✅ Available (https://web.tilopay.com/developers)
+ * Documentation status (2026-08-06):
+ *   Postman collection: _local/tilopay-official.postman_collection.json
+ *   Creds:              Validated (real login test pending)
  *
- * CONFIRMED:
- *   - SDK script: https://app.tilopay.com/sdk/v1/sdk.min.js
- *   - Credential model: API Key + API User + API Password (from WooCommerce plugin)
- *   - Auth method:      Basic Auth (API_USER:API_PASSWORD) + X-Api-Key header
- *   - GetTokenSdk:      Server-side endpoint exists (exact URL unconfirmed)
- *   - Tilopay.Init({}): Client-side SDK initialization with token
- *   - Tilopay.startPayment(): Client-side payment processing
- *   - redirect param:   Callback URL for payment result
- *
- * UNCONFIRMED (blocking real API calls):
- *   - GetTokenSdk endpoint URL
- *   - Transaction status/verification endpoint URL
- *   - Webhook signature mechanism (algorithm, header names, payload format)
- *   - Webhook endpoint URL registration location (merchant portal)
- *   - Token lifetime and refresh mechanism
- *   - SDK V2 API surface (may differ from V1)
- *
- * Real API calls must NOT be made until the merchant portal documentation
- * confirms all unconfirmed items above.
+ * OFFICIAL HOSTED PAYMENT FLOW:
+ *   POST /api/v1/login          → { access_token, token_type, expires_in }
+ *   POST /api/v1/processPayment → { redirect_url (environment-specific exact host allowlist) }
+ *   → Redirect customer to hosted URL
+ *   → Browser return
+ *   → Verify via consultation endpoint
  */
+
+// ── Enabled / Environment ──
 const ENABLED = String(process.env.TILOPAY_ENABLED || 'false').toLowerCase() === 'true';
 const ENV = String(process.env.TILOPAY_ENV || 'sandbox').toLowerCase();
 
@@ -49,12 +35,44 @@ if (!ALLOWED_ENVS.includes(ENV)) {
   }
 }
 
+const HOSTED_CHECKOUT_HOSTS = Object.freeze({
+  sandbox: Object.freeze([
+    'secure.tilopay.com',
+    'securepayment.tilopay.com',
+  ]),
+  production: Object.freeze([
+    'secure.tilopay.com',
+  ]),
+});
+
+function getHostedCheckoutHosts(environment = ENV) {
+  const normalizedEnvironment = String(environment || '').trim().toLowerCase();
+  const hosts = HOSTED_CHECKOUT_HOSTS[normalizedEnvironment];
+  return hosts ? [...hosts] : [];
+}
+
+function isAllowedHostedCheckoutHost(hostname, environment = ENV) {
+  const normalizedHostname = String(hostname || '').trim().toLowerCase();
+  return getHostedCheckoutHosts(environment).includes(normalizedHostname);
+}
+
 // ── Base URLs ──
-// Both environments use the same Tilopay platform domain.
-// Merchant credentials determine sandbox vs production behavior.
-const SANDBOX_BASE = 'https://app.tilopay.com';
-const PRODUCTION_BASE = 'https://app.tilopay.com';
-const BASE_URL = ENV === 'production' ? PRODUCTION_BASE : SANDBOX_BASE;
+const API_BASE_URL = (() => {
+  const raw = String(process.env.TILOPAY_API_BASE_URL || '').trim();
+  if (raw) {
+    try { new URL(raw); return raw.replace(/\/+$/, ''); }
+    catch { /* fall through */ }
+  }
+  return 'https://app.tilopay.com';
+})();
+
+// Legacy base URL (same as API_BASE_URL, kept for backward compat)
+const BASE_URL = API_BASE_URL;
+
+// ── API Paths ──
+const LOGIN_PATH = '/api/v1/login';
+const PROCESS_PAYMENT_PATH = '/api/v1/processPayment';
+const CONSULT_PATH = '/api/v1/consult';
 
 // ── Credentials ──
 const API_KEY = String(process.env.TILOPAY_API_KEY || '').trim();
@@ -62,7 +80,7 @@ const API_USER = String(process.env.TILOPAY_API_USER || '').trim();
 const API_PASSWORD = String(process.env.TILOPAY_API_PASSWORD || '').trim();
 const WEBHOOK_SECRET = String(process.env.TILOPAY_WEBHOOK_SECRET || '').trim();
 
-// ── Public base URL (for deriving callback/return/webhook URLs) ──
+// ── Public base URL (for deriving callback/return URLs) ──
 const PUBLIC_BASE_URL = (() => {
   const raw = String(process.env.TILOPAY_PUBLIC_BASE_URL || '').trim();
   if (!raw) return null;
@@ -71,7 +89,6 @@ const PUBLIC_BASE_URL = (() => {
     if (ENV === 'production' && u.protocol !== 'https:') {
       throw new Error('TILOPAY_PUBLIC_BASE_URL must use HTTPS in production.');
     }
-    // Remove trailing slash
     return u.origin;
   } catch (e) {
     if (ENV === 'production' || ENABLED) {
@@ -84,19 +101,13 @@ const PUBLIC_BASE_URL = (() => {
 const REQUEST_TIMEOUT_MS = parseInt(process.env.TILOPAY_REQUEST_TIMEOUT_MS || '15000', 10);
 
 // ── Currency ──
-// Costa Rican colones, ISO 4217: CRC
-// Amount format: decimal (e.g. 3500.00) — confirmed by SDK V1 PDF usage
 const DEFAULT_CURRENCY = 'CRC';
 
-// ── SDK ──
-// Confirmed from SDK V1 PDF: https://app.tilopay.com/sdk/v1/sdk.min.js
+// ── SDK (legacy V1 — pending removal in Phase 2) ──
 const SDK_SCRIPT_URL = 'https://app.tilopay.com/sdk/v1/sdk.min.js';
-
-// ── JQuery requirement ──
-// SDK V1 requires jQuery (confirmed by SDK V1 PDF)
 const JQUERY_SCRIPT_URL = 'https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js';
 
-// ── Derived URLs (from PUBLIC_BASE_URL) ──
+// ── Derived URLs ──
 function deriveReturnUrl() {
   if (!PUBLIC_BASE_URL) return null;
   try { return new URL('/pagos/tilopay/retorno', PUBLIC_BASE_URL).href; }
@@ -132,9 +143,8 @@ function validateConfig() {
     );
   }
 
-  // Warn about unconfirmed endpoints (non-fatal in sandbox)
   if (ENV === 'sandbox') {
-    console.warn('[tilopay] ⚠ Running in sandbox mode. API endpoint URLs must be confirmed against the Tilopay merchant portal.');
+    console.warn('[tilopay] ⚠ Running in sandbox mode.');
   }
 }
 
@@ -150,10 +160,14 @@ function getPublicConfig() {
 }
 
 module.exports = {
+  CONSULT_PATH,
   ENABLED,
   ENV,
   MOCK_MODE,
+  API_BASE_URL,
   BASE_URL,
+  LOGIN_PATH,
+  PROCESS_PAYMENT_PATH,
   API_KEY,
   API_USER,
   API_PASSWORD,
@@ -166,6 +180,8 @@ module.exports = {
   deriveReturnUrl,
   deriveCancelUrl,
   deriveWebhookUrl,
+  getHostedCheckoutHosts,
+  isAllowedHostedCheckoutHost,
   validateConfig,
   getPublicConfig,
 };

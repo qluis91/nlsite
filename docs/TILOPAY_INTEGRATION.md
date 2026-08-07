@@ -1,6 +1,6 @@
 # Tilopay Payment Integration — Architecture & Status
 
-**Last updated:** 2026-07-23
+**Last updated:** 2026-08-06
 
 ## Integration Status: BLOCKED — Documentation Incomplete
 

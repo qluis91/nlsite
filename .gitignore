@@ -68,3 +68,5 @@ storage/
 
 # ── CodeBurn (no repo files, but just in case) ──
 .codeburn/
+
+_local/
