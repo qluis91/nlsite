@@ -78,6 +78,7 @@
                     <%= selDelivery === dlv.key ? 'checked' : '' %>
                     data-delivery-option
                     data-requires-address="<%= dlv.requiresAddress ? 'true' : 'false' %>"
+                    data-shipping-status="<%= dlv.shippingStatus %>"
                     <% if (dlv.shippingStatus === 'pending_quote') { %>data-analytics-event="quote_start" data-analytics-once<% } %>>
                   <span class="st-checkout-option__content">
                     <span class="st-checkout-option__label"><%= dlv.label %></span>
@@ -183,7 +184,7 @@
                 if (pm.enabled) { %>
                   <label class="st-checkout-option<%= selPayment === k ? ' is-selected' : '' %>">
                     <input type="radio" name="paymentMethod" value="<%= k %>"
-                      <%= selPayment === k ? 'checked' : '' %> data-payment-option>
+                      <%= selPayment === k ? 'checked' : '' %> data-payment-option data-payment-method>
                     <span class="st-checkout-option__content">
                       <span class="st-checkout-option__label"><%= pm.label %></span>
                       <span class="st-checkout-option__desc"><%= pm.description %></span>

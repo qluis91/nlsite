@@ -45,9 +45,37 @@ export function initCheckout() {
   addressChoices.forEach(i => i.addEventListener('change', update));
   update();
 
-  // Double-submit prevention
+  // ── CTA button text reflects payment method and shipping status
   const form = document.querySelector('.st-checkout__layout');
   const submitBtn = document.querySelector('[data-checkout-submit]');
+  const paymentInputs = document.querySelectorAll('[data-payment-method]');
+  if (paymentInputs.length && submitBtn) {
+    function updateCta() {
+      const delivery = document.querySelector('[data-delivery-option]:checked');
+      const payment = document.querySelector('[data-payment-method]:checked');
+      if (!payment) return;
+      const paymentKey = payment.value;
+      const requiresAddr = delivery ? delivery.getAttribute('data-requires-address') === 'true' : false;
+      const isShippingQuote = requiresAddr && delivery
+        ? (delivery.getAttribute('data-shipping-status') !== 'not_required')
+        : false;
+
+      if (isShippingQuote) {
+        submitBtn.textContent = 'Solicitar cotización de envío';
+      } else if (paymentKey === 'tilopay') {
+        submitBtn.textContent = 'Confirmar y pagar con Tilopay';
+      } else if (paymentKey === 'sinpe' || paymentKey === 'bank_transfer') {
+        submitBtn.textContent = 'Confirmar pedido y enviar comprobante';
+      } else {
+        submitBtn.textContent = 'Confirmar pedido';
+      }
+    }
+    paymentInputs.forEach(i => i.addEventListener('change', updateCta));
+    deliveryInputs.forEach(i => i.addEventListener('change', updateCta));
+    updateCta();
+  }
+
+  // Double-submit prevention
   if (form && submitBtn) {
     let submitting = false;
     form.addEventListener('submit', () => {

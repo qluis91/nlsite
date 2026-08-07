@@ -20,7 +20,7 @@ function get(url, ck) {
 function postF(url, body, ck) {
   return new Promise(R => {
     const u = new URL(BASE+url); const buf = Buffer.from(body);
-    h.request({hostname:u.hostname,port:u.port,path:u.pathname+u.search,method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Content-Length':buf.length,Cookie:ck||''}},resp=>{let d='';const sc=resp.headers['set-cookie'];resp.on('data',c=>d+=c);resp.on('end',()=>{const nc=(sc&&sc.length>0)?sc.map(c=>c.split(';')[0]).join('; '):(ck||'');R({s:resp.statusCode,b:d,ck:nc})})}).end(buf);
+    h.request({hostname:u.hostname,port:u.port,path:u.pathname+u.search,method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Content-Length':buf.length,Cookie:ck||''}},resp=>{let d='';const sc=resp.headers['set-cookie'];const loc = resp.headers['location'] || '';resp.on('data',c=>d+=c);resp.on('end',()=>{const nc=(sc&&sc.length>0)?sc.map(c=>c.split(';')[0]).join('; '):(ck||'');R({s:resp.statusCode,b:d,ck:nc,loc})})}).end(buf);
   });
 }
 function postProof(url, csrf, ck, buf, fname) {
@@ -40,7 +40,20 @@ function postProof(url, csrf, ck, buf, fname) {
 function xc(html) { const m = html.match(/name="_csrf"\s+value="([^"]+)"/); return m?m[1]:''; }
 function xpid(html) { const m = html.match(/name="productId"\s+value="(\d+)"/); return m?m[1]:''; }
 function xtoken(html) { const m = html.match(/name="checkoutToken"\s+value="([^"]+)"/); return m?m[1]:''; }
-function xref(html) { const m = html.match(/confirmacion\/(NL-[A-Z0-9]+)/); return m?m[1]:''; }
+function xref(html, loc) { const m = html.match(/confirmacion\/(NL-[A-Z0-9]+)/) || (loc||'').match(/\/(pedidos|consultar-pedido)\/(NL-[A-Z0-9]+)/); return m? (m[1] === 'pedidos' || m[1] === 'consultar-pedido' ? m[2] : m[1]) :''; }
+// Extract ref from response (location header or body)
+function extractRef(resp) {
+  let ref = xref(resp.b, resp.loc);
+  if (!ref) {
+    const m2 = (resp.loc || '').match(/\/(pedidos|consultar-pedido)\/(NL-[A-Z0-9]+)/);
+    if (m2) ref = m2[2];
+    if (!ref) {
+      const m3 = (resp.loc || '').match(/\/checkout\/confirmacion\/("NL-[A-Z0-9]+")/);
+      if (m3) ref = m3[1];
+    }
+  }
+  return ref;
+}
 
 async function createEligibleOrder() {
   // Create a disposable in-stock product so the fixture never depends on real catalog.
@@ -61,7 +74,7 @@ async function createEligibleOrder() {
   assert.ok(token, 'Checkout token');
   r = await postF('/checkout', 'customerName=CT&email=ct@test.com&phone=88880020&deliveryMethod=local_pickup&paymentMethod=sinpe&checkoutToken='+token+'&_csrf='+cs2, ck);
   ck = r.ck;
-  const ref = xref(r.b);
+  const ref = xref(r.b, r.loc);
   assert.ok(ref, 'Order ref created');
   return { ref, ck };
 }

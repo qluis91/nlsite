@@ -202,6 +202,14 @@ async function showProduct(req, res, next) {
     breadcrumbItems.push({ name: product.title, item: productUrl });
     const jsonLdBreadcrumb = jsonLdScript(buildBreadcrumbLd(breadcrumbItems));
 
+    // Add-to-cart success panel — consumed once and cleared.
+    // Only display if the session flag matches the product being rendered.
+    const flash = req.session.addToCartSuccess;
+    const addToCartPanel = (flash && Number(flash.productId) === Number(product.id))
+      ? { productName: flash.productName || product.title }
+      : null;
+    delete req.session.addToCartSuccess;
+
     res.render('pages/tienda-producto', {
       title: `${product.title} | Tienda`,
       metaTitle: product.seoTitle || product.title,
@@ -223,6 +231,7 @@ async function showProduct(req, res, next) {
       weightLabel,
       jsonLdProduct,
       jsonLdBreadcrumb,
+      addToCartPanel,
     });
   } catch (err) { next(err); }
 }

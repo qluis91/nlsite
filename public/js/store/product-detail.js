@@ -138,3 +138,30 @@ export function initProductDetail(root) {
 const root = document.querySelector('[data-product-page]');
 const destroy = initProductDetail(root);
 if (destroy) window.addEventListener('pagehide', destroy, { once: true });
+
+// Add-to-cart success panel — dismiss and focus management
+const panel = document.querySelector('[data-add-to-cart-panel]');
+if (panel) {
+  // Show the panel (CSS starts it hidden; noscript handles the no-JS case)
+  panel.style.display = 'block';
+
+  // Move focus to the panel for screen readers
+  panel.focus();
+  const dismissBtn = panel.querySelector('[data-add-to-cart-dismiss]');
+  if (dismissBtn) {
+    dismissBtn.addEventListener('click', () => {
+      panel.style.display = 'none';
+      // Return focus to the "Add to cart" button if available
+      const addBtn = document.querySelector('.st-product__cart-form button[type="submit"]');
+      if (addBtn) addBtn.focus();
+    });
+  }
+  // Dismiss with Escape key
+  panel.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      panel.style.display = 'none';
+      const addBtn = document.querySelector('.st-product__cart-form button[type="submit"]');
+      if (addBtn) addBtn.focus();
+    }
+  });
+}

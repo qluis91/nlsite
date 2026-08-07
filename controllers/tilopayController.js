@@ -29,6 +29,30 @@ function logInitiationError(label, error) {
   });
 }
 
+// ── CSP-safe hosted payment redirect (shared helper)
+function cspSafeHostedRedirect(url, cspNonce) {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Redirigiendo a Tilopay</title>
+<style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f5f5f5;text-align:center;}p{font-size:1.2rem;color:#333;}</style></head>
+<body><p>Redirigiendo a la plataforma segura de Tilopay&hellip;</p>
+<script nonce="${cspNonce || ''}">window.location.href = ${JSON.stringify(url)};</script>
+</body></html>`;
+}
+
+exports.cspSafeHostedRedirect = cspSafeHostedRedirect;
+
+// ── Redirect to order detail (authenticated or guest)
+function redirectToOrderDetail(req, res, orderRef) {
+  return res.redirect(
+    req.session.user
+      ? '/cuenta/pedidos/' + orderRef
+      : '/consultar-pedido/' + orderRef
+  );
+}
+
+exports.redirectToOrderDetail = redirectToOrderDetail;
+
 exports.initiatePayment = async (req, res) => {
   if (!tilopayConfig.ENABLED) {
     req.session.error_msg = 'El pago con tarjeta no está disponible en este momento.';
@@ -71,14 +95,7 @@ exports.initiatePayment = async (req, res) => {
     if (result.redirect && result.url) {
       // CSP-safe redirect: form-action 'self' would block a 302 to secure.tilopay.com.
       // Use JS-based navigation instead (not subject to form-action CSP).
-      return res.send(`
-<!DOCTYPE html>
-<html lang="es">
-<head><meta charset="utf-8"><title>Redirigiendo a Tilopay</title>
-<style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f5f5f5;text-align:center;}p{font-size:1.2rem;color:#333;}</style></head>
-<body><p>Redirigiendo a la plataforma segura de Tilopay&hellip;</p>
-<script nonce="${res.locals.cspNonce || ''}">window.location.href = ${JSON.stringify(result.url)};</script>
-</body></html>`);
+      return res.send(cspSafeHostedRedirect(result.url, res.locals.cspNonce));
     }
 
     req.session.error_msg = 'No se pudo iniciar el pago. Intenta de nuevo.';
@@ -134,14 +151,7 @@ exports.initiatePaymentGuest = async (req, res) => {
     if (result.redirect && result.url) {
       // CSP-safe redirect: form-action 'self' would block a 302 to secure.tilopay.com.
       // Use JS-based navigation instead (not subject to form-action CSP).
-      return res.send(`
-<!DOCTYPE html>
-<html lang="es">
-<head><meta charset="utf-8"><title>Redirigiendo a Tilopay</title>
-<style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f5f5f5;text-align:center;}p{font-size:1.2rem;color:#333;}</style></head>
-<body><p>Redirigiendo a la plataforma segura de Tilopay&hellip;</p>
-<script nonce="${res.locals.cspNonce || ''}">window.location.href = ${JSON.stringify(result.url)};</script>
-</body></html>`);
+      return res.send(cspSafeHostedRedirect(result.url, res.locals.cspNonce));
     }
 
     req.session.error_msg = 'No se pudo iniciar el pago. Intenta de nuevo.';

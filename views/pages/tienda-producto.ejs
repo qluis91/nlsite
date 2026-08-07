@@ -195,6 +195,22 @@
           </div>
         </div>
 
+        <% if (addToCartPanel) { %>
+          <aside class="st-product__add-to-cart-panel" role="status" aria-label="Producto agregado al carrito" tabindex="-1" data-add-to-cart-panel>
+            <div class="st-product__add-to-cart-panel__inner">
+              <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <p class="st-product__add-to-cart-panel__text"><strong><%= addToCartPanel.productName %></strong> agregado al carrito.</p>
+              <div class="st-product__add-to-cart-panel__actions">
+                <a href="/carrito" class="st-product__add-to-cart-panel__btn st-product__add-to-cart-panel__btn--primary">Ir al carrito</a>
+                <button type="button" class="st-product__add-to-cart-panel__btn st-product__add-to-cart-panel__btn--secondary" data-add-to-cart-dismiss>Seguir comprando</button>
+              </div>
+            </div>
+          </aside>
+          <noscript>
+            <style>.st-product__add-to-cart-panel[data-add-to-cart-panel] { display: block !important; }</style>
+          </noscript>
+        <% } %>
+
         <% if (product.description || (product.tags && product.tags.length)) { %>
           <section class="st-product__details" aria-labelledby="product-details-title">
             <% if (product.description) { %>

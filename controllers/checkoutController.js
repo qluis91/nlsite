@@ -7,9 +7,22 @@ const { getSessionCart, clearCart } = require('../services/cartService');
 const { DELIVERY_METHODS, PAYMENT_METHODS, ALL_PAYMENT_KEYS, CR_PROVINCES } = require('../config/checkoutOptions');
 const customerOrders = require('../services/customerOrderService');
 const addressService = require('../services/addressService');
+const tilopayService = require('../services/tilopayService');
 const { parsePositiveId } = require('../validators/addressValidator');
 
 const ADDRESS_ERROR_FIELDS = ['province', 'canton', 'distrito', 'addressLine', 'addressReference'];
+
+function logCheckoutError(label, error) {
+  const fallback = error?.code || error?.name || 'UNEXPECTED_ERROR';
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[checkout]', label, fallback);
+    return;
+  }
+  console.error('[checkout]', label, {
+    code: error?.code || null,
+    message: error?.message ? String(error.message).slice(0, 200) : null,
+  });
+}
 
 async function checkoutAddressOptions(req) {
   if (!req.session.user) {
@@ -131,6 +144,8 @@ exports.showCheckout = async (req, res, next) => {
 // ── POST /checkout ──
 exports.submitCheckout = async (req, res, next) => {
   try {
+    const { cspSafeHostedRedirect, redirectToOrderDetail } = require('./tilopayController');
+
     // Validate checkout token
     const submittedToken = String(req.body.checkoutToken || '');
     const sessionToken = String(req.session.checkoutToken || '');
@@ -201,6 +216,16 @@ exports.submitCheckout = async (req, res, next) => {
       userId: req.session.user ? req.session.user.id : null,
     }, cart);
 
+    // Handle duplicate orders — order already exists from a prior successful submission.
+    // Normalize the stale cart state so the customer cannot accidentally resubmit.
+    if (result.duplicate) {
+      clearCart(cart);
+      delete req.session.checkoutToken;
+      customerOrders.recordRecentOrderAccess(req.session, result.orderRef);
+      req.session.info_msg = 'Este pedido ya fue creado.';
+      return redirectToOrderDetail(req, res, result.orderRef);
+    }
+
     // Clear cart and token
     clearCart(cart);
     delete req.session.checkoutToken;
@@ -208,6 +233,44 @@ exports.submitCheckout = async (req, res, next) => {
     // Store only a bounded, expiring reference grant for immediate confirmation.
     customerOrders.recordRecentOrderAccess(req.session, result.orderRef);
 
+    // ── Branch by payment method and shipping status ──
+    const isPendingShipping = result.shippingStatus && result.shippingStatus !== 'not_required';
+    const hasPayableTotal = result.finalTotal !== null && result.finalTotal !== undefined;
+
+    if (result.paymentMethod === 'tilopay' && !isPendingShipping && hasPayableTotal) {
+      // Tilopay: immediately initiate hosted payment
+      try {
+        const customerData = {
+          firstName: result.customerName || '',
+          lastName: '',
+          email: result.email || '',
+          phone: result.phone || '',
+        };
+        const tilopayResult = await tilopayService.initiateHostedPayment(
+          result.orderId,
+          req.session.user ? req.session.user.id : null,
+          customerData
+        );
+        if (tilopayResult.redirect && tilopayResult.url) {
+          return res.send(cspSafeHostedRedirect(tilopayResult.url, res.locals.cspNonce));
+        }
+        // If no redirect (e.g. already pending), fall through to order detail
+        req.session.info_msg = 'Tu pago ya está en proceso. Revisa los detalles del pedido.';
+        return redirectToOrderDetail(req, res, result.orderRef);
+      } catch (tilopayErr) {
+        // Order exists — redirect to order detail with safe error
+        logCheckoutError('tilopay-initiation', tilopayErr);
+        req.session.error_msg = 'Tu pedido fue creado pero el pago no pudo iniciarse. Intenta nuevamente desde los detalles del pedido.';
+        return redirectToOrderDetail(req, res, result.orderRef);
+      }
+    }
+
+    if ((result.paymentMethod === 'sinpe' || result.paymentMethod === 'bank_transfer') && hasPayableTotal) {
+      req.session.success_msg = '¡Pedido confirmado! Adjunta tu comprobante de pago.';
+      return redirectToOrderDetail(req, res, result.orderRef);
+    }
+
+    // Shipping quote required: show confirmation with waiting state
     req.session.success_msg = '¡Pedido recibido! Revisa los detalles de tu compra.';
     res.redirect('/checkout/confirmacion/' + result.orderRef);
   } catch (err) {

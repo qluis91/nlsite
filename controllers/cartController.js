@@ -50,6 +50,13 @@ exports.addItem = async (req, res, next) => {
     }
 
     cartService.addItem(cart, productId, quantity);
+
+    // Signal the product page to show the add-to-cart success panel.
+    req.session.addToCartSuccess = {
+      productName: product.title,
+      productId: productId,
+    };
+
     req.session.success_msg = 'Producto agregado al carrito.';
     res.redirect(safeCartReturn(req.body.returnTo));
   } catch (err) { next(err); }
