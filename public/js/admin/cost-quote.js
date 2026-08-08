@@ -1,6 +1,7 @@
 /**
  * Cotización 3D — Client calculator & admin module.
  * Mirrors services/costQuoteCalculator.js formulas exactly.
+ * Renders legacy-parity card-based UI.
  */
 (function () {
   'use strict';
@@ -108,7 +109,6 @@
     state.globalDiscountPct = parseFloat(getVal('globalDiscountPct')) || 0;
     state.wholesaleEnabled = getVal('wholesaleEnabled');
     state.wholesaleScenarioQty = parseInt(getVal('wholesaleScenarioQty'), 10) || null;
-    // Read wholesale tiers from DOM
     const tierEls = document.querySelectorAll('[data-cq-wholesale-tier]');
     if (tierEls.length) {
       const mins = [10, 50, 100], maxs = [50, 100, 999999];
@@ -161,8 +161,6 @@
       const effQty = effectiveQty(qty, mode);
       const gPerUnit = product.grams || 0;
       const hPerUnit = product.printHours || 0;
-      const gTotal = gPerUnit * effQty;
-      const hTotal = hPerUnit * effQty;
       const matPerUnit = materialCost(gPerUnit, cfg.kgPrice);
       const printPerUnit = printingCost(hPerUnit, cfg.hourRate);
       const prodPerUnit = matPerUnit + printPerUnit;
@@ -177,8 +175,8 @@
       return {
         idx, name: product.name || `Producto ${idx + 1}`,
         quantity: qty, inputMode: mode,
-        gramsPerUnit: gPerUnit, gramsTotal: gTotal,
-        hoursPerUnit: hPerUnit, hoursTotal: hTotal,
+        gramsPerUnit: gPerUnit, gramsTotal: gPerUnit * effQty,
+        hoursPerUnit: hPerUnit, hoursTotal: hPerUnit * effQty,
         materialPerUnit: matPerUnit, materialTotal: matPerUnit * qty,
         printingPerUnit: printPerUnit, printingTotal: printPerUnit * qty,
         productionPerUnit: prodPerUnit, productionTotal: prodTotal,
@@ -193,72 +191,118 @@
     let subtotal = lines.reduce((s, l) => s + l.saleTotal, 0);
     const totalProduction = lines.reduce((s, l) => s + l.productionTotal, 0);
     const totalAdditional = lines.reduce((s, l) => s + l.additionalTotal, 0);
-    const totalDesign = cfg.designCost;
 
     let wholesalePct = 0;
+    let wholesaleAmt = 0;
     if (cfg.wholesaleEnabled && cfg.wholesaleTiers && cfg.wholesaleTiers.length) {
       const qtyForTier = cfg.wholesaleScenarioQty || totalQty;
       wholesalePct = wholesaleDiscountPct(qtyForTier, cfg.wholesaleTiers);
       if (wholesalePct > 0) {
-        subtotal = subtotal * (1 - wholesalePct / 100);
+        wholesaleAmt = subtotal * (wholesalePct / 100);
+        subtotal = subtotal - wholesaleAmt;
       }
     }
 
+    const subtotalBeforeDiscount = subtotal + wholesaleAmt;
     let globalDiscountAmt = 0;
     if (cfg.globalDiscountEnabled && cfg.globalDiscountPct > 0) {
       globalDiscountAmt = subtotal * (cfg.globalDiscountPct / 100);
       subtotal = subtotal - globalDiscountAmt;
     }
 
-    const subtotalBeforeTax = subtotal;
     subtotal += cfg.shippingCost;
     const ivaAmount = cfg.includeIva ? subtotal * 0.13 : 0;
     const grandTotal = subtotal + ivaAmount;
 
-    const totalNetProfit = grandTotal - totalProduction - totalAdditional - totalDesign - cfg.shippingCost - ivaAmount;
+    const totalNetProfit = grandTotal - totalProduction - totalAdditional - cfg.designCost - cfg.shippingCost - ivaAmount;
     const alexShare = totalNetProfit * (cfg.alexPct / 100);
     const luisShare = totalNetProfit * ((100 - cfg.alexPct) / 100);
 
     // Render results
-    const body = document.querySelector('[data-cq-results-body]');
-    if (!body) return;
+    const wrap = document.querySelector('[data-cq-results]');
+    if (!wrap) return;
 
     const fmt = (n) => '₡' + round2(n).toLocaleString('es-CR', { minimumFractionDigits: 2 });
+    let html = '';
 
-    let html = '<div style="overflow-x:auto"><table><thead><tr>';
-    html += '<th>Producto</th><th>Cant</th><th>Modo</th><th>Mat/unit</th><th>Impr/unit</th><th>Prod/unit</th>';
-    html += '<th>Sugerido</th><th>Venta/unit</th><th>Total</th><th>Neto/unit</th>';
-    html += '</tr></thead><tbody>';
-    lines.forEach(l => {
-      html += `<tr>
-        <td>${l.name}</td><td>${l.quantity}</td><td>${l.inputMode === 'total_batch' ? 'Total' : 'Unit'}</td>
-        <td>${fmt(l.materialPerUnit)}</td><td>${fmt(l.printingPerUnit)}</td><td>${fmt(l.productionPerUnit)}</td>
-        <td>${fmt(l.suggestedPerUnit)}${l.useManualPrice ? ' ✎' : ''}</td>
-        <td>${fmt(l.discountedPerUnit)}</td><td>${fmt(l.saleTotal)}</td><td>${fmt(l.netProfitPerUnit)}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div>';
+    // Summary grid
+    html += '<div class="cq-results-grid">';
+    html += `<div class="cq-results-grid__item"><span class="cq-r-label">Costo producción</span><span class="cq-r-value">${fmt(totalProduction)}</span></div>`;
+    html += `<div class="cq-results-grid__item"><span class="cq-r-label">Adicionales</span><span class="cq-r-value">${fmt(totalAdditional)}</span></div>`;
+    html += `<div class="cq-results-grid__item"><span class="cq-r-label">Diseño</span><span class="cq-r-value">${fmt(cfg.designCost)}</span></div>`;
+    if (wholesalePct > 0) {
+      html += `<div class="cq-results-grid__item"><span class="cq-r-label">Desc. mayorista (${round2(wholesalePct)}%)</span><span class="cq-r-value">-${fmt(wholesaleAmt)}</span></div>`;
+    }
+    if (cfg.globalDiscountEnabled && cfg.globalDiscountPct > 0) {
+      html += `<div class="cq-results-grid__item"><span class="cq-r-label">Desc. global (${cfg.globalDiscountPct}%)</span><span class="cq-r-value">-${fmt(globalDiscountAmt)}</span></div>`;
+    }
+    html += `<div class="cq-results-grid__item"><span class="cq-r-label">Envío</span><span class="cq-r-value">${fmt(cfg.shippingCost)}</span></div>`;
+    html += `<div class="cq-results-grid__item"><span class="cq-r-label">Subtotal</span><span class="cq-r-value">${fmt(subtotalBeforeDiscount - wholesaleAmt - globalDiscountAmt + cfg.shippingCost)}</span></div>`;
+    if (cfg.includeIva) {
+      html += `<div class="cq-results-grid__item"><span class="cq-r-label">IVA (13%)</span><span class="cq-r-value">${fmt(ivaAmount)}</span></div>`;
+    }
+    html += '</div>';
 
-    // Totals
-    html += '<div class="cq-results__totals"><dl>';
-    html += `<dt>Costo producción total</dt><dd>${fmt(totalProduction)}</dd>`;
-    html += `<dt>Adicionales total</dt><dd>${fmt(totalAdditional)}</dd>`;
-    html += `<dt>Diseño</dt><dd>${fmt(totalDesign)}</dd>`;
-    if (wholesalePct > 0) html += `<dt>Mayorista (${round2(wholesalePct)}%)</dt><dd>-${fmt(subtotalBeforeTax * wholesalePct / 100)}</dd>`;
-    if (cfg.globalDiscountEnabled && cfg.globalDiscountPct > 0) html += `<dt>Descuento global (${cfg.globalDiscountPct}%)</dt><dd>-${fmt(globalDiscountAmt)}</dd>`;
-    html += `<dt>Envío</dt><dd>${fmt(cfg.shippingCost)}</dd>`;
-    html += `<dt>Subtotal</dt><dd>${fmt(subtotalBeforeTax + cfg.shippingCost)}</dd>`;
-    if (cfg.includeIva) html += `<dt>IVA (13%)</dt><dd>${fmt(ivaAmount)}</dd>`;
-    html += `<dt class="cq-total-grand">Total cliente</dt><dd class="cq-total-grand">${fmt(grandTotal)}</dd>`;
-    html += `<dt>Ganancia neta total</dt><dd>${fmt(totalNetProfit)}</dd>`;
-    html += `<dt>Alex (${cfg.alexPct}%)</dt><dd>${fmt(alexShare)}</dd>`;
-    html += `<dt>Luis (${100 - cfg.alexPct}%)</dt><dd>${fmt(luisShare)}</dd>`;
-    html += '</dl></div>';
+    // Big price row
+    html += `<div class="cq-price-row"><span class="cq-price-row__label">Total cliente</span><span class="cq-price-row__value">${fmt(grandTotal)}</span></div>`;
 
-    body.innerHTML = html;
+    // Alex / Luis blocks
+    html += '<div class="cq-profit-blocks">';
+    html += `<div class="cq-profit-block"><div class="cq-profit-block__label">Alex</div><div class="cq-profit-block__value">${fmt(alexShare)}</div><div class="cq-profit-block__pct">${cfg.alexPct}% — Ganancia neta: ${fmt(totalNetProfit)}</div></div>`;
+    html += `<div class="cq-profit-block"><div class="cq-profit-block__label">Luis</div><div class="cq-profit-block__value">${fmt(luisShare)}</div><div class="cq-profit-block__pct">${100 - cfg.alexPct}%</div></div>`;
+    html += '</div>';
+
+    // Per-product breakdown table
+    if (lines.length) {
+      html += '<table style="width:100%;border-collapse:collapse;margin-top:0.6rem;font-size:0.76rem;color:#999">';
+      html += '<thead><tr>';
+      html += '<th style="text-align:left;padding:2px 4px;border-bottom:1px solid #333;font-weight:600;color:#666">Producto</th>';
+      html += '<th style="text-align:right;padding:2px 4px;border-bottom:1px solid #333;font-weight:600;color:#666">Venta/u</th>';
+      html += '<th style="text-align:right;padding:2px 4px;border-bottom:1px solid #333;font-weight:600;color:#666">Total</th>';
+      html += '<th style="text-align:right;padding:2px 4px;border-bottom:1px solid #333;font-weight:600;color:#666">Neto</th>';
+      html += '</tr></thead><tbody>';
+      lines.forEach(l => {
+        html += `<tr>
+          <td style="padding:2px 4px">${l.name} ×${l.quantity} <span style="color:#555">(${l.inputMode==='total_batch'?'Total':'Unit'})</span></td>
+          <td style="text-align:right;padding:2px 4px">${fmt(l.discountedPerUnit)}</td>
+          <td style="text-align:right;padding:2px 4px">${fmt(l.saleTotal)}</td>
+          <td style="text-align:right;padding:2px 4px">${fmt(l.netProfitTotal)}</td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+    }
+
+    wrap.innerHTML = html;
+
+    // Update inline product breakdowns
+    updateProductBreakdowns(lines);
   }
 
-  // ── Render product lines from state ──
+  function updateProductBreakdowns(lines) {
+    const fmt = (n) => '₡' + round2(n).toLocaleString('es-CR', { minimumFractionDigits: 2 });
+    const productLines = document.querySelectorAll('[data-cq-product-line]');
+    productLines.forEach((el, i) => {
+      const l = lines[i];
+      if (!l) return;
+      let bd = el.querySelector('[data-cq-product-breakdown]');
+      if (!bd) {
+        bd = document.createElement('div');
+        bd.className = 'cq-product-line__breakdown';
+        bd.setAttribute('data-cq-product-breakdown', '');
+        el.appendChild(bd);
+      }
+      bd.innerHTML = `
+        <span class="cq-bd-item"><span class="cq-bd-label">Mat:</span><span class="cq-bd-value">${fmt(l.materialPerUnit)}</span></span>
+        <span class="cq-bd-item"><span class="cq-bd-label">Impr:</span><span class="cq-bd-value">${fmt(l.printingPerUnit)}</span></span>
+        <span class="cq-bd-item"><span class="cq-bd-label">Prod:</span><span class="cq-bd-value">${fmt(l.productionPerUnit)}</span></span>
+        <span class="cq-bd-item"><span class="cq-bd-label">Sug:</span><span class="cq-bd-value">${fmt(l.suggestedPerUnit)}${l.useManualPrice ? ' ✎' : ''}</span></span>
+        <span class="cq-bd-item"><span class="cq-bd-label">Venta/u:</span><span class="cq-bd-value" style="color:#7cf03d">${fmt(l.discountedPerUnit)}</span></span>
+        <span class="cq-bd-item"><span class="cq-bd-label">Total:</span><span class="cq-bd-value">${fmt(l.saleTotal)}</span></span>
+      `;
+    });
+  }
+
+  // ── Render product lines ──
   function renderProducts() {
     const container = document.querySelector('[data-cq-products]');
     if (!container) return;
@@ -268,23 +312,45 @@
     }
     container.innerHTML = state.products.map((p, i) => `
       <div class="cq-product-line" data-cq-product-line>
-        <div class="cq-product-line__header">
-          <input type="text" data-cq-product-name value="${(p.name||'').replace(/"/g,'&quot;')}" placeholder="Nombre" maxlength="200" class="cq-input--sm">
-          <button type="button" class="cq-btn cq-btn--sm cq-btn--danger" data-cq-product-remove data-idx="${i}">✕</button>
+        <div class="cq-product-line__top">
+          <input type="text" class="cq-product-line__name" data-cq-product-name value="${(p.name||'').replace(/"/g,'&quot;')}" placeholder="Nombre del producto" maxlength="200">
+          <button type="button" class="cq-btn cq-btn--rm cq-btn--danger" data-cq-product-remove data-idx="${i}">✕</button>
         </div>
-        <div class="cq-product-line__body">
-          <label class="cq-label">Cantidad <input type="number" data-cq-product-qty value="${p.quantity||1}" min="1"></label>
-          <label class="cq-label">Gramos <input type="number" data-cq-product-grams value="${p.grams||0}" step="0.1" min="0"></label>
-          <label class="cq-label">Horas impresión <input type="number" data-cq-product-hours value="${p.printHours||0}" step="0.1" min="0"></label>
-          <label class="cq-label">Modo <select data-cq-product-mode>
-            <option value="per_unit" ${p.inputMode!=='total_batch'?'selected':''}>Por unidad</option>
-            <option value="total_batch" ${p.inputMode==='total_batch'?'selected':''}>Total lote</option>
-          </select></label>
-          <label class="cq-label">Adicionales ₡<input type="number" data-cq-product-additional value="${p.additionalCosts||0}" step="100" min="0"></label>
-          <label class="cq-check"><input type="checkbox" data-cq-product-manual-enabled ${p.manualPriceEnabled?'checked':''}> Precio manual</label>
-          <label class="cq-label">Precio manual ₡<input type="number" data-cq-product-manual-price value="${p.manualPrice||0}" step="100" min="0"></label>
-          <label class="cq-check"><input type="checkbox" data-cq-product-discount-enabled ${p.discountEnabled?'checked':''}> Descuento</label>
-          <label class="cq-label">% Desc <input type="number" data-cq-product-discount-pct value="${p.discountPct||0}" step="1" min="0" max="100"></label>
+        <div class="cq-qty-mode-bar">
+          <div class="cq-field">
+            <label class="cq-field__label">Cantidad</label>
+            <input class="cq-field__input" type="number" data-cq-product-qty value="${p.quantity||1}" min="1">
+          </div>
+          <div class="cq-field">
+            <label class="cq-field__label">Gramos</label>
+            <input class="cq-field__input" type="number" data-cq-product-grams value="${p.grams||0}" step="0.1" min="0">
+          </div>
+          <div class="cq-field">
+            <label class="cq-field__label">Horas impresión</label>
+            <input class="cq-field__input" type="number" data-cq-product-hours value="${p.printHours||0}" step="0.1" min="0">
+          </div>
+          <div class="cq-mode-toggle">
+            <button type="button" class="${p.inputMode!=='total_batch'?'active':''}" data-cq-product-mode-btn data-idx="${i}" data-mode="per_unit">Por unidad</button>
+            <button type="button" class="${p.inputMode==='total_batch'?'active':''}" data-cq-product-mode-btn data-idx="${i}" data-mode="total_batch">Total lote</button>
+          </div>
+        </div>
+        <div class="cq-product-line__fields">
+          <div class="cq-field">
+            <label class="cq-field__label">Adicionales</label>
+            <input class="cq-field__input" type="number" data-cq-product-additional value="${p.additionalCosts||0}" step="100" min="0">
+          </div>
+          <div class="cq-field cq-field--inline cq-field--checkbox">
+            <label class="cq-switch"><input type="checkbox" data-cq-product-manual-enabled ${p.manualPriceEnabled?'checked':''}><span class="cq-switch__label">Precio manual</span></label>
+          </div>
+          <div class="cq-field">
+            <label class="cq-field__label">Precio manual</label>
+            <input class="cq-field__input" type="number" data-cq-product-manual-price value="${p.manualPrice||0}" step="100" min="0">
+          </div>
+          <div class="cq-field cq-field--inline cq-field--checkbox">
+            <label class="cq-switch"><input type="checkbox" data-cq-product-discount-enabled ${p.discountEnabled?'checked':''}><span class="cq-switch__label">Desc.</span></label>
+            <input class="cq-field__input cq-field__input--sm" type="number" data-cq-product-discount-pct value="${p.discountPct||0}" step="1" min="0" max="100" style="width:55px">
+            <span class="cq-field__suffix">%</span>
+          </div>
         </div>
       </div>
     `).join('');
@@ -295,7 +361,6 @@
     const btn = e.target.closest('button');
     if (!btn) return;
 
-    // Add product
     if (btn.hasAttribute('data-cq-add-product')) {
       state.products.push({
         name: '', quantity: 1, grams: 0, printHours: 0, inputMode: 'per_unit',
@@ -306,7 +371,6 @@
       return;
     }
 
-    // Remove product
     if (btn.hasAttribute('data-cq-product-remove')) {
       const idx = parseInt(btn.getAttribute('data-idx'), 10);
       state.products.splice(idx, 1);
@@ -315,28 +379,19 @@
       return;
     }
 
-    // Recompute
-    if (btn.hasAttribute('data-cq-recompute')) {
+    // Mode toggle
+    if (btn.hasAttribute('data-cq-product-mode-btn')) {
+      const idx = parseInt(btn.getAttribute('data-idx'), 10);
+      state.products[idx].inputMode = btn.getAttribute('data-mode');
+      renderProducts();
       recompute();
       return;
     }
 
-    // Save quote
-    if (btn.hasAttribute('data-cq-save')) {
-      readState();
-      saveQuote();
-      return;
-    }
+    if (btn.hasAttribute('data-cq-recompute')) { recompute(); return; }
+    if (btn.hasAttribute('data-cq-save')) { readState(); saveQuote(); return; }
+    if (btn.hasAttribute('data-cq-export-pdf')) { readState(); recompute(); generatePDF(); return; }
 
-    // Export PDF
-    if (btn.hasAttribute('data-cq-export-pdf')) {
-      readState();
-      recompute();
-      generatePDF();
-      return;
-    }
-
-    // Tab switching
     if (btn.hasAttribute('data-cq-tab')) {
       const tab = btn.getAttribute('data-cq-tab');
       document.querySelectorAll('.cq-tab').forEach(t => t.classList.toggle('active', t === btn));
@@ -344,7 +399,6 @@
       return;
     }
 
-    // Catalog save
     if (btn.hasAttribute('data-cq-catalog-save')) {
       const id = btn.getAttribute('data-id');
       const item = btn.closest('[data-cq-catalog-id]');
@@ -364,7 +418,6 @@
       return;
     }
 
-    // Catalog delete
     if (btn.hasAttribute('data-cq-catalog-delete')) {
       if (!confirm('¿Eliminar este elemento?')) return;
       const id = btn.getAttribute('data-id');
@@ -376,17 +429,16 @@
       return;
     }
 
-    // Catalog create
     if (btn.hasAttribute('data-cq-catalog-create')) {
       const catType = btn.getAttribute('data-type');
-      const container = btn.closest('[data-cq-catalog]');
+      const cont = btn.closest('[data-cq-catalog]');
       const data = {
         catalog_type: catType,
-        name: container.querySelector('[data-cq-new-name]')?.value || '',
-        unit_label: container.querySelector('[data-cq-new-unit-label]')?.value || '',
-        unit_cost: container.querySelector('[data-cq-new-unit-cost]')?.value || '0',
-        price: container.querySelector('[data-cq-new-price]')?.value || '0',
-        is_resin: container.querySelector('[data-cq-new-resin]')?.checked ? '1' : '0',
+        name: cont.querySelector('[data-cq-new-name]')?.value || '',
+        unit_label: cont.querySelector('[data-cq-new-unit-label]')?.value || '',
+        unit_cost: cont.querySelector('[data-cq-new-unit-cost]')?.value || '0',
+        price: cont.querySelector('[data-cq-new-price]')?.value || '0',
+        is_resin: cont.querySelector('[data-cq-new-resin]')?.checked ? '1' : '0',
       };
       fetch('/admin/cotizacion-3d/catalog', {
         method: 'POST',
@@ -396,7 +448,6 @@
       return;
     }
 
-    // Quote load
     if (btn.hasAttribute('data-cq-quote-load')) {
       const id = btn.getAttribute('data-id');
       fetch(`/admin/cotizacion-3d/quotes/${id}`)
@@ -405,13 +456,11 @@
           loadQuoteIntoState(q);
           renderProducts();
           recompute();
-          // Switch to cotización tab
           document.querySelector('[data-cq-tab="cotizacion"]').click();
         });
       return;
     }
 
-    // Quote delete
     if (btn.hasAttribute('data-cq-quote-delete')) {
       if (!confirm('¿Eliminar esta cotización?')) return;
       const id = btn.getAttribute('data-id');
@@ -424,12 +473,9 @@
     }
   });
 
-  // Input change → recompute-lite on key fields
   document.getElementById('cost-quote-app').addEventListener('input', function (e) {
-    // Recompute only for numeric inputs in calculator section
     const field = e.target;
     if (field.closest('[data-cq-products]') || field.hasAttribute('data-cq') || field.hasAttribute('data-cq-product-hours') || field.hasAttribute('data-cq-product-grams') || field.hasAttribute('data-cq-product-qty')) {
-      // Debounce
       clearTimeout(window.__cqRecomputeTimer);
       window.__cqRecomputeTimer = setTimeout(recompute, 400);
     }
@@ -441,12 +487,10 @@
       clearTimeout(window.__cqRecomputeTimer);
       window.__cqRecomputeTimer = setTimeout(recompute, 300);
     }
-    // Toggle wholesale tiers
     if (field.hasAttribute('data-cq') && field.getAttribute('data-cq') === 'wholesaleEnabled') {
       const tiers = document.querySelector('[data-cq-wholesale-tiers]');
       if (tiers) tiers.style.display = field.checked ? '' : 'none';
     }
-    // Auto-update Luis %
     if (field.hasAttribute('data-cq') && field.getAttribute('data-cq') === 'alexPct') {
       const luisEl = document.querySelector('[data-cq="luisPctDisplay"]');
       if (luisEl) luisEl.textContent = (100 - (parseFloat(field.value) || 0));
@@ -483,12 +527,8 @@
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'CSRF-Token': csrfToken },
       body,
     }).then(r => r.json()).then(d => {
-      if (d.id) {
-        state.currentQuoteId = d.id;
-        alert('Cotización guardada.');
-      } else {
-        alert(d.error || 'Error al guardar.');
-      }
+      if (d.id) { state.currentQuoteId = d.id; alert('Cotización guardada.'); }
+      else alert(d.error || 'Error al guardar.');
     }).catch(() => alert('Error de conexión.'));
   }
 
@@ -522,7 +562,6 @@
 
     state.products = typeof q.products === 'string' ? JSON.parse(q.products) : (q.products || []);
     state.wholesaleTiers = typeof q.wholesale_tiers === 'string' ? JSON.parse(q.wholesale_tiers) : (q.wholesale_tiers || []);
-    // Restore wholesale tiers to DOM
     if (state.wholesaleTiers && state.wholesaleTiers.length) {
       state.wholesaleTiers.forEach((t, i) => {
         const el = document.querySelector(`[data-cq-wholesale-tier="${i}"]`);
@@ -534,41 +573,29 @@
     readState();
   }
 
-  // ── PDF export (simple print-based) ──
   function generatePDF() {
-    const results = document.querySelector('[data-cq-results-body]')?.innerHTML || '';
+    const wrap = document.querySelector('[data-cq-results]')?.innerHTML || '';
     const printWin = window.open('', '_blank', 'width=800,height=600');
     printWin.document.write(`
       <!DOCTYPE html><html><head><meta charset="utf-8"><title>Cotización 3D</title>
       <style>
-        body { font-family: sans-serif; font-size: 11pt; color: #111; padding: 1.5rem; max-width: 800px; margin: auto; }
-        table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        th, td { padding: 4px 8px; border: 1px solid #ccc; text-align: left; font-size: 10pt; }
-        th { background: #f0f0f0; }
-        h1 { font-size: 18pt; margin: 0 0 0.5rem; }
-        .meta { color: #555; margin-bottom: 1rem; font-size: 10pt; }
-        .totals { margin-top: 1rem; padding-top: 0.5rem; border-top: 2px solid #000; }
-        .totals dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; }
-        .totals dt { color: #555; }
-        .totals dd { font-weight: bold; text-align: right; margin: 0; }
-        .grand { border-top: 2px solid #000; padding-top: 4px; font-size: 14pt; }
+        body { font-family:sans-serif; font-size:11pt; color:#111; padding:1.5rem; max-width:800px; margin:auto }
+        table { width:100%; border-collapse:collapse; margin:1rem 0 }
+        th,td { padding:4px 8px; border:1px solid #ccc; text-align:left; font-size:10pt }
+        th { background:#f0f0f0 } h1 { font-size:18pt; margin:0 0 .5rem }
+        .meta { color:#555; margin-bottom:1rem; font-size:10pt }
       </style></head><body>
-      <h1>${state.title || 'Cotización 3D'}</h1>
-      <div class="meta">
-        <p>Cliente: ${state.clientName || '—'} | Email: ${state.clientEmail || '—'} | Tel: ${state.clientPhone || '—'}</p>
-        <p>Entrega: ${state.deliveryDays || '—'} días | Vigencia: ${state.validityDays || 15} días | Envío: ₡${round2(state.shippingCost).toLocaleString()}</p>
-        <p>${state.description || ''}</p>
-      </div>
-      ${results}
-      <p style="margin-top:1rem;font-size:10pt;color:#555">${state.paymentTerms || ''}</p>
-      <p style="font-size:10pt;color:#555">${state.warranty || ''}</p>
-      <p style="font-size:10pt;color:#555">${state.extraNotes || ''}</p>
-      <script>window.onload=function(){window.print();}<\/script>
-      </body></html>
-    `);
+      <h1>${state.title||'Cotización 3D'}</h1>
+      <div class="meta"><p>Cliente: ${state.clientName||'—'} | ${state.clientEmail||''} | ${state.clientPhone||''}</p>
+      <p>Entrega: ${state.deliveryDays||'—'}d | Vigencia: ${state.validityDays||15}d | Envío: ₡${round2(state.shippingCost)}</p>
+      <p>${state.description||''}</p></div>
+      ${wrap}
+      <p style="margin-top:1rem;font-size:10pt;color:#555">${state.paymentTerms||''}</p>
+      <p style="font-size:10pt;color:#555">${state.warranty||''}</p>
+      <p style="font-size:10pt;color:#555">${state.extraNotes||''}</p>
+      <script>window.onload=function(){window.print()}<\\/script></body></html>`);
     printWin.document.close();
   }
 
-  // ── Init ──
   renderProducts();
 })();

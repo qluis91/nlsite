@@ -1,123 +1,195 @@
 <%- include('../../components/navbar-admin') %>
 
 <div class="cost-quote-app" id="cost-quote-app">
-  <!-- Tab navigation -->
-  <nav class="cq-tabs" role="tablist" aria-label="Secciones de Cotización 3D">
-    <button class="cq-tab active" role="tab" aria-selected="true" data-cq-tab="cotizacion">Cotización</button>
-    <button class="cq-tab" role="tab" aria-selected="false" data-cq-tab="adicionales">Adicionales</button>
-    <button class="cq-tab" role="tab" aria-selected="false" data-cq-tab="impresoras">Impresoras</button>
-    <button class="cq-tab" role="tab" aria-selected="false" data-cq-tab="materiales">Materiales</button>
-    <button class="cq-tab" role="tab" aria-selected="false" data-cq-tab="guardadas">Guardadas</button>
+  <nav class="cq-tabs" role="tablist">
+    <button class="cq-tab active" role="tab" data-cq-tab="cotizacion">Cotización</button>
+    <button class="cq-tab" role="tab" data-cq-tab="adicionales">Adicionales</button>
+    <button class="cq-tab" role="tab" data-cq-tab="impresoras">Impresoras</button>
+    <button class="cq-tab" role="tab" data-cq-tab="materiales">Materiales</button>
+    <button class="cq-tab" role="tab" data-cq-tab="guardadas">Guardadas</button>
   </nav>
 
   <!-- ── Cotización tab ── -->
   <div class="cq-panel active" role="tabpanel" data-cq-panel="cotizacion">
-    <div class="cq-grid">
-      <!-- Left: calculator inputs -->
-      <div class="cq-calc">
-        <h2 class="cq-section-title">Calculadora</h2>
 
-        <!-- Base settings -->
-        <fieldset class="cq-fieldset">
-          <legend>Configuración base</legend>
-          <div class="cq-row cq-row--3">
-            <label class="cq-label">Impresora
-              <select data-cq="selectedPrinterId">
+    <!-- Costos base card -->
+    <div class="cq-card">
+      <div class="cq-card__header">Costos base</div>
+      <div class="cq-card__body">
+        <div class="cq-settings-group">
+          <div class="cq-settings-group__fields">
+            <div class="cq-field">
+              <label class="cq-field__label">Impresora</label>
+              <select class="cq-field__input" data-cq="selectedPrinterId">
                 <option value="">Seleccionar...</option>
                 <% printers.forEach(function(p) { %>
                   <option value="<%= p.id %>" <%= p.is_default ? 'selected' : '' %>><%= p.name %></option>
                 <% }); %>
               </select>
-            </label>
-            <label class="cq-label">Material
-              <select data-cq="selectedMaterialId">
+            </div>
+            <div class="cq-field">
+              <label class="cq-field__label">Material</label>
+              <select class="cq-field__input" data-cq="selectedMaterialId">
                 <option value="">Seleccionar...</option>
                 <% materials.forEach(function(m) { %>
                   <option value="<%= m.id %>" <%= m.is_default ? 'selected' : '' %> data-is-resin="<%= m.is_resin %>"><%= m.name %></option>
                 <% }); %>
               </select>
-            </label>
-            <label class="cq-label">Diseño ₡<input type="number" data-cq="designCost" value="0" step="100" min="0"></label>
-          </div>
-          <div class="cq-row cq-row--3">
-            <label class="cq-label">Costo hora ₡<input type="number" data-cq="hourRate" value="300" step="10" min="0"></label>
-            <label class="cq-label">Costo material/kg ₡<input type="number" data-cq="kgPrice" value="20500" step="100" min="0"></label>
-            <label class="cq-label">Ganancia %<input type="number" data-cq="profitPct" value="100" step="5" min="0"></label>
-          </div>
-          <div class="cq-row cq-row--2">
-            <label class="cq-label">Alex %<input type="number" data-cq="alexPct" value="30" step="5" min="0" max="100"></label>
-            <label class="cq-label">Luis % <span data-cq="luisPctDisplay">70</span></label>
-          </div>
-        </fieldset>
-
-        <!-- Products -->
-        <fieldset class="cq-fieldset">
-          <legend>Productos</legend>
-          <div data-cq-products></div>
-          <button type="button" class="cq-btn cq-btn--add" data-cq-add-product>+ Agregar producto</button>
-        </fieldset>
-
-        <!-- Discounts -->
-        <fieldset class="cq-fieldset">
-          <legend>Descuentos</legend>
-          <div class="cq-row cq-row--2">
-            <label class="cq-check"><input type="checkbox" data-cq="globalDiscountEnabled"> Descuento global</label>
-            <label class="cq-label">% <input type="number" data-cq="globalDiscountPct" value="0" step="1" min="0" max="100"></label>
-          </div>
-          <div class="cq-row">
-            <label class="cq-check"><input type="checkbox" data-cq="wholesaleEnabled"> Modo mayorista</label>
-          </div>
-          <div data-cq-wholesale-tiers style="display:none">
-            <div class="cq-row cq-row--3">
-              <label class="cq-label">10–50: %<input type="number" data-cq-wholesale-tier="0" value="5" step="1"></label>
-              <label class="cq-label">50–100: %<input type="number" data-cq-wholesale-tier="1" value="10" step="1"></label>
-              <label class="cq-label">100+: %<input type="number" data-cq-wholesale-tier="2" value="15" step="1"></label>
             </div>
-            <label class="cq-label">Cantidad escenario <input type="number" data-cq="wholesaleScenarioQty" value="" min="1"></label>
+            <div class="cq-field">
+              <label class="cq-field__label">Diseño</label>
+              <input class="cq-field__input" type="number" data-cq="designCost" value="0" step="100" min="0">
+            </div>
+            <div class="cq-field">
+              <label class="cq-field__label">Costo hora</label>
+              <input class="cq-field__input" type="number" data-cq="hourRate" value="300" step="10" min="0">
+            </div>
+            <div class="cq-field">
+              <label class="cq-field__label">Material/kg</label>
+              <input class="cq-field__input" type="number" data-cq="kgPrice" value="20500" step="100" min="0">
+            </div>
+            <div class="cq-field">
+              <label class="cq-field__label">Ganancia %</label>
+              <input class="cq-field__input" type="number" data-cq="profitPct" value="100" step="5" min="0">
+            </div>
+            <div class="cq-field cq-field--half">
+              <label class="cq-field__label">Alex %</label>
+              <input class="cq-field__input" type="number" data-cq="alexPct" value="30" step="5" min="0" max="100">
+            </div>
+            <div class="cq-field cq-field--half cq-field--disabled">
+              <label class="cq-field__label">Luis %</label>
+              <span class="cq-field__static" data-cq="luisPctDisplay">70</span>
+            </div>
           </div>
-        </fieldset>
-
-        <!-- Client / Export -->
-        <fieldset class="cq-fieldset">
-          <legend>Cliente / Exportación</legend>
-          <div class="cq-row cq-row--2">
-            <label class="cq-label">Cliente <input type="text" data-cq="clientName" maxlength="150"></label>
-            <label class="cq-label">Email <input type="email" data-cq="clientEmail" maxlength="180"></label>
-          </div>
-          <div class="cq-row cq-row--2">
-            <label class="cq-label">Teléfono <input type="text" data-cq="clientPhone" maxlength="30"></label>
-            <label class="cq-label">Título orden <input type="text" data-cq="title" maxlength="200" required></label>
-          </div>
-          <div class="cq-row cq-row--3">
-            <label class="cq-label">Días entrega <input type="number" data-cq="deliveryDays" min="0"></label>
-            <label class="cq-label">Días vigencia <input type="number" data-cq="validityDays" value="15" min="0"></label>
-            <label class="cq-label">Envío ₡<input type="number" data-cq="shippingCost" value="0" step="100" min="0"></label>
-          </div>
-          <label class="cq-label">Descripción <textarea data-cq="description" rows="2" maxlength="65535"></textarea></label>
-          <label class="cq-label">Términos de pago <input type="text" data-cq="paymentTerms" value="50% anticipo, 50% contra entrega." maxlength="500"></label>
-          <label class="cq-label">Garantía <input type="text" data-cq="warranty" value="30 días por defectos de fabricación." maxlength="500"></label>
-          <label class="cq-label">Notas extra <textarea data-cq="extraNotes" rows="2"></textarea></label>
-          <div class="cq-row cq-row--2">
-            <label class="cq-check"><input type="checkbox" data-cq="includeIva"> Incluir IVA (13%)</label>
-            <label class="cq-label">Email cotización <input type="email" data-cq="quoteEmail" maxlength="200"></label>
-          </div>
-        </fieldset>
-
-        <!-- Actions -->
-        <div class="cq-actions">
-          <button type="button" class="cq-btn cq-btn--primary" data-cq-save>Guardar cotización</button>
-          <button type="button" class="cq-btn cq-btn--secondary" data-cq-recompute>Recalcular</button>
-          <button type="button" class="cq-btn cq-btn--outline" data-cq-export-pdf>Exportar PDF</button>
         </div>
       </div>
+    </div>
 
-      <!-- Right: results -->
-      <div class="cq-results" data-cq-results>
-        <h2 class="cq-section-title">Resultados</h2>
-        <div data-cq-results-body>
-          <p class="cq-empty">Agrega productos y haz clic en Recalcular.</p>
+    <!-- Productos -->
+    <div class="cq-card">
+      <div class="cq-card__header">Productos</div>
+      <div class="cq-card__body" data-cq-products></div>
+      <div class="cq-card__footer">
+        <button type="button" class="cq-btn cq-btn--add" data-cq-add-product>+ Agregar producto</button>
+      </div>
+    </div>
+
+    <!-- Resultados (injected by JS) -->
+    <div data-cq-results class="cq-results-wrap"></div>
+
+    <!-- Descuentos card -->
+    <div class="cq-card">
+      <div class="cq-card__header">Descuentos</div>
+      <div class="cq-card__body">
+        <div class="cq-global-discount">
+          <label class="cq-switch">
+            <input type="checkbox" data-cq="globalDiscountEnabled">
+            <span class="cq-switch__label">Descuento global</span>
+          </label>
+          <div class="cq-field cq-field--inline">
+            <label class="cq-field__label">%</label>
+            <input class="cq-field__input cq-field__input--sm" type="number" data-cq="globalDiscountPct" value="0" step="1" min="0" max="100">
+          </div>
+        </div>
+        <div class="cq-global-discount" style="margin-top:0.6rem">
+          <label class="cq-switch">
+            <input type="checkbox" data-cq="wholesaleEnabled">
+            <span class="cq-switch__label">Modo mayorista</span>
+          </label>
+        </div>
+        <div data-cq-wholesale-tiers class="cq-wholesale-tiers" style="display:none">
+          <div class="cq-wholesale-tiers__row">
+            <div class="cq-field cq-field--inline">
+              <label class="cq-field__label">10–50</label>
+              <input class="cq-field__input cq-field__input--sm" type="number" data-cq-wholesale-tier="0" value="5" step="1"> <span class="cq-field__suffix">%</span>
+            </div>
+            <div class="cq-field cq-field--inline">
+              <label class="cq-field__label">50–100</label>
+              <input class="cq-field__input cq-field__input--sm" type="number" data-cq-wholesale-tier="1" value="10" step="1"> <span class="cq-field__suffix">%</span>
+            </div>
+            <div class="cq-field cq-field--inline">
+              <label class="cq-field__label">100+</label>
+              <input class="cq-field__input cq-field__input--sm" type="number" data-cq-wholesale-tier="2" value="15" step="1"> <span class="cq-field__suffix">%</span>
+            </div>
+          </div>
+          <div class="cq-field cq-field--inline" style="margin-top:0.5rem">
+            <label class="cq-field__label">Cantidad escenario</label>
+            <input class="cq-field__input cq-field__input--sm" type="number" data-cq="wholesaleScenarioQty" value="" min="1" placeholder="cantidad total">
+          </div>
         </div>
       </div>
+    </div>
+
+    <!-- Cliente / Exportación -->
+    <div class="cq-card">
+      <div class="cq-card__header">Cliente / Exportación</div>
+      <div class="cq-card__body">
+        <div class="cq-settings-group">
+          <div class="cq-settings-group__fields">
+            <div class="cq-field">
+              <label class="cq-field__label">Título orden *</label>
+              <input class="cq-field__input" type="text" data-cq="title" maxlength="200" required>
+            </div>
+            <div class="cq-field cq-field--half">
+              <label class="cq-field__label">Cliente</label>
+              <input class="cq-field__input" type="text" data-cq="clientName" maxlength="150">
+            </div>
+            <div class="cq-field cq-field--half">
+              <label class="cq-field__label">Email</label>
+              <input class="cq-field__input" type="email" data-cq="clientEmail" maxlength="180">
+            </div>
+            <div class="cq-field cq-field--half">
+              <label class="cq-field__label">Teléfono</label>
+              <input class="cq-field__input" type="text" data-cq="clientPhone" maxlength="30">
+            </div>
+            <div class="cq-field cq-field--half">
+              <label class="cq-field__label">Email cotización</label>
+              <input class="cq-field__input" type="email" data-cq="quoteEmail" maxlength="200">
+            </div>
+            <div class="cq-field">
+              <label class="cq-field__label">Descripción</label>
+              <textarea class="cq-field__input" data-cq="description" rows="2" maxlength="65535"></textarea>
+            </div>
+            <div class="cq-field cq-field--third">
+              <label class="cq-field__label">Días entrega</label>
+              <input class="cq-field__input" type="number" data-cq="deliveryDays" min="0">
+            </div>
+            <div class="cq-field cq-field--third">
+              <label class="cq-field__label">Días vigencia</label>
+              <input class="cq-field__input" type="number" data-cq="validityDays" value="15" min="0">
+            </div>
+            <div class="cq-field cq-field--third">
+              <label class="cq-field__label">Envío</label>
+              <input class="cq-field__input" type="number" data-cq="shippingCost" value="0" step="100" min="0">
+            </div>
+            <div class="cq-field cq-field--half">
+              <label class="cq-field__label">Términos de pago</label>
+              <input class="cq-field__input" type="text" data-cq="paymentTerms" value="50% anticipo, 50% contra entrega." maxlength="500">
+            </div>
+            <div class="cq-field cq-field--half">
+              <label class="cq-field__label">Garantía</label>
+              <input class="cq-field__input" type="text" data-cq="warranty" value="30 días por defectos de fabricación." maxlength="500">
+            </div>
+            <div class="cq-field">
+              <label class="cq-field__label">Notas extra</label>
+              <textarea class="cq-field__input" data-cq="extraNotes" rows="2"></textarea>
+            </div>
+            <div class="cq-field cq-field--inline cq-field--checkbox">
+              <label class="cq-switch">
+                <input type="checkbox" data-cq="includeIva">
+                <span class="cq-switch__label">Incluir IVA (13%)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="cq-actions">
+      <button type="button" class="cq-btn cq-btn--primary" data-cq-save>Guardar cotización</button>
+      <button type="button" class="cq-btn cq-btn--secondary" data-cq-recompute>Recalcular</button>
+      <button type="button" class="cq-btn cq-btn--outline" data-cq-export-pdf>Exportar PDF</button>
     </div>
   </div>
 
@@ -129,40 +201,48 @@
     var titleMap = { adicionales: 'Adicionales', impresoras: 'Impresoras', materiales: 'Materiales' };
   %>
   <div class="cq-panel" role="tabpanel" data-cq-panel="<%= tab %>">
-    <h2 class="cq-section-title"><%= titleMap[tab] %></h2>
-    <div class="cq-catalog-grid" data-cq-catalog="<%= catType %>">
-      <% items.forEach(function(item) { %>
-        <div class="cq-catalog-item" data-cq-catalog-id="<%= item.id %>">
-          <div class="cq-catalog-item__fields">
-            <input type="text" value="<%= item.name %>" data-field="name" maxlength="120" class="cq-input--sm">
-            <% if (catType !== 'additional') { %>
-              <label class="cq-label--inline"><%= item.unit_label || '' %> ₡<input type="number" value="<%= item.unit_cost %>" data-field="unit_cost" step="100" min="0" class="cq-input--sm"></label>
-            <% } else { %>
-              <label class="cq-label--inline">Precio ₡<input type="number" value="<%= item.price || '' %>" data-field="price" step="100" min="0" class="cq-input--sm"></label>
-            <% } %>
-            <input type="text" value="<%= item.description || '' %>" data-field="description" maxlength="500" placeholder="Descripción" class="cq-input--sm">
-            <% if (catType === 'material') { %>
-              <label class="cq-check"><input type="checkbox" data-field="is_resin" <%= item.is_resin ? 'checked' : '' %>> Resina</label>
-            <% } %>
-          </div>
-          <div class="cq-catalog-item__actions">
-            <button type="button" class="cq-btn cq-btn--sm" data-cq-catalog-save data-id="<%= item.id %>">Guardar</button>
-            <button type="button" class="cq-btn cq-btn--sm cq-btn--danger" data-cq-catalog-delete data-id="<%= item.id %>">Eliminar</button>
+    <div class="cq-card">
+      <div class="cq-card__header"><%= titleMap[tab] %></div>
+      <div class="cq-card__body">
+        <div class="cq-catalog-grid" data-cq-catalog="<%= catType %>">
+          <% items.forEach(function(item) { %>
+            <div class="cq-catalog-item" data-cq-catalog-id="<%= item.id %>">
+              <div class="cq-catalog-item__fields">
+                <input type="text" value="<%= item.name %>" data-field="name" maxlength="120">
+                <% if (catType !== 'additional') { %>
+                  <span class="cq-catalog-item__unit"><%= item.unit_label || '' %></span>
+                  <input type="number" value="<%= item.unit_cost %>" data-field="unit_cost" step="100" min="0">
+                <% } else { %>
+                  <span class="cq-catalog-item__unit">₡</span>
+                  <input type="number" value="<%= item.price || '' %>" data-field="price" step="100" min="0">
+                <% } %>
+                <input type="text" value="<%= item.description || '' %>" data-field="description" maxlength="500" placeholder="Descripción">
+                <% if (catType === 'material') { %>
+                  <label class="cq-check"><input type="checkbox" data-field="is_resin" <%= item.is_resin ? 'checked' : '' %>> Resina</label>
+                <% } %>
+              </div>
+              <div class="cq-catalog-item__actions">
+                <button type="button" class="cq-btn cq-btn--sm" data-cq-catalog-save data-id="<%= item.id %>">Guardar</button>
+                <button type="button" class="cq-btn cq-btn--sm cq-btn--danger" data-cq-catalog-delete data-id="<%= item.id %>">Eliminar</button>
+              </div>
+            </div>
+          <% }); %>
+          <div class="cq-catalog-item cq-catalog-item--new">
+            <div class="cq-catalog-item__fields">
+              <input type="text" data-cq-new-name placeholder="Nombre" maxlength="120">
+              <% if (catType !== 'additional') { %>
+                <input type="text" data-cq-new-unit-label placeholder="Unidad (ej: hora, kg)">
+                <input type="number" data-cq-new-unit-cost placeholder="Costo" step="100" min="0">
+              <% } else { %>
+                <input type="number" data-cq-new-price placeholder="Precio" step="100" min="0">
+              <% } %>
+              <% if (catType === 'material') { %>
+                <label class="cq-check"><input type="checkbox" data-cq-new-resin> Resina</label>
+              <% } %>
+            </div>
+            <button type="button" class="cq-btn cq-btn--sm cq-btn--primary" data-cq-catalog-create data-type="<%= catType %>">Agregar</button>
           </div>
         </div>
-      <% }); %>
-      <div class="cq-catalog-item cq-catalog-item--new">
-        <input type="text" data-cq-new-name placeholder="Nombre" maxlength="120" class="cq-input--sm">
-        <% if (catType !== 'additional') { %>
-          <input type="text" data-cq-new-unit-label placeholder="Unidad (ej: hora, kg)" class="cq-input--sm">
-          <input type="number" data-cq-new-unit-cost placeholder="Costo" step="100" min="0" class="cq-input--sm">
-        <% } else { %>
-          <input type="number" data-cq-new-price placeholder="Precio" step="100" min="0" class="cq-input--sm">
-        <% } %>
-        <% if (catType === 'material') { %>
-          <label class="cq-check"><input type="checkbox" data-cq-new-resin> Resina</label>
-        <% } %>
-        <button type="button" class="cq-btn cq-btn--sm cq-btn--primary" data-cq-catalog-create data-type="<%= catType %>">Agregar</button>
       </div>
     </div>
   </div>
@@ -170,24 +250,32 @@
 
   <!-- ── Saved quotes tab ── -->
   <div class="cq-panel" role="tabpanel" data-cq-panel="guardadas">
-    <h2 class="cq-section-title">Cotizaciones guardadas</h2>
-    <div class="cq-quotes-list" data-cq-quotes-list>
-      <% if (quotes && quotes.length) { %>
-        <% quotes.forEach(function(q) { %>
-          <div class="cq-quote-row" data-cq-quote-id="<%= q.id %>">
-            <span><strong><%= q.title %></strong> — <%= q.client_name || 'Sin cliente' %></span>
-            <span class="cq-quote-status cq-quote-status--<%= q.status %>"><%= q.status %></span>
-            <span><%= new Date(q.updated_at).toLocaleDateString('es-CR') %></span>
-            <button type="button" class="cq-btn cq-btn--sm" data-cq-quote-load data-id="<%= q.id %>">Cargar</button>
-            <button type="button" class="cq-btn cq-btn--sm cq-btn--danger" data-cq-quote-delete data-id="<%= q.id %>">Eliminar</button>
-          </div>
-        <% }); %>
-      <% } else { %>
-        <p class="cq-empty">No hay cotizaciones guardadas.</p>
-      <% } %>
+    <div class="cq-card">
+      <div class="cq-card__header">Cotizaciones guardadas</div>
+      <div class="cq-card__body">
+        <div class="cq-quotes-list" data-cq-quotes-list>
+          <% if (quotes && quotes.length) { %>
+            <% quotes.forEach(function(q) { %>
+              <div class="cq-quote-row" data-cq-quote-id="<%= q.id %>">
+                <div class="cq-quote-row__info">
+                  <strong><%= q.title %></strong>
+                  <span class="cq-quote-row__client"><%= q.client_name || 'Sin cliente' %></span>
+                  <span class="cq-quote-status cq-quote-status--<%= q.status %>"><%= q.status %></span>
+                  <span class="cq-quote-row__date"><%= new Date(q.updated_at).toLocaleDateString('es-CR') %></span>
+                </div>
+                <div class="cq-quote-row__actions">
+                  <button type="button" class="cq-btn cq-btn--sm" data-cq-quote-load data-id="<%= q.id %>">Cargar</button>
+                  <button type="button" class="cq-btn cq-btn--sm cq-btn--danger" data-cq-quote-delete data-id="<%= q.id %>">Eliminar</button>
+                </div>
+              </div>
+            <% }); %>
+          <% } else { %>
+            <p class="cq-empty">No hay cotizaciones guardadas.</p>
+          <% } %>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Hidden CSRF token for JS -->
 <meta name="csrf-token" content="<%= csrfToken %>">
