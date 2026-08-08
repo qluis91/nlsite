@@ -61,6 +61,7 @@ const adminPublishingRoutes = require('./routes/adminPublishingRoutes');
 // ── Register Phase 11C usage sources for Panel 2/3 media references ──
 require('./services/cmsRepeatableService').registerPanelUsageSources();
 const adminOrderRoutes = require('./routes/adminOrderRoutes');
+const adminCostQuoteRoutes = require('./routes/adminCostQuoteRoutes');
 const accountRoutes = require('./routes/accountRoutes');
 const accountAvatarRoutes = require('./routes/accountAvatarRoutes');
 const guestOrderRoutes = require('./routes/guestOrderRoutes');
@@ -469,6 +470,7 @@ app.use('/admin', isAuthenticated, isAdmin, adminPageRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminPageContentRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminPanelsRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminPublishingRoutes);
+app.use('/admin', isAuthenticated, isAdmin, adminCostQuoteRoutes);
 app.use('/cuenta', isAuthenticated, accountAvatarRoutes);
 const paymentProofAccountRoutes = require('./routes/paymentProofAccountRoutes');
 const paymentProofGuestRoutes = require('./routes/paymentProofGuestRoutes');
