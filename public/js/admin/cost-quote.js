@@ -221,6 +221,9 @@
     // Render results
     const wrap = document.querySelector('[data-cq-results]');
     if (!wrap) return;
+    const hasProducts = lines.length > 0;
+    wrap.style.display = hasProducts ? '' : 'none';
+    if (!hasProducts) { updateProductBreakdowns(lines); return; }
 
     const fmt = (n) => '₡' + round2(n).toLocaleString('es-CR', { minimumFractionDigits: 2 });
     let html = '';
@@ -303,7 +306,10 @@
     const container = document.querySelector('[data-cq-products]');
     if (!container) return;
     if (!state.products.length) {
-      container.innerHTML = '<p class="cq-empty">Sin productos. Agrega uno para empezar.</p>';
+      container.innerHTML = '<p class="cq-empty">Aún no hay productos. Usa el botón «Agregar producto» para añadir el primer ítem de la cotización.</p>';
+      // Hide results when products removed
+      const wrap = document.querySelector('[data-cq-results]');
+      if (wrap) wrap.style.display = 'none';
       return;
     }
     container.innerHTML = state.products.map((p, i) => `

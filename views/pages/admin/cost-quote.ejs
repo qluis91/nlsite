@@ -1,22 +1,21 @@
 <div class="cost-quote-app" id="cost-quote-app">
-  <!-- Page heading -->
   <header class="cq-page-head">
     <h1 class="cq-page-head__title">Cotización 3D</h1>
     <p class="cq-page-head__sub">Calculadora de costos, precios y márgenes de impresión 3D</p>
-  </header>
 
-  <nav class="cq-tabs" role="tablist">
-    <button class="cq-tab active" role="tab" data-cq-tab="cotizacion">Cotización</button>
-    <button class="cq-tab" role="tab" data-cq-tab="adicionales">Adicionales</button>
-    <button class="cq-tab" role="tab" data-cq-tab="impresoras">Impresoras</button>
-    <button class="cq-tab" role="tab" data-cq-tab="materiales">Materiales</button>
-    <button class="cq-tab" role="tab" data-cq-tab="guardadas">Guardadas</button>
-  </nav>
+    <nav class="cq-tabs" role="tablist">
+      <button class="cq-tab active" role="tab" data-cq-tab="cotizacion">Cotización</button>
+      <button class="cq-tab" role="tab" data-cq-tab="adicionales">Adicionales</button>
+      <button class="cq-tab" role="tab" data-cq-tab="impresoras">Impresoras</button>
+      <button class="cq-tab" role="tab" data-cq-tab="materiales">Materiales</button>
+      <button class="cq-tab" role="tab" data-cq-tab="guardadas">Guardadas</button>
+    </nav>
+  </header>
 
   <!-- ── Cotización tab ── -->
   <div class="cq-panel active" role="tabpanel" data-cq-panel="cotizacion">
 
-    <!-- Costos base card -->
+    <!-- Costos base -->
     <div class="cq-card">
       <div class="cq-card__header">Costos base</div>
       <div class="cq-card__body">
@@ -25,18 +24,14 @@
             <label class="cq-field__label">Impresora</label>
             <select class="cq-field__input" data-cq="selectedPrinterId">
               <option value="">Seleccionar...</option>
-              <% printers.forEach(function(p) { %>
-                <option value="<%= p.id %>" <%= p.is_default ? 'selected' : '' %>><%= p.name %></option>
-              <% }); %>
+              <% printers.forEach(function(p) { %><option value="<%= p.id %>" <%= p.is_default ? 'selected' : '' %>><%= p.name %></option><% }); %>
             </select>
           </div>
           <div class="cq-field">
             <label class="cq-field__label">Material</label>
             <select class="cq-field__input" data-cq="selectedMaterialId">
               <option value="">Seleccionar...</option>
-              <% materials.forEach(function(m) { %>
-                <option value="<%= m.id %>" <%= m.is_default ? 'selected' : '' %> data-is-resin="<%= m.is_resin %>"><%= m.name %></option>
-              <% }); %>
+              <% materials.forEach(function(m) { %><option value="<%= m.id %>" <%= m.is_default ? 'selected' : '' %> data-is-resin="<%= m.is_resin %>"><%= m.name %></option><% }); %>
             </select>
           </div>
           <div class="cq-field">
@@ -76,10 +71,10 @@
       </div>
     </div>
 
-    <!-- Resultados (injected by JS) -->
-    <div data-cq-results class="cq-results-wrap"></div>
+    <!-- Resultados (hidden when empty — JS toggles) -->
+    <div data-cq-results class="cq-results-wrap" style="display:none"></div>
 
-    <!-- Descuentos card -->
+    <!-- Descuentos -->
     <div class="cq-card">
       <div class="cq-card__header">Descuentos</div>
       <div class="cq-card__body">
@@ -103,18 +98,15 @@
           <div class="cq-wholesale-tiers__row">
             <div class="cq-field cq-field--inline">
               <label class="cq-field__label">10–50</label>
-              <input class="cq-field__input cq-field__input--sm" type="number" data-cq-wholesale-tier="0" value="5" step="1">
-              <span class="cq-field__suffix">%</span>
+              <input class="cq-field__input cq-field__input--sm" type="number" data-cq-wholesale-tier="0" value="5" step="1"><span class="cq-field__suffix">%</span>
             </div>
             <div class="cq-field cq-field--inline">
               <label class="cq-field__label">50–100</label>
-              <input class="cq-field__input cq-field__input--sm" type="number" data-cq-wholesale-tier="1" value="10" step="1">
-              <span class="cq-field__suffix">%</span>
+              <input class="cq-field__input cq-field__input--sm" type="number" data-cq-wholesale-tier="1" value="10" step="1"><span class="cq-field__suffix">%</span>
             </div>
             <div class="cq-field cq-field--inline">
               <label class="cq-field__label">100+</label>
-              <input class="cq-field__input cq-field__input--sm" type="number" data-cq-wholesale-tier="2" value="15" step="1">
-              <span class="cq-field__suffix">%</span>
+              <input class="cq-field__input cq-field__input--sm" type="number" data-cq-wholesale-tier="2" value="15" step="1"><span class="cq-field__suffix">%</span>
             </div>
           </div>
           <div class="cq-field cq-field--inline" style="margin-top:0.5rem">
@@ -185,15 +177,16 @@
             </label>
           </div>
         </div>
+
+        <!-- Actions inside client card footer -->
+        <div class="cq-actions">
+          <button type="button" class="cq-btn cq-btn--primary" data-cq-save>Guardar cotización</button>
+          <button type="button" class="cq-btn cq-btn--outline" data-cq-recompute>Recalcular</button>
+          <button type="button" class="cq-btn cq-btn--outline" data-cq-export-pdf>Exportar PDF</button>
+        </div>
       </div>
     </div>
 
-    <!-- Actions -->
-    <div class="cq-actions">
-      <button type="button" class="cq-btn cq-btn--primary" data-cq-save>Guardar cotización</button>
-      <button type="button" class="cq-btn cq-btn--outline" data-cq-recompute>Recalcular</button>
-      <button type="button" class="cq-btn cq-btn--outline" data-cq-export-pdf>Exportar PDF</button>
-    </div>
   </div>
 
   <!-- ── Catalog tabs ── -->
@@ -201,28 +194,19 @@
     var typeMap = { adicionales: 'additional', impresoras: 'printer', materiales: 'material' };
     var catType = typeMap[tab];
     var items = tab === 'adicionales' ? additionals : (tab === 'impresoras' ? printers : materials);
-    var titleMap = { adicionales: 'Adicionales', impresoras: 'Impresoras', materiales: 'Materiales' };
   %>
   <div class="cq-panel" role="tabpanel" data-cq-panel="<%= tab %>">
     <div class="cq-card">
-      <div class="cq-card__header"><%= titleMap[tab] %></div>
+      <div class="cq-card__header"><%= tab === 'adicionales' ? 'Adicionales' : (tab === 'impresoras' ? 'Impresoras' : 'Materiales') %></div>
       <div class="cq-card__body">
         <div class="cq-catalog-grid" data-cq-catalog="<%= catType %>">
           <% items.forEach(function(item) { %>
             <div class="cq-catalog-item" data-cq-catalog-id="<%= item.id %>">
               <div class="cq-catalog-item__fields">
                 <input type="text" value="<%= item.name %>" data-field="name" maxlength="120">
-                <% if (catType !== 'additional') { %>
-                  <span class="cq-catalog-item__unit"><%= item.unit_label || '' %></span>
-                  <input type="number" value="<%= item.unit_cost %>" data-field="unit_cost" step="100" min="0">
-                <% } else { %>
-                  <span class="cq-catalog-item__unit">₡</span>
-                  <input type="number" value="<%= item.price || '' %>" data-field="price" step="100" min="0">
-                <% } %>
+                <% if (catType !== 'additional') { %><span class="cq-catalog-item__unit"><%= item.unit_label || '' %></span><input type="number" value="<%= item.unit_cost %>" data-field="unit_cost" step="100" min="0"><% } else { %><span class="cq-catalog-item__unit">₡</span><input type="number" value="<%= item.price || '' %>" data-field="price" step="100" min="0"><% } %>
                 <input type="text" value="<%= item.description || '' %>" data-field="description" maxlength="500" placeholder="Descripción">
-                <% if (catType === 'material') { %>
-                  <label class="cq-check"><input type="checkbox" data-field="is_resin" <%= item.is_resin ? 'checked' : '' %>> Resina</label>
-                <% } %>
+                <% if (catType === 'material') { %><label class="cq-check"><input type="checkbox" data-field="is_resin" <%= item.is_resin ? 'checked' : '' %>> Resina</label><% } %>
               </div>
               <div class="cq-catalog-item__actions">
                 <button type="button" class="cq-btn cq-btn--sm" data-cq-catalog-save data-id="<%= item.id %>">Guardar</button>
@@ -233,15 +217,8 @@
           <div class="cq-catalog-item cq-catalog-item--new">
             <div class="cq-catalog-item__fields">
               <input type="text" data-cq-new-name placeholder="Nombre" maxlength="120">
-              <% if (catType !== 'additional') { %>
-                <input type="text" data-cq-new-unit-label placeholder="Unidad (ej: hora, kg)">
-                <input type="number" data-cq-new-unit-cost placeholder="Costo" step="100" min="0">
-              <% } else { %>
-                <input type="number" data-cq-new-price placeholder="Precio" step="100" min="0">
-              <% } %>
-              <% if (catType === 'material') { %>
-                <label class="cq-check"><input type="checkbox" data-cq-new-resin> Resina</label>
-              <% } %>
+              <% if (catType !== 'additional') { %><input type="text" data-cq-new-unit-label placeholder="Unidad (ej: hora, kg)"><input type="number" data-cq-new-unit-cost placeholder="Costo" step="100" min="0"><% } else { %><input type="number" data-cq-new-price placeholder="Precio" step="100" min="0"><% } %>
+              <% if (catType === 'material') { %><label class="cq-check"><input type="checkbox" data-cq-new-resin> Resina</label><% } %>
             </div>
             <button type="button" class="cq-btn cq-btn--sm cq-btn--primary" data-cq-catalog-create data-type="<%= catType %>">Agregar</button>
           </div>
@@ -251,7 +228,7 @@
   </div>
   <% }); %>
 
-  <!-- ── Saved quotes tab ── -->
+  <!-- ── Saved quotes ── -->
   <div class="cq-panel" role="tabpanel" data-cq-panel="guardadas">
     <div class="cq-card">
       <div class="cq-card__header">Cotizaciones guardadas</div>
