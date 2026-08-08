@@ -130,7 +130,7 @@ test.before(async () => {
   });
   await createPublished('unsupported', {
     platform: 'instagram',
-    postUrl: 'https://www.instagram.com/ninjalabcr/',
+    postUrl: 'https://www.instagram.com/ninjalab3dcr/',
   });
   await social.createPost({
     platform: 'youtube',

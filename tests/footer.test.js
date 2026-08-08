@@ -35,7 +35,7 @@ describe('Footer Component', () => {
       (h) => !['/tienda', '/galeria', '/carrito', '/consultar-pedido', '/cuenta',
         '/#nosotros', '/#como-trabajamos',
         '/privacidad', '/terminos', '/eliminacion-de-datos',
-        'https://www.instagram.com/ninjalabcr', 'https://www.facebook.com/ninjalabcr',
+        'https://www.instagram.com/ninjalab3dcr', 'https://www.facebook.com/ninjalabcr',
         'https://www.tiktok.com/@ninjalabcr', 'https://wa.me/50688888888'
       ].includes(h) && !h.startsWith('http')
     );
