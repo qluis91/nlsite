@@ -7,8 +7,8 @@ const crypto = require('crypto');
 const pool = require('../config/db');
 
 const SOCIAL_SEED = Object.freeze([
-  { platform: 'instagram', label: 'Instagram', profile_url: 'https://www.instagram.com/ninjalab3dcr', aria_label: 'Instagram — NinjaLabCR' },
-  { platform: 'facebook', label: 'Facebook', profile_url: 'https://www.facebook.com/ninjalab3dcr', aria_label: 'Facebook — NinjaLabCR' },
+  { platform: 'instagram', label: 'Instagram', profile_url: 'https://www.instagram.com/ninjalabcr', aria_label: 'Instagram — NinjaLabCR' },
+  { platform: 'facebook', label: 'Facebook', profile_url: 'https://www.facebook.com/ninjalabcr', aria_label: 'Facebook — NinjaLabCR' },
   { platform: 'tiktok', label: 'TikTok', profile_url: 'https://www.tiktok.com/@ninjalabcr', aria_label: 'TikTok — NinjaLabCR' },
   { platform: 'whatsapp', label: 'WhatsApp', profile_url: 'https://wa.me/50670240270', aria_label: 'WhatsApp — NinjaLabCR' },
 ]);
