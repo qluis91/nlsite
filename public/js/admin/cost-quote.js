@@ -254,19 +254,15 @@
 
     // Per-product breakdown table
     if (lines.length) {
-      html += '<table style="width:100%;border-collapse:collapse;margin-top:0.6rem;font-size:0.76rem;color:#999">';
-      html += '<thead><tr>';
-      html += '<th style="text-align:left;padding:2px 4px;border-bottom:1px solid #333;font-weight:600;color:#666">Producto</th>';
-      html += '<th style="text-align:right;padding:2px 4px;border-bottom:1px solid #333;font-weight:600;color:#666">Venta/u</th>';
-      html += '<th style="text-align:right;padding:2px 4px;border-bottom:1px solid #333;font-weight:600;color:#666">Total</th>';
-      html += '<th style="text-align:right;padding:2px 4px;border-bottom:1px solid #333;font-weight:600;color:#666">Neto</th>';
+      html += '<table class="cq-results-table"><thead><tr>';
+      html += '<th>Producto</th><th class="cq-results-table__num">Venta/u</th><th class="cq-results-table__num">Total</th><th class="cq-results-table__num">Neto</th>';
       html += '</tr></thead><tbody>';
       lines.forEach(l => {
         html += `<tr>
-          <td style="padding:2px 4px">${l.name} ×${l.quantity} <span style="color:#555">(${l.inputMode==='total_batch'?'Total':'Unit'})</span></td>
-          <td style="text-align:right;padding:2px 4px">${fmt(l.discountedPerUnit)}</td>
-          <td style="text-align:right;padding:2px 4px">${fmt(l.saleTotal)}</td>
-          <td style="text-align:right;padding:2px 4px">${fmt(l.netProfitTotal)}</td>
+          <td>${l.name} ×${l.quantity} <span style="color:#555">(${l.inputMode==='total_batch'?'Total':'Unit'})</span></td>
+          <td class="cq-results-table__num">${fmt(l.discountedPerUnit)}</td>
+          <td class="cq-results-table__num">${fmt(l.saleTotal)}</td>
+          <td class="cq-results-table__num">${fmt(l.netProfitTotal)}</td>
         </tr>`;
       });
       html += '</tbody></table>';
@@ -292,12 +288,12 @@
         el.appendChild(bd);
       }
       bd.innerHTML = `
-        <span class="cq-bd-item"><span class="cq-bd-label">Mat:</span><span class="cq-bd-value">${fmt(l.materialPerUnit)}</span></span>
-        <span class="cq-bd-item"><span class="cq-bd-label">Impr:</span><span class="cq-bd-value">${fmt(l.printingPerUnit)}</span></span>
-        <span class="cq-bd-item"><span class="cq-bd-label">Prod:</span><span class="cq-bd-value">${fmt(l.productionPerUnit)}</span></span>
-        <span class="cq-bd-item"><span class="cq-bd-label">Sug:</span><span class="cq-bd-value">${fmt(l.suggestedPerUnit)}${l.useManualPrice ? ' ✎' : ''}</span></span>
-        <span class="cq-bd-item"><span class="cq-bd-label">Venta/u:</span><span class="cq-bd-value" style="color:#7cf03d">${fmt(l.discountedPerUnit)}</span></span>
-        <span class="cq-bd-item"><span class="cq-bd-label">Total:</span><span class="cq-bd-value">${fmt(l.saleTotal)}</span></span>
+        <div class="cq-bd-cell"><span class="cq-bd-cell__label">Material</span><span class="cq-bd-cell__value">${fmt(l.materialPerUnit)}</span></div>
+        <div class="cq-bd-cell"><span class="cq-bd-cell__label">Impresión</span><span class="cq-bd-cell__value">${fmt(l.printingPerUnit)}</span></div>
+        <div class="cq-bd-cell"><span class="cq-bd-cell__label">Prod.</span><span class="cq-bd-cell__value">${fmt(l.productionPerUnit)}</span></div>
+        <div class="cq-bd-cell"><span class="cq-bd-cell__label">Sugerido${l.useManualPrice?' ✎':''}</span><span class="cq-bd-cell__value">${fmt(l.suggestedPerUnit)}</span></div>
+        <div class="cq-bd-cell cq-bd-cell--highlight"><span class="cq-bd-cell__label">Venta/u</span><span class="cq-bd-cell__value">${fmt(l.discountedPerUnit)}</span></div>
+        <div class="cq-bd-cell"><span class="cq-bd-cell__label">Total venta</span><span class="cq-bd-cell__value">${fmt(l.saleTotal)}</span></div>
       `;
     });
   }
@@ -334,21 +330,21 @@
             <button type="button" class="${p.inputMode==='total_batch'?'active':''}" data-cq-product-mode-btn data-idx="${i}" data-mode="total_batch">Total lote</button>
           </div>
         </div>
-        <div class="cq-product-line__fields">
+        <div class="cq-product-line__xtra">
           <div class="cq-field">
             <label class="cq-field__label">Adicionales</label>
             <input class="cq-field__input" type="number" data-cq-product-additional value="${p.additionalCosts||0}" step="100" min="0">
-          </div>
-          <div class="cq-field cq-field--inline cq-field--checkbox">
-            <label class="cq-switch"><input type="checkbox" data-cq-product-manual-enabled ${p.manualPriceEnabled?'checked':''}><span class="cq-switch__label">Precio manual</span></label>
           </div>
           <div class="cq-field">
             <label class="cq-field__label">Precio manual</label>
             <input class="cq-field__input" type="number" data-cq-product-manual-price value="${p.manualPrice||0}" step="100" min="0">
           </div>
-          <div class="cq-field cq-field--inline cq-field--checkbox">
+          <div class="cq-field cq-field--switch">
+            <label class="cq-switch"><input type="checkbox" data-cq-product-manual-enabled ${p.manualPriceEnabled?'checked':''}><span class="cq-switch__label">Usar manual</span></label>
+          </div>
+          <div class="cq-field cq-field--discount">
             <label class="cq-switch"><input type="checkbox" data-cq-product-discount-enabled ${p.discountEnabled?'checked':''}><span class="cq-switch__label">Desc.</span></label>
-            <input class="cq-field__input cq-field__input--sm" type="number" data-cq-product-discount-pct value="${p.discountPct||0}" step="1" min="0" max="100" style="width:55px">
+            <input class="cq-field__input cq-field__input--sm" type="number" data-cq-product-discount-pct value="${p.discountPct||0}" step="1" min="0" max="100">
             <span class="cq-field__suffix">%</span>
           </div>
         </div>
