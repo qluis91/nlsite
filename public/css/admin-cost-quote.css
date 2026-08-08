@@ -632,3 +632,96 @@
   .cq-catalog-item { flex-direction: column; align-items: stretch; }
   .cq-quote-row { flex-direction: column; align-items: stretch; }
 }
+
+/* ── Catalog panel (new) ── */
+.cq-catalog-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 0; border-bottom: 1px solid #2a2a2a;
+}
+.cq-catalog-row__name { flex: 1; font-weight: 600; color: #ddd; }
+.cq-catalog-row__val { color: #4caf50; font-weight: 700; margin-right: 0.5rem; }
+.cq-catalog-add {
+  display: flex; gap: 0.4rem; align-items: center;
+  padding: 0.5rem 0; border-top: 1px solid #2a2a2a; margin-top: 0.5rem;
+}
+.cq-catalog-add input {
+  background: #121212; border: 1px solid #333; border-radius: 4px;
+  color: #ddd; padding: 0.3rem 0.5rem; font-size: 0.75rem; width: 120px;
+}
+
+/* ── Additionals section (per-product) ── */
+.cq-additionals-section { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #2a2a2a; }
+.cq-additionals-section__head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 0.3rem;
+}
+.cq-additionals-section__head h4 { font-size: 0.7rem; color: #999; margin: 0; }
+.cq-additional-row {
+  display: flex; gap: 0.4rem; align-items: center;
+  padding: 0.25rem 0; border-bottom: 1px solid #1f1f1f;
+}
+.cq-additional-row input[type="text"] { flex: 1; min-width: 100px; }
+.cq-additional-row input[type="number"] { width: 80px; }
+.cq-switch--compact { font-size: 0.68rem; }
+
+/* ── Discount rows (wholesale) ── */
+.cq-discount-row--wholesale {
+  display: flex; gap: 0.75rem; align-items: center; margin-top: 0.3rem;
+}
+.cq-field__sep { color: #555; margin: 0 0.15rem; }
+
+/* ── Actions bar ── */
+.cq-actions {
+  display: flex; gap: 0.5rem; margin-top: 0.75rem;
+  padding-top: 0.75rem; border-top: 1px solid #2a2a2a;
+}
+
+/* ── Saved quotes list ── */
+.cq-saved-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 0.75rem; background: #121212;
+  border: 1px solid #2a2a2a; border-radius: 6px; margin-bottom: 0.4rem;
+}
+.cq-saved-row__name { flex: 1; font-weight: 600; }
+.cq-saved-row__status { font-size: 0.7rem; background: #2a2a2a; color: #999; padding: 0.15rem 0.4rem; border-radius: 3px; }
+.cq-saved-row__total { color: #4caf50; font-weight: 700; }
+
+/* ── Wholesale scenarios ── */
+.cq-scenario-card {
+  background: #121212; border: 1px solid #2a2a2a; border-radius: 6px;
+  padding: 0.6rem;
+}
+.cq-scenario-card__head { font-weight: 700; color: #ddd; margin-bottom: 0.3rem; }
+.cq-scenario-card__disc { color: #4caf50; font-weight: 600; font-size: 0.8rem; margin-bottom: 0.3rem; }
+.cq-scenario-card__body { font-size: 0.72rem; color: #aaa; }
+.cq-sc-row { display: flex; justify-content: space-between; padding: 0.1rem 0; }
+
+/* ── Qty mode bar ── */
+.cq-mode-toggle { display: flex; gap: 0; border-radius: 4px; overflow: hidden; }
+.cq-mode-toggle button {
+  padding: 0.2rem 0.5rem; font-size: 0.68rem; background: #1a1a1a;
+  border: 1px solid #333; color: #777; cursor: pointer;
+}
+.cq-mode-toggle button.active { background: #2a5a2a; color: #4caf50; border-color: #4caf50; }
+
+/* ── Product breakdown row ── */
+.cq-bd-row {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+  margin-top: 0.5rem; padding: 0.5rem; background: #121212; border-radius: 5px;
+}
+.cq-bd-cell { display: flex; flex-direction: column; min-width: 80px; }
+.cq-bd-label { font-size: 0.62rem; color: #666; }
+.cq-bd-val { font-size: 0.75rem; color: #ddd; font-weight: 600; }
+.cq-bd-cell--highlight .cq-bd-val { color: #4caf50; }
+
+/* ── Wholesale mode switch ── */
+.cq-discount-row {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0;
+}
+
+/* ── Empty state ── */
+.cq-empty { color: #555; font-style: italic; padding: 1rem 0; text-align: center; }
+
+/* ── Panel visibility ── */
+.cq-panel { display: none; }
+.cq-panel.active { display: block; }

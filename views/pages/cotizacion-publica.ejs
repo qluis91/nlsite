@@ -1,0 +1,37 @@
+<%- include('../../components/header', { title: title || 'Cotización 3D' }) %>
+
+<main class="public-quote-page">
+  <div class="container" style="max-width:700px;margin:2rem auto;padding:0 1rem;">
+    <h1 style="font-size:1.5rem;margin-bottom:1rem;">Cotización 3D</h1>
+
+    <div class="card" style="background:#1e1e1e;border:1px solid #333;border-radius:10px;padding:1.5rem;margin-bottom:1rem;">
+      <h2 style="font-size:1.25rem;color:#ddd;"><%= clientName %></h2>
+      <p style="color:#aaa;"><%= productName %></p>
+      <p style="font-size:1.5rem;color:#4caf50;font-weight:bold;">₡<%= Number(total).toLocaleString('es-CR') %></p>
+    </div>
+
+    <div class="card" style="background:#1e1e1e;border:1px solid #333;border-radius:10px;padding:1.5rem;">
+      <h3 style="font-size:1.1rem;color:#ddd;margin-bottom:0.75rem;">Productos</h3>
+      <% if (products && products.length) { %>
+        <ul style="color:#bbb;list-style:none;padding:0;">
+          <% products.forEach(function(p) { %>
+            <li style="padding:0.3rem 0;">• <%= p.name %> × <%= p.quantity %></li>
+          <% }); %>
+        </ul>
+      <% } %>
+
+      <p style="color:#888;margin-top:1rem;font-size:0.85rem;">
+        Estado: <%= status || 'pendiente' %>
+      </p>
+
+      <form method="post" action="/cotizacion-3d/pago/<%= token %>" style="margin-top:1.5rem;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn--primary" style="width:100%;padding:0.75rem;font-size:1rem;">
+          Confirmar cotización
+        </button>
+      </form>
+    </div>
+  </div>
+</main>
+
+<%- include('../../components/footer') %>
