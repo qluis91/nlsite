@@ -1,0 +1,58 @@
+/* PDF Cotización Ninja Lab 3D — solo para exportación */
+.cq-pdf-root * { box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; color: #111; }
+.cq-pdf-root { width: 1080px; margin: 0; padding: 0; background: #fff; }
+.cq-pdf-root .quote-page { width: 1080px; min-height: auto; margin: 0; background: #fff; padding: 45px 45px 220px; position: relative; overflow: hidden; }
+.cq-pdf-root .green, .cq-pdf-root .arrows { color: #77e600; }
+
+.cq-pdf-root .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 45px; }
+.cq-pdf-root .logo-text { font-size: 48px; font-weight: 900; color: #77e600; }
+.cq-pdf-root .logo-full { width: auto; height: 250px; max-width: 560px; display: block; }
+.cq-pdf-root .title-box { text-align: right; }
+.cq-pdf-root .title { font-size: 58px; font-weight: 900; margin: 0; }
+.cq-pdf-root .date { font-size: 24px; margin-top: 12px; }
+
+.cq-pdf-root .top-info { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px; }
+.cq-pdf-root .client h2 { font-size: 34px; margin: 0 0 10px; }
+.cq-pdf-root .client-name { font-size: 42px; font-weight: 800; margin-bottom: 12px; }
+.cq-pdf-root .client-subtitle { font-size: 22px; color: #777; }
+.cq-pdf-root .cards { display: flex; gap: 20px; }
+.cq-pdf-root .info-card { width: 210px; border: 1px solid #ddd; border-radius: 10px; padding: 22px; display: flex; align-items: center; gap: 14px; }
+.cq-pdf-root .icon-circle { width: 48px; height: 48px; border-radius: 50%; background: #e0fce0; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+.cq-pdf-root .info-card small { display: block; font-size: 14px; color: #999; margin-bottom: 4px; }
+.cq-pdf-root .info-card strong { font-size: 20px; }
+
+.cq-pdf-root .items { margin-bottom: 30px; }
+.cq-pdf-root .quote-table { width: 100%; border-collapse: collapse; }
+.cq-pdf-root .quote-table thead th { font-size: 20px; border-bottom: 2px solid #ddd; padding: 12px 8px 8px; text-align: left; font-weight: 900; }
+.cq-pdf-root .quote-table thead th.center { text-align: center; }
+.cq-pdf-root .quote-table thead th.money { text-align: right; }
+.cq-pdf-root .quote-table tbody td { padding: 14px 8px; border-bottom: 1px solid #eee; font-size: 20px; }
+.cq-pdf-root .quote-table tbody td.num { width: 40px; color: #999; }
+.cq-pdf-root .quote-table tbody td.service { font-weight: 700; }
+.cq-pdf-root .quote-table tbody td.description { color: #666; font-size: 18px; }
+.cq-pdf-root .quote-table tbody td.center, .cq-pdf-root .quote-table tbody td.money { text-align: center; }
+.cq-pdf-root .quote-table tbody td.money { text-align: right; font-family: monospace; }
+.cq-pdf-root .quote-table tbody td.money.discount { color: #e74c3c; }
+
+.cq-pdf-root .summary-section { display: flex; justify-content: flex-end; margin-bottom: 45px; border-top: 2px solid #111; padding-top: 20px; }
+.cq-pdf-root .summary-box { width: 480px; }
+.cq-pdf-root .summary-row { display: flex; justify-content: space-between; padding: 10px 0; font-size: 22px; border-bottom: 1px solid #eee; }
+.cq-pdf-root .summary-row .discount { color: #e74c3c; }
+.cq-pdf-root .summary-total { font-size: 30px; font-weight: 900; border-bottom: 2px solid #111; border-top: 2px solid #111; padding: 14px 0; margin-top: 10px; }
+.cq-pdf-root .summary-tilopay-note { margin-top: 12px; padding: 10px 0; border-top: 1px solid #eee; font-size: 18px; color: #666; }
+
+.cq-pdf-root .notes { margin-bottom: 45px; border-top: 1px solid #ddd; padding-top: 25px; }
+.cq-pdf-root .note { display: flex; align-items: center; gap: 12px; font-size: 18px; color: #555; padding: 8px 0; }
+.cq-pdf-root .note-icon { width: 28px; text-align: center; }
+
+.cq-pdf-root .transfer-info { margin-bottom: 35px; padding: 22px 30px; background: #f9f9f9; border-radius: 10px; border: 1px solid #ddd; }
+.cq-pdf-root .transfer-info h3 { font-size: 22px; margin: 0 0 16px; font-weight: 800; }
+.cq-pdf-root .transfer-info div { font-size: 20px; padding: 5px 0; color: #333; }
+
+.cq-pdf-root .footer { position: absolute; bottom: 30px; left: 45px; right: 45px; border-top: 1px solid #ccc; padding-top: 18px; font-size: 18px; color: #999; text-align: center; }
+
+.cq-pdf-root .wholesale-prices { margin-bottom: 35px; }
+.cq-pdf-root .wholesale-prices__title { font-size: 24px; margin: 0 0 16px; font-weight: 800; }
+.cq-pdf-root .wholesale-table { width: 100%; }
+.cq-pdf-root .wholesale-table thead th { font-size: 20px; border-bottom: 2px solid #ddd; padding: 12px 8px 8px; }
+.cq-pdf-root .wholesale-table tbody td { padding: 14px 8px; border-bottom: 1px solid #eee; font-size: 20px; }

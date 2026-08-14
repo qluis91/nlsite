@@ -107,7 +107,7 @@ describe('Phase 1H — Página Nosotros contracts', () => {
   test('module, migration, history and concurrency reuse Phase 1C infrastructure', () => {
     assert.equal(registry.MODULE_KEYS.ABOUT_PAGE, 'nosotros.about-content');
     assert.equal(registry.getModule(registry.MODULE_KEYS.ABOUT_PAGE).revisionEntityTypes[0], 'page_section');
-    assert.equal(MIGRATION_REGISTRY.length, 35);
+    assert.equal(MIGRATION_REGISTRY.length, 36);
     assert.equal(MIGRATION_REGISTRY[22].name, 'migrateAboutPageCms');
     assert.match(read('services/cmsPublishingService.js'), /CMS_VERSION_CONFLICT/);
     assert.match(read('controllers/adminPublishingController.js'), /restorePageSection/);

@@ -651,7 +651,7 @@ test('Testimonials capability still registered', () => {
 
 test('MIGRATION_REGISTRY has all entries (26 base + 3 new = 29)', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 35);
+  assert.equal(MIGRATION_REGISTRY.length, 36);
 });
 
 // ── Cleanup: reset mock ──

@@ -1,6 +1,5 @@
-<%- include('../components/home-navbar') %>
-
-<main class="about-page" aria-label="<%= content.accessibility?.ariaLabel || content.hero?.title || 'Página Nosotros' %>">
+<main class="home-page about-page" aria-label="<%= content.accessibility?.ariaLabel || content.hero?.title || 'Página Nosotros' %>">
+  <%- include('../components/home-navbar', { navbarOnHome: true }) %>
   <% if (content.isVisible !== false) { %>
     <section class="about-hero" aria-labelledby="about-title">
       <div class="about-shell about-hero__grid">

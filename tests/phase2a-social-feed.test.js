@@ -636,7 +636,7 @@ test('form.ejs has zero inline event handlers', () => {
 
 test('migration registry has 29 entries after additive Phase 2E-A migrations', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 35);
+  assert.equal(MIGRATION_REGISTRY.length, 36);
 });
 
 test('social_post entity type is registered', () => {

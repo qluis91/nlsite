@@ -60,7 +60,7 @@ test('migration 33 is idempotent', async () => {
 
 test('MIGRATION_REGISTRY has 33 entries', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 35);
+  assert.equal(MIGRATION_REGISTRY.length, 36);
 });
 
 test('migration 27 checksum still preserved', () => {

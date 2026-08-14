@@ -79,7 +79,6 @@ async function showAbout(req, res, next) {
       ctaUrl,
       ctaRel: content.cta?.target === '_blank' ? 'noopener noreferrer' : '',
       cmsData,
-      navbarOnHome: false,
       usesHeroNavbar: true,
       pageClass: 'page-about',
       pageStyles: ['/css/home.css', '/css/about.css'],
