@@ -179,9 +179,9 @@ describe('Phase 15B — Hero poster', () => {
 
 // ──── Resource hints ────
 describe('Phase 15 — Resource hints', () => {
-  it('home page has preconnect for storage.googleapis.com', async () => {
+  it('home page no longer preconnects to storage.googleapis.com (GLB is same-origin)', async () => {
     const res = await fetch('/');
-    assert.ok(res.body.includes('preconnect'), 'should have preconnect hints');
+    assert.ok(!res.body.includes('storage.googleapis.com'), 'home page must not reference storage.googleapis.com');
   });
 
   it('home page has preload for home.css', async () => {

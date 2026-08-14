@@ -118,7 +118,6 @@ const helmetConfig = {
       connectSrc: [
         "'self'",
         'blob:',
-        'https://storage.googleapis.com',
         'https://www.google-analytics.com',
         'https://*.google-analytics.com',
         'https://*.analytics.google.com',

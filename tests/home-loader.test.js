@@ -60,19 +60,21 @@ test('SpinnerMorph preserves rotation, timing, accessibility, and loader lifecyc
   assert.match(helmetJs, /dispatchHelmetEvent\('helmet:error'/);
 });
 
-test('helmet preconnect and initialization start early without duplicate scenes', () => {
+test('helmet model is same-origin, no storage preconnect, single scene init', () => {
   const layout = fs.readFileSync(layoutPath, 'utf8');
   const homeJs = fs.readFileSync(homeJsPath, 'utf8');
   const helmetJs = fs.readFileSync(helmetJsPath, 'utf8');
   const modelUrl = helmetJs.match(/^const HELMET_MODEL_URL = '([^']+)'/m)?.[1];
 
-  // No cross-origin GLB preload (triggers CORS error in Incognito/Safe mode)
-  assert.doesNotMatch(layout, /rel="preload"[^>]*casco-optimized\.glb/,
-    'Cross-origin GLB preload must be absent — causes CORS block in Incognito mode.');
+  // Default helmet model is served same-origin from the local server.
+  assert.equal(modelUrl, '/models/casco-optimized.glb',
+    'HELMET_MODEL_URL must point at the local GLB.');
 
-  // Safe preconnect to the storage origin
-  assert.match(layout, /rel="preconnect"\s+href="https:\/\/storage\.googleapis\.com"\s+crossorigin/,
-    'Homepage must preconnect to the storage origin for faster GLB delivery.');
+  // No Google Storage preload or preconnect for the helmet (same-origin now).
+  assert.doesNotMatch(layout, /rel="preload"[^>]*casco-optimized\.glb/,
+    'Cross-origin GLB preload must be absent.');
+  assert.doesNotMatch(layout, /storage\.googleapis\.com/,
+    'No Google Storage preconnect/preload may remain in the home layout.');
 
   assert.ok(
     homeJs.indexOf('void initHelmet3D(canvas, prefersReduced)') <
@@ -85,4 +87,15 @@ test('helmet preconnect and initialization start early without duplicate scenes'
   assert.match(helmetJs, /loader\.setCrossOrigin\('anonymous'\)/);
   assert.match(helmetJs, /logTiming\('GLB request started'\)/);
   assert.match(helmetJs, /logTiming\('first render completed'\)/);
+});
+
+test('local helmet GLB exists and is non-empty when present', (t) => {
+  const glbPath = path.join(root, 'public', 'models', 'casco-optimized.glb');
+  if (!fs.existsSync(glbPath)) {
+    t.skip('public/models/casco-optimized.glb not present in worktree');
+    return;
+  }
+  const stat = fs.statSync(glbPath);
+  assert.ok(stat.isFile(), 'public/models/casco-optimized.glb must be a file.');
+  assert.ok(stat.size > 0, 'public/models/casco-optimized.glb must be non-empty.');
 });
