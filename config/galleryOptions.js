@@ -1,4 +1,5 @@
 const path = require('path');
+const { UPLOAD_PUBLIC_ROOT } = require('./uploadPaths');
 
 const MEDIA_TYPES = Object.freeze({
   IMAGE: 'image',
@@ -31,7 +32,7 @@ const PUBLIC_PATHS = Object.freeze({
   posters: '/uploads/gallery/posters/',
 });
 
-const galleryRoot = path.join(__dirname, '..', 'public', 'uploads', 'gallery');
+const galleryRoot = path.join(UPLOAD_PUBLIC_ROOT, 'gallery');
 const STORAGE_ROOTS = Object.freeze({
   gallery: galleryRoot,
   images: path.join(galleryRoot, 'images'),

@@ -39,6 +39,19 @@ const { MEDIA_ROOT, MEDIA_DIRECTORIES } = require('./config/cmsOptions');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
+// ── Ensure Gallery storage directories (inside the persistent upload root) ──
+const { STORAGE_ROOTS: GALLERY_STORAGE_ROOTS } = require('./config/galleryOptions');
+[
+  GALLERY_STORAGE_ROOTS.gallery,
+  GALLERY_STORAGE_ROOTS.images,
+  GALLERY_STORAGE_ROOTS.thumbnails,
+  GALLERY_STORAGE_ROOTS.videos,
+  GALLERY_STORAGE_ROOTS.posters,
+].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+console.log(`📁 Gallery storage: ${GALLERY_STORAGE_ROOTS.gallery}`);
+
 // ── Register CMS usage sources for later Phases (media references in nav items etc.) ──
 require('./services/cmsPublishingService').registerNavUsageSource();
 
