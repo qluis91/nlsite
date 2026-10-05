@@ -1117,15 +1117,15 @@
     var materialId = resolveMaterialSelection(c, printer);
     var selectedMaterialId = materialId ? materialId.id : c.materialId;
     return (
-      '<section class="cq-settings-compact glass-effect" aria-label="Configuración">' +
+      '<section class="cq-settings-compact ninja-card glass-effect" aria-label="Configuración">' +
       '<div class="cq-settings-compact__head">' +
-      '<h3 class="cq-settings-compact__title">Configuración</h3>' +
+      '<h3 class="cq-settings-compact__title">Parámetros base</h3>' +
       '<span class="cq-settings-compact__hint">Cambia poco — valores base</span>' +
       '</div>' +
       '<div class="cq-settings-compact__row">' +
       '<div class="cq-settings-group">' +
       '<span class="cq-settings-group__name">Costos base</span>' +
-      '<div class="cq-settings-group__fields">' +
+      '<div class="cq-settings-group__fields ninja-form-grid ninja-form-grid--2">' +
       selectHtml('cq-printerId', 'Impresora', c.printerId, printerOptions, { compact: true }) +
       selectHtml('cq-materialId', 'Material', selectedMaterialId, materialOptions, { compact: true }) +
       inputHtml('cq-designCost', 'Diseño', c.designCost, { min: 0, step: 1, compact: true }) +
@@ -1257,7 +1257,7 @@
         })
         .join('');
     return (
-      '<div class="cq-history glass-effect">' +
+      '<div class="cq-history ninja-card glass-effect">' +
       '<div class="cq-history__fields">' +
       '<label class="cq-field cq-field--compact">' +
       '<span class="cq-field__label">Historial</span>' +
@@ -1310,7 +1310,7 @@
         '</div>';
     }
     return (
-      '<div class="cq-workflow glass-effect">' +
+      '<div class="cq-workflow ninja-card glass-effect">' +
       '<div class="cq-workflow__head">' +
       '<span class="cq-workflow__label">Estado de la orden</span>' +
       '<span id="cq-workflow-badge" class="' +
@@ -1340,15 +1340,36 @@
     );
   }
 
+  function eyeIconSvg(open) {
+    if (open) {
+      return (
+        '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+        '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-5 0-9.27-3.11-11-8 1.02-2.89 2.98-5.2 5.47-6.61"/>' +
+        '<path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c5 0 9.27 3.11 11 8a11.7 11.7 0 0 1-2.16 3.19"/>' +
+        '<path d="M14.12 14.12a3 3 0 0 1-4.24-4.24"/>' +
+        '<path d="M1 1l22 22"/>' +
+        '</svg>'
+      );
+    }
+    return (
+      '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+      '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>' +
+      '<circle cx="12" cy="12" r="3"/>' +
+      '</svg>'
+    );
+  }
+
   function renderPdfExportSection(exp) {
     var sendDisabled = !canSendOrder();
     return (
-      '<section class="cq-pdf-export glass-effect" aria-labelledby="cq-pdf-title">' +
+      '<section class="cq-pdf-export ninja-card glass-effect" aria-labelledby="cq-pdf-title">' +
       '<div class="cq-pdf-export__head">' +
-      '<h3 class="cq-pdf-export__title" id="cq-pdf-title">Exportar cotización PDF</h3>' +
+      '<h3 class="cq-pdf-export__title" id="cq-pdf-title">Exportar y cliente</h3>' +
       '<p class="cq-muted">Archivo: NinjaLab_cotizacion_ + nombre cliente + _ddmmaa</p>' +
       '</div>' +
-      '<div class="cq-grid cq-grid--2">' +
+      '<div class="cq-pdf-section">' +
+      '<h4 class="cq-pdf-section__title">Datos del cliente</h4>' +
+      '<div class="cq-grid cq-grid--2 ninja-form-grid ninja-form-grid--2">' +
       inputHtml('cq-clientName', 'Nombre del cliente', exp.clientName, {
         type: 'text',
         placeholder: 'Ej. Val\'s Bakery',
@@ -1365,6 +1386,10 @@
         type: 'text',
         placeholder: 'Ej. Orden de piezas personalizadas',
       }) +
+      '</div></div>' +
+      '<div class="cq-pdf-section">' +
+      '<h4 class="cq-pdf-section__title">Detalles de la cotización</h4>' +
+      '<div class="cq-grid cq-grid--2 ninja-form-grid ninja-form-grid--2">' +
       selectHtml(
         'cq-quoteEmail',
         'Correo cotización',
@@ -1376,10 +1401,16 @@
       '<span class="cq-field__label">Descripción del servicio (una línea = un bullet en PDF)</span>' +
       '<textarea id="cq-description" data-cq-field="cq-description" rows="4" placeholder="Impresión 3D de alta calidad&#10;Logo personalizado&#10;Color a elegir">' +
       escapeHtml(exp.description) +
-      '</textarea></label>' +
-      '<div class="cq-grid cq-grid--2">' +
+      '</textarea></label></div>' +
+      '<div class="cq-pdf-section">' +
+      '<h4 class="cq-pdf-section__title">Vigencia y entrega</h4>' +
+      '<div class="cq-grid cq-grid--2 ninja-form-grid ninja-form-grid--2">' +
       inputHtml('cq-validDays', 'Válida por (días)', exp.validDays, { min: 1, step: 1 }) +
       inputHtml('cq-deliveryDays', 'Días hábiles de entrega', exp.deliveryDays, { min: 0, step: 1 }) +
+      '</div></div>' +
+      '<div class="cq-pdf-section">' +
+      '<h4 class="cq-pdf-section__title">Costos y términos</h4>' +
+      '<div class="cq-grid cq-grid--2 ninja-form-grid ninja-form-grid--2">' +
       inputHtml('cq-shippingCost', 'Costo de envío (₡)', exp.shippingCost, { min: 0, step: 1 }) +
       '<label class="cq-field cq-field--input cq-field--check">' +
       '<span class="cq-field__label">Impuestos</span>' +
@@ -1388,29 +1419,29 @@
       (exp.includeIva ? ' checked' : '') +
       ' />' +
       '<span>Incluir IVA (13%)</span></span></label>' +
-      '</div>' +
-      '<div class="cq-grid cq-grid--2">' +
       inputHtml('cq-paymentTerms', 'Forma de pago', exp.paymentTerms, { type: 'text' }) +
       inputHtml('cq-warranty', 'Garantía', exp.warranty, { type: 'text' }) +
-      '</div>' +
+      '</div></div>' +
+      '<div class="cq-pdf-section">' +
+      '<h4 class="cq-pdf-section__title">Anotaciones</h4>' +
       '<label class="cq-field cq-field--input cq-field--wide">' +
       '<span class="cq-field__label">Anotaciones adicionales (opcional)</span>' +
       '<textarea id="cq-extraNotes" data-cq-field="cq-extraNotes" rows="2" placeholder="Notas extra para el cliente">' +
       escapeHtml(exp.extraNotes) +
-      '</textarea></label>' +
+      '</textarea></label></div>' +
       '<p id="cq-pdf-msg" class="cq-history-msg" hidden></p>' +
       '<div class="cq-pdf-export__actions">' +
-      '<button type="button" class="btn btn--ghost" id="cq-export-pdf">Generar PDF</button>' +
-      '<button type="button" class="btn btn--primary" id="cq-save-order">Guardar orden</button>' +
-      '<button type="button" class="btn btn--ghost" id="cq-send-order"' +
+      '<button type="button" class="btn-ninja" id="cq-export-pdf">Generar PDF</button>' +
+      '<button type="button" class="btn-ninja" id="cq-save-order">Guardar orden</button>' +
+      '<button type="button" class="btn-ninja" id="cq-send-order"' +
       (sendDisabled ? ' disabled' : '') +
       '>Enviar orden por correo</button>' +
-      '<button type="button" class="btn btn--ghost cq-btn-whatsapp" id="cq-send-whatsapp"' +
+      '<button type="button" class="btn-ninja cq-btn-whatsapp" id="cq-send-whatsapp"' +
       (sendDisabled ? ' disabled' : '') +
       '>Enviar cotización por WhatsApp (manual)</button>' +
       '</div>' +
       '<div class="cq-save-quote-mobile-wrap">' +
-      '<button type="button" class="btn btn--primary cq-save-quote-mobile" id="cq-save-quote-mobile">Guardar cotización</button>' +
+      '<button type="button" class="btn-ninja cq-save-quote-mobile" id="cq-save-quote-mobile">Guardar cotización</button>' +
       '</div>' +
       '</section>'
     );
@@ -1423,7 +1454,7 @@
     return (
       '<article class="cq-card cq-card--scenario' +
       (isPlus ? ' cq-card--scenario-plus' : '') +
-      ' glass-effect">' +
+      ' ninja-card glass-effect">' +
       '<header class="cq-card__head">' +
       '<div class="cq-range-editor">' +
       inputHtml('cq-range-' + sc.key + '-min', 'Desde', r.min, { min: 1, step: 1, compact: true }) +
@@ -1452,7 +1483,7 @@
 
   function renderSubnav() {
     return (
-      '<nav class="cq-subnav glass-effect" aria-label="Secciones cotización 3D">' +
+      '<nav class="cq-subnav ninja-card glass-effect" aria-label="Secciones cotización 3D">' +
       getSubnavTabs()
         .map(function (t) {
           return (
@@ -1515,7 +1546,7 @@
 
   function renderAdditionalsCatalogPanel() {
     return (
-      '<section class="cq-catalog-panel glass-effect">' +
+      '<section class="cq-catalog-panel ninja-card glass-effect">' +
       '<h3 class="cq-card__title">Adicionales frecuentes</h3>' +
       '<p class="cq-muted">Se muestran al elegir un adicional en datos del producto.</p>' +
       '<div class="cq-catalog-form">' +
@@ -1540,7 +1571,7 @@
 
   function renderPrintersCatalogPanel() {
     return (
-      '<section class="cq-catalog-panel glass-effect">' +
+      '<section class="cq-catalog-panel ninja-card glass-effect">' +
       '<h3 class="cq-card__title">Impresoras</h3>' +
       '<p class="cq-muted">El precio por hora se usa en costos base al elegir la impresora.</p>' +
       '<div class="cq-catalog-form">' +
@@ -1565,7 +1596,7 @@
 
   function renderMaterialsCatalogPanel() {
     return (
-      '<section class="cq-catalog-panel glass-effect">' +
+      '<section class="cq-catalog-panel ninja-card glass-effect">' +
       '<h3 class="cq-card__title">Materiales</h3>' +
       '<p class="cq-muted">El precio por kg se usa en costos base al elegir el material.</p>' +
       '<div class="cq-catalog-form">' +
@@ -1711,22 +1742,42 @@
     );
   }
 
-  function renderCostBreakdownPanel(m, p) {
+  function renderCostBreakdownPanel(m, p, productIdx, breakdownOpen) {
     return (
-      '<div class="cq-cost-breakdown-panel glass-effect">' +
-      '<div class="cq-breakdown">' +
-      '<h4 class="cq-breakdown__title">Costo unitario</h4>' +
-      '<div class="cq-results-grid cq-results-grid--4">' +
-      resultHtml('Material', fmtCrc(m.materialCost)) +
-      resultHtml('Tiempo', fmtCrc(m.timeCost)) +
-      resultHtml('Adicionales', fmtCrc(sumAdditionals(p))) +
-      resultHtml('Costo total / uds', fmtCrc(m.unitCost)) +
-      '</div></div>' +
-      '<div class="cq-results-grid cq-results-grid--3">' +
-      resultHtml('Costo total × cantidad', fmtCrc(m.totalCost)) +
-      resultHtml('Ganancia neta / uds', fmtCrc(m.netUnit)) +
-      resultHtml('Ganancia neta total', fmtCrc(m.netTotal)) +
-      '</div></div>'
+      '<div class="cq-cost-breakdown-panel ninja-card cq-stat-card glass-effect">' +
+      '<div class="cq-stat-card__head">' +
+      '<h4 class="cq-stat-card__title">Costo unitario</h4>' +
+      '<button type="button" class="cq-icon-btn' +
+      (breakdownOpen ? ' is-active' : '') +
+      '" data-cq-toggle-cost-breakdown="' +
+      productIdx +
+      '" title="' +
+      (breakdownOpen ? 'Ocultar desglose de costos' : 'Ver desglose de costos') +
+      '" aria-label="' +
+      (breakdownOpen ? 'Ocultar desglose de costos' : 'Ver desglose de costos') +
+      '">' +
+      eyeIconSvg(breakdownOpen) +
+      '</button></div>' +
+      (breakdownOpen
+        ? '<div class="cq-breakdown">' +
+          '<div class="cq-results-grid cq-results-grid--4">' +
+          resultHtml('Material', fmtCrc(m.materialCost)) +
+          resultHtml('Tiempo', fmtCrc(m.timeCost)) +
+          resultHtml('Adicionales', fmtCrc(sumAdditionals(p))) +
+          resultHtml('Costo total / uds', fmtCrc(m.unitCost), 'total') +
+          '</div></div>' +
+          '<div class="cq-stat-card__total">' +
+          '<span class="cq-stat-card__total-label">Total</span>' +
+          '<span class="cq-stat-card__total-value">' +
+          fmtCrc(m.unitCost) +
+          '</span></div>' +
+          '<div class="cq-results-grid cq-results-grid--3 cq-cost-breakdown-panel__extra">' +
+          resultHtml('Costo total × cantidad', fmtCrc(m.totalCost)) +
+          resultHtml('Ganancia neta / uds', fmtCrc(m.netUnit)) +
+          resultHtml('Ganancia neta total', fmtCrc(m.netTotal), 'accent') +
+          '</div>'
+        : '<p class="cq-muted cq-cost-breakdown-panel__hint">Desglose oculto. Tocá el ícono para ver costos.</p>') +
+      '</div>'
     );
   }
 
@@ -1739,13 +1790,11 @@
     var breakdownOpen = !!costBreakdownOpenByProduct[productIdx];
     var qty = getProductQty(p);
     return (
-      '<section class="cq-card cq-card--editable cq-card--product glass-effect" data-cq-product-index="' +
+      '<section class="cq-card cq-card--editable cq-card--product ninja-card glass-effect" data-cq-product-index="' +
       productIdx +
       '">' +
       '<div class="cq-card__head-row">' +
-      '<h3 class="cq-card__title">Producto ' +
-      (productIdx + 1) +
-      '</h3>' +
+      '<h3 class="cq-card__title">Producto</h3>' +
       (canRemove
         ? '<button type="button" class="btn btn--ghost btn--sm cq-btn-danger" data-cq-remove-product="' +
           productIdx +
@@ -1753,7 +1802,7 @@
         : '') +
       '</div>' +
       renderQtyInputModeBar(p, productIdx) +
-      '<div class="cq-grid cq-grid--2">' +
+      '<div class="cq-grid cq-grid--2 ninja-form-grid ninja-form-grid--2">' +
       inputHtml('cq-productName-' + productIdx, 'Nombre del producto', p.name, {
         type: 'text',
         placeholder: 'Ej. Copa Mundial',
@@ -1790,13 +1839,7 @@
         : '') +
       '</div></div>' +
       renderSaleDiscountBlock(p, m, wholesaleOn, productIdx) +
-      '<div class="cq-cost-breakdown-toggle-wrap">' +
-      '<button type="button" class="btn btn--ghost btn--sm" data-cq-toggle-cost-breakdown="' +
-      productIdx +
-      '">' +
-      (breakdownOpen ? 'Ocultar desglose de costos' : 'Ver desglose de costos') +
-      '</button></div>' +
-      (breakdownOpen ? renderCostBreakdownPanel(m, p) : '') +
+      renderCostBreakdownPanel(m, p, productIdx, breakdownOpen) +
       '</section>'
     );
   }
@@ -1804,17 +1847,40 @@
   function renderQuoteSummary(state, result) {
     var m = result.main;
     var multi = result.products.length > 1;
+    var firstLine = result.products[0] && result.products[0].line ? result.products[0].line : m;
     return (
-      '<section class="cq-card cq-card--summary glass-effect cq-card--wide">' +
-      '<h3 class="cq-card__title">Resumen general</h3>' +
+      '<div class="cq-stats-row" aria-label="Resumen de cotización">' +
+      '<section class="cq-stat-card ninja-card ninja-card--glow">' +
+      '<div class="cq-stat-card__head"><h3 class="cq-stat-card__title">Costo unitario</h3></div>' +
+      '<div class="cq-results-grid cq-results-grid--2">' +
+      resultHtml('Material', fmtCrc(firstLine.materialCost || 0)) +
+      resultHtml('Tiempo', fmtCrc(firstLine.timeCost || 0)) +
+      resultHtml('Adicionales', fmtCrc(result.products[0] ? sumAdditionals(result.products[0].product) : 0)) +
+      '</div>' +
+      '<div class="cq-stat-card__total">' +
+      '<span class="cq-stat-card__total-label">Total</span>' +
+      '<span class="cq-stat-card__total-value">' +
+      fmtCrc(firstLine.unitCost || m.saleUnit || 0) +
+      '</span></div></section>' +
+      '<section class="cq-stat-card ninja-card ninja-card--glow">' +
+      '<div class="cq-stat-card__head"><h3 class="cq-stat-card__title">Ganancias</h3></div>' +
+      '<div class="cq-results-grid cq-results-grid--2">' +
+      resultHtml('Ganancia Alex', fmtCrc(m.alexShare), 'alex') +
+      resultHtml('Ganancia Luis', fmtCrc(m.luisShare), 'luis') +
+      resultHtml('Ganancia neta', fmtCrc(m.netTotal), 'accent') +
+      '</div></section>' +
+      '<section class="cq-stat-card ninja-card ninja-card--glow">' +
+      '<div class="cq-stat-card__head"><h3 class="cq-stat-card__title">Resumen final</h3></div>' +
       '<div class="cq-results-grid cq-results-grid--2">' +
       (multi
-        ? resultHtml('Precio sugerido total', fmtCrc(m.suggestedTotal))
-        : resultHtml('Precio sugerido / unidad', fmtCrc(m.suggestedPrice))) +
-      (multi ? resultHtml('Precio sugerido prom. / uds', fmtCrc(m.suggestedUnitAvg)) : '') +
+        ? resultHtml('Precio sugerido total', fmtCrc(m.suggestedTotal), 'total')
+        : resultHtml('Precio sugerido / unidad', fmtCrc(m.suggestedPrice), 'total')) +
       resultHtml('Subtotal venta', fmtCrc(m.subtotalGross)) +
-      resultHtml('Total cliente (+ diseño)', fmtCrc(m.clientTotal)) +
+      resultHtml('Total cliente', fmtCrc(m.clientTotal), 'accent') +
+      '</div></section>' +
       '</div>' +
+      '<section class="cq-card cq-card--summary ninja-card glass-effect cq-card--wide">' +
+      '<h3 class="cq-card__title">Resumen general</h3>' +
       renderGlobalDiscountBlock(state, m) +
       '<div class="cq-price-row glass-effect">' +
       '<div class="cq-price-row__profit cq-price-row__profit--alex">' +
@@ -1860,10 +1926,10 @@
     var wholesaleOn = !!state.wholesaleMode;
 
     root.innerHTML =
-      '<div class="cq-hero glass-effect">' +
+      '<div class="cq-hero ninja-card glass-effect">' +
       '<div><p class="cq-hero__eyebrow">Herramienta interna</p>' +
-      '<h2 class="admin-h2">Cotización costo 3D</h2>' +
-      '<p class="admin-muted">Costos, precios por volumen y reparto Alex / Luis.</p></div>' +
+      '<h2 class="admin-h2">Cotización Costo 3D</h2>' +
+      '<p class="admin-muted">Calculador de costos avanzado.</p></div>' +
       '<div class="cq-hero__actions">' +
       (activePanel === 'quote'
         ? '<button type="button" class="btn btn--ghost btn--sm' +
