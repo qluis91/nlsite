@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-05 — Reconcile user addresses migration and CSP connectSrc
+
+### Fixed
+- CSP `connectSrc` allows `https://cdnjs.cloudflare.com` so jsPDF/html2canvas source maps are not blocked on `/admin/cotizacion-3d`
+- `migrateUserAddresses` encoding/line-ending checksum drift reconciled via strict `ENCODING_RECONCILE_REGISTRY` pair + `user_addresses` schema verifier (columns, indexes, `user_id → users(id)` FK)
+
 ## 2026-07-26 — Phase 13: Safe automatic database migrations
 
 ### Added

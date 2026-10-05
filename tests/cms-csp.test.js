@@ -21,6 +21,16 @@ describe('CSP header presence', () => {
     assert.ok(!scriptSrc.includes("unsafe-inline"), 'script-src must not have unsafe-inline');
   });
 
+  it('connectSrc allows cdnjs.cloudflare.com for jsPDF/html2canvas source maps', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf-8');
+    const connectSrcMatch = source.match(/connectSrc\s*:\s*\[([^\]]+)\]/);
+    assert.ok(connectSrcMatch, 'connectSrc must exist in CSP config');
+    assert.ok(
+      connectSrcMatch[0].includes('https://cdnjs.cloudflare.com'),
+      'connectSrc must allow https://cdnjs.cloudflare.com'
+    );
+  });
+
   it('CSP nonce uses crypto.randomBytes (per-request unique)', () => {
     const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf-8');
     assert.ok(source.includes('randomBytes'), 'nonce should use crypto.randomBytes');

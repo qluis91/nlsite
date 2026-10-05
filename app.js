@@ -135,6 +135,7 @@ const helmetConfig = {
         'https://*.google-analytics.com',
         'https://*.analytics.google.com',
         'https://*.googletagmanager.com',
+        'https://cdnjs.cloudflare.com',
       ],
       workerSrc: ["'self'", 'blob:'],
       fontSrc: ["'self'", 'data:'],

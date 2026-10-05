@@ -237,10 +237,11 @@ describe('Phase 3H — Tilopay encoding-only checksum reconciliation', () => {
     assert.equal(e.newChecksum, NEW);
   });
 
-  it('encoding reconcile registry includes Tilopay and CMS homepage entries', () => {
-    assert.equal(Object.keys(tracker.ENCODING_RECONCILE_REGISTRY).length, 2);
+  it('encoding reconcile registry includes Tilopay, CMS homepage, and user addresses entries', () => {
+    assert.equal(Object.keys(tracker.ENCODING_RECONCILE_REGISTRY).length, 3);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateTilopay);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateCmsHomepageFields);
+    assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateUserAddresses);
   });
 
   it('exact old×new + valid schema reconciles', async () => {
@@ -515,6 +516,184 @@ describe('Phase 3H — CMS homepage fields encoding-only checksum reconciliation
         name: 'migrateCmsHomepageFields',
         file: './migrate-cms-homepage-fields',
         exportName: 'migrateCmsHomepageFields',
+      }],
+      checksumFor: () => NEW,
+    });
+    assert.equal(result.reconciled, 0);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.ran, 0);
+  });
+});
+
+describe('migrateUserAddresses encoding-only checksum reconciliation', () => {
+  const OLD = '2a7cac71e27ede34ef11b395644eb6dd2a2d7592667b0617e8b8a0bc549517e4';
+  const NEW = '98250dd561e29acc944a360e3a2c7150eb67282ed822b8b13fe3eb21e5acc2b3';
+  const THIRD = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+  const expectedColumns = [
+    'id', 'user_id', 'label', 'province', 'canton', 'district',
+    'address_line', 'address_reference', 'contact_phone', 'is_default',
+    'created_at', 'updated_at',
+  ];
+  const indexNames = [
+    'PRIMARY', 'idx_user_addresses_user', 'idx_user_addresses_user_default',
+  ];
+
+  function validSchemaPool(extraQueries = {}) {
+    return {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return extraQueries.executedRows
+            || [[{ name: 'migrateUserAddresses', checksum: OLD, status: 'ok' }], []];
+        }
+        if (/SELECT checksum FROM schema_migrations/.test(sql)) {
+          return extraQueries.checksumRow || [[{ checksum: OLD }], []];
+        }
+        if (/INFORMATION_SCHEMA\.KEY_COLUMN_USAGE[\s\S]*user_addresses/.test(sql)) {
+          return [[{
+            CONSTRAINT_NAME: 'fk_user_addresses_user',
+            REFERENCED_TABLE_NAME: 'users',
+            REFERENCED_COLUMN_NAME: 'id',
+          }], []];
+        }
+        if (/INFORMATION_SCHEMA\.COLUMNS[\s\S]*user_addresses/.test(sql)) {
+          return [expectedColumns.map((c) => ({ COLUMN_NAME: c })), []];
+        }
+        if (/INFORMATION_SCHEMA\.STATISTICS[\s\S]*user_addresses/.test(sql)) {
+          return [indexNames.map((n) => ({ INDEX_NAME: n })), []];
+        }
+        if (/UPDATE schema_migrations SET checksum/.test(sql)) return [{ affectedRows: 1 }, []];
+        throw new Error('Unexpected query: ' + sql.slice(0, 80));
+      },
+    };
+  }
+
+  it('migrateUserAddresses is in the ENCODING_RECONCILE_REGISTRY with old+new checksums', () => {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY.migrateUserAddresses;
+    assert.ok(e);
+    assert.equal(typeof e.verifySchema, 'function');
+    assert.equal(e.oldChecksum, OLD);
+    assert.equal(e.newChecksum, NEW);
+  });
+
+  it('exact old×new + valid schema reconciles', async () => {
+    const result = await tracker.runPendingMigrations(validSchemaPool(), {
+      registry: [{
+        name: 'migrateUserAddresses',
+        file: './migrate-user-addresses',
+        exportName: 'migrateUserAddresses',
+      }],
+      checksumFor: () => NEW,
+    });
+    assert.equal(result.reconciled, 1);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.ran, 0);
+  });
+
+  it('wrong old checksum + valid schema fails', async () => {
+    await assert.rejects(
+      () => tracker.runPendingMigrations(validSchemaPool({
+        executedRows: [[{ name: 'migrateUserAddresses', checksum: OLD.replace('2a', '3b'), status: 'ok' }], []],
+      }), {
+        registry: [{
+          name: 'migrateUserAddresses',
+          file: './migrate-user-addresses',
+          exportName: 'migrateUserAddresses',
+        }],
+        checksumFor: () => NEW,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('exact old + third checksum + VALID schema fails', async () => {
+    await assert.rejects(
+      () => tracker.runPendingMigrations(validSchemaPool(), {
+        registry: [{
+          name: 'migrateUserAddresses',
+          file: './migrate-user-addresses',
+          exportName: 'migrateUserAddresses',
+        }],
+        checksumFor: () => THIRD,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('rejects reconciliation when schema does not match', async () => {
+    const pool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return [[{ name: 'migrateUserAddresses', checksum: OLD, status: 'ok' }], []];
+        }
+        if (/INFORMATION_SCHEMA\.COLUMNS[\s\S]*user_addresses/.test(sql)) {
+          return [[{ COLUMN_NAME: 'id' }], []]; // missing required columns
+        }
+        throw new Error('Unexpected query: ' + sql.slice(0, 80));
+      },
+    };
+    await assert.rejects(
+      () => tracker.runPendingMigrations(pool, {
+        registry: [{
+          name: 'migrateUserAddresses',
+          file: './migrate-user-addresses',
+          exportName: 'migrateUserAddresses',
+        }],
+        checksumFor: () => NEW,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('rejects reconciliation when FK is missing', async () => {
+    const pool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return [[{ name: 'migrateUserAddresses', checksum: OLD, status: 'ok' }], []];
+        }
+        if (/INFORMATION_SCHEMA\.KEY_COLUMN_USAGE[\s\S]*user_addresses/.test(sql)) {
+          return [[], []]; // no FK
+        }
+        if (/INFORMATION_SCHEMA\.COLUMNS[\s\S]*user_addresses/.test(sql)) {
+          return [expectedColumns.map((c) => ({ COLUMN_NAME: c })), []];
+        }
+        if (/INFORMATION_SCHEMA\.STATISTICS[\s\S]*user_addresses/.test(sql)) {
+          return [indexNames.map((n) => ({ INDEX_NAME: n })), []];
+        }
+        throw new Error('Unexpected query: ' + sql.slice(0, 80));
+      },
+    };
+    await assert.rejects(
+      () => tracker.runPendingMigrations(pool, {
+        registry: [{
+          name: 'migrateUserAddresses',
+          file: './migrate-user-addresses',
+          exportName: 'migrateUserAddresses',
+        }],
+        checksumFor: () => NEW,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('subsequent run with exact new checksum already stored follows normal skip', async () => {
+    const pool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return [[{ name: 'migrateUserAddresses', checksum: NEW, status: 'ok' }], []];
+        }
+        throw new Error('Unexpected query');
+      },
+    };
+    const result = await tracker.runPendingMigrations(pool, {
+      registry: [{
+        name: 'migrateUserAddresses',
+        file: './migrate-user-addresses',
+        exportName: 'migrateUserAddresses',
       }],
       checksumFor: () => NEW,
     });

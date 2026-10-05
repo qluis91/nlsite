@@ -34,6 +34,12 @@ const ENCODING_RECONCILE_REGISTRY = {
     reason: 'social seed URL edit after execution (schema unchanged)',
     verifySchema: null, // set below after _verifyCmsHomepageFieldsSchema is defined
   },
+  migrateUserAddresses: {
+    oldChecksum: '2a7cac71e27ede34ef11b395644eb6dd2a2d7592667b0617e8b8a0bc549517e4',
+    newChecksum: '98250dd561e29acc944a360e3a2c7150eb67282ed822b8b13fe3eb21e5acc2b3',
+    reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
+    verifySchema: null, // set below after _verifyUserAddressesSchema is defined
+  },
 };
 
 const MIGRATION_REGISTRY = [
@@ -198,9 +204,76 @@ async function _verifyCmsHomepageFieldsSchema(pool) {
   }
 }
 
+async function _verifyUserAddressesSchema(pool) {
+  // Verify objects created by scripts/migrate-user-addresses.js:
+  // user_addresses columns, indexes, and user_id → users(id) FK.
+  const expectedColumns = [
+    'id', 'user_id', 'label', 'province', 'canton', 'district',
+    'address_line', 'address_reference', 'contact_phone', 'is_default',
+    'created_at', 'updated_at',
+  ];
+  const requiredIndexes = [
+    'PRIMARY',
+    'idx_user_addresses_user',
+    'idx_user_addresses_user_default',
+  ];
+
+  try {
+    const [cols] = await pool.query(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_addresses' ORDER BY ORDINAL_POSITION"
+    );
+    if (!cols.length) {
+      console.warn('[migrate:deploy] user_addresses table is missing.');
+      return false;
+    }
+    const actualColumns = cols.map((c) => c.COLUMN_NAME);
+    const missing = expectedColumns.filter((c) => !actualColumns.includes(c));
+    if (missing.length > 0) {
+      console.warn('[migrate:deploy] user_addresses missing columns: ' + missing.join(', '));
+      return false;
+    }
+
+    const [idx] = await pool.query(
+      "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_addresses'"
+    );
+    const indexNames = [...new Set(idx.map((i) => i.INDEX_NAME))];
+    const missingIdx = requiredIndexes.filter((i) => !indexNames.includes(i));
+    if (missingIdx.length > 0) {
+      console.warn('[migrate:deploy] user_addresses missing indexes: ' + missingIdx.join(', '));
+      return false;
+    }
+
+    const [fks] = await pool.query(
+      `SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'user_addresses'
+         AND COLUMN_NAME = 'user_id'
+         AND REFERENCED_TABLE_NAME IS NOT NULL`
+    );
+    const hasFk = fks.some(
+      (fk) =>
+        fk.CONSTRAINT_NAME === 'fk_user_addresses_user' &&
+        fk.REFERENCED_TABLE_NAME === 'users' &&
+        fk.REFERENCED_COLUMN_NAME === 'id'
+    );
+    if (!hasFk) {
+      console.warn('[migrate:deploy] user_addresses missing FK fk_user_addresses_user → users(id).');
+      return false;
+    }
+
+    console.log('[migrate:deploy] user_addresses schema verified OK.');
+    return true;
+  } catch (err) {
+    console.warn('[migrate:deploy] user_addresses schema verification error: ' + err.message);
+    return false;
+  }
+}
+
 // Link verifySchema functions now that the helpers are defined
 ENCODING_RECONCILE_REGISTRY.migrateTilopay.verifySchema = _verifyTilopaySchema;
 ENCODING_RECONCILE_REGISTRY.migrateCmsHomepageFields.verifySchema = _verifyCmsHomepageFieldsSchema;
+ENCODING_RECONCILE_REGISTRY.migrateUserAddresses.verifySchema = _verifyUserAddressesSchema;
 
 async function _reconcileChecksum(pool, name, newChecksum, reason) {
   const [rows] = await pool.query(
