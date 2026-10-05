@@ -46,6 +46,12 @@ const ENCODING_RECONCILE_REGISTRY = {
     reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
     verifySchema: null, // set below after _verifyUserProfileSchema is defined
   },
+  migrateCms: {
+    oldChecksum: '2ef57e9cae09dc784ba1efdcd6f3ba4776e15f4fb1b3ac93873d17f9faae6c9a',
+    newChecksum: '08fe0a407d6df4f2b6d18e42b46340b65094a2b1691101bf01b42652a8d846a3',
+    reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
+    verifySchema: null, // set below after _verifyCmsSchema is defined
+  },
 };
 
 const MIGRATION_REGISTRY = [
@@ -304,11 +310,61 @@ async function _verifyUserProfileSchema(pool) {
   }
 }
 
+async function _verifyCmsSchema(pool) {
+  // Verify Phase 11A objects from scripts/migrate-cms.js:
+  // core CMS tables + additive site_settings columns.
+  const requiredTables = [
+    'media_assets',
+    'pages',
+    'page_sections',
+    'site_settings',
+    'content_revisions',
+  ];
+  const siteSettingsColumns = [
+    'value_type',
+    'setting_group',
+    'is_public',
+    'updated_by',
+    'created_at',
+  ];
+
+  try {
+    for (const table of requiredTables) {
+      const [rows] = await pool.query(
+        "SELECT 1 AS ok FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1",
+        [table]
+      );
+      if (!rows.length) {
+        console.warn(`[migrate:deploy] Phase 11A table missing: ${table}`);
+        return false;
+      }
+    }
+
+    for (const column of siteSettingsColumns) {
+      const [rows] = await pool.query(
+        "SELECT 1 AS ok FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'site_settings' AND COLUMN_NAME = ? LIMIT 1",
+        [column]
+      );
+      if (!rows.length) {
+        console.warn(`[migrate:deploy] site_settings.${column} is missing.`);
+        return false;
+      }
+    }
+
+    console.log('[migrate:deploy] Phase 11A CMS schema verified OK.');
+    return true;
+  } catch (err) {
+    console.warn('[migrate:deploy] Phase 11A CMS schema verification error: ' + err.message);
+    return false;
+  }
+}
+
 // Link verifySchema functions now that the helpers are defined
 ENCODING_RECONCILE_REGISTRY.migrateTilopay.verifySchema = _verifyTilopaySchema;
 ENCODING_RECONCILE_REGISTRY.migrateCmsHomepageFields.verifySchema = _verifyCmsHomepageFieldsSchema;
 ENCODING_RECONCILE_REGISTRY.migrateUserAddresses.verifySchema = _verifyUserAddressesSchema;
 ENCODING_RECONCILE_REGISTRY.migrateUserProfile.verifySchema = _verifyUserProfileSchema;
+ENCODING_RECONCILE_REGISTRY.migrateCms.verifySchema = _verifyCmsSchema;
 
 async function _reconcileChecksum(pool, name, newChecksum, reason) {
   const [rows] = await pool.query(
