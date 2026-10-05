@@ -111,7 +111,8 @@ async function ensureMigrationsTable(pool) {
 }
 
 function computeChecksum(filePath) {
-  const content = fs.readFileSync(filePath, 'utf-8');
+  // Normalize CRLF / lone CR to LF so Windows autocrlf checkouts match Git LF blobs.
+  const content = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   return crypto.createHash('sha256').update(content).digest('hex');
 }
 

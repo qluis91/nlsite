@@ -75,6 +75,39 @@ describe('Phase 13 — checksum and tracker SQL contracts', () => {
     assert.notEqual(first, tracker.computeChecksum(cms));
   });
 
+  it('LF and CRLF versions of the same content produce the same checksum', () => {
+    const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'nlsite-checksum-'));
+    const lfPath = path.join(dir, 'lf.js');
+    const crlfPath = path.join(dir, 'crlf.js');
+    const crPath = path.join(dir, 'cr.js');
+    const body = "console.log('migrate');\nconst x = 1;\n";
+    fs.writeFileSync(lfPath, body, 'utf8');
+    fs.writeFileSync(crlfPath, body.replace(/\n/g, '\r\n'), 'utf8');
+    fs.writeFileSync(crPath, body.replace(/\n/g, '\r'), 'utf8');
+    try {
+      const lf = tracker.computeChecksum(lfPath);
+      const crlf = tracker.computeChecksum(crlfPath);
+      const cr = tracker.computeChecksum(crPath);
+      assert.equal(lf, crlf);
+      assert.equal(lf, cr);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('real content changes still produce different checksums after normalization', () => {
+    const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'nlsite-checksum-'));
+    const aPath = path.join(dir, 'a.js');
+    const bPath = path.join(dir, 'b.js');
+    fs.writeFileSync(aPath, "const version = 1;\r\n", 'utf8');
+    fs.writeFileSync(bPath, "const version = 2;\r\n", 'utf8');
+    try {
+      assert.notEqual(tracker.computeChecksum(aPath), tracker.computeChecksum(bPath));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('models schema_migrations creation without a database', async () => {
     const calls = [];
     await tracker.ensureMigrationsTable({ query: async (sql, params) => calls.push({ sql, params }) });
