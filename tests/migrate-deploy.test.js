@@ -270,13 +270,14 @@ describe('Phase 3H — Tilopay encoding-only checksum reconciliation', () => {
     assert.equal(e.newChecksum, NEW);
   });
 
-  it('encoding reconcile registry includes Tilopay, CMS homepage, user addresses, user profile, and CMS entries', () => {
-    assert.equal(Object.keys(tracker.ENCODING_RECONCILE_REGISTRY).length, 5);
+  it('encoding reconcile registry includes Tilopay, CMS homepage, user addresses, user profile, CMS, and navigation entries', () => {
+    assert.equal(Object.keys(tracker.ENCODING_RECONCILE_REGISTRY).length, 6);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateTilopay);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateCmsHomepageFields);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateUserAddresses);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateUserProfile);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateCms);
+    assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateNavigationItems);
   });
 
   it('exact old×new + valid schema reconciles', async () => {
@@ -1009,6 +1010,188 @@ describe('migrateCms encoding-only checksum reconciliation', () => {
     };
     const result = await tracker.runPendingMigrations(pool, {
       registry: [{ name: 'migrateCms', file: './migrate-cms', exportName: 'migrateCms' }],
+      checksumFor: () => NEW,
+    });
+    assert.equal(result.reconciled, 0);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.ran, 0);
+  });
+});
+
+describe('migrateNavigationItems encoding-only checksum reconciliation', () => {
+  const OLD = '75308f0d0c2c5a07242d82b87a432aae2b3da64c042561beff3b0c0dadd2c48e';
+  const NEW = 'b0598767785ed624d0b6787ff64644347725fbdeb04f27928b704ddb0dcfc36d';
+  const THIRD = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+
+  const expectedColumns = [
+    'id', 'public_id', 'location', 'parent_id', 'label', 'url', 'link_type',
+    'target', 'media_public_id', 'sort_order', 'is_visible', 'status',
+    'created_by', 'updated_by', 'created_at', 'updated_at', 'deleted_at',
+  ];
+  const indexNames = [
+    'PRIMARY',
+    'uq_navigation_items_public_id',
+    'idx_navigation_items_location_status',
+    'idx_navigation_items_parent',
+  ];
+  const fkRows = [
+    { CONSTRAINT_NAME: 'fk_navigation_items_parent', REFERENCED_TABLE_NAME: 'navigation_items', REFERENCED_COLUMN_NAME: 'id' },
+    { CONSTRAINT_NAME: 'fk_navigation_items_creator', REFERENCED_TABLE_NAME: 'users', REFERENCED_COLUMN_NAME: 'id' },
+    { CONSTRAINT_NAME: 'fk_navigation_items_updater', REFERENCED_TABLE_NAME: 'users', REFERENCED_COLUMN_NAME: 'id' },
+  ];
+
+  function validSchemaPool(extraQueries = {}) {
+    return {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return extraQueries.executedRows
+            || [[{ name: 'migrateNavigationItems', checksum: OLD, status: 'ok' }], []];
+        }
+        if (/SELECT checksum FROM schema_migrations/.test(sql)) {
+          return extraQueries.checksumRow || [[{ checksum: OLD }], []];
+        }
+        if (/INFORMATION_SCHEMA\.KEY_COLUMN_USAGE[\s\S]*navigation_items/.test(sql)) {
+          return [fkRows, []];
+        }
+        if (/INFORMATION_SCHEMA\.COLUMNS[\s\S]*navigation_items/.test(sql)) {
+          return [expectedColumns.map((c) => ({ COLUMN_NAME: c })), []];
+        }
+        if (/INFORMATION_SCHEMA\.STATISTICS[\s\S]*navigation_items/.test(sql)) {
+          return [indexNames.map((n) => ({ INDEX_NAME: n })), []];
+        }
+        if (/UPDATE schema_migrations SET checksum/.test(sql)) return [{ affectedRows: 1 }, []];
+        throw new Error('Unexpected query: ' + sql.slice(0, 80));
+      },
+    };
+  }
+
+  it('migrateNavigationItems is in the ENCODING_RECONCILE_REGISTRY with old+new checksums', () => {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY.migrateNavigationItems;
+    assert.ok(e);
+    assert.equal(typeof e.verifySchema, 'function');
+    assert.equal(e.oldChecksum, OLD);
+    assert.equal(e.newChecksum, NEW);
+  });
+
+  it('exact old×new + valid schema reconciles', async () => {
+    const result = await tracker.runPendingMigrations(validSchemaPool(), {
+      registry: [{
+        name: 'migrateNavigationItems',
+        file: './migrate-nav-items',
+        exportName: 'migrateNavigationItems',
+      }],
+      checksumFor: () => NEW,
+    });
+    assert.equal(result.reconciled, 1);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.ran, 0);
+  });
+
+  it('wrong old checksum + valid schema fails', async () => {
+    await assert.rejects(
+      () => tracker.runPendingMigrations(validSchemaPool({
+        executedRows: [[{ name: 'migrateNavigationItems', checksum: OLD.replace('75', '85'), status: 'ok' }], []],
+      }), {
+        registry: [{
+          name: 'migrateNavigationItems',
+          file: './migrate-nav-items',
+          exportName: 'migrateNavigationItems',
+        }],
+        checksumFor: () => NEW,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('exact old + unexpected new checksum + VALID schema fails', async () => {
+    await assert.rejects(
+      () => tracker.runPendingMigrations(validSchemaPool(), {
+        registry: [{
+          name: 'migrateNavigationItems',
+          file: './migrate-nav-items',
+          exportName: 'migrateNavigationItems',
+        }],
+        checksumFor: () => THIRD,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('rejects reconciliation when schema is incomplete', async () => {
+    const pool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return [[{ name: 'migrateNavigationItems', checksum: OLD, status: 'ok' }], []];
+        }
+        if (/INFORMATION_SCHEMA\.COLUMNS[\s\S]*navigation_items/.test(sql)) {
+          return [[{ COLUMN_NAME: 'id' }], []];
+        }
+        throw new Error('Unexpected query: ' + sql.slice(0, 80));
+      },
+    };
+    await assert.rejects(
+      () => tracker.runPendingMigrations(pool, {
+        registry: [{
+          name: 'migrateNavigationItems',
+          file: './migrate-nav-items',
+          exportName: 'migrateNavigationItems',
+        }],
+        checksumFor: () => NEW,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('rejects reconciliation when an FK is missing', async () => {
+    const pool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return [[{ name: 'migrateNavigationItems', checksum: OLD, status: 'ok' }], []];
+        }
+        if (/INFORMATION_SCHEMA\.KEY_COLUMN_USAGE[\s\S]*navigation_items/.test(sql)) {
+          return [fkRows.filter((fk) => fk.CONSTRAINT_NAME !== 'fk_navigation_items_parent'), []];
+        }
+        if (/INFORMATION_SCHEMA\.COLUMNS[\s\S]*navigation_items/.test(sql)) {
+          return [expectedColumns.map((c) => ({ COLUMN_NAME: c })), []];
+        }
+        if (/INFORMATION_SCHEMA\.STATISTICS[\s\S]*navigation_items/.test(sql)) {
+          return [indexNames.map((n) => ({ INDEX_NAME: n })), []];
+        }
+        throw new Error('Unexpected query: ' + sql.slice(0, 80));
+      },
+    };
+    await assert.rejects(
+      () => tracker.runPendingMigrations(pool, {
+        registry: [{
+          name: 'migrateNavigationItems',
+          file: './migrate-nav-items',
+          exportName: 'migrateNavigationItems',
+        }],
+        checksumFor: () => NEW,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('subsequent run with exact new checksum already stored follows normal skip', async () => {
+    const pool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return [[{ name: 'migrateNavigationItems', checksum: NEW, status: 'ok' }], []];
+        }
+        throw new Error('Unexpected query');
+      },
+    };
+    const result = await tracker.runPendingMigrations(pool, {
+      registry: [{
+        name: 'migrateNavigationItems',
+        file: './migrate-nav-items',
+        exportName: 'migrateNavigationItems',
+      }],
       checksumFor: () => NEW,
     });
     assert.equal(result.reconciled, 0);

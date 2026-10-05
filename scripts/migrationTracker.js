@@ -52,6 +52,12 @@ const ENCODING_RECONCILE_REGISTRY = {
     reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
     verifySchema: null, // set below after _verifyCmsSchema is defined
   },
+  migrateNavigationItems: {
+    oldChecksum: '75308f0d0c2c5a07242d82b87a432aae2b3da64c042561beff3b0c0dadd2c48e',
+    newChecksum: 'b0598767785ed624d0b6787ff64644347725fbdeb04f27928b704ddb0dcfc36d',
+    reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
+    verifySchema: null, // set below after _verifyNavigationItemsSchema is defined
+  },
 };
 
 const MIGRATION_REGISTRY = [
@@ -359,12 +365,88 @@ async function _verifyCmsSchema(pool) {
   }
 }
 
+async function _verifyNavigationItemsSchema(pool) {
+  // Verify objects from scripts/migrate-nav-items.js:
+  // navigation_items columns, indexes, and FKs.
+  const expectedColumns = [
+    'id', 'public_id', 'location', 'parent_id', 'label', 'url', 'link_type',
+    'target', 'media_public_id', 'sort_order', 'is_visible', 'status',
+    'created_by', 'updated_by', 'created_at', 'updated_at', 'deleted_at',
+  ];
+  const requiredIndexes = [
+    'PRIMARY',
+    'uq_navigation_items_public_id',
+    'idx_navigation_items_location_status',
+    'idx_navigation_items_parent',
+  ];
+  const requiredFks = [
+    { name: 'fk_navigation_items_parent', table: 'navigation_items', column: 'id' },
+    { name: 'fk_navigation_items_creator', table: 'users', column: 'id' },
+    { name: 'fk_navigation_items_updater', table: 'users', column: 'id' },
+  ];
+
+  try {
+    const [cols] = await pool.query(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'navigation_items' ORDER BY ORDINAL_POSITION"
+    );
+    if (!cols.length) {
+      console.warn('[migrate:deploy] navigation_items table is missing.');
+      return false;
+    }
+    const actualColumns = cols.map((c) => c.COLUMN_NAME);
+    const missing = expectedColumns.filter((c) => !actualColumns.includes(c));
+    if (missing.length > 0) {
+      console.warn('[migrate:deploy] navigation_items missing columns: ' + missing.join(', '));
+      return false;
+    }
+
+    const [idx] = await pool.query(
+      "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'navigation_items'"
+    );
+    const indexNames = [...new Set(idx.map((i) => i.INDEX_NAME))];
+    const missingIdx = requiredIndexes.filter((i) => !indexNames.includes(i));
+    if (missingIdx.length > 0) {
+      console.warn('[migrate:deploy] navigation_items missing indexes: ' + missingIdx.join(', '));
+      return false;
+    }
+
+    const [fks] = await pool.query(
+      `SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'navigation_items'
+         AND REFERENCED_TABLE_NAME IS NOT NULL`
+    );
+    for (const required of requiredFks) {
+      const ok = fks.some(
+        (fk) =>
+          fk.CONSTRAINT_NAME === required.name &&
+          fk.REFERENCED_TABLE_NAME === required.table &&
+          fk.REFERENCED_COLUMN_NAME === required.column
+      );
+      if (!ok) {
+        console.warn(
+          `[migrate:deploy] navigation_items missing FK ${required.name} → ${required.table}(${required.column}).`
+        );
+        return false;
+      }
+    }
+
+    console.log('[migrate:deploy] navigation_items schema verified OK.');
+    return true;
+  } catch (err) {
+    console.warn('[migrate:deploy] navigation_items schema verification error: ' + err.message);
+    return false;
+  }
+}
+
 // Link verifySchema functions now that the helpers are defined
 ENCODING_RECONCILE_REGISTRY.migrateTilopay.verifySchema = _verifyTilopaySchema;
 ENCODING_RECONCILE_REGISTRY.migrateCmsHomepageFields.verifySchema = _verifyCmsHomepageFieldsSchema;
 ENCODING_RECONCILE_REGISTRY.migrateUserAddresses.verifySchema = _verifyUserAddressesSchema;
 ENCODING_RECONCILE_REGISTRY.migrateUserProfile.verifySchema = _verifyUserProfileSchema;
 ENCODING_RECONCILE_REGISTRY.migrateCms.verifySchema = _verifyCmsSchema;
+ENCODING_RECONCILE_REGISTRY.migrateNavigationItems.verifySchema = _verifyNavigationItemsSchema;
 
 async function _reconcileChecksum(pool, name, newChecksum, reason) {
   const [rows] = await pool.query(
