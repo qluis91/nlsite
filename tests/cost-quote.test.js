@@ -393,6 +393,93 @@ describe('Migration', () => {
     assert.ok(src.includes('public_token'), 'public_token');
   });
 
+  it('ensureColumn repairs every CREATE TABLE column including client_email, total_crc, created_by', () => {
+    const {
+      COST_QUOTES_REQUIRED_COLUMNS,
+    } = require('../scripts/migrate-cost-quote');
+    const names = COST_QUOTES_REQUIRED_COLUMNS.map(([col]) => col);
+    for (const required of [
+      'product_name', 'payload', 'workflow_status', 'public_token',
+      'client_email', 'client_name', 'total_crc',
+      'linked_order_id', 'pdf_filename', 'workflow_data',
+      'created_by', 'created_at', 'updated_at',
+    ]) {
+      assert.ok(names.includes(required), `must repair ${required}`);
+    }
+  });
+
+  it('repairs an existing legacy cost_quotes table missing required columns', async () => {
+    const {
+      migrate,
+      COST_QUOTES_REQUIRED_COLUMNS,
+    } = require('../scripts/migrate-cost-quote');
+
+    // Simulate a pre-parity table that only has id + timestamps.
+    const present = new Set(['id', 'created_at', 'updated_at']);
+    const alters = [];
+
+    const fakePool = {
+      async query(sql, params) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql)) {
+          const col = params?.[1];
+          return [[{ cnt: present.has(col) ? 1 : 0 }], []];
+        }
+        if (/ALTER TABLE/.test(sql)) {
+          const col = params?.[1];
+          alters.push(col);
+          present.add(col);
+          return [{ affectedRows: 1 }, []];
+        }
+        if (/SELECT catalog_type, COUNT/.test(sql)) {
+          return [[{ catalog_type: 'printer', cnt: 1 }, { catalog_type: 'material', cnt: 1 }], []];
+        }
+        if (/payload IS NULL AND products IS NOT NULL/.test(sql)) return [[], []];
+        throw new Error('Unexpected query: ' + String(sql).slice(0, 80));
+      },
+    };
+
+    await migrate(fakePool);
+
+    // created_at/updated_at were already present; everything else must be added.
+    for (const col of [
+      'product_name', 'payload', 'workflow_status', 'public_token',
+      'client_email', 'client_name', 'total_crc',
+      'linked_order_id', 'pdf_filename', 'workflow_data', 'created_by',
+    ]) {
+      assert.ok(alters.includes(col), `legacy repair must ADD ${col}`);
+      assert.ok(present.has(col), `${col} must exist after repair`);
+    }
+    assert.ok(!alters.includes('created_at'), 'must not recreate existing created_at');
+    assert.ok(!alters.includes('updated_at'), 'must not recreate existing updated_at');
+    assert.equal(
+      alters.length,
+      COST_QUOTES_REQUIRED_COLUMNS.length - 2,
+      'only missing columns are added'
+    );
+  });
+
+  it('second repair pass is idempotent (no ALTER when columns exist)', async () => {
+    const { ensureCostQuotesColumns, COST_QUOTES_REQUIRED_COLUMNS } = require('../scripts/migrate-cost-quote');
+    const present = new Set(COST_QUOTES_REQUIRED_COLUMNS.map(([col]) => col).concat('id'));
+    let alterCount = 0;
+    const fakePool = {
+      async query(sql, params) {
+        if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql)) {
+          return [[{ cnt: present.has(params[1]) ? 1 : 0 }], []];
+        }
+        if (/ALTER TABLE/.test(sql)) {
+          alterCount += 1;
+          return [{ affectedRows: 1 }, []];
+        }
+        throw new Error('Unexpected query');
+      },
+    };
+    const added = await ensureCostQuotesColumns(fakePool);
+    assert.deepEqual(added, []);
+    assert.equal(alterCount, 0);
+  });
+
   it('seeds default printer and material', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../scripts/migrate-cost-quote.js'), 'utf8');
     assert.ok(src.includes("'printer'"), 'seeds printer');
