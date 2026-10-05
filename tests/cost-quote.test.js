@@ -608,10 +608,22 @@ describe('Controller + frontend port wiring', () => {
 
   it('frontend api helper sends CSRF headers', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
-    assert.ok(src.includes('X-CSRF-Token'));
+    assert.ok(src.includes("headers['x-csrf-token']") || src.includes("'x-csrf-token'"));
     assert.ok(src.includes('/api/admin/cost-quotes'));
     assert.ok(src.includes('/api/admin/cost-quote-catalog'));
     assert.ok(src.includes('AdminCostQuote'));
+  });
+
+  it('never sends duplicate case-variant CSRF headers', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
+    assert.equal(src.includes('X-CSRF-Token'), false, 'must not set X-CSRF-Token');
+    const lowerCount = (src.match(/['"]x-csrf-token['"]/g) || []).length;
+    assert.ok(lowerCount >= 1, 'must set x-csrf-token at least once');
+    // No adjacent dual assignment of both casings
+    assert.doesNotMatch(
+      src,
+      /X-CSRF-Token[\s\S]{0,80}x-csrf-token|x-csrf-token[\s\S]{0,80}X-CSRF-Token/
+    );
   });
 
   it('resin filtering remains name-based in frontend', () => {

@@ -291,7 +291,6 @@
       document.querySelector('meta[name="csrf-token"]')?.content ||
       document.querySelector('input[name="_csrf"]')?.value ||
       '';
-    opts.headers['X-CSRF-Token'] = token;
     opts.headers['x-csrf-token'] = token;
     if (opts.body && typeof opts.body === 'object') {
       opts.headers['Content-Type'] = 'application/json';
@@ -2202,7 +2201,6 @@
         method: 'POST',
         credentials: 'include',
         headers: {
-          'X-CSRF-Token': csrfToken,
           'x-csrf-token': csrfToken,
         },
         body: form,
@@ -2333,7 +2331,6 @@
           method: 'POST',
           credentials: 'include',
           headers: {
-            'X-CSRF-Token': csrfToken,
             'x-csrf-token': csrfToken,
           },
           body: form,
