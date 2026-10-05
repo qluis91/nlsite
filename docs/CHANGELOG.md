@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-10-05 — Stabilize Cotización 3D catalog Tab + save API errors
+
+### Fixed
+- Catalog CRUD forms (adicionales/impresoras/materiales) excluded from custom quote Tab navigation so draft values are not wiped by `refresh()`
+- `/api/*` auth, CSRF, and 500 failures return JSON instead of HTML redirects/pages (so the quote UI surfaces the real error)
+
+## 2026-10-05 — Port proven Cotización 3D admin module
+
+### Changed
+- Replaced NLSite Cotización 3D admin UI with proven `ninjalab3dcr@f8070b6` frontend (`AdminCostQuote.mount`), PDF, and CSS
+- Admin API adapters expose `/api/admin/cost-quote-catalog` and `/api/admin/cost-quotes` over MySQL `cost_quote_catalog` / `cost_quotes`
+- Forward migration `migrateCostQuoteVarcharId` converts legacy INT quote ids to VARCHAR(64) and relaxes leftover required columns
+
+## 2026-10-05 — Reconcile user profile migration checksum
+
+### Fixed
+- `migrateUserProfile` encoding/line-ending checksum drift reconciled via strict `ENCODING_RECONCILE_REGISTRY` pair + `users` profile-column verifier (`last_name`, `phone`, `avatar_path`, `password_changed_at`)
+
+## 2026-10-05 — Reconcile user addresses migration and CSP connectSrc
+
+### Fixed
+- CSP `connectSrc` allows `https://cdnjs.cloudflare.com` so jsPDF/html2canvas source maps are not blocked on `/admin/cotizacion-3d`
+- `migrateUserAddresses` encoding/line-ending checksum drift reconciled via strict `ENCODING_RECONCILE_REGISTRY` pair + `user_addresses` schema verifier (columns, indexes, `user_id → users(id)` FK)
+
 ## 2026-07-26 — Phase 13: Safe automatic database migrations
 
 ### Added

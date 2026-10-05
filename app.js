@@ -135,6 +135,7 @@ const helmetConfig = {
         'https://*.google-analytics.com',
         'https://*.analytics.google.com',
         'https://*.googletagmanager.com',
+        'https://cdnjs.cloudflare.com',
       ],
       workerSrc: ["'self'", 'blob:'],
       fontSrc: ["'self'", 'data:'],
@@ -483,7 +484,8 @@ app.use('/admin', isAuthenticated, isAdmin, adminPageRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminPageContentRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminPanelsRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminPublishingRoutes);
-app.use('/admin', isAuthenticated, isAdmin, adminCostQuoteRoutes);
+app.use('/admin', isAuthenticated, isAdmin, adminCostQuoteRoutes.pageRouter);
+app.use('/api/admin', adminCostQuoteRoutes.apiRouter);
 
 // Public Cotización 3D routes (no auth required for client confirmation page)
 const { publicQuote, publicConfirm } = require('./controllers/adminCostQuoteController');
@@ -851,20 +853,30 @@ app.get('/admin/media-diagnostic', isAuthenticated, isAdmin, (req, res, next) =>
   }
 });
 
+function wantsApiJson(req) {
+  const path = String(req.originalUrl || req.path || '');
+  return path.startsWith('/api/');
+}
+
 // ── 404 - Página no encontrada ──
 app.use((req, res) => {
-  if (req.accepts('html')) {
-    return res.status(404).render('pages/404', {
-      title: 'Página no encontrada',
-      layout: 'layouts/main',
-    });
+  if (wantsApiJson(req) || !req.accepts('html')) {
+    return res.status(404).json({ error: 'Not found' });
   }
-  return res.status(404).json({ error: 'Not found' });
+  return res.status(404).render('pages/404', {
+    title: 'Página no encontrada',
+    layout: 'layouts/main',
+  });
 });
 
 // ── 403 - CSRF token inválido ──
 app.use((err, req, res, next) => {
   if (err && err.code === 'EBADCSRFTOKEN') {
+    if (wantsApiJson(req)) {
+      return res.status(403).json({
+        error: 'La solicitud no es válida o ha expirado. Recarga la página e inténtalo nuevamente.',
+      });
+    }
     req.session.error_msg = 'La solicitud no es válida o ha expirado. Recarga la página e inténtalo nuevamente.';
     return res.status(403).render('pages/403', {
       title: 'Solicitud no válida',
@@ -880,19 +892,23 @@ app.use((err, req, res, _next) => {
     ? console.error.bind(console, 'Error del servidor:', err)
     : () => { /* silence in production */ };
   log();
-  if (req.accepts('html')) {
-    return res.status(500).render('pages/500', {
-      title: 'Error del servidor',
-      layout: 'layouts/main',
-      pageAlerts: [{
-        id: 'server-error',
-        type: 'error',
-        title: 'Error del servidor',
-        description: 'No fue posible completar la solicitud. Inténtalo nuevamente.',
-      }],
-    });
+  if (wantsApiJson(req) || !req.accepts('html')) {
+    const message =
+      process.env.NODE_ENV !== 'production' && err && err.message
+        ? String(err.message)
+        : 'Internal server error';
+    return res.status(500).json({ error: message });
   }
-  return res.status(500).json({ error: 'Internal server error' });
+  return res.status(500).render('pages/500', {
+    title: 'Error del servidor',
+    layout: 'layouts/main',
+    pageAlerts: [{
+      id: 'server-error',
+      type: 'error',
+      title: 'Error del servidor',
+      description: 'No fue posible completar la solicitud. Inténtalo nuevamente.',
+    }],
+  });
 });
 
 // ── Startup: 1) session store, 2) primary DB, 3) listen ──

@@ -358,14 +358,36 @@ describe('Security', () => {
     assert.ok(src.includes('csrfSynchronisedProtection'), 'must include CSRF');
   });
 
-  it('public route has token-based access', () => {
+  it('proven API contract paths are exported', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../routes/adminCostQuoteRoutes.js'), 'utf8');
-    assert.ok(src.includes('/pago/:token'), 'has public token route');
+    assert.ok(src.includes('/cost-quote-catalog'), 'catalog path');
+    assert.ok(src.includes('/cost-quotes'), 'quotes path');
+    assert.ok(src.includes('apiRouter'), 'api router export');
   });
 
   it('public route mounted outside admin auth in app.js', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../app.js'), 'utf8');
     assert.ok(src.includes('cotizacion-3d/pago/:token'), 'public route in app.js');
+    assert.ok(src.includes("app.use('/api/admin'"), 'api mount in app.js');
+  });
+
+  it('CSRF accepts header tokens for JSON APIs', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../config/csrf.js'), 'utf8');
+    assert.ok(src.includes("x-csrf-token"), 'reads x-csrf-token header');
+  });
+
+  it('API CSRF/500 failures return JSON for /api/ paths', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../app.js'), 'utf8');
+    assert.ok(src.includes('wantsApiJson'), 'api json helper');
+    assert.ok(src.includes("path.startsWith('/api/')"), 'scopes to /api/');
+    assert.match(src, /EBADCSRFTOKEN[\s\S]*wantsApiJson[\s\S]*\.json\(/);
+  });
+
+  it('API auth failures return JSON instead of HTML redirects', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../middlewares/authMiddleware.js'), 'utf8');
+    assert.ok(src.includes("startsWith('/api/')"));
+    assert.ok(src.includes('status(401).json'));
+    assert.ok(src.includes('status(403).json'));
   });
 });
 
@@ -393,6 +415,93 @@ describe('Migration', () => {
     assert.ok(src.includes('public_token'), 'public_token');
   });
 
+  it('ensureColumn repairs every CREATE TABLE column including client_email, total_crc, created_by', () => {
+    const {
+      COST_QUOTES_REQUIRED_COLUMNS,
+    } = require('../scripts/migrate-cost-quote');
+    const names = COST_QUOTES_REQUIRED_COLUMNS.map(([col]) => col);
+    for (const required of [
+      'product_name', 'payload', 'workflow_status', 'public_token',
+      'client_email', 'client_name', 'total_crc',
+      'linked_order_id', 'pdf_filename', 'workflow_data',
+      'created_by', 'created_at', 'updated_at',
+    ]) {
+      assert.ok(names.includes(required), `must repair ${required}`);
+    }
+  });
+
+  it('repairs an existing legacy cost_quotes table missing required columns', async () => {
+    const {
+      migrate,
+      COST_QUOTES_REQUIRED_COLUMNS,
+    } = require('../scripts/migrate-cost-quote');
+
+    // Simulate a pre-parity table that only has id + timestamps.
+    const present = new Set(['id', 'created_at', 'updated_at']);
+    const alters = [];
+
+    const fakePool = {
+      async query(sql, params) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql)) {
+          const col = params?.[1];
+          return [[{ cnt: present.has(col) ? 1 : 0 }], []];
+        }
+        if (/ALTER TABLE/.test(sql)) {
+          const col = params?.[1];
+          alters.push(col);
+          present.add(col);
+          return [{ affectedRows: 1 }, []];
+        }
+        if (/SELECT catalog_type, COUNT/.test(sql)) {
+          return [[{ catalog_type: 'printer', cnt: 1 }, { catalog_type: 'material', cnt: 1 }], []];
+        }
+        if (/payload IS NULL AND products IS NOT NULL/.test(sql)) return [[], []];
+        throw new Error('Unexpected query: ' + String(sql).slice(0, 80));
+      },
+    };
+
+    await migrate(fakePool);
+
+    // created_at/updated_at were already present; everything else must be added.
+    for (const col of [
+      'product_name', 'payload', 'workflow_status', 'public_token',
+      'client_email', 'client_name', 'total_crc',
+      'linked_order_id', 'pdf_filename', 'workflow_data', 'created_by',
+    ]) {
+      assert.ok(alters.includes(col), `legacy repair must ADD ${col}`);
+      assert.ok(present.has(col), `${col} must exist after repair`);
+    }
+    assert.ok(!alters.includes('created_at'), 'must not recreate existing created_at');
+    assert.ok(!alters.includes('updated_at'), 'must not recreate existing updated_at');
+    assert.equal(
+      alters.length,
+      COST_QUOTES_REQUIRED_COLUMNS.length - 2,
+      'only missing columns are added'
+    );
+  });
+
+  it('second repair pass is idempotent (no ALTER when columns exist)', async () => {
+    const { ensureCostQuotesColumns, COST_QUOTES_REQUIRED_COLUMNS } = require('../scripts/migrate-cost-quote');
+    const present = new Set(COST_QUOTES_REQUIRED_COLUMNS.map(([col]) => col).concat('id'));
+    let alterCount = 0;
+    const fakePool = {
+      async query(sql, params) {
+        if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql)) {
+          return [[{ cnt: present.has(params[1]) ? 1 : 0 }], []];
+        }
+        if (/ALTER TABLE/.test(sql)) {
+          alterCount += 1;
+          return [{ affectedRows: 1 }, []];
+        }
+        throw new Error('Unexpected query');
+      },
+    };
+    const added = await ensureCostQuotesColumns(fakePool);
+    assert.deepEqual(added, []);
+    assert.equal(alterCount, 0);
+  });
+
   it('seeds default printer and material', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../scripts/migrate-cost-quote.js'), 'utf8');
     assert.ok(src.includes("'printer'"), 'seeds printer');
@@ -400,46 +509,323 @@ describe('Migration', () => {
   });
 });
 
+
 // ───────────────────────────────────────────────────────
-// 8. Controller validation
+// 8. Catalog + quote store contracts (ported API shapes)
 // ───────────────────────────────────────────────────────
-describe('Controller validation', () => {
-  it('validates product name on create', () => {
-    const src = fs.readFileSync(path.resolve(__dirname, '../controllers/adminCostQuoteController.js'), 'utf8');
-    assert.ok(src.includes('Indicá el nombre del producto'), 'validates name');
+describe('Catalog store shapes', () => {
+  const catalogStore = require('../services/costQuoteCatalogStore');
+
+  it('normalizePrinter/material/additional return source shapes', () => {
+    assert.deepEqual(
+      catalogStore.normalizePrinter({ id: '1', name: 'X', hourRate: 300.4 }),
+      { id: '1', name: 'X', hourRate: 300 }
+    );
+    assert.deepEqual(
+      catalogStore.normalizeMaterial({ id: '2', name: 'PLA', kgPrice: 20500.4 }),
+      { id: '2', name: 'PLA', kgPrice: 20500 }
+    );
+    assert.deepEqual(
+      catalogStore.normalizeAdditional({ id: '3', description: 'Lija', price: 500.2 }),
+      { id: '3', description: 'Lija', price: 500 }
+    );
+  });
+
+  it('prevents deleting last printer/material', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../services/costQuoteCatalogStore.js'), 'utf8');
+    assert.ok(src.includes('Debe quedar al menos una impresora.'));
+    assert.ok(src.includes('Debe quedar al menos un material.'));
+  });
+
+  it('upsertPrinter updates by id instead of always inserting', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../services/costQuoteCatalogStore.js'), 'utf8');
+    assert.ok(src.includes('editId'));
+    assert.ok(src.includes("catalog_type = 'printer'"));
+    assert.ok(src.includes('UPDATE cost_quote_catalog'));
+  });
+});
+
+describe('Quote store contracts', () => {
+  const quoteStore = require('../services/costQuoteStore');
+
+  it('buildPayload preserves complete snapshot fields', () => {
+    const payload = quoteStore.buildPayload(
+      {
+        costs: { hourRate: 300, kgPrice: 20500 },
+        discounts: { range10_50: 5 },
+        discountRanges: { range10_50: { min: 10, max: 50 } },
+        products: [{ name: 'Casco', quantity: 2, grams: 100, printHours: 1 }],
+        alexPercent: 50,
+        globalDiscount: { enabled: true, percent: 10 },
+        scenarioQty: { a: 10 },
+        wholesaleMode: true,
+        export: { clientName: 'Ana', clientEmail: 'a@b.com' },
+      },
+      'Casco'
+    );
+    assert.equal(payload.products[0].name, 'Casco');
+    assert.equal(payload.product.name, 'Casco');
+    assert.equal(payload.alexPercent, 50);
+    assert.equal(payload.wholesaleMode, true);
+    assert.equal(payload.export.clientEmail, 'a@b.com');
+    assert.equal(payload.globalDiscount.percent, 10);
   });
 
   it('blocks approved quote edits', () => {
-    const src = fs.readFileSync(path.resolve(__dirname, '../controllers/adminCostQuoteController.js'), 'utf8');
-    assert.ok(src.includes('aprobada'), 'checks approved');
-    assert.ok(src.includes('no se puede editar'), 'approval error');
+    const src = fs.readFileSync(path.resolve(__dirname, '../services/costQuoteStore.js'), 'utf8');
+    assert.ok(src.includes("workflowStatus === 'aprobada'"));
+    assert.ok(src.includes('no se puede editar'));
   });
 
-  it('prevents last catalog item deletion', () => {
-    const src = fs.readFileSync(path.resolve(__dirname, '../controllers/adminCostQuoteController.js'), 'utf8');
-    assert.ok(src.includes('cnt <= 1'), 'minimum count check');
+  it('save existing quote reuses id option', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../services/costQuoteStore.js'), 'utf8');
+    assert.ok(src.includes('existingId'));
+    assert.ok(src.includes('opts.id'));
   });
+});
 
+describe('Controller + frontend port wiring', () => {
   it('has publicQuote and publicConfirm handlers', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../controllers/adminCostQuoteController.js'), 'utf8');
-    assert.ok(src.includes('publicQuote'), 'public quote handler');
-    assert.ok(src.includes('publicConfirm'), 'public confirm handler');
+    assert.ok(src.includes('publicQuote'));
+    assert.ok(src.includes('publicConfirm'));
   });
 
-  it('has sendEmail and pdfData endpoints', () => {
+  it('loads proven scripts in pageScripts order', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../controllers/adminCostQuoteController.js'), 'utf8');
-    assert.ok(src.includes('sendEmail'), 'email handler');
-    assert.ok(src.includes('pdfData'), 'pdf handler');
+    assert.ok(src.includes('admin-cost-quote-pdf.js'));
+    assert.ok(src.includes('admin-cost-quote.js'));
+    assert.ok(src.includes('admin-cost-quote-boot.js'));
+    assert.ok(src.includes('tilopay-fees.js'));
   });
 
-  it('has setWorkflowStatus handler', () => {
-    const src = fs.readFileSync(path.resolve(__dirname, '../controllers/adminCostQuoteController.js'), 'utf8');
-    assert.ok(src.includes('setWorkflowStatus'), 'workflow handler');
+  it('thin mount page targets admin-cost-quote-app', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../views/pages/admin/cost-quote.ejs'), 'utf8');
+    assert.ok(src.includes('id="admin-cost-quote-app"'));
+    assert.ok(src.includes('csrf-token'));
+    assert.doesNotMatch(src, /data-catalog=/);
   });
 
-  it('uses snapshot-based save/load', () => {
-    const src = fs.readFileSync(path.resolve(__dirname, '../controllers/adminCostQuoteController.js'), 'utf8');
-    assert.ok(src.includes('snapshot'), 'snapshot param');
-    assert.ok(src.includes('payload'), 'payload field');
+  it('frontend api helper sends CSRF headers', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
+    assert.ok(src.includes("headers['x-csrf-token']") || src.includes("'x-csrf-token'"));
+    assert.ok(src.includes('/api/admin/cost-quotes'));
+    assert.ok(src.includes('/api/admin/cost-quote-catalog'));
+    assert.ok(src.includes('AdminCostQuote'));
   });
+
+  it('never sends duplicate case-variant CSRF headers', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
+    assert.equal(src.includes('X-CSRF-Token'), false, 'must not set X-CSRF-Token');
+    const lowerCount = (src.match(/['"]x-csrf-token['"]/g) || []).length;
+    assert.ok(lowerCount >= 1, 'must set x-csrf-token at least once');
+    // No adjacent dual assignment of both casings
+    assert.doesNotMatch(
+      src,
+      /X-CSRF-Token[\s\S]{0,80}x-csrf-token|x-csrf-token[\s\S]{0,80}X-CSRF-Token/
+    );
+  });
+
+  it('resin filtering remains name-based in frontend', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
+    assert.ok(src.includes('isResinaName'));
+    assert.ok(src.includes('resina'));
+  });
+
+  it('custom Tab navigation excludes catalog CRUD form fields', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
+    const tabFn = src.slice(src.indexOf('function getTabOrder'), src.indexOf('function focusFieldById'));
+    assert.ok(tabFn.includes('cq-catalog-form'), 'excludes catalog form');
+    assert.ok(tabFn.includes('cq-catalog-panel'), 'excludes catalog panel');
+    assert.ok(tabFn.includes('closest('), 'uses closest exclusion');
+    assert.match(tabFn, /cq-catalog-form[\s\S]*return false/);
+  });
+});
+
+describe('Integration catalog/quote round-trip', () => {
+  const catalogStore = require('../services/costQuoteCatalogStore');
+  const quoteStore = require('../services/costQuoteStore');
+
+  it('printer CRUD updates same record and enforces last-item rule', async () => {
+    const created = await catalogStore.upsertPrinter({ name: 'Test Printer Port', hourRate: 350 });
+    assert.equal(created.ok, true);
+    assert.ok(created.item.id);
+    assert.equal(created.item.hourRate, 350);
+
+    const updated = await catalogStore.upsertPrinter({
+      id: created.item.id,
+      name: 'Test Printer Port Edited',
+      hourRate: 400,
+    });
+    assert.equal(updated.ok, true);
+    assert.equal(updated.item.id, String(created.item.id));
+    assert.equal(updated.item.hourRate, 400);
+    assert.equal(updated.catalog.printers.filter((p) => p.id === String(created.item.id)).length, 1);
+
+    const deleted = await catalogStore.deletePrinter(created.item.id);
+    assert.equal(deleted.ok, true);
+  });
+
+  it('material CRUD updates same record', async () => {
+    const created = await catalogStore.upsertMaterial({ name: 'Test Material Port', kgPrice: 21000 });
+    assert.equal(created.ok, true);
+    const updated = await catalogStore.upsertMaterial({
+      id: created.item.id,
+      name: 'Test Material Port Edited',
+      kgPrice: 22000,
+    });
+    assert.equal(updated.item.id, String(created.item.id));
+    assert.equal(updated.item.kgPrice, 22000);
+    await catalogStore.deleteMaterial(created.item.id);
+  });
+
+  it('additional CRUD works', async () => {
+    const created = await catalogStore.upsertAdditional({ description: 'Lijado test', price: 750 });
+    assert.equal(created.ok, true);
+    assert.equal(created.item.description, 'Lijado test');
+    const updated = await catalogStore.upsertAdditional({
+      id: created.item.id,
+      description: 'Lijado test 2',
+      price: 800,
+    });
+    assert.equal(updated.item.id, String(created.item.id));
+    assert.equal(updated.item.price, 800);
+    await catalogStore.deleteAdditional(created.item.id);
+  });
+
+  it('quote create/update/load/delete preserves full snapshot and ids', async () => {
+    const catalog = await catalogStore.getCatalog();
+    const printer = catalog.printers[0];
+    const material = catalog.materials[0];
+    assert.ok(printer && material, 'catalog must have defaults');
+
+    const snapshot = {
+      costs: {
+        hourRate: printer.hourRate,
+        kgPrice: material.kgPrice,
+        profitPercent: 100,
+        designCost: 0,
+        printerId: String(printer.id),
+        materialId: String(material.id),
+      },
+      discounts: { range10_50: 5, range50_100: 10, range100plus: 15 },
+      discountRanges: {
+        range10_50: { min: 10, max: 50 },
+        range50_100: { min: 50, max: 100 },
+        range100plus: { min: 100, max: null },
+      },
+      products: [
+        {
+          id: 'p1',
+          name: 'Producto A',
+          quantity: 2,
+          grams: 100,
+          printHours: 1,
+          additionals: [{ description: 'Extra', price: 200, showOnInvoice: true }],
+        },
+        { id: 'p2', name: 'Producto B', quantity: 1, grams: 50, printHours: 0.5, additionals: [] },
+      ],
+      alexPercent: 60,
+      globalDiscount: { enabled: false, percent: 0 },
+      scenarioQty: {},
+      wholesaleMode: false,
+      export: { clientName: 'Cliente Test', clientEmail: 'cliente@test.com' },
+    };
+
+    const created = await quoteStore.saveCostQuote(snapshot, 'Producto A +1 más', {
+      clientEmail: 'cliente@test.com',
+      clientName: 'Cliente Test',
+    });
+    assert.equal(created.ok, true);
+    assert.ok(created.id);
+
+    const loaded = await quoteStore.getCostQuoteRecord(created.id);
+    assert.equal(loaded.payload.costs.printerId, String(printer.id));
+    assert.equal(loaded.payload.costs.materialId, String(material.id));
+    assert.equal(loaded.payload.products.length, 2);
+    assert.equal(loaded.payload.alexPercent, 60);
+
+    const updated = await quoteStore.saveCostQuote(
+      {
+        ...snapshot,
+        products: [{ ...snapshot.products[0], name: 'Producto A Editado' }],
+      },
+      'Producto A Editado',
+      { id: created.id, clientEmail: 'cliente@test.com', clientName: 'Cliente Test' }
+    );
+    assert.equal(updated.ok, true);
+    assert.equal(updated.id, created.id);
+
+    const reloaded = await quoteStore.getCostQuoteRecord(created.id);
+    assert.equal(reloaded.productName, 'Producto A Editado');
+    assert.equal(reloaded.payload.products[0].name, 'Producto A Editado');
+
+    await quoteStore.setWorkflowStatus(created.id, 'aprobada', { approvedAt: Date.now() });
+    const blocked = await quoteStore.saveCostQuote(snapshot, 'X', { id: created.id });
+    assert.equal(blocked.ok, false);
+    assert.match(blocked.error, /aprobada/);
+
+    await quoteStore.setWorkflowStatus(created.id, 'pendiente', {});
+    const del = await quoteStore.deleteCostQuote(created.id);
+    assert.equal(del.ok, true);
+  });
+});
+
+describe('Cost quote varchar-id migration', () => {
+  it('is registered after migrateCostQuote', () => {
+    const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
+    const names = MIGRATION_REGISTRY.map((e) => e.name);
+    const iCost = names.indexOf('migrateCostQuote');
+    const iFix = names.indexOf('migrateCostQuoteVarcharId');
+    assert.ok(iCost >= 0);
+    assert.ok(iFix > iCost);
+  });
+
+  it('converts int id and relaxes legacy required columns', async () => {
+    const { migrateCostQuoteVarcharId } = require('../scripts/migrate-cost-quote-varchar-id');
+    const present = new Map([
+      ['id', { DATA_TYPE: 'int', IS_NULLABLE: 'NO', COLUMN_DEFAULT: null, EXTRA: 'auto_increment' }],
+      ['title', { DATA_TYPE: 'varchar', IS_NULLABLE: 'NO', COLUMN_DEFAULT: null, EXTRA: '' }],
+      ['products', { DATA_TYPE: 'longtext', IS_NULLABLE: 'NO', COLUMN_DEFAULT: null, EXTRA: '' }],
+    ]);
+    // Pretend payload-era columns already exist so ensureCostQuotesColumns is a no-op.
+    for (const col of [
+      'product_name', 'payload', 'workflow_status', 'public_token', 'client_email', 'client_name',
+      'total_crc', 'linked_order_id', 'pdf_filename', 'workflow_data', 'created_by', 'created_at', 'updated_at',
+    ]) {
+      present.set(col, { DATA_TYPE: 'varchar', IS_NULLABLE: 'YES', COLUMN_DEFAULT: null, EXTRA: '' });
+    }
+    const alters = [];
+    const fakePool = {
+      async query(sql, params) {
+        if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql) && /COUNT\(\*\)/.test(sql)) {
+          const col = params?.[1];
+          return [[{ cnt: present.has(col) ? 1 : 0 }], []];
+        }
+        if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql)) {
+          const col = params?.[1];
+          const meta = present.get(col);
+          return [meta ? [Object.assign({ COLUMN_NAME: col, COLUMN_TYPE: meta.DATA_TYPE }, meta)] : [], []];
+        }
+        if (/INFORMATION_SCHEMA\.STATISTICS/.test(sql)) return [[{ cnt: 1 }], []];
+        if (/ALTER TABLE/.test(sql)) {
+          alters.push(String(sql));
+          return [{ affectedRows: 1 }, []];
+        }
+        throw new Error('Unexpected: ' + String(sql).slice(0, 100));
+      },
+    };
+    await migrateCostQuoteVarcharId(fakePool);
+    assert.ok(alters.some((s) => /id VARCHAR\(64\)/i.test(s)));
+    assert.ok(alters.some((s) => /title VARCHAR\(200\).*DEFAULT ''/i.test(s)));
+    assert.ok(alters.some((s) => /products LONGTEXT NULL/i.test(s)));
+  });
+});
+
+const pool = require('../config/db');
+const { after } = require('node:test');
+after(async () => {
+  try {
+    await pool.end();
+  } catch (_) {}
 });

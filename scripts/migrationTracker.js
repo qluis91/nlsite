@@ -4,6 +4,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { buildHistoricalReconcileEntries } = require('./migrationSchemaContracts');
 
 const LOCK_TIMEOUT_SEC = 30;
 const LOCK_NAME = 'migrate_deploy';
@@ -13,17 +14,21 @@ const LOCK_NAME = 'migrate_deploy';
 // any logic or SQL change, the checksum drifts. Reconciliation is ONLY
 // permitted when:
 //
-//   1. stored.checksum === exact oldChecksum (proves it's the encoding change)
-//   2. currentChecksum === exact newChecksum (proves it's the UTF-8 version)
+//   1. stored.checksum === exact oldChecksum (or an alternateOldChecksum)
+//   2. currentChecksum === exact newChecksum (proves it's the known version)
 //   3. Schema verification passes (proves DB state matches migration result)
 //
 // A future edit producing a third checksum MUST fail — even with a valid schema.
 //
-// Each entry: { oldChecksum, newChecksum, reason, verifySchema(pool) }
+// Each entry: { oldChecksum, newChecksum, reason, verifySchema(pool), alternateOldChecksums? }
 
 const ENCODING_RECONCILE_REGISTRY = {
   migrateTilopay: {
     oldChecksum: 'b34806e579a927ebfced8a493115d3f6f0542bf06f26bc1090756a2882771c87',
+    // Pre-normalization Windows CRLF hash of the same original bytes as oldChecksum.
+    alternateOldChecksums: [
+      '5fc05007fbc83ef9de91c7315b646d4dc2b21a887624926980f29afa788c37f8',
+    ],
     newChecksum: '164b20c89dbb60d53d0bca3f8c2fa70edb30c6ecf49575b6ea289a88439c40bb',
     reason: 'UTF-16 LE → UTF-8 re-encode (no logic or SQL change)',
     verifySchema: null, // set below after _verifyTilopaySchema is defined
@@ -34,6 +39,31 @@ const ENCODING_RECONCILE_REGISTRY = {
     reason: 'social seed URL edit after execution (schema unchanged)',
     verifySchema: null, // set below after _verifyCmsHomepageFieldsSchema is defined
   },
+  migrateUserAddresses: {
+    oldChecksum: '2a7cac71e27ede34ef11b395644eb6dd2a2d7592667b0617e8b8a0bc549517e4',
+    newChecksum: '98250dd561e29acc944a360e3a2c7150eb67282ed822b8b13fe3eb21e5acc2b3',
+    reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
+    verifySchema: null, // set below after _verifyUserAddressesSchema is defined
+  },
+  migrateUserProfile: {
+    oldChecksum: '70787565a4d77438fb9ff12234edad50c95d1230854dd2923b96f570f263b344',
+    newChecksum: '15c2f21bd3b28c27832f8889a46365dfc89e2affc34620c9790209dfdf48bcbf',
+    reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
+    verifySchema: null, // set below after _verifyUserProfileSchema is defined
+  },
+  migrateCms: {
+    oldChecksum: '2ef57e9cae09dc784ba1efdcd6f3ba4776e15f4fb1b3ac93873d17f9faae6c9a',
+    newChecksum: '08fe0a407d6df4f2b6d18e42b46340b65094a2b1691101bf01b42652a8d846a3',
+    reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
+    verifySchema: null, // set below after _verifyCmsSchema is defined
+  },
+  migrateNavigationItems: {
+    oldChecksum: '75308f0d0c2c5a07242d82b87a432aae2b3da64c042561beff3b0c0dadd2c48e',
+    newChecksum: 'b0598767785ed624d0b6787ff64644347725fbdeb04f27928b704ddb0dcfc36d',
+    reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
+    verifySchema: null, // set below after _verifyNavigationItemsSchema is defined
+  },
+  ...buildHistoricalReconcileEntries(),
 };
 
 const MIGRATION_REGISTRY = [
@@ -65,6 +95,7 @@ const MIGRATION_REGISTRY = [
   { name: 'migrateCmsPhase1aSaveRepair', file: './migrate-cms-phase1a-save-repair', exportName: 'migrateCmsPhase1aSaveRepair' },
   { name: 'migrateRevisionSourceId', file: './migrate-revision-source-id', exportName: 'migrate', passPool: true },
   { name: 'migrateStoreHeroCms', file: './migrate-store-hero-cms', exportName: 'migrateStoreHeroCms', passPool: true },
+  { name: 'migrateStoreHeroSectionRepair', file: './migrate-store-hero-section-repair', exportName: 'migrateStoreHeroSectionRepair' },
   { name: 'migrateCategoryStoreHero', file: './migrate-category-store-hero', exportName: 'migrateCategoryStoreHero', passPool: true, capability: 'catalog' },
   { name: 'migrateAboutPageCms', file: './migrate-about-page-cms', exportName: 'migrateAboutPageCms', passPool: true },
   { name: 'migrateSocialFeed', file: './migrate-social-feed', exportName: 'migrateSocialFeed', passPool: true },
@@ -80,6 +111,12 @@ const MIGRATION_REGISTRY = [
   { name: 'migrateSocialPostsProviderThumbnail', file: './migrate-social-posts-provider-thumbnail', exportName: 'migrateSocialPostsProviderThumbnail', passPool: true },
   { name: 'migrateCarouselImagePosition', file: './migrate-carousel-image-position', exportName: 'migrateCarouselImagePosition', passPool: true },
   { name: 'migrateCostQuote', file: './migrate-cost-quote', exportName: 'migrate' },
+  {
+    name: 'migrateCostQuoteVarcharId',
+    file: './migrate-cost-quote-varchar-id',
+    exportName: 'migrateCostQuoteVarcharId',
+    passPool: true,
+  },
 ];
 
 async function ensureMigrationsTable(pool) {
@@ -99,7 +136,8 @@ async function ensureMigrationsTable(pool) {
 }
 
 function computeChecksum(filePath) {
-  const content = fs.readFileSync(filePath, 'utf-8');
+  // Normalize CRLF / lone CR to LF so Windows autocrlf checkouts match Git LF blobs.
+  const content = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   return crypto.createHash('sha256').update(content).digest('hex');
 }
 
@@ -198,9 +236,230 @@ async function _verifyCmsHomepageFieldsSchema(pool) {
   }
 }
 
+async function _verifyUserAddressesSchema(pool) {
+  // Verify objects created by scripts/migrate-user-addresses.js:
+  // user_addresses columns, indexes, and user_id → users(id) FK.
+  const expectedColumns = [
+    'id', 'user_id', 'label', 'province', 'canton', 'district',
+    'address_line', 'address_reference', 'contact_phone', 'is_default',
+    'created_at', 'updated_at',
+  ];
+  const requiredIndexes = [
+    'PRIMARY',
+    'idx_user_addresses_user',
+    'idx_user_addresses_user_default',
+  ];
+
+  try {
+    const [cols] = await pool.query(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_addresses' ORDER BY ORDINAL_POSITION"
+    );
+    if (!cols.length) {
+      console.warn('[migrate:deploy] user_addresses table is missing.');
+      return false;
+    }
+    const actualColumns = cols.map((c) => c.COLUMN_NAME);
+    const missing = expectedColumns.filter((c) => !actualColumns.includes(c));
+    if (missing.length > 0) {
+      console.warn('[migrate:deploy] user_addresses missing columns: ' + missing.join(', '));
+      return false;
+    }
+
+    const [idx] = await pool.query(
+      "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_addresses'"
+    );
+    const indexNames = [...new Set(idx.map((i) => i.INDEX_NAME))];
+    const missingIdx = requiredIndexes.filter((i) => !indexNames.includes(i));
+    if (missingIdx.length > 0) {
+      console.warn('[migrate:deploy] user_addresses missing indexes: ' + missingIdx.join(', '));
+      return false;
+    }
+
+    const [fks] = await pool.query(
+      `SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'user_addresses'
+         AND COLUMN_NAME = 'user_id'
+         AND REFERENCED_TABLE_NAME IS NOT NULL`
+    );
+    const hasFk = fks.some(
+      (fk) =>
+        fk.CONSTRAINT_NAME === 'fk_user_addresses_user' &&
+        fk.REFERENCED_TABLE_NAME === 'users' &&
+        fk.REFERENCED_COLUMN_NAME === 'id'
+    );
+    if (!hasFk) {
+      console.warn('[migrate:deploy] user_addresses missing FK fk_user_addresses_user → users(id).');
+      return false;
+    }
+
+    console.log('[migrate:deploy] user_addresses schema verified OK.');
+    return true;
+  } catch (err) {
+    console.warn('[migrate:deploy] user_addresses schema verification error: ' + err.message);
+    return false;
+  }
+}
+
+async function _verifyUserProfileSchema(pool) {
+  // Verify additive profile columns from scripts/migrate-user-profile.js.
+  const requiredColumns = ['last_name', 'phone', 'avatar_path', 'password_changed_at'];
+
+  try {
+    const [cols] = await pool.query(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'"
+    );
+    if (!cols.length) {
+      console.warn('[migrate:deploy] users table is missing.');
+      return false;
+    }
+    const actual = new Set(cols.map((c) => c.COLUMN_NAME));
+    const missing = requiredColumns.filter((c) => !actual.has(c));
+    if (missing.length > 0) {
+      console.warn('[migrate:deploy] users missing profile columns: ' + missing.join(', '));
+      return false;
+    }
+
+    console.log('[migrate:deploy] users profile schema verified OK.');
+    return true;
+  } catch (err) {
+    console.warn('[migrate:deploy] users profile schema verification error: ' + err.message);
+    return false;
+  }
+}
+
+async function _verifyCmsSchema(pool) {
+  // Verify Phase 11A objects from scripts/migrate-cms.js:
+  // core CMS tables + additive site_settings columns.
+  const requiredTables = [
+    'media_assets',
+    'pages',
+    'page_sections',
+    'site_settings',
+    'content_revisions',
+  ];
+  const siteSettingsColumns = [
+    'value_type',
+    'setting_group',
+    'is_public',
+    'updated_by',
+    'created_at',
+  ];
+
+  try {
+    for (const table of requiredTables) {
+      const [rows] = await pool.query(
+        "SELECT 1 AS ok FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1",
+        [table]
+      );
+      if (!rows.length) {
+        console.warn(`[migrate:deploy] Phase 11A table missing: ${table}`);
+        return false;
+      }
+    }
+
+    for (const column of siteSettingsColumns) {
+      const [rows] = await pool.query(
+        "SELECT 1 AS ok FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'site_settings' AND COLUMN_NAME = ? LIMIT 1",
+        [column]
+      );
+      if (!rows.length) {
+        console.warn(`[migrate:deploy] site_settings.${column} is missing.`);
+        return false;
+      }
+    }
+
+    console.log('[migrate:deploy] Phase 11A CMS schema verified OK.');
+    return true;
+  } catch (err) {
+    console.warn('[migrate:deploy] Phase 11A CMS schema verification error: ' + err.message);
+    return false;
+  }
+}
+
+async function _verifyNavigationItemsSchema(pool) {
+  // Verify objects from scripts/migrate-nav-items.js:
+  // navigation_items columns, indexes, and FKs.
+  const expectedColumns = [
+    'id', 'public_id', 'location', 'parent_id', 'label', 'url', 'link_type',
+    'target', 'media_public_id', 'sort_order', 'is_visible', 'status',
+    'created_by', 'updated_by', 'created_at', 'updated_at', 'deleted_at',
+  ];
+  const requiredIndexes = [
+    'PRIMARY',
+    'uq_navigation_items_public_id',
+    'idx_navigation_items_location_status',
+    'idx_navigation_items_parent',
+  ];
+  const requiredFks = [
+    { name: 'fk_navigation_items_parent', table: 'navigation_items', column: 'id' },
+    { name: 'fk_navigation_items_creator', table: 'users', column: 'id' },
+    { name: 'fk_navigation_items_updater', table: 'users', column: 'id' },
+  ];
+
+  try {
+    const [cols] = await pool.query(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'navigation_items' ORDER BY ORDINAL_POSITION"
+    );
+    if (!cols.length) {
+      console.warn('[migrate:deploy] navigation_items table is missing.');
+      return false;
+    }
+    const actualColumns = cols.map((c) => c.COLUMN_NAME);
+    const missing = expectedColumns.filter((c) => !actualColumns.includes(c));
+    if (missing.length > 0) {
+      console.warn('[migrate:deploy] navigation_items missing columns: ' + missing.join(', '));
+      return false;
+    }
+
+    const [idx] = await pool.query(
+      "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'navigation_items'"
+    );
+    const indexNames = [...new Set(idx.map((i) => i.INDEX_NAME))];
+    const missingIdx = requiredIndexes.filter((i) => !indexNames.includes(i));
+    if (missingIdx.length > 0) {
+      console.warn('[migrate:deploy] navigation_items missing indexes: ' + missingIdx.join(', '));
+      return false;
+    }
+
+    const [fks] = await pool.query(
+      `SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'navigation_items'
+         AND REFERENCED_TABLE_NAME IS NOT NULL`
+    );
+    for (const required of requiredFks) {
+      const ok = fks.some(
+        (fk) =>
+          fk.CONSTRAINT_NAME === required.name &&
+          fk.REFERENCED_TABLE_NAME === required.table &&
+          fk.REFERENCED_COLUMN_NAME === required.column
+      );
+      if (!ok) {
+        console.warn(
+          `[migrate:deploy] navigation_items missing FK ${required.name} → ${required.table}(${required.column}).`
+        );
+        return false;
+      }
+    }
+
+    console.log('[migrate:deploy] navigation_items schema verified OK.');
+    return true;
+  } catch (err) {
+    console.warn('[migrate:deploy] navigation_items schema verification error: ' + err.message);
+    return false;
+  }
+}
+
 // Link verifySchema functions now that the helpers are defined
 ENCODING_RECONCILE_REGISTRY.migrateTilopay.verifySchema = _verifyTilopaySchema;
 ENCODING_RECONCILE_REGISTRY.migrateCmsHomepageFields.verifySchema = _verifyCmsHomepageFieldsSchema;
+ENCODING_RECONCILE_REGISTRY.migrateUserAddresses.verifySchema = _verifyUserAddressesSchema;
+ENCODING_RECONCILE_REGISTRY.migrateUserProfile.verifySchema = _verifyUserProfileSchema;
+ENCODING_RECONCILE_REGISTRY.migrateCms.verifySchema = _verifyCmsSchema;
+ENCODING_RECONCILE_REGISTRY.migrateNavigationItems.verifySchema = _verifyNavigationItemsSchema;
 
 async function _reconcileChecksum(pool, name, newChecksum, reason) {
   const [rows] = await pool.query(
@@ -283,12 +542,14 @@ async function runPendingMigrations(pool, {
         // matches the known old encoding AND the current checksum matches the
         // known new encoding. A third checksum (future edit) always fails.
         const reconcileEntry = ENCODING_RECONCILE_REGISTRY[name];
+        const allowedOlds = reconcileEntry
+          ? [reconcileEntry.oldChecksum, ...(reconcileEntry.alternateOldChecksums || [])].filter(Boolean)
+          : [];
         if (
           reconcileEntry &&
-          reconcileEntry.oldChecksum &&
           reconcileEntry.newChecksum &&
           typeof reconcileEntry.verifySchema === 'function' &&
-          existing.checksum === reconcileEntry.oldChecksum &&
+          allowedOlds.includes(existing.checksum) &&
           checksum === reconcileEntry.newChecksum
         ) {
           console.log(
