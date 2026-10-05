@@ -443,3 +443,76 @@ describe('Controller validation', () => {
     assert.ok(src.includes('payload'), 'payload field');
   });
 });
+
+// ───────────────────────────────────────────────────────
+// 9. View data attributes — no double HTML escaping
+// ───────────────────────────────────────────────────────
+describe('View dataset JSON escaping', () => {
+  const ejs = require('ejs');
+  const viewPath = path.resolve(__dirname, '../views/pages/admin/cost-quote.ejs');
+
+  function decodeHtmlAttr(value) {
+    // One browser-like attribute entity decode pass (amp first).
+    return String(value || '')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#0*34;/g, '"')
+      .replace(/&#0*39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+  }
+
+  function extractAttr(html, name) {
+    const match = html.match(new RegExp(`${name}="([^"]*)"`));
+    assert.ok(match, `missing attribute ${name}`);
+    return match[1];
+  }
+
+  it('does not manually pre-escape quotes before <%= %>', () => {
+    const src = fs.readFileSync(viewPath, 'utf8');
+    assert.doesNotMatch(src, /\.replace\(\/"\/g,\s*'&quot;'\)/);
+    assert.match(src, /data-catalog="<%= typeof catalog === 'string' \? catalog : '\{\}' %>"/);
+    assert.match(src, /data-saved-quotes="<%= typeof quotes === 'string' \? quotes : '\[\]' %>"/);
+    assert.doesNotMatch(src, /data-catalog="<%-/);
+    assert.doesNotMatch(src, /data-saved-quotes="<%-/);
+  });
+
+  it('rendered data-catalog and data-saved-quotes parse as valid JSON with quotes/special chars', () => {
+    const catalog = {
+      printers: [{ id: '1', name: 'Impresora "Pro" & Co <v2>' }],
+      materials: [{ id: '2', name: "PLA 'especial'" }],
+      additionals: [{ id: '3', name: 'Lijado / barniz', description: 'nota: "urgente"' }],
+    };
+    const quotes = [
+      {
+        id: 'q-1',
+        productName: 'Pieza "Ninja" <test> & co',
+        clientEmail: 'a&b@example.com',
+        workflowStatus: 'pendiente',
+      },
+    ];
+
+    const html = ejs.render(fs.readFileSync(viewPath, 'utf8'), {
+      catalog: JSON.stringify(catalog),
+      quotes: JSON.stringify(quotes),
+      csrfToken: 'test-csrf-token',
+    });
+
+    const catalogAttr = extractAttr(html, 'data-catalog');
+    const quotesAttr = extractAttr(html, 'data-saved-quotes');
+
+    // Must be single-escaped in the HTML source (EJS <%= %>), not double-escaped.
+    assert.match(catalogAttr, /&quot;|&#0*34;/);
+    assert.doesNotMatch(catalogAttr, /&amp;quot;|&amp;#0*34;/);
+    assert.doesNotMatch(quotesAttr, /&amp;quot;|&amp;#0*34;/);
+
+    const parsedCatalog = JSON.parse(decodeHtmlAttr(catalogAttr));
+    const parsedQuotes = JSON.parse(decodeHtmlAttr(quotesAttr));
+
+    assert.deepEqual(parsedCatalog, catalog);
+    assert.deepEqual(parsedQuotes, quotes);
+    assert.equal(parsedCatalog.printers[0].name, 'Impresora "Pro" & Co <v2>');
+    assert.equal(parsedQuotes[0].productName, 'Pieza "Ninja" <test> & co');
+  });
+});
