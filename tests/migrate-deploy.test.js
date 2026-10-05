@@ -42,15 +42,19 @@ function loadDeployRunnerWithFakes(dependencies) {
 }
 
 describe('Phase 13 — migration registry', () => {
-  it('contains the current 37 registered migrations exactly once', () => {
-    assert.equal(tracker.MIGRATION_REGISTRY.length, 37);
-    assert.equal(new Set(tracker.MIGRATION_REGISTRY.map((entry) => entry.name)).size, 37);
+  it('contains the current 38 registered migrations exactly once', () => {
+    assert.equal(tracker.MIGRATION_REGISTRY.length, 38);
+    assert.equal(new Set(tracker.MIGRATION_REGISTRY.map((entry) => entry.name)).size, 38);
     assert.equal(
       tracker.MIGRATION_REGISTRY.filter((entry) => entry.name === 'migrateCatalogSchemaRepair').length,
       1
     );
     assert.equal(
       tracker.MIGRATION_REGISTRY.filter((entry) => entry.name === 'migrateStoreHeroSectionRepair').length,
+      1
+    );
+    assert.equal(
+      tracker.MIGRATION_REGISTRY.filter((entry) => entry.name === 'migrateCostQuoteVarcharId').length,
       1
     );
   });
@@ -1347,6 +1351,137 @@ describe('historical encoding-drift reconciliations (contract-backed)', () => {
       registry: [{ name: 'migrateTilopay', file: './migrate-tilopay', exportName: 'migrate' }],
       checksumFor: () => e.newChecksum,
     });
+    assert.equal(result.reconciled, 1);
+  });
+});
+
+describe('migrateCostQuote historical restoration checksum reconciliation', () => {
+  const REQUIRED = [
+    'product_name', 'payload', 'workflow_status', 'public_token',
+    'client_email', 'client_name', 'total_crc', 'linked_order_id',
+    'pdf_filename', 'workflow_data', 'created_by', 'created_at', 'updated_at',
+  ];
+
+  function costQuotePool({ executedChecksum, schemaOk = true, name = 'migrateCostQuote' } = {}) {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY[name];
+    const old = executedChecksum || e.oldChecksum;
+    return {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return [[{ name, checksum: old, status: 'ok' }], []];
+        }
+        if (/SELECT checksum FROM schema_migrations/.test(sql)) return [[{ checksum: old }], []];
+        if (/UPDATE schema_migrations SET checksum/.test(sql)) return [{ affectedRows: 1 }, []];
+        if (/INFORMATION_SCHEMA\.COLUMNS.*cost_quotes/.test(sql) || /TABLE_NAME = 'cost_quotes'/.test(sql)) {
+          if (!schemaOk) return [[], []];
+          return [REQUIRED.map((c) => ({ COLUMN_NAME: c })).concat([{ COLUMN_NAME: 'id' }]), []];
+        }
+        throw new Error('Unexpected query: ' + sql.slice(0, 80));
+      },
+    };
+  }
+
+  it('registers exact accidental→historical pair with schema verifier', () => {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY.migrateCostQuote;
+    assert.equal(
+      e.oldChecksum,
+      '4c8f3afe00c55b82f17d3e1071644dd263d45d93aaca050f782afd6dc7c104e1'
+    );
+    assert.equal(
+      e.newChecksum,
+      '38559820fc53174409ed3c196d0ca8ec331733eb003dd51fe9d92996801247a1'
+    );
+    assert.match(e.reason, /restore historical migrateCostQuote source/);
+    assert.equal(typeof e.verifySchema, 'function');
+  });
+
+  it('exact accidental×historical + verified schema reconciles', async () => {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY.migrateCostQuote;
+    const result = await tracker.runPendingMigrations(costQuotePool(), {
+      registry: [{ name: 'migrateCostQuote', file: './migrate-cost-quote', exportName: 'migrate' }],
+      checksumFor: () => e.newChecksum,
+    });
+    assert.equal(result.reconciled, 1);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.ran, 0);
+  });
+
+  it('wrong old checksum fails', async () => {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY.migrateCostQuote;
+    await assert.rejects(
+      () =>
+        tracker.runPendingMigrations(
+          costQuotePool({ executedChecksum: e.oldChecksum.replace('4c', '5d') }),
+          {
+            registry: [{ name: 'migrateCostQuote', file: './migrate-cost-quote', exportName: 'migrate' }],
+            checksumFor: () => e.newChecksum,
+          }
+        ),
+      /Manual review required/
+    );
+  });
+
+  it('wrong current checksum fails', async () => {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY.migrateCostQuote;
+    await assert.rejects(
+      () =>
+        tracker.runPendingMigrations(costQuotePool(), {
+          registry: [{ name: 'migrateCostQuote', file: './migrate-cost-quote', exportName: 'migrate' }],
+          checksumFor: () => e.newChecksum.replace('38', '39'),
+        }),
+      /Manual review required/
+    );
+  });
+
+  it('incomplete schema fails', async () => {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY.migrateCostQuote;
+    await assert.rejects(
+      () =>
+        tracker.runPendingMigrations(costQuotePool({ schemaOk: false }), {
+          registry: [{ name: 'migrateCostQuote', file: './migrate-cost-quote', exportName: 'migrate' }],
+          checksumFor: () => e.newChecksum,
+        }),
+      /Manual review required/
+    );
+  });
+
+  it('unexpected third checksum is rejected even with valid schema', async () => {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY.migrateCostQuote;
+    await assert.rejects(
+      () =>
+        tracker.runPendingMigrations(costQuotePool(), {
+          registry: [{ name: 'migrateCostQuote', file: './migrate-cost-quote', exportName: 'migrate' }],
+          checksumFor: () => 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        }),
+      /Manual review required/
+    );
+    // silence unused
+    assert.ok(e.newChecksum);
+  });
+
+  it('migrateCostQuoteVarcharId exact import-move pair reconciles with verified schema', async () => {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY.migrateCostQuoteVarcharId;
+    assert.equal(
+      e.oldChecksum,
+      '54e611fdf1b8ec67e30497761ddb83a371882e09196d242d81f19b274d31a3cb'
+    );
+    assert.equal(
+      e.newChecksum,
+      '1e13a3c5291c4d79ac30f393bccad548a08b756580841eaa9e06fe9990fc0375'
+    );
+    const result = await tracker.runPendingMigrations(
+      costQuotePool({ name: 'migrateCostQuoteVarcharId' }),
+      {
+        registry: [{
+          name: 'migrateCostQuoteVarcharId',
+          file: './migrate-cost-quote-varchar-id',
+          exportName: 'migrateCostQuoteVarcharId',
+          passPool: true,
+        }],
+        checksumFor: () => e.newChecksum,
+      }
+    );
     assert.equal(result.reconciled, 1);
   });
 });

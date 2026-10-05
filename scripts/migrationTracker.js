@@ -63,6 +63,23 @@ const ENCODING_RECONCILE_REGISTRY = {
     reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
     verifySchema: null, // set below after _verifyNavigationItemsSchema is defined
   },
+  // Accidental in-place edit of historical migrateCostQuote → restore historical source.
+  // Schema evolution lives in migrateCostQuoteVarcharId + cost-quote-schema-repair-helpers.
+  migrateCostQuote: {
+    oldChecksum: '4c8f3afe00c55b82f17d3e1071644dd263d45d93aaca050f782afd6dc7c104e1',
+    newChecksum: '38559820fc53174409ed3c196d0ca8ec331733eb003dd51fe9d92996801247a1',
+    reason:
+      'restore historical migrateCostQuote source; schema evolution moved to forward repair migration',
+    verifySchema: null, // set below after _verifyCostQuoteAccidentalSchema is defined
+  },
+  // Import path only: helpers moved out of historical migrate-cost-quote.js.
+  migrateCostQuoteVarcharId: {
+    oldChecksum: '54e611fdf1b8ec67e30497761ddb83a371882e09196d242d81f19b274d31a3cb',
+    newChecksum: '1e13a3c5291c4d79ac30f393bccad548a08b756580841eaa9e06fe9990fc0375',
+    reason:
+      'move ensureCostQuotesColumns import to cost-quote-schema-repair-helpers; historical migrateCostQuote restored',
+    verifySchema: null, // set below after _verifyCostQuoteAccidentalSchema is defined
+  },
   ...buildHistoricalReconcileEntries(),
 };
 
@@ -453,6 +470,46 @@ async function _verifyNavigationItemsSchema(pool) {
   }
 }
 
+async function _verifyCostQuoteAccidentalSchema(pool) {
+  // Schema expected after the accidentally-modified migrateCostQuote (and forward repair).
+  const requiredColumns = [
+    'product_name',
+    'payload',
+    'workflow_status',
+    'public_token',
+    'client_email',
+    'client_name',
+    'total_crc',
+    'linked_order_id',
+    'pdf_filename',
+    'workflow_data',
+    'created_by',
+    'created_at',
+    'updated_at',
+  ];
+
+  try {
+    const [cols] = await pool.query(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cost_quotes'"
+    );
+    if (!cols.length) {
+      console.warn('[migrate:deploy] cost_quotes table is missing.');
+      return false;
+    }
+    const actual = new Set(cols.map((c) => c.COLUMN_NAME));
+    const missing = requiredColumns.filter((c) => !actual.has(c));
+    if (missing.length > 0) {
+      console.warn('[migrate:deploy] cost_quotes missing columns: ' + missing.join(', '));
+      return false;
+    }
+    console.log('[migrate:deploy] cost_quotes modern schema verified OK.');
+    return true;
+  } catch (err) {
+    console.warn('[migrate:deploy] cost_quotes schema verification error: ' + err.message);
+    return false;
+  }
+}
+
 // Link verifySchema functions now that the helpers are defined
 ENCODING_RECONCILE_REGISTRY.migrateTilopay.verifySchema = _verifyTilopaySchema;
 ENCODING_RECONCILE_REGISTRY.migrateCmsHomepageFields.verifySchema = _verifyCmsHomepageFieldsSchema;
@@ -460,6 +517,8 @@ ENCODING_RECONCILE_REGISTRY.migrateUserAddresses.verifySchema = _verifyUserAddre
 ENCODING_RECONCILE_REGISTRY.migrateUserProfile.verifySchema = _verifyUserProfileSchema;
 ENCODING_RECONCILE_REGISTRY.migrateCms.verifySchema = _verifyCmsSchema;
 ENCODING_RECONCILE_REGISTRY.migrateNavigationItems.verifySchema = _verifyNavigationItemsSchema;
+ENCODING_RECONCILE_REGISTRY.migrateCostQuote.verifySchema = _verifyCostQuoteAccidentalSchema;
+ENCODING_RECONCILE_REGISTRY.migrateCostQuoteVarcharId.verifySchema = _verifyCostQuoteAccidentalSchema;
 
 async function _reconcileChecksum(pool, name, newChecksum, reason) {
   const [rows] = await pool.query(
@@ -642,6 +701,7 @@ module.exports = {
   runPendingMigrations,
   _verifyTilopaySchema,
   _verifyCmsHomepageFieldsSchema,
+  _verifyCostQuoteAccidentalSchema,
   _reconcileChecksum,
   LOCK_NAME,
   LOCK_TIMEOUT_SEC,
