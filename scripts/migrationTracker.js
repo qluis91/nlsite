@@ -28,6 +28,12 @@ const ENCODING_RECONCILE_REGISTRY = {
     reason: 'UTF-16 LE → UTF-8 re-encode (no logic or SQL change)',
     verifySchema: null, // set below after _verifyTilopaySchema is defined
   },
+  migrateCmsHomepageFields: {
+    oldChecksum: '19c2ae211bf7cd0aeb5137cb2ac2088ceeffee5680e8bdc3e6c10700707f7a4f',
+    newChecksum: '3ae1a43e24bcd2d0b93c1bedaaa0f63ccc8250b252f99ce73527e1b8d4e463e3',
+    reason: 'social seed URL edit after execution (schema unchanged)',
+    verifySchema: null, // set below after _verifyCmsHomepageFieldsSchema is defined
+  },
 };
 
 const MIGRATION_REGISTRY = [
@@ -141,8 +147,60 @@ async function _verifyTilopaySchema(pool) {
   }
 }
 
-// Link the verifySchema function now that _verifyTilopaySchema is defined
+async function _verifyCmsHomepageFieldsSchema(pool) {
+  // Verify objects created/altered by scripts/migrate-cms-homepage-fields.js:
+  // home_social_items table + additive columns on carousel/feature item tables.
+  const socialExpected = [
+    'id', 'public_id', 'page_section_id', 'platform', 'label', 'profile_url',
+    'aria_label', 'media_public_id', 'sort_order', 'is_visible', 'status',
+    'published_data', 'published_at', 'created_by', 'updated_by',
+    'created_at', 'updated_at', 'deleted_at',
+  ];
+  const requiredColumns = [
+    ['home_carousel_items', 'media_alt'],
+    ['home_carousel_items', 'preview_media_alt'],
+    ['home_feature_items', 'button_label'],
+    ['home_feature_items', 'media_alt'],
+    ['home_feature_items', 'link_aria_label'],
+  ];
+
+  try {
+    const [socialCols] = await pool.query(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'home_social_items' ORDER BY ORDINAL_POSITION"
+    );
+    if (!socialCols.length) {
+      console.warn('[migrate:deploy] home_social_items table is missing.');
+      return false;
+    }
+    const actualSocial = socialCols.map((c) => c.COLUMN_NAME);
+    const missingSocial = socialExpected.filter((c) => !actualSocial.includes(c));
+    if (missingSocial.length > 0) {
+      console.warn('[migrate:deploy] home_social_items missing columns: ' + missingSocial.join(', '));
+      return false;
+    }
+
+    for (const [table, column] of requiredColumns) {
+      const [rows] = await pool.query(
+        "SELECT 1 AS ok FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1",
+        [table, column]
+      );
+      if (!rows.length) {
+        console.warn(`[migrate:deploy] ${table}.${column} is missing.`);
+        return false;
+      }
+    }
+
+    console.log('[migrate:deploy] CMS homepage fields schema verified OK.');
+    return true;
+  } catch (err) {
+    console.warn('[migrate:deploy] CMS homepage fields schema verification error: ' + err.message);
+    return false;
+  }
+}
+
+// Link verifySchema functions now that the helpers are defined
 ENCODING_RECONCILE_REGISTRY.migrateTilopay.verifySchema = _verifyTilopaySchema;
+ENCODING_RECONCILE_REGISTRY.migrateCmsHomepageFields.verifySchema = _verifyCmsHomepageFieldsSchema;
 
 async function _reconcileChecksum(pool, name, newChecksum, reason) {
   const [rows] = await pool.query(
@@ -322,6 +380,7 @@ module.exports = {
   recordMigrationFailure,
   runPendingMigrations,
   _verifyTilopaySchema,
+  _verifyCmsHomepageFieldsSchema,
   _reconcileChecksum,
   LOCK_NAME,
   LOCK_TIMEOUT_SEC,
