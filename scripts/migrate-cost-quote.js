@@ -1,54 +1,11 @@
 /** Idempotent Cotización 3D migration (legacy parity). */
 const pool = require('../config/db');
 
-/** Columns that CREATE TABLE defines and must be repaired on legacy tables. */
-const COST_QUOTES_REQUIRED_COLUMNS = Object.freeze([
-  ['product_name', "VARCHAR(200) NOT NULL DEFAULT '' AFTER id"],
-  ['payload', 'JSON NULL AFTER product_name'],
-  ['workflow_status', "VARCHAR(20) NOT NULL DEFAULT 'pendiente' AFTER payload"],
-  ['public_token', "VARCHAR(64) NOT NULL DEFAULT '' AFTER workflow_status"],
-  ['client_email', 'VARCHAR(180) NULL AFTER public_token'],
-  ['client_name', 'VARCHAR(150) NULL AFTER client_email'],
-  ['total_crc', 'DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER client_name'],
-  ['linked_order_id', 'VARCHAR(64) NULL AFTER total_crc'],
-  ['pdf_filename', 'VARCHAR(200) NULL AFTER linked_order_id'],
-  ['workflow_data', 'JSON NULL AFTER pdf_filename'],
-  ['created_by', 'INT NULL AFTER workflow_data'],
-  ['created_at', 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER created_by'],
-  ['updated_at', 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at'],
-]);
-
-async function ensureColumn(db, table, col, def) {
-  const [[row]] = await db.query(
-    `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
-    [table, col]
-  );
-  if (row.cnt === 0) {
-    await db.query(`ALTER TABLE ?? ADD COLUMN ?? ${def}`, [table, col]);
-    console.log(`[migrate:cost-quote] Added column ${col} to ${table}`);
-    return true;
-  }
-  return false;
-}
-
-async function ensureCostQuotesColumns(db) {
-  const added = [];
-  for (const [col, def] of COST_QUOTES_REQUIRED_COLUMNS) {
-    try {
-      if (await ensureColumn(db, 'cost_quotes', col, def)) added.push(col);
-    } catch (e) {
-      console.warn(`[migrate:cost-quote] Could not add column ${col}:`, e.message);
-    }
-  }
-  return added;
-}
-
-async function migrate(db = pool) {
+async function migrate() {
   console.log('[migrate:cost-quote] Starting cost-quote migration...');
 
   // Quote catalog (printers, materials, additionals) — legacy format
-  await db.query(`CREATE TABLE IF NOT EXISTS cost_quote_catalog (
+  await pool.query(`CREATE TABLE IF NOT EXISTS cost_quote_catalog (
     id INT AUTO_INCREMENT PRIMARY KEY,
     catalog_type VARCHAR(20) NOT NULL COMMENT 'printer, material, additional',
     name VARCHAR(120) NOT NULL,
@@ -65,7 +22,7 @@ async function migrate(db = pool) {
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
   // Base quotes table (with legacy-compatible columns)
-  await db.query(`CREATE TABLE IF NOT EXISTS cost_quotes (
+  await pool.query(`CREATE TABLE IF NOT EXISTS cost_quotes (
     id VARCHAR(64) PRIMARY KEY,
     product_name VARCHAR(200) NOT NULL DEFAULT '',
     payload JSON NOT NULL COMMENT 'Full state snapshot (costs, discounts, products, export, etc.)',
@@ -85,31 +42,55 @@ async function migrate(db = pool) {
     INDEX idx_created_by (created_by)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-  // ── Repair existing tables: guarantee every CREATE TABLE column ──
-  await ensureCostQuotesColumns(db);
+  // ── Add columns to existing table if they don't exist (safe migration) ──
+  const ensureColumn = async (table, col, def) => {
+    try {
+      const [[row]] = await pool.query(
+        `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+        [table, col]
+      );
+      if (row.cnt === 0) {
+        await pool.query(`ALTER TABLE ?? ADD COLUMN ?? ${def}`, [table, col]);
+        console.log(`[migrate:cost-quote] Added column ${col} to ${table}`);
+      }
+    } catch (e) {
+      console.warn(`[migrate:cost-quote] Could not add column ${col}:`, e.message);
+    }
+  };
+
+  // Ensure legacy-parity columns exist (additive)
+  await ensureColumn('cost_quotes', 'product_name', "VARCHAR(200) NOT NULL DEFAULT '' AFTER id");
+  await ensureColumn('cost_quotes', 'payload', 'JSON NULL AFTER product_name');
+  await ensureColumn('cost_quotes', 'workflow_status', "VARCHAR(20) NOT NULL DEFAULT 'pendiente' AFTER payload");
+  await ensureColumn('cost_quotes', 'public_token', "VARCHAR(64) NOT NULL DEFAULT '' AFTER workflow_status");
+  await ensureColumn('cost_quotes', 'linked_order_id', 'VARCHAR(64) NULL');
+  await ensureColumn('cost_quotes', 'pdf_filename', 'VARCHAR(200) NULL');
+  await ensureColumn('cost_quotes', 'workflow_data', 'JSON NULL');
+  await ensureColumn('cost_quotes', 'client_name', 'VARCHAR(150) NULL');
 
   // ── Seed catalog: only if completely empty ──
-  const [counts] = await db.query("SELECT catalog_type, COUNT(*) AS cnt FROM cost_quote_catalog GROUP BY catalog_type");
+  const [counts] = await pool.query("SELECT catalog_type, COUNT(*) AS cnt FROM cost_quote_catalog GROUP BY catalog_type");
   const countMap = {};
   counts.forEach(r => { countMap[r.catalog_type] = r.cnt; });
 
   if (!countMap.printer) {
-    await db.query(`INSERT INTO cost_quote_catalog (catalog_type, name, unit_cost, is_default, sort_order)
+    await pool.query(`INSERT INTO cost_quote_catalog (catalog_type, name, unit_cost, is_default, sort_order)
       VALUES ('printer', 'Impresora principal', 300, 1, 1)`);
     console.log('[migrate:cost-quote] Seeded default printer.');
   }
   if (!countMap.material) {
-    await db.query(`INSERT INTO cost_quote_catalog (catalog_type, name, unit_cost, is_default, sort_order)
+    await pool.query(`INSERT INTO cost_quote_catalog (catalog_type, name, unit_cost, is_default, sort_order)
       VALUES ('material', 'PLA estándar', 20500, 1, 1)`);
     console.log('[migrate:cost-quote] Seeded default material.');
   }
 
   // Migrate existing quotes from old schema to new schema if data exists
   try {
-    const [existing] = await db.query("SELECT id, title, status, products FROM cost_quotes WHERE payload IS NULL AND products IS NOT NULL LIMIT 1");
+    const [existing] = await pool.query("SELECT id, title, status, products FROM cost_quotes WHERE payload IS NULL AND products IS NOT NULL LIMIT 1");
     if (existing.length > 0) {
       console.log('[migrate:cost-quote] Migrating legacy quotes to new payload format...');
-      const [legacy] = await db.query("SELECT id, title AS product_name, products, status FROM cost_quotes WHERE payload IS NULL");
+      const [legacy] = await pool.query("SELECT id, title AS product_name, products, status FROM cost_quotes WHERE payload IS NULL");
       for (const row of legacy) {
         const productsArr = typeof row.products === 'string' ? JSON.parse(row.products) : (row.products || []);
         const payload = {
@@ -120,7 +101,7 @@ async function migrate(db = pool) {
           export: { clientName: '', clientEmail: '', paymentTerms: 'Forma de pago: 50% de adelanto y 50% contra entrega.', warranty: 'Garantía: 3 meses por defectos de fabricación.' },
         };
         const status = normalizeStatus(row.status || 'draft');
-        await db.query(
+        await pool.query(
           'UPDATE cost_quotes SET payload=?, workflow_status=?, public_token=? WHERE id=?',
           [JSON.stringify(payload), status, cryptoFake(16), row.id]
         );
@@ -146,9 +127,4 @@ function cryptoFake(len) {
   return require('crypto').randomBytes(len).toString('hex');
 }
 
-module.exports = {
-  migrate,
-  COST_QUOTES_REQUIRED_COLUMNS,
-  ensureCostQuotesColumns,
-  ensureColumn,
-};
+module.exports = { migrate };

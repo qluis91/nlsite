@@ -6,7 +6,7 @@
  */
 require('dotenv').config();
 const defaultPool = require('../config/db');
-const { ensureCostQuotesColumns } = require('./migrate-cost-quote');
+const { ensureCostQuotesColumns } = require('./cost-quote-schema-repair-helpers');
 
 async function columnMeta(db, table, column) {
   const [rows] = await db.query(
@@ -56,7 +56,7 @@ async function migrateCostQuoteVarcharId(db = defaultPool) {
   const productsCol = await columnMeta(db, 'cost_quotes', 'products');
   if (productsCol && productsCol.IS_NULLABLE === 'NO') {
     // Keep JSON CHECK if present; empty array satisfies json_valid.
-    await db.query("ALTER TABLE cost_quotes MODIFY COLUMN products LONGTEXT NULL");
+    await db.query('ALTER TABLE cost_quotes MODIFY COLUMN products LONGTEXT NULL');
     console.log('[migrate:cost-quote-varchar-id] Made legacy products nullable');
   }
 

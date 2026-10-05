@@ -415,10 +415,30 @@ describe('Migration', () => {
     assert.ok(src.includes('public_token'), 'public_token');
   });
 
-  it('ensureColumn repairs every CREATE TABLE column including client_email, total_crc, created_by', () => {
+  it('historical migrate-cost-quote exports only migrate (no repair helpers)', () => {
+    const mod = require('../scripts/migrate-cost-quote');
+    assert.equal(typeof mod.migrate, 'function');
+    assert.equal(mod.COST_QUOTES_REQUIRED_COLUMNS, undefined);
+    assert.equal(mod.ensureCostQuotesColumns, undefined);
+    assert.equal(mod.ensureColumn, undefined);
+    const src = fs.readFileSync(path.resolve(__dirname, '../scripts/migrate-cost-quote.js'), 'utf8');
+    assert.ok(!src.includes('COST_QUOTES_REQUIRED_COLUMNS'));
+    assert.ok(!src.includes('ensureCostQuotesColumns'));
+    assert.match(src, /module\.exports\s*=\s*\{\s*migrate\s*\}/);
+  });
+
+  it('seeds default printer and material', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../scripts/migrate-cost-quote.js'), 'utf8');
+    assert.ok(src.includes("'printer'"), 'seeds printer');
+    assert.ok(src.includes("'material'"), 'seeds material');
+  });
+});
+
+describe('Cost quote schema repair helpers', () => {
+  it('lists every modern persistence column', () => {
     const {
       COST_QUOTES_REQUIRED_COLUMNS,
-    } = require('../scripts/migrate-cost-quote');
+    } = require('../scripts/cost-quote-schema-repair-helpers');
     const names = COST_QUOTES_REQUIRED_COLUMNS.map(([col]) => col);
     for (const required of [
       'product_name', 'payload', 'workflow_status', 'public_token',
@@ -432,17 +452,15 @@ describe('Migration', () => {
 
   it('repairs an existing legacy cost_quotes table missing required columns', async () => {
     const {
-      migrate,
+      ensureCostQuotesColumns,
       COST_QUOTES_REQUIRED_COLUMNS,
-    } = require('../scripts/migrate-cost-quote');
+    } = require('../scripts/cost-quote-schema-repair-helpers');
 
-    // Simulate a pre-parity table that only has id + timestamps.
     const present = new Set(['id', 'created_at', 'updated_at']);
     const alters = [];
 
     const fakePool = {
       async query(sql, params) {
-        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
         if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql)) {
           const col = params?.[1];
           return [[{ cnt: present.has(col) ? 1 : 0 }], []];
@@ -453,17 +471,11 @@ describe('Migration', () => {
           present.add(col);
           return [{ affectedRows: 1 }, []];
         }
-        if (/SELECT catalog_type, COUNT/.test(sql)) {
-          return [[{ catalog_type: 'printer', cnt: 1 }, { catalog_type: 'material', cnt: 1 }], []];
-        }
-        if (/payload IS NULL AND products IS NOT NULL/.test(sql)) return [[], []];
         throw new Error('Unexpected query: ' + String(sql).slice(0, 80));
       },
     };
 
-    await migrate(fakePool);
-
-    // created_at/updated_at were already present; everything else must be added.
+    const added = await ensureCostQuotesColumns(fakePool);
     for (const col of [
       'product_name', 'payload', 'workflow_status', 'public_token',
       'client_email', 'client_name', 'total_crc',
@@ -474,15 +486,14 @@ describe('Migration', () => {
     }
     assert.ok(!alters.includes('created_at'), 'must not recreate existing created_at');
     assert.ok(!alters.includes('updated_at'), 'must not recreate existing updated_at');
-    assert.equal(
-      alters.length,
-      COST_QUOTES_REQUIRED_COLUMNS.length - 2,
-      'only missing columns are added'
-    );
+    assert.equal(added.length, COST_QUOTES_REQUIRED_COLUMNS.length - 2);
   });
 
   it('second repair pass is idempotent (no ALTER when columns exist)', async () => {
-    const { ensureCostQuotesColumns, COST_QUOTES_REQUIRED_COLUMNS } = require('../scripts/migrate-cost-quote');
+    const {
+      ensureCostQuotesColumns,
+      COST_QUOTES_REQUIRED_COLUMNS,
+    } = require('../scripts/cost-quote-schema-repair-helpers');
     const present = new Set(COST_QUOTES_REQUIRED_COLUMNS.map(([col]) => col).concat('id'));
     let alterCount = 0;
     const fakePool = {
@@ -500,12 +511,6 @@ describe('Migration', () => {
     const added = await ensureCostQuotesColumns(fakePool);
     assert.deepEqual(added, []);
     assert.equal(alterCount, 0);
-  });
-
-  it('seeds default printer and material', () => {
-    const src = fs.readFileSync(path.resolve(__dirname, '../scripts/migrate-cost-quote.js'), 'utf8');
-    assert.ok(src.includes("'printer'"), 'seeds printer');
-    assert.ok(src.includes("'material'"), 'seeds material');
   });
 });
 
@@ -781,6 +786,15 @@ describe('Cost quote varchar-id migration', () => {
     assert.ok(iFix > iCost);
   });
 
+  it('imports repair helpers from the helper module, not historical migrate-cost-quote', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../scripts/migrate-cost-quote-varchar-id.js'),
+      'utf8'
+    );
+    assert.ok(src.includes("require('./cost-quote-schema-repair-helpers')"));
+    assert.ok(!src.includes("require('./migrate-cost-quote')"));
+  });
+
   it('converts int id and relaxes legacy required columns', async () => {
     const { migrateCostQuoteVarcharId } = require('../scripts/migrate-cost-quote-varchar-id');
     const present = new Map([
@@ -819,6 +833,40 @@ describe('Cost quote varchar-id migration', () => {
     assert.ok(alters.some((s) => /id VARCHAR\(64\)/i.test(s)));
     assert.ok(alters.some((s) => /title VARCHAR\(200\).*DEFAULT ''/i.test(s)));
     assert.ok(alters.some((s) => /products LONGTEXT NULL/i.test(s)));
+  });
+
+  it('already-current schema remains unchanged (idempotent)', async () => {
+    const { migrateCostQuoteVarcharId } = require('../scripts/migrate-cost-quote-varchar-id');
+    const present = new Map([
+      ['id', { DATA_TYPE: 'varchar', IS_NULLABLE: 'NO', COLUMN_DEFAULT: null, EXTRA: '' }],
+    ]);
+    for (const col of [
+      'product_name', 'payload', 'workflow_status', 'public_token', 'client_email', 'client_name',
+      'total_crc', 'linked_order_id', 'pdf_filename', 'workflow_data', 'created_by', 'created_at', 'updated_at',
+    ]) {
+      present.set(col, { DATA_TYPE: 'varchar', IS_NULLABLE: 'YES', COLUMN_DEFAULT: null, EXTRA: '' });
+    }
+    let alterCount = 0;
+    const fakePool = {
+      async query(sql, params) {
+        if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql) && /COUNT\(\*\)/.test(sql)) {
+          return [[{ cnt: present.has(params?.[1]) ? 1 : 0 }], []];
+        }
+        if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql)) {
+          const col = params?.[1];
+          const meta = present.get(col);
+          return [meta ? [Object.assign({ COLUMN_NAME: col, COLUMN_TYPE: meta.DATA_TYPE }, meta)] : [], []];
+        }
+        if (/INFORMATION_SCHEMA\.STATISTICS/.test(sql)) return [[{ cnt: 1 }], []];
+        if (/ALTER TABLE/.test(sql)) {
+          alterCount += 1;
+          return [{ affectedRows: 1 }, []];
+        }
+        throw new Error('Unexpected: ' + String(sql).slice(0, 100));
+      },
+    };
+    await migrateCostQuoteVarcharId(fakePool);
+    assert.equal(alterCount, 0);
   });
 });
 
