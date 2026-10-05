@@ -375,6 +375,20 @@ describe('Security', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../config/csrf.js'), 'utf8');
     assert.ok(src.includes("x-csrf-token"), 'reads x-csrf-token header');
   });
+
+  it('API CSRF/500 failures return JSON for /api/ paths', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../app.js'), 'utf8');
+    assert.ok(src.includes('wantsApiJson'), 'api json helper');
+    assert.ok(src.includes("path.startsWith('/api/')"), 'scopes to /api/');
+    assert.match(src, /EBADCSRFTOKEN[\s\S]*wantsApiJson[\s\S]*\.json\(/);
+  });
+
+  it('API auth failures return JSON instead of HTML redirects', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../middlewares/authMiddleware.js'), 'utf8');
+    assert.ok(src.includes("startsWith('/api/')"));
+    assert.ok(src.includes('status(401).json'));
+    assert.ok(src.includes('status(403).json'));
+  });
 });
 
 // ───────────────────────────────────────────────────────
@@ -604,6 +618,15 @@ describe('Controller + frontend port wiring', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
     assert.ok(src.includes('isResinaName'));
     assert.ok(src.includes('resina'));
+  });
+
+  it('custom Tab navigation excludes catalog CRUD form fields', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
+    const tabFn = src.slice(src.indexOf('function getTabOrder'), src.indexOf('function focusFieldById'));
+    assert.ok(tabFn.includes('cq-catalog-form'), 'excludes catalog form');
+    assert.ok(tabFn.includes('cq-catalog-panel'), 'excludes catalog panel');
+    assert.ok(tabFn.includes('closest('), 'uses closest exclusion');
+    assert.match(tabFn, /cq-catalog-form[\s\S]*return false/);
   });
 });
 

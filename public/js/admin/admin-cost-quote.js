@@ -311,11 +311,15 @@
             throw err;
           }
         }
-        if (!r.ok) throw new Error((data && data.error) || 'Error de servidor');
+        if (!r.ok) {
+          var httpErr = new Error((data && data.error) || 'Error de servidor');
+          httpErr.fromApi = true;
+          throw httpErr;
+        }
         return data;
       });
     }).catch(function (e) {
-      if (e.apiUnavailable) throw e;
+      if (e.apiUnavailable || e.fromApi) throw e;
       var err = new Error('No se pudo conectar con el servidor.');
       err.apiUnavailable = true;
       throw err;
@@ -2523,6 +2527,8 @@
       .filter(function (el) {
         if (el.tabIndex < 0) return false;
         if (el.closest('[hidden]')) return false;
+        // Catalog CRUD drafts are not in quote state — normal browser Tab only.
+        if (el.closest('.cq-catalog-form, .cq-catalog-panel')) return false;
         return el.offsetParent !== null || el.getClientRects().length > 0;
       });
   }

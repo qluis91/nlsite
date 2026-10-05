@@ -34,6 +34,9 @@ function safeAuthReturnPath(value) {
 function isAuthenticated(req, res, next) {
   if (req.session.user && req.session.user.id) return next();
   req.session.error_msg = 'Debes iniciar sesión para acceder.';
+  if (String(req.originalUrl || req.path || '').startsWith('/api/')) {
+    return res.status(401).json({ error: 'Debes iniciar sesión para acceder.' });
+  }
   const returnTo = safeAuthReturnPath(req.originalUrl);
   return res.redirect(returnTo === '/' ? '/auth/login' : `/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
 }
@@ -48,6 +51,9 @@ function isGuest(req, res, next) {
 function isAdmin(req, res, next) {
   if (req.session.user && Number(req.session.user.role_id) === 1) return next();
   req.session.error_msg = 'Acceso denegado. Se requieren permisos de administrador.';
+  if (String(req.originalUrl || req.path || '').startsWith('/api/')) {
+    return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
+  }
   return res.redirect('/');
 }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-05 — Stabilize Cotización 3D catalog Tab + save API errors
+
+### Fixed
+- Catalog CRUD forms (adicionales/impresoras/materiales) excluded from custom quote Tab navigation so draft values are not wiped by `refresh()`
+- `/api/*` auth, CSRF, and 500 failures return JSON instead of HTML redirects/pages (so the quote UI surfaces the real error)
+
 ## 2026-10-05 — Port proven Cotización 3D admin module
 
 ### Changed
