@@ -215,7 +215,7 @@ body.cq-ninja-page .admin-content {
 /* ── Dashboard 2-col ── */
 #admin-cost-quote-app .cq-dashboard {
   display: grid;
-  grid-template-columns: minmax(480px, 0.9fr) minmax(620px, 1.1fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: 22px;
   align-items: start;
   width: 100%;
