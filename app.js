@@ -484,7 +484,8 @@ app.use('/admin', isAuthenticated, isAdmin, adminPageRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminPageContentRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminPanelsRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminPublishingRoutes);
-app.use('/admin', isAuthenticated, isAdmin, adminCostQuoteRoutes);
+app.use('/admin', isAuthenticated, isAdmin, adminCostQuoteRoutes.pageRouter);
+app.use('/api/admin', adminCostQuoteRoutes.apiRouter);
 
 // Public Cotización 3D routes (no auth required for client confirmation page)
 const { publicQuote, publicConfirm } = require('./controllers/adminCostQuoteController');

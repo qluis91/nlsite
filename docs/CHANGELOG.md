@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-05 — Port proven Cotización 3D admin module
+
+### Changed
+- Replaced NLSite Cotización 3D admin UI with proven `ninjalab3dcr@f8070b6` frontend (`AdminCostQuote.mount`), PDF, and CSS
+- Admin API adapters expose `/api/admin/cost-quote-catalog` and `/api/admin/cost-quotes` over MySQL `cost_quote_catalog` / `cost_quotes`
+- Forward migration `migrateCostQuoteVarcharId` converts legacy INT quote ids to VARCHAR(64) and relaxes leftover required columns
+
 ## 2026-10-05 — Reconcile user profile migration checksum
 
 ### Fixed

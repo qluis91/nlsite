@@ -111,6 +111,12 @@ const MIGRATION_REGISTRY = [
   { name: 'migrateSocialPostsProviderThumbnail', file: './migrate-social-posts-provider-thumbnail', exportName: 'migrateSocialPostsProviderThumbnail', passPool: true },
   { name: 'migrateCarouselImagePosition', file: './migrate-carousel-image-position', exportName: 'migrateCarouselImagePosition', passPool: true },
   { name: 'migrateCostQuote', file: './migrate-cost-quote', exportName: 'migrate' },
+  {
+    name: 'migrateCostQuoteVarcharId',
+    file: './migrate-cost-quote-varchar-id',
+    exportName: 'migrateCostQuoteVarcharId',
+    passPool: true,
+  },
 ];
 
 async function ensureMigrationsTable(pool) {

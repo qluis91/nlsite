@@ -5,7 +5,10 @@ const {
   csrfSynchronisedProtection,
   generateToken,
 } = csrfSync({
-  getTokenFromRequest: (req) => req.body?._csrf,
+  getTokenFromRequest: (req) =>
+    req.body?._csrf ||
+    req.headers['x-csrf-token'] ||
+    req.headers['csrf-token'],
 });
 
 module.exports = { csrfSynchronisedProtection, generateToken };

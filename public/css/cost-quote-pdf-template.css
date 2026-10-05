@@ -1,58 +1,442 @@
-/* PDF Cotización Ninja Lab 3D — solo para exportación */
-.cq-pdf-root * { box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; color: #111; }
-.cq-pdf-root { width: 1080px; margin: 0; padding: 0; background: #fff; }
-.cq-pdf-root .quote-page { width: 1080px; min-height: auto; margin: 0; background: #fff; padding: 45px 45px 220px; position: relative; overflow: hidden; }
-.cq-pdf-root .green, .cq-pdf-root .arrows { color: #77e600; }
+/* Plantilla PDF cotización Ninja Lab 3D — solo para exportación */
+.cq-pdf-root * {
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+}
 
-.cq-pdf-root .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 45px; }
-.cq-pdf-root .logo-text { font-size: 48px; font-weight: 900; color: #77e600; }
-.cq-pdf-root .logo-full { width: auto; height: 250px; max-width: 560px; display: block; }
-.cq-pdf-root .title-box { text-align: right; }
-.cq-pdf-root .title { font-size: 58px; font-weight: 900; margin: 0; }
-.cq-pdf-root .date { font-size: 24px; margin-top: 12px; }
+.cq-pdf-root {
+  width: 1080px;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+}
 
-.cq-pdf-root .top-info { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px; }
-.cq-pdf-root .client h2 { font-size: 34px; margin: 0 0 10px; }
-.cq-pdf-root .client-name { font-size: 42px; font-weight: 800; margin-bottom: 12px; }
-.cq-pdf-root .client-subtitle { font-size: 22px; color: #777; }
-.cq-pdf-root .cards { display: flex; gap: 20px; }
-.cq-pdf-root .info-card { width: 210px; border: 1px solid #ddd; border-radius: 10px; padding: 22px; display: flex; align-items: center; gap: 14px; }
-.cq-pdf-root .icon-circle { width: 48px; height: 48px; border-radius: 50%; background: #e0fce0; display: flex; align-items: center; justify-content: center; font-size: 22px; }
-.cq-pdf-root .info-card small { display: block; font-size: 14px; color: #999; margin-bottom: 4px; }
-.cq-pdf-root .info-card strong { font-size: 20px; }
+.cq-pdf-root .quote-page {
+  width: 1080px;
+  min-height: auto;
+  margin: 0;
+  background: #fff;
+  padding: 45px;
+  padding-bottom: 220px;
+  position: relative;
+  overflow: hidden;
+  color: #111;
+}
 
-.cq-pdf-root .items { margin-bottom: 30px; }
-.cq-pdf-root .quote-table { width: 100%; border-collapse: collapse; }
-.cq-pdf-root .quote-table thead th { font-size: 20px; border-bottom: 2px solid #ddd; padding: 12px 8px 8px; text-align: left; font-weight: 900; }
-.cq-pdf-root .quote-table thead th.center { text-align: center; }
-.cq-pdf-root .quote-table thead th.money { text-align: right; }
-.cq-pdf-root .quote-table tbody td { padding: 14px 8px; border-bottom: 1px solid #eee; font-size: 20px; }
-.cq-pdf-root .quote-table tbody td.num { width: 40px; color: #999; }
-.cq-pdf-root .quote-table tbody td.service { font-weight: 700; }
-.cq-pdf-root .quote-table tbody td.description { color: #666; font-size: 18px; }
-.cq-pdf-root .quote-table tbody td.center, .cq-pdf-root .quote-table tbody td.money { text-align: center; }
-.cq-pdf-root .quote-table tbody td.money { text-align: right; font-family: monospace; }
-.cq-pdf-root .quote-table tbody td.money.discount { color: #e74c3c; }
+.cq-pdf-root .green {
+  color: #77e600;
+}
 
-.cq-pdf-root .summary-section { display: flex; justify-content: flex-end; margin-bottom: 45px; border-top: 2px solid #111; padding-top: 20px; }
-.cq-pdf-root .summary-box { width: 480px; }
-.cq-pdf-root .summary-row { display: flex; justify-content: space-between; padding: 10px 0; font-size: 22px; border-bottom: 1px solid #eee; }
-.cq-pdf-root .summary-row .discount { color: #e74c3c; }
-.cq-pdf-root .summary-total { font-size: 30px; font-weight: 900; border-bottom: 2px solid #111; border-top: 2px solid #111; padding: 14px 0; margin-top: 10px; }
-.cq-pdf-root .summary-tilopay-note { margin-top: 12px; padding: 10px 0; border-top: 1px solid #eee; font-size: 18px; color: #666; }
+.cq-pdf-root .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 45px;
+}
 
-.cq-pdf-root .notes { margin-bottom: 45px; border-top: 1px solid #ddd; padding-top: 25px; }
-.cq-pdf-root .note { display: flex; align-items: center; gap: 12px; font-size: 18px; color: #555; padding: 8px 0; }
-.cq-pdf-root .note-icon { width: 28px; text-align: center; }
+.cq-pdf-root .brand img.logo-full {
+  width: auto;
+  height: 250px;
+  max-width: 560px;
+  display: block;
+}
 
-.cq-pdf-root .transfer-info { margin-bottom: 35px; padding: 22px 30px; background: #f9f9f9; border-radius: 10px; border: 1px solid #ddd; }
-.cq-pdf-root .transfer-info h3 { font-size: 22px; margin: 0 0 16px; font-weight: 800; }
-.cq-pdf-root .transfer-info div { font-size: 20px; padding: 5px 0; color: #333; }
+.cq-pdf-root .title-box {
+  text-align: right;
+}
 
-.cq-pdf-root .footer { position: absolute; bottom: 30px; left: 45px; right: 45px; border-top: 1px solid #ccc; padding-top: 18px; font-size: 18px; color: #999; text-align: center; }
+.cq-pdf-root .title {
+  font-size: 58px;
+  font-weight: 900;
+  margin: 0;
+  color: #111;
+}
 
-.cq-pdf-root .wholesale-prices { margin-bottom: 35px; }
-.cq-pdf-root .wholesale-prices__title { font-size: 24px; margin: 0 0 16px; font-weight: 800; }
-.cq-pdf-root .wholesale-table { width: 100%; }
-.cq-pdf-root .wholesale-table thead th { font-size: 20px; border-bottom: 2px solid #ddd; padding: 12px 8px 8px; }
-.cq-pdf-root .wholesale-table tbody td { padding: 14px 8px; border-bottom: 1px solid #eee; font-size: 20px; }
+.cq-pdf-root .arrows {
+  color: #77e600;
+  font-weight: 900;
+  margin-right: 12px;
+}
+
+.cq-pdf-root .date {
+  font-size: 24px;
+  margin-top: 12px;
+  color: #111;
+}
+
+.cq-pdf-root .top-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 40px;
+}
+
+.cq-pdf-root .client h2 {
+  font-size: 34px;
+  margin: 0 0 10px;
+  color: #111;
+}
+
+.cq-pdf-root .client-name {
+  font-size: 42px;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+
+.cq-pdf-root .client-subtitle {
+  font-size: 22px;
+  color: #777;
+}
+
+.cq-pdf-root .cards {
+  display: flex;
+  gap: 20px;
+}
+
+.cq-pdf-root .info-card {
+  width: 210px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 22px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.cq-pdf-root .icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #111;
+  color: #77e600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cq-pdf-root .icon-circle svg {
+  width: 26px;
+  height: 26px;
+}
+
+.cq-pdf-root .info-card small {
+  display: block;
+  color: #333;
+  font-size: 16px;
+}
+
+.cq-pdf-root .info-card strong {
+  font-size: 19px;
+}
+
+.cq-pdf-root table.quote-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-bottom: 25px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.cq-pdf-root .wholesale-prices {
+  margin-bottom: 25px;
+}
+
+.cq-pdf-root .wholesale-prices__title {
+  margin: 0 0 14px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #111;
+}
+
+.cq-pdf-root table.quote-table thead th {
+  background: #111;
+  color: #fff;
+  padding: 16px 12px;
+  font-size: 18px;
+  text-align: center;
+}
+
+.cq-pdf-root table.quote-table tbody td {
+  border-top: 1px solid #e5e5e5;
+  border-right: 1px solid #e5e5e5;
+  padding: 20px;
+  font-size: 18px;
+  vertical-align: middle;
+}
+
+.cq-pdf-root table.quote-table tfoot td {
+  border-top: 2px solid #111;
+  border-right: 1px solid #e5e5e5;
+  padding: 18px 20px;
+  font-size: 18px;
+  background: #f7f7f7;
+}
+
+.cq-pdf-root table.quote-table tfoot td:last-child {
+  border-right: none;
+}
+
+.cq-pdf-root .subtotal-label {
+  text-align: right;
+  color: #111;
+}
+
+.cq-pdf-root .quote-table-design-note {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+}
+
+.cq-pdf-root table.quote-table tbody td:last-child,
+.cq-pdf-root table.quote-table thead th:last-child {
+  border-right: none;
+}
+
+.cq-pdf-root .num {
+  color: #77e600;
+  font-weight: bold;
+  text-align: center;
+  width: 45px;
+}
+
+.cq-pdf-root .service {
+  font-weight: 800;
+  width: 210px;
+}
+
+.cq-pdf-root .description {
+  line-height: 1.45;
+}
+
+.cq-pdf-root .center {
+  text-align: center;
+}
+
+.cq-pdf-root .money {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cq-pdf-root .discount {
+  color: #77e600;
+  font-weight: 800;
+}
+
+.cq-pdf-root .content-bottom {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 40px;
+  margin-top: 20px;
+}
+
+.cq-pdf-root .content-bottom--wholesale {
+  grid-template-columns: 1fr;
+}
+
+.cq-pdf-root .content-bottom--wholesale .notes {
+  width: 100%;
+}
+
+.cq-pdf-root .notes,
+.cq-pdf-root .summary,
+.cq-pdf-root .bank {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 25px;
+  background: #fff;
+}
+
+.cq-pdf-root .notes h3 {
+  margin-top: 0;
+  color: #77e600;
+  font-size: 18px;
+  letter-spacing: 1px;
+}
+
+.cq-pdf-root .note-item {
+  display: flex;
+  gap: 15px;
+  margin: 22px 0;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.cq-pdf-root .note-icon {
+  color: #2b2b2b;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cq-pdf-root .note-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.cq-pdf-root .summary {
+  border-color: #77e600;
+  padding: 0;
+  overflow: hidden;
+}
+
+.cq-pdf-root .summary-content {
+  padding: 22px 28px;
+}
+
+.cq-pdf-root .summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 19px;
+  margin-bottom: 14px;
+}
+
+.cq-pdf-root .summary-row strong {
+  font-weight: 800;
+}
+
+.cq-pdf-root .summary-total {
+  background: linear-gradient(90deg, #77e600, #9eff35);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 28px;
+  font-size: 30px;
+  font-weight: 900;
+  color: #111;
+}
+
+.cq-pdf-root .summary-tilopay-note {
+  padding: 10px 28px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #444;
+  background: #f7f7f7;
+  border-top: 1px solid #e5e5e5;
+}
+
+.cq-pdf-root .summary-tilopay-note__total {
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.cq-pdf-root .summary-tilopay-note__detail {
+  font-size: 12px;
+  color: #666;
+}
+
+.cq-pdf-root .bank {
+  margin-top: 35px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.cq-pdf-root .bank h3 {
+  margin: 0 0 18px;
+  letter-spacing: 2px;
+  font-size: 18px;
+}
+
+.cq-pdf-root .bank-name {
+  margin-bottom: 20px;
+  color: #444;
+  font-size: 17px;
+}
+
+.cq-pdf-root .bank-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+}
+
+.cq-pdf-root .bank-label {
+  font-size: 13px;
+  color: #aaa;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+
+.cq-pdf-root .bank-value {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.cq-pdf-root .footer-deco {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 150px;
+  height: 58px;
+  display: flex;
+  z-index: 2;
+}
+
+.cq-pdf-root .footer-stripes {
+  flex: 0 0 36%;
+  background: repeating-linear-gradient(
+    -68deg,
+    #111 0,
+    #111 18px,
+    #77e600 18px,
+    #77e600 36px
+  );
+}
+
+.cq-pdf-root .footer-green-fill {
+  flex: 1;
+  background: #77e600;
+}
+
+.cq-pdf-root .footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #111;
+  color: #fff;
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 52px;
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.cq-pdf-root .footer-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cq-pdf-root .footer-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  border: 2px solid #2e2e2e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cq-pdf-root .footer-icon {
+  color: #77e600;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cq-pdf-root .footer-icon svg {
+  width: 24px;
+  height: 24px;
+}
