@@ -4,6 +4,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { buildHistoricalReconcileEntries } = require('./migrationSchemaContracts');
 
 const LOCK_TIMEOUT_SEC = 30;
 const LOCK_NAME = 'migrate_deploy';
@@ -13,17 +14,21 @@ const LOCK_NAME = 'migrate_deploy';
 // any logic or SQL change, the checksum drifts. Reconciliation is ONLY
 // permitted when:
 //
-//   1. stored.checksum === exact oldChecksum (proves it's the encoding change)
-//   2. currentChecksum === exact newChecksum (proves it's the UTF-8 version)
+//   1. stored.checksum === exact oldChecksum (or an alternateOldChecksum)
+//   2. currentChecksum === exact newChecksum (proves it's the known version)
 //   3. Schema verification passes (proves DB state matches migration result)
 //
 // A future edit producing a third checksum MUST fail — even with a valid schema.
 //
-// Each entry: { oldChecksum, newChecksum, reason, verifySchema(pool) }
+// Each entry: { oldChecksum, newChecksum, reason, verifySchema(pool), alternateOldChecksums? }
 
 const ENCODING_RECONCILE_REGISTRY = {
   migrateTilopay: {
     oldChecksum: 'b34806e579a927ebfced8a493115d3f6f0542bf06f26bc1090756a2882771c87',
+    // Pre-normalization Windows CRLF hash of the same original bytes as oldChecksum.
+    alternateOldChecksums: [
+      '5fc05007fbc83ef9de91c7315b646d4dc2b21a887624926980f29afa788c37f8',
+    ],
     newChecksum: '164b20c89dbb60d53d0bca3f8c2fa70edb30c6ecf49575b6ea289a88439c40bb',
     reason: 'UTF-16 LE → UTF-8 re-encode (no logic or SQL change)',
     verifySchema: null, // set below after _verifyTilopaySchema is defined
@@ -58,6 +63,7 @@ const ENCODING_RECONCILE_REGISTRY = {
     reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
     verifySchema: null, // set below after _verifyNavigationItemsSchema is defined
   },
+  ...buildHistoricalReconcileEntries(),
 };
 
 const MIGRATION_REGISTRY = [
@@ -89,6 +95,7 @@ const MIGRATION_REGISTRY = [
   { name: 'migrateCmsPhase1aSaveRepair', file: './migrate-cms-phase1a-save-repair', exportName: 'migrateCmsPhase1aSaveRepair' },
   { name: 'migrateRevisionSourceId', file: './migrate-revision-source-id', exportName: 'migrate', passPool: true },
   { name: 'migrateStoreHeroCms', file: './migrate-store-hero-cms', exportName: 'migrateStoreHeroCms', passPool: true },
+  { name: 'migrateStoreHeroSectionRepair', file: './migrate-store-hero-section-repair', exportName: 'migrateStoreHeroSectionRepair' },
   { name: 'migrateCategoryStoreHero', file: './migrate-category-store-hero', exportName: 'migrateCategoryStoreHero', passPool: true, capability: 'catalog' },
   { name: 'migrateAboutPageCms', file: './migrate-about-page-cms', exportName: 'migrateAboutPageCms', passPool: true },
   { name: 'migrateSocialFeed', file: './migrate-social-feed', exportName: 'migrateSocialFeed', passPool: true },
@@ -529,12 +536,14 @@ async function runPendingMigrations(pool, {
         // matches the known old encoding AND the current checksum matches the
         // known new encoding. A third checksum (future edit) always fails.
         const reconcileEntry = ENCODING_RECONCILE_REGISTRY[name];
+        const allowedOlds = reconcileEntry
+          ? [reconcileEntry.oldChecksum, ...(reconcileEntry.alternateOldChecksums || [])].filter(Boolean)
+          : [];
         if (
           reconcileEntry &&
-          reconcileEntry.oldChecksum &&
           reconcileEntry.newChecksum &&
           typeof reconcileEntry.verifySchema === 'function' &&
-          existing.checksum === reconcileEntry.oldChecksum &&
+          allowedOlds.includes(existing.checksum) &&
           checksum === reconcileEntry.newChecksum
         ) {
           console.log(

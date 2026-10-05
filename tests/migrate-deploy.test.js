@@ -42,11 +42,15 @@ function loadDeployRunnerWithFakes(dependencies) {
 }
 
 describe('Phase 13 — migration registry', () => {
-  it('contains the current 36 registered migrations exactly once', () => {
-    assert.equal(tracker.MIGRATION_REGISTRY.length, 36);
-    assert.equal(new Set(tracker.MIGRATION_REGISTRY.map((entry) => entry.name)).size, 36);
+  it('contains the current 37 registered migrations exactly once', () => {
+    assert.equal(tracker.MIGRATION_REGISTRY.length, 37);
+    assert.equal(new Set(tracker.MIGRATION_REGISTRY.map((entry) => entry.name)).size, 37);
     assert.equal(
       tracker.MIGRATION_REGISTRY.filter((entry) => entry.name === 'migrateCatalogSchemaRepair').length,
+      1
+    );
+    assert.equal(
+      tracker.MIGRATION_REGISTRY.filter((entry) => entry.name === 'migrateStoreHeroSectionRepair').length,
       1
     );
   });
@@ -270,14 +274,17 @@ describe('Phase 3H — Tilopay encoding-only checksum reconciliation', () => {
     assert.equal(e.newChecksum, NEW);
   });
 
-  it('encoding reconcile registry includes Tilopay, CMS homepage, user addresses, user profile, CMS, and navigation entries', () => {
-    assert.equal(Object.keys(tracker.ENCODING_RECONCILE_REGISTRY).length, 6);
+  it('encoding reconcile registry includes core and historical encoding-drift entries', () => {
+    assert.ok(Object.keys(tracker.ENCODING_RECONCILE_REGISTRY).length >= 30);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateTilopay);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateCmsHomepageFields);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateUserAddresses);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateUserProfile);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateCms);
     assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateNavigationItems);
+    assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migratePanels);
+    assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateOrders);
+    assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateSocialFeed);
   });
 
   it('exact old×new + valid schema reconciles', async () => {
@@ -1197,5 +1204,149 @@ describe('migrateNavigationItems encoding-only checksum reconciliation', () => {
     assert.equal(result.reconciled, 0);
     assert.equal(result.skipped, 1);
     assert.equal(result.ran, 0);
+  });
+});
+
+describe('historical encoding-drift reconciliations (contract-backed)', () => {
+  const {
+    HISTORICAL_RECONCILE_CHECKSUMS,
+    CONTRACTS,
+  } = require('../scripts/migrationSchemaContracts');
+
+  const SAMPLE = [
+    'migratePanels',
+    'migrateOrders',
+    'migrateTracking',
+    'migrateSocialFeed',
+    'migrateSeedTikTok',
+  ];
+
+  function contractPool(name, { executedChecksum, schemaOk = true } = {}) {
+    const entry = tracker.ENCODING_RECONCILE_REGISTRY[name];
+    const contract = CONTRACTS[name];
+    const old = executedChecksum || entry.oldChecksum;
+    return {
+      async query(sql, params) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return [[{ name, checksum: old, status: 'ok' }], []];
+        }
+        if (/SELECT checksum FROM schema_migrations/.test(sql)) return [[{ checksum: old }], []];
+        if (/UPDATE schema_migrations SET checksum/.test(sql)) return [{ affectedRows: 1 }, []];
+
+        if (!schemaOk) {
+          if (/INFORMATION_SCHEMA\.TABLES/.test(sql)) return [[], []];
+          if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql)) return [[], []];
+          if (/INFORMATION_SCHEMA\.STATISTICS/.test(sql)) return [[], []];
+          if (/INFORMATION_SCHEMA\.KEY_COLUMN_USAGE/.test(sql)) return [[], []];
+          if (/SELECT 1 AS ok FROM/.test(sql)) return [[], []];
+        }
+
+        if (/INFORMATION_SCHEMA\.TABLES/.test(sql)) return [[{ ok: 1 }], []];
+        if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql)) {
+          const table = params?.[0];
+          const cols = (contract.columns && contract.columns[table]) || ['id'];
+          return [cols.map((c) => ({ COLUMN_NAME: c })), []];
+        }
+        if (/INFORMATION_SCHEMA\.STATISTICS/.test(sql)) {
+          const table = params?.[0];
+          const indexes = (contract.indexes && contract.indexes[table]) || ['PRIMARY'];
+          return [indexes.map((n) => ({ INDEX_NAME: n })), []];
+        }
+        if (/INFORMATION_SCHEMA\.KEY_COLUMN_USAGE/.test(sql)) {
+          const fk = (contract.foreignKeys || []).find(
+            (f) => f.table === params?.[0] && f.column === params?.[1]
+          );
+          if (!fk) return [[], []];
+          return [[{
+            CONSTRAINT_NAME: fk.name || 'auto_fk',
+            REFERENCED_TABLE_NAME: fk.refTable,
+            REFERENCED_COLUMN_NAME: fk.refColumn,
+          }], []];
+        }
+        if (/SELECT 1 AS ok FROM/.test(sql)) return [[{ ok: 1 }], []];
+        throw new Error('Unexpected query: ' + sql.slice(0, 80));
+      },
+    };
+  }
+
+  it('registers every historical checksum pair with a verifier', () => {
+    for (const name of Object.keys(HISTORICAL_RECONCILE_CHECKSUMS)) {
+      const e = tracker.ENCODING_RECONCILE_REGISTRY[name];
+      assert.ok(e, name);
+      assert.equal(e.oldChecksum, HISTORICAL_RECONCILE_CHECKSUMS[name].oldChecksum);
+      assert.equal(e.newChecksum, HISTORICAL_RECONCILE_CHECKSUMS[name].newChecksum);
+      assert.equal(typeof e.verifySchema, 'function');
+    }
+  });
+
+  for (const name of SAMPLE) {
+    it(`${name}: exact old×new + valid schema reconciles`, async () => {
+      const e = tracker.ENCODING_RECONCILE_REGISTRY[name];
+      const result = await tracker.runPendingMigrations(contractPool(name), {
+        registry: [{ name, file: `./${name.replace(/^migrate/, 'migrate-').replace(/[A-Z]/g, (m) => '-' + m.toLowerCase()).replace(/^-/, '').replace('migrate--', 'migrate-')}`, exportName: name }],
+        checksumFor: () => e.newChecksum,
+      });
+      assert.equal(result.reconciled, 1);
+      assert.equal(result.skipped, 1);
+    });
+
+    it(`${name}: wrong old checksum fails`, async () => {
+      const e = tracker.ENCODING_RECONCILE_REGISTRY[name];
+      await assert.rejects(
+        () => tracker.runPendingMigrations(
+          contractPool(name, { executedChecksum: e.oldChecksum.replace(/^[0-9a-f]{2}/, 'ff') }),
+          {
+            registry: [{ name, file: './migrate-panels', exportName: name }],
+            checksumFor: () => e.newChecksum,
+          }
+        ),
+        /Manual review required/
+      );
+    });
+
+    it(`${name}: incomplete schema fails`, async () => {
+      const e = tracker.ENCODING_RECONCILE_REGISTRY[name];
+      await assert.rejects(
+        () => tracker.runPendingMigrations(contractPool(name, { schemaOk: false }), {
+          registry: [{ name, file: './migrate-panels', exportName: name }],
+          checksumFor: () => e.newChecksum,
+        }),
+        /Manual review required/
+      );
+    });
+  }
+
+  it('migrateTilopay accepts alternate CRLF old checksum with valid schema', async () => {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY.migrateTilopay;
+    const alt = e.alternateOldChecksums[0];
+    const expectedColumns = ['id', 'order_id', 'internal_reference', 'idempotency_key',
+      'provider_transaction_id', 'provider_session_token', 'status', 'amount', 'currency',
+      'checkout_url', 'provider_created_at', 'confirmed_at', 'failed_at', 'failure_code',
+      'failure_message', 'raw_status', 'created_at', 'updated_at'];
+    const indexNames = ['PRIMARY', 'idx_tilopay_internal_ref', 'idx_tilopay_idempotency',
+      'idx_tilopay_provider_id', 'idx_tilopay_order_created', 'idx_tilopay_status'];
+    const pool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return [[{ name: 'migrateTilopay', checksum: alt, status: 'ok' }], []];
+        }
+        if (/SELECT checksum FROM schema_migrations/.test(sql)) return [[{ checksum: alt }], []];
+        if (/INFORMATION_SCHEMA.COLUMNS.*tilopay_transactions/.test(sql)) {
+          return [expectedColumns.map((c) => ({ COLUMN_NAME: c })), []];
+        }
+        if (/INFORMATION_SCHEMA.STATISTICS.*tilopay_transactions/.test(sql)) {
+          return [indexNames.map((n) => ({ INDEX_NAME: n })), []];
+        }
+        if (/UPDATE schema_migrations SET checksum/.test(sql)) return [{ affectedRows: 1 }, []];
+        throw new Error('Unexpected query: ' + sql.slice(0, 60));
+      },
+    };
+    const result = await tracker.runPendingMigrations(pool, {
+      registry: [{ name: 'migrateTilopay', file: './migrate-tilopay', exportName: 'migrate' }],
+      checksumFor: () => e.newChecksum,
+    });
+    assert.equal(result.reconciled, 1);
   });
 });
