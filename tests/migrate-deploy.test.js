@@ -237,8 +237,10 @@ describe('Phase 3H — Tilopay encoding-only checksum reconciliation', () => {
     assert.equal(e.newChecksum, NEW);
   });
 
-  it('encoding reconcile registry has only one entry', () => {
-    assert.equal(Object.keys(tracker.ENCODING_RECONCILE_REGISTRY).length, 1);
+  it('encoding reconcile registry includes Tilopay and CMS homepage entries', () => {
+    assert.equal(Object.keys(tracker.ENCODING_RECONCILE_REGISTRY).length, 2);
+    assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateTilopay);
+    assert.ok(tracker.ENCODING_RECONCILE_REGISTRY.migrateCmsHomepageFields);
   });
 
   it('exact old×new + valid schema reconciles', async () => {
@@ -372,6 +374,148 @@ describe('Phase 3H — Tilopay encoding-only checksum reconciliation', () => {
     };
     const result = await tracker.runPendingMigrations(pool, {
       registry: [{ name: 'migrateTilopay', file: './migrate-tilopay', exportName: 'migrate' }],
+      checksumFor: () => NEW,
+    });
+    assert.equal(result.reconciled, 0);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.ran, 0);
+  });
+});
+
+describe('Phase 3H — CMS homepage fields encoding-only checksum reconciliation', () => {
+  const OLD = '19c2ae211bf7cd0aeb5137cb2ac2088ceeffee5680e8bdc3e6c10700707f7a4f';
+  const NEW = '3ae1a43e24bcd2d0b93c1bedaaa0f63ccc8250b252f99ce73527e1b8d4e463e3';
+  const THIRD = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+  const socialColumns = [
+    'id', 'public_id', 'page_section_id', 'platform', 'label', 'profile_url',
+    'aria_label', 'media_public_id', 'sort_order', 'is_visible', 'status',
+    'published_data', 'published_at', 'created_by', 'updated_by',
+    'created_at', 'updated_at', 'deleted_at',
+  ];
+
+  function validSchemaPool(extraQueries = {}) {
+    return {
+      async query(sql, params) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return extraQueries.executedRows
+            || [[{ name: 'migrateCmsHomepageFields', checksum: OLD, status: 'ok' }], []];
+        }
+        if (/SELECT checksum FROM schema_migrations/.test(sql)) {
+          return extraQueries.checksumRow || [[{ checksum: OLD }], []];
+        }
+        if (/INFORMATION_SCHEMA\.COLUMNS.*home_social_items/.test(sql) && !/COLUMN_NAME = \?/.test(sql)) {
+          return [socialColumns.map((c) => ({ COLUMN_NAME: c })), []];
+        }
+        if (/INFORMATION_SCHEMA\.COLUMNS/.test(sql) && /COLUMN_NAME = \?/.test(sql)) {
+          const col = params?.[1];
+          const allowed = new Set([
+            'media_alt', 'preview_media_alt', 'button_label', 'link_aria_label',
+          ]);
+          if (allowed.has(col)) return [[{ ok: 1 }], []];
+          return [[], []];
+        }
+        if (/UPDATE schema_migrations SET checksum/.test(sql)) return [{ affectedRows: 1 }, []];
+        throw new Error('Unexpected query: ' + sql.slice(0, 80));
+      },
+    };
+  }
+
+  it('migrateCmsHomepageFields is in the ENCODING_RECONCILE_REGISTRY with old+new checksums', () => {
+    const e = tracker.ENCODING_RECONCILE_REGISTRY.migrateCmsHomepageFields;
+    assert.ok(e);
+    assert.equal(typeof e.verifySchema, 'function');
+    assert.equal(e.oldChecksum, OLD);
+    assert.equal(e.newChecksum, NEW);
+  });
+
+  it('exact old×new + valid schema reconciles', async () => {
+    const result = await tracker.runPendingMigrations(validSchemaPool(), {
+      registry: [{
+        name: 'migrateCmsHomepageFields',
+        file: './migrate-cms-homepage-fields',
+        exportName: 'migrateCmsHomepageFields',
+      }],
+      checksumFor: () => NEW,
+    });
+    assert.equal(result.reconciled, 1);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.ran, 0);
+  });
+
+  it('wrong checksum + valid schema fails', async () => {
+    await assert.rejects(
+      () => tracker.runPendingMigrations(validSchemaPool({
+        executedRows: [[{ name: 'migrateCmsHomepageFields', checksum: OLD.replace('19', '29'), status: 'ok' }], []],
+      }), {
+        registry: [{
+          name: 'migrateCmsHomepageFields',
+          file: './migrate-cms-homepage-fields',
+          exportName: 'migrateCmsHomepageFields',
+        }],
+        checksumFor: () => NEW,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('exact old + third checksum + VALID schema fails', async () => {
+    await assert.rejects(
+      () => tracker.runPendingMigrations(validSchemaPool(), {
+        registry: [{
+          name: 'migrateCmsHomepageFields',
+          file: './migrate-cms-homepage-fields',
+          exportName: 'migrateCmsHomepageFields',
+        }],
+        checksumFor: () => THIRD,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('rejects reconciliation when schema does not match', async () => {
+    const pool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return [[{ name: 'migrateCmsHomepageFields', checksum: OLD, status: 'ok' }], []];
+        }
+        if (/INFORMATION_SCHEMA\.COLUMNS.*home_social_items/.test(sql)) {
+          return [[{ COLUMN_NAME: 'id' }], []]; // missing required columns
+        }
+        throw new Error('Unexpected query: ' + sql.slice(0, 80));
+      },
+    };
+    await assert.rejects(
+      () => tracker.runPendingMigrations(pool, {
+        registry: [{
+          name: 'migrateCmsHomepageFields',
+          file: './migrate-cms-homepage-fields',
+          exportName: 'migrateCmsHomepageFields',
+        }],
+        checksumFor: () => NEW,
+      }),
+      /Manual review required/
+    );
+  });
+
+  it('subsequent run with exact new checksum already stored follows normal skip', async () => {
+    const pool = {
+      async query(sql) {
+        if (/CREATE TABLE IF NOT EXISTS/.test(sql)) return [[], []];
+        if (/SELECT name, checksum, status.*WHERE status = 'ok'/.test(sql)) {
+          return [[{ name: 'migrateCmsHomepageFields', checksum: NEW, status: 'ok' }], []];
+        }
+        throw new Error('Unexpected query');
+      },
+    };
+    const result = await tracker.runPendingMigrations(pool, {
+      registry: [{
+        name: 'migrateCmsHomepageFields',
+        file: './migrate-cms-homepage-fields',
+        exportName: 'migrateCmsHomepageFields',
+      }],
       checksumFor: () => NEW,
     });
     assert.equal(result.reconciled, 0);
