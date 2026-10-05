@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 — Reconcile user profile migration checksum
+
+### Fixed
+- `migrateUserProfile` encoding/line-ending checksum drift reconciled via strict `ENCODING_RECONCILE_REGISTRY` pair + `users` profile-column verifier (`last_name`, `phone`, `avatar_path`, `password_changed_at`)
+
 ## 2026-10-05 — Reconcile user addresses migration and CSP connectSrc
 
 ### Fixed

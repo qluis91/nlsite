@@ -40,6 +40,12 @@ const ENCODING_RECONCILE_REGISTRY = {
     reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
     verifySchema: null, // set below after _verifyUserAddressesSchema is defined
   },
+  migrateUserProfile: {
+    oldChecksum: '70787565a4d77438fb9ff12234edad50c95d1230854dd2923b96f570f263b344',
+    newChecksum: '15c2f21bd3b28c27832f8889a46365dfc89e2affc34620c9790209dfdf48bcbf',
+    reason: 'encoding/line-ending drift after original execution (no logic or SQL change)',
+    verifySchema: null, // set below after _verifyUserProfileSchema is defined
+  },
 };
 
 const MIGRATION_REGISTRY = [
@@ -270,10 +276,38 @@ async function _verifyUserAddressesSchema(pool) {
   }
 }
 
+async function _verifyUserProfileSchema(pool) {
+  // Verify additive profile columns from scripts/migrate-user-profile.js.
+  const requiredColumns = ['last_name', 'phone', 'avatar_path', 'password_changed_at'];
+
+  try {
+    const [cols] = await pool.query(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'"
+    );
+    if (!cols.length) {
+      console.warn('[migrate:deploy] users table is missing.');
+      return false;
+    }
+    const actual = new Set(cols.map((c) => c.COLUMN_NAME));
+    const missing = requiredColumns.filter((c) => !actual.has(c));
+    if (missing.length > 0) {
+      console.warn('[migrate:deploy] users missing profile columns: ' + missing.join(', '));
+      return false;
+    }
+
+    console.log('[migrate:deploy] users profile schema verified OK.');
+    return true;
+  } catch (err) {
+    console.warn('[migrate:deploy] users profile schema verification error: ' + err.message);
+    return false;
+  }
+}
+
 // Link verifySchema functions now that the helpers are defined
 ENCODING_RECONCILE_REGISTRY.migrateTilopay.verifySchema = _verifyTilopaySchema;
 ENCODING_RECONCILE_REGISTRY.migrateCmsHomepageFields.verifySchema = _verifyCmsHomepageFieldsSchema;
 ENCODING_RECONCILE_REGISTRY.migrateUserAddresses.verifySchema = _verifyUserAddressesSchema;
+ENCODING_RECONCILE_REGISTRY.migrateUserProfile.verifySchema = _verifyUserProfileSchema;
 
 async function _reconcileChecksum(pool, name, newChecksum, reason) {
   const [rows] = await pool.query(
