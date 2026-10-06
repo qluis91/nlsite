@@ -7,7 +7,7 @@
   var PDF_PAGE_WIDTH_PX = 1080;
   var PX_TO_MM = 25.4 / 96;
   var IVA_RATE = 0.13;
-  var LOGO_URL = '/images/logo-combo.png';
+  var LOGO_URL = '/images/LogoCompleto.png';
   var CSS_URL = '/css/cost-quote-pdf-template.css';
   var TRANSFER = {
     name: 'Luis Quijano Aguilar',
