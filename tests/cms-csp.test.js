@@ -121,6 +121,37 @@ describe('EJS renders — CSP safe', () => {
     assert.ok(!html.match(/<script>(?!.*type="application\/json")/), 'must not have executable inline script');
   });
 
+  it('panel2 global publish action is outside style-only tab and remains available', async () => {
+    const viewPath = path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'panel2.ejs');
+    const html = await ejs.renderFile(viewPath, {
+      content: {}, style: {}, bgMedia: null,
+      logoItems: [],
+      carouselItems: [],
+      safeJsonScript,
+      csrfToken: 'x', error: null, saved: null,
+      editorState: 'saved',
+      activeTab: 'general',
+    });
+
+    const styleStart = html.indexOf('data-panel="style"');
+    const styleEnd = html.indexOf('data-panel2-global-actions');
+    const publishBtn = html.indexOf('Publicar Panel 2');
+    const publishForm = html.indexOf('id="panel2-publish-form"');
+    assert.ok(styleStart >= 0, 'style tab must exist');
+    assert.ok(styleEnd > styleStart, 'global actions must follow style tab markup');
+    assert.ok(publishBtn > styleEnd, 'Publicar Panel 2 must sit in shared global actions');
+    assert.ok(html.includes('data-panel2-global-actions'), 'shared actions marker required');
+    assert.ok(html.includes('form="panel2-publish-form"'), 'publish button must target hidden form');
+    assert.ok(publishForm > publishBtn, 'hidden publish form remains after the button');
+    assert.equal((html.match(/Publicar Panel 2/g) || []).length, 1, 'must not duplicate Publicar Panel 2');
+
+    const styleSlice = html.slice(styleStart, styleEnd);
+    assert.ok(!styleSlice.includes('Publicar Panel 2'), 'style tab must not own global publish');
+    assert.ok(styleSlice.includes('Guardar cambios'), 'style tab keeps its own save action');
+    assert.ok(html.includes('data-cms-editor-status'), 'editor state remains visible');
+    assert.ok(html.includes('/admin/page/home/panel-2/publish'), 'publish route preserved');
+  });
+
   it('panel3.ejs renders with ID-based buttons, no onclick/script', async () => {
     const viewPath = path.join(__dirname, '..', 'views', 'pages', 'admin', 'page', 'panel3.ejs');
     const html = await ejs.renderFile(viewPath, {
