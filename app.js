@@ -639,15 +639,17 @@ app.get('/', async (req, res) => {
     let socialItems = [];
 
     {
+      // Independently published repeatables use published_data + section.is_enabled.
+      // Do not require section.published_content_json (section text/style snapshots).
       const section = await resolveSection('hero');
-      if (section?.has_published_version && Number(section.is_enabled) === 1) {
+      if (section && Number(section.is_enabled) === 1) {
         socialItems = await repeatableSvc.getPublishedItems('home_social_items', section.id);
       }
     }
 
     {
       const section = await resolveSection('showcase');
-      if (section?.has_published_version && Number(section.is_enabled) === 1) {
+      if (section && Number(section.is_enabled) === 1) {
         [logoLoopItems, carouselItems] = await Promise.all([
           repeatableSvc.getPublishedItems('logo_loop_items', section.id),
           repeatableSvc.getPublishedItems('home_carousel_items', section.id),
@@ -657,7 +659,7 @@ app.get('/', async (req, res) => {
 
     {
       const section = await resolveSection('services');
-      if (section?.has_published_version && Number(section.is_enabled) === 1) {
+      if (section && Number(section.is_enabled) === 1) {
         featureItems = await repeatableSvc.getPublishedItems('home_feature_items', section.id);
       }
     }
