@@ -604,6 +604,12 @@ describe('Controller + frontend port wiring', () => {
     assert.ok(src.includes('tilopay-fees.js'));
   });
 
+  it('references the existing LogoCompleto.png asset for the PDF logo', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'), 'utf8');
+    assert.ok(src.includes("var LOGO_URL = '/images/LogoCompleto.png';"));
+    assert.ok(!src.includes('/images/logo-combo.png'));
+  });
+
   it('thin mount page targets admin-cost-quote-app', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../views/pages/admin/cost-quote.ejs'), 'utf8');
     assert.ok(src.includes('id="admin-cost-quote-app"'));
