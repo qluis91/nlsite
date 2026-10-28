@@ -118,15 +118,23 @@ const MODULES = Object.freeze({
     dependencies: [MODULE_KEYS.SHOWCASE],
     canPublishIndependently: true,
     validate: async () => {
+      // Effective remaining collection after publish applies pending draft/archive changes.
       const [[{ cnt }]] = await pool.query(
-        "SELECT COUNT(*) cnt FROM logo_loop_items WHERE status='draft' AND deleted_at IS NULL AND is_visible=1"
+        `SELECT COUNT(*) cnt FROM logo_loop_items
+          WHERE status <> 'archived'
+            AND deleted_at IS NULL
+            AND is_visible = 1`
       );
-      if (cnt === 0) return { valid: false, errors: ['El LogoLoop requiere al menos un elemento visible en borrador.'] };
+      if (cnt === 0) {
+        return { valid: false, errors: ['El LogoLoop requiere al menos un elemento visible.'] };
+      }
       return { valid: true, warnings: [] };
     },
     pendingCheck: async () => {
+      // Match publishCollectionInTx / publishCollection selection semantics.
       const [[{ cnt }]] = await pool.query(
-        "SELECT COUNT(*) cnt FROM logo_loop_items WHERE status='draft' AND deleted_at IS NULL"
+        `SELECT COUNT(*) cnt FROM logo_loop_items
+          WHERE status IN ('draft', 'archived') OR published_data IS NULL`
       );
       return cnt > 0;
     },
@@ -142,14 +150,20 @@ const MODULES = Object.freeze({
     canPublishIndependently: true,
     validate: async () => {
       const [[{ cnt }]] = await pool.query(
-        "SELECT COUNT(*) cnt FROM home_carousel_items WHERE status='draft' AND deleted_at IS NULL AND is_visible=1"
+        `SELECT COUNT(*) cnt FROM home_carousel_items
+          WHERE status <> 'archived'
+            AND deleted_at IS NULL
+            AND is_visible = 1`
       );
-      if (cnt === 0) return { valid: false, errors: ['El carrusel requiere al menos un proyecto visible en borrador.'] };
+      if (cnt === 0) {
+        return { valid: false, errors: ['El carrusel requiere al menos un proyecto visible.'] };
+      }
       return { valid: true, warnings: [] };
     },
     pendingCheck: async () => {
       const [[{ cnt }]] = await pool.query(
-        "SELECT COUNT(*) cnt FROM home_carousel_items WHERE status='draft' AND deleted_at IS NULL"
+        `SELECT COUNT(*) cnt FROM home_carousel_items
+          WHERE status IN ('draft', 'archived') OR published_data IS NULL`
       );
       return cnt > 0;
     },
