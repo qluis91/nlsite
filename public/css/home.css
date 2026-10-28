@@ -4050,6 +4050,10 @@ html.hero-entrance-pending body.page-home [data-hero-animate="helmet"] {
     max-width: 36ch;
     font-size: clamp(0.86rem, 3.4vw, 0.98rem);
     line-height: 1.55;
+    color: rgba(248, 250, 247, 0.96);
+    text-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.90),
+      0 0 10px rgba(0, 0, 0, 0.55);
   }
 
   html.hero-entrance-pending body.page-home .hero-word {
