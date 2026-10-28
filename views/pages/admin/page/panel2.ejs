@@ -236,13 +236,17 @@
         <input type="text" id="p2-accent-color" name="accentColor" class="form-input" placeholder="#RRGGBB" pattern="#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?" value="<%= s.accentColor || '' %>">
       </div>
     </div>
-  </form>
 
-  <div class="sticky-actions">
-    <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>">Sin cambios</span>
-    <button type="submit" class="btn btn-save" name="action" value="draft" form="panel2-settings-form">Guardar cambios</button>
-    <button type="submit" form="panel2-publish-form" class="btn btn-publish">Publicar Panel 2</button>
-  </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-save" name="action" value="draft">Guardar cambios</button>
+    </div>
+  </form>
+</div>
+
+<!-- Shared Panel 2 publish actions — always visible regardless of active tab -->
+<div class="sticky-actions" data-panel2-global-actions>
+  <span class="cms-editor-state" data-cms-editor-status data-state="<%= cmsEditorState || 'clean' %>"><%= ({ dirty: 'Cambios sin guardar', saving: 'Guardando', saved: 'Borrador guardado', published: 'Publicado', error: 'Error' })[cmsEditorState] || 'Sin cambios' %></span>
+  <button type="submit" form="panel2-publish-form" class="btn btn-publish">Publicar Panel 2</button>
 </div>
 <form id="panel2-publish-form" method="POST" action="/admin/page/home/panel-2/publish" style="display:none" data-cms-publish-form>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
