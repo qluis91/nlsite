@@ -9,6 +9,7 @@ const validator = require('../validators/cmsPanelsValidator');
 const pool = require('../config/db');
 const cmsContent = require('../services/cmsContentService');
 const publicationService = require('../services/publicationService');
+const moduleRegistry = require('../services/moduleRegistry');
 
 // ── Helpers ──
 
@@ -27,6 +28,34 @@ function tabRedirect(basePath, activeTab, allowedSet) {
 function errorRedirect(req, res, url, errors) {
   req.session.error_msg = errors.join('; ');
   return res.redirect(url);
+}
+
+/**
+ * Panel 2 always publishes showcase content/style.
+ * LogoLoop/Carousel are included only when their module pendingCheck reports changes,
+ * so already-published collections do not fail validation with 0 drafts.
+ */
+async function selectPanel2PublishModules() {
+  const modules = ['home.showcase'];
+  if (await moduleRegistry.getModule('home.logoLoop').pendingCheck()) {
+    modules.push('home.logoLoop');
+  }
+  if (await moduleRegistry.getModule('home.carousel').pendingCheck()) {
+    modules.push('home.carousel');
+  }
+  return modules;
+}
+
+/** Safe admin-facing publish error (no stacks/SQL/secrets). */
+function formatPublishError(err) {
+  const raw = String(err && typeof err.message === 'string' ? err.message : '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!raw) return 'Error al publicar.';
+  if (/\bat\s+\S+\s*\(|SQLSTATE|ER_[A-Z0-9_]+|password|credential|secret|authorization|ECONN/i.test(raw)) {
+    return 'Error al publicar.';
+  }
+  return `Error al publicar: ${raw.slice(0, 240)}`;
 }
 
 function successRedirect(req, res, url, msg) {
@@ -203,15 +232,17 @@ async function savePanel2Draft(req, res) {
 async function publishPanel2(req, res) {
   const activeTab = String(req.body.active_tab || 'general');
   try {
-    await publicationService.publishModules(
-      ['home.showcase', 'home.logoLoop', 'home.carousel'],
-      'module',
-      { actorId: actorId(req) }
-    );
+    const modules = await selectPanel2PublishModules();
+    await publicationService.publishModules(modules, 'module', { actorId: actorId(req) });
     return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Panel 2 publicado.');
   } catch (e) {
     console.error('Panel 2 publish error:', e);
-    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), ['Error al publicar.']);
+    return errorRedirect(
+      req,
+      res,
+      tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2),
+      [formatPublishError(e)]
+    );
   }
 }
 
@@ -700,6 +731,7 @@ async function saveAndPublishFeatureItem(req, res) {
 
 module.exports = {
   showPanel2, savePanel2Draft, publishPanel2,
+  selectPanel2PublishModules, formatPublishError,
   createLogoLoopItem, saveLogoLoopItem, saveAndPublishLogoLoopItem, archiveLogoLoopItem, reorderLogoLoopItems, publishLogoLoop, deleteLogoLoopItem,
   createCarouselItem, saveCarouselItem, saveAndPublishCarouselItem, archiveCarouselItem, reorderCarouselItems, publishCarousel,
   showPanel3, savePanel3Draft, publishPanel3,
