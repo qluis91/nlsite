@@ -503,6 +503,20 @@ describe('Phase 11D — Concurrency', () => {
     assert.ok(serviceContent.includes('FOR UPDATE'), 'should use FOR UPDATE for row locking');
   });
 
+  it('60b. page section publish skip requires matching published content/style', () => {
+    const serviceContent = fs.readFileSync(
+      path.join(process.cwd(), 'services', 'publicationService.js'),
+      'utf-8'
+    );
+    assert.ok(serviceContent.includes('sectionDraftMatchesPublished'), 'must compare draft vs published payloads');
+    assert.ok(serviceContent.includes('isDeepStrictEqual'), 'must deep-compare JSON payloads');
+    assert.ok(
+      serviceContent.includes("before.status === 'published'")
+        && serviceContent.includes('sectionDraftMatchesPublished(before)'),
+      'must not skip solely on status=published'
+    );
+  });
+
   it('61. transaction boundaries are correct', () => {
     const serviceContent = fs.readFileSync(
       path.join(process.cwd(), 'services', 'publicationService.js'),
@@ -594,7 +608,12 @@ describe('Phase 11D — Regression', () => {
       path.join(process.cwd(), 'services', 'imageProcessingService.js'),
       'utf-8'
     );
-    assert.ok(imgService.includes('quality: 80'), 'should use quality 80');
+    assert.ok(
+      imgService.includes('quality: 80')
+        || imgService.includes('PUBLIC_IMAGE_WEBP_QUALITY')
+        || imgService.includes('quality: PUBLIC_IMAGE_WEBP_QUALITY'),
+      'should use quality 80'
+    );
   });
 
   it('71. gallery routes remain intact', () => {

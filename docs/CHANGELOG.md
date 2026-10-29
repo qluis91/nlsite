@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-29 — Separate carousel autoplay from image motion
+
+### Fixed
+- Responsive main images stay centered (`object-position`/`transform-origin` 50%) while desktop keeps authored framing
+- Ken Burns is continuous centered zoom; hover/click no longer pause image motion
+- `Publicar carrusel` publishes pending showcase behavior config and carousel projects together
+- EJS templates cannot `require()` Node modules: expose `resolveCarouselBehavior` on `res.locals` so admin sliders and public data attributes use saved/published values (not silent defaults)
+
 ## 2026-10-29 — Standardize responsive carousel geometry and motion
 
 ### Fixed

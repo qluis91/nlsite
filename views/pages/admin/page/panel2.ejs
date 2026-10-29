@@ -198,22 +198,18 @@
 
 
   <%
-    const carouselBehavior = (function () {
-      try {
-        return require('../../../../validators/cmsPanelsValidator').resolveCarouselBehavior(content || {});
-      } catch (_) {
-        return {
+    const carouselBehavior = (typeof resolveCarouselBehavior === 'function')
+      ? resolveCarouselBehavior(c)
+      : {
           carouselAutoplayEnabled: true,
           carouselIntervalSeconds: 5.5,
           carouselZoomDurationSeconds: 32,
           carouselZoomIntensityPercent: 7,
         };
-      }
-    })();
   %>
   <div class="cms-card">
     <h3>Comportamiento del carrusel</h3>
-    <p class="form-help">Ajusta la reproducción automática y el movimiento de las imágenes.</p>
+    <p class="form-help">Ajusta la reproducción automática y el movimiento de las imágenes. Guardar configuración guarda un borrador. “Publicar carrusel” aplica tanto los proyectos como esta configuración.</p>
     <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form" data-cms-editor-form novalidate>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="active_tab" value="carousel">
@@ -298,7 +294,7 @@
 
       <div class="form-actions">
         <button type="submit" class="btn btn-save" name="action" value="draft">Guardar configuración</button>
-        <p class="form-help">Guarda los cambios aquí y usa “Publicar Panel 2” para aplicarlos al sitio.</p>
+        <p class="form-help">Guarda un borrador. Luego usa “Publicar carrusel” para aplicar proyectos y esta configuración al sitio.</p>
       </div>
     </form>
   </div>

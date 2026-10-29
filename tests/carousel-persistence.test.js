@@ -500,10 +500,14 @@ describe('Carousel controller — adminPanelsController', () => {
     );
   });
 
-  it('publishCarousel uses correct cache namespace', () => {
-    assert.ok(
-      ctrl.includes("'carousel_home'"),
-      'must use carousel_home cache namespace'
+  it('publishCarousel publishes showcase behavior and carousel via module system', () => {
+    assert.match(ctrl, /async function publishCarousel/);
+    assert.match(ctrl, /home\.showcase/);
+    assert.match(ctrl, /home\.carousel/);
+    assert.match(ctrl, /publicationService\.publishModules/);
+    assert.doesNotMatch(
+      ctrl.slice(ctrl.indexOf('async function publishCarousel'), ctrl.indexOf('async function saveAndPublishCarouselItem')),
+      /repeatable\.publishCollection\('home_carousel_items'/
     );
   });
 });

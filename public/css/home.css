@@ -2840,10 +2840,10 @@ body.is-social-embed-open {
 
 @keyframes project-carousel-kenburns {
   0% {
-    transform: scale(1) translate3d(0, 0, 0);
+    transform: scale(1);
   }
   100% {
-    transform: scale(var(--carousel-kenburns-scale, 1.07)) translate3d(-1.2%, -0.6%, 0);
+    transform: scale(var(--carousel-kenburns-scale, 1.07));
   }
 }
 
@@ -2851,21 +2851,9 @@ body.is-social-embed-open {
 .project-carousel:not(.is-enhanced) .project-carousel__slide:nth-child(2) .project-carousel__image {
   opacity: 1;
   filter: brightness(1.08) contrast(1.03) saturate(0.97);
-  transform-origin: 58% 40%;
+  transform-origin: 50% 50%;
   animation: project-carousel-kenburns var(--carousel-kenburns-duration, 32s) ease-in-out infinite alternate;
   animation-play-state: running;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .project-carousel:hover .project-carousel__slide.is-active .project-carousel__image,
-  .project-carousel:not(.is-enhanced):hover .project-carousel__slide:nth-child(2) .project-carousel__image {
-    animation-play-state: paused;
-  }
-}
-
-.project-carousel.is-image-motion-paused .project-carousel__slide.is-active .project-carousel__image,
-.project-carousel.is-image-motion-paused:not(.is-enhanced) .project-carousel__slide:nth-child(2) .project-carousel__image {
-  animation-play-state: paused;
 }
 
 .project-carousel__slide.is-preview-near .project-carousel__image {
@@ -3320,6 +3308,7 @@ body.is-social-embed-open {
     overflow: hidden;
     background: #0c100f;
     pointer-events: auto;
+    transform-origin: 50% 50%;
   }
 
   .project-carousel__slide.is-active .project-carousel__face > .project-carousel__image,
@@ -3337,7 +3326,8 @@ body.is-social-embed-open {
   .project-carousel__slide.is-active .project-carousel__image,
   .project-carousel:not(.is-enhanced) .project-carousel__slide:nth-child(2) .project-carousel__image {
     object-fit: contain;
-    object-position: var(--carousel-position-x, 50%) var(--carousel-position-y, 50%);
+    object-position: 50% 50%;
+    transform-origin: 50% 50%;
   }
 
   .project-carousel__slide.is-active::after,

@@ -103,9 +103,26 @@ const MODULES = Object.freeze({
     },
     pendingCheck: async () => {
       const [[row]] = await pool.query(
-        "SELECT s.status FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key='home' AND s.section_key='showcase'"
+        `SELECT s.status, s.content_json, s.style_json, s.published_content_json, s.published_style_json
+           FROM page_sections s
+           INNER JOIN pages p ON p.id = s.page_id
+          WHERE p.page_key='home' AND s.section_key='showcase'`
       );
-      return row && row.status === 'draft';
+      if (!row) return false;
+      if (row.status === 'draft') return true;
+      const { isDeepStrictEqual } = require('util');
+      const parse = (value) => {
+        if (value == null) return {};
+        if (typeof value === 'object') return value;
+        try {
+          const parsed = JSON.parse(value);
+          return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch {
+          return {};
+        }
+      };
+      return !isDeepStrictEqual(parse(row.content_json), parse(row.published_content_json))
+        || !isDeepStrictEqual(parse(row.style_json), parse(row.published_style_json));
     },
   }),
 

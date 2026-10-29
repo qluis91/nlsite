@@ -495,11 +495,33 @@ async function reorderCarouselItems(req, res) {
 async function publishCarousel(req, res) {
   const activeTab = String(req.body.active_tab || 'carousel');
   try {
-    const section = await getSectionId('home', 'showcase');
-    await repeatable.publishCollection('home_carousel_items', section.id, 'carousel_home', { actorId: actorId(req) });
+    // Publish showcase behavior config and/or carousel projects through the
+    // centralized module system — "Publicar carrusel" covers both.
+    const modules = [];
+    if (await moduleRegistry.getModule('home.showcase').pendingCheck()) {
+      modules.push('home.showcase');
+    }
+    if (await moduleRegistry.getModule('home.carousel').pendingCheck()) {
+      modules.push('home.carousel');
+    }
+    if (!modules.length) {
+      return successRedirect(
+        req,
+        res,
+        tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2),
+        'No hay cambios pendientes del carrusel para publicar.'
+      );
+    }
+    await publicationService.publishModules(modules, 'module', { actorId: actorId(req) });
     return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Carrusel publicado.');
   } catch (e) {
-    return errorRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), ['Error al publicar.']);
+    console.error('Carousel publish error:', e);
+    return errorRedirect(
+      req,
+      res,
+      tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2),
+      [formatPublishError(e)]
+    );
   }
 }
 
@@ -509,8 +531,11 @@ async function saveAndPublishCarouselItem(req, res) {
   if (errors.length) return renderItemFailure(req, res, showPanel2, 'carousel', errors);
   try {
     await persistCarouselItem(req, Boolean(req.body.public_id));
-    const section = await getSectionId('home', 'showcase');
-    await repeatable.publishCollection('home_carousel_items', section.id, 'carousel_home', { actorId: actorId(req) });
+    const modules = ['home.carousel'];
+    if (await moduleRegistry.getModule('home.showcase').pendingCheck()) {
+      modules.unshift('home.showcase');
+    }
+    await publicationService.publishModules(modules, 'module', { actorId: actorId(req) });
     return successRedirect(req, res, tabRedirect('/admin/page/home/panel-2', activeTab, ALLOWED_TABS_PANEL2), 'Proyecto guardado y carrusel publicado.');
   } catch (e) {
     console.error('Save and publish carousel item:', e);
