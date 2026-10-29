@@ -528,7 +528,7 @@ function buildCollectionPublicationSnapshot(table, fields, item) {
 async function publishCollectionInTx(connection, table, entityType, actorId) {
   const [before] = await connection.query(
     `SELECT * FROM \`${table}\`
-      WHERE status IN ('draft', 'archived') OR published_data IS NULL
+      WHERE ${repeatable.COLLECTION_PENDING_WHERE}
       FOR UPDATE`
   );
   if (!before.length) {
@@ -539,6 +539,7 @@ async function publishCollectionInTx(connection, table, entityType, actorId) {
   let publishedRevId = null;
   for (const item of before) {
     if (item.status === 'archived') {
+      if (item.published_data == null) continue;
       await connection.query(
         `UPDATE \`${table}\`
             SET published_data = NULL, published_at = NOW(), deleted_at = NOW(), updated_by = ?

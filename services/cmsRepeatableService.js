@@ -43,6 +43,17 @@ const PUBLISHED_FIELDS = Object.freeze({
   ]),
 });
 
+/**
+ * Rows that still need a collection publish pass.
+ * Already-cleared archives (status=archived, published_data NULL) are excluded
+ * so publishing stays idempotent.
+ */
+const COLLECTION_PENDING_WHERE = `(
+  status = 'draft'
+  OR (status = 'archived' AND published_data IS NOT NULL)
+  OR (status = 'published' AND published_data IS NULL)
+)`;
+
 function publishedSnapshot(table, row) {
   const fields = PUBLISHED_FIELDS[table];
   if (!fields) throw new Error('Colección CMS no permitida.');
@@ -287,7 +298,7 @@ async function publishCollection(table, sectionId, cacheNs, { actorId = null } =
     await connection.beginTransaction();
     const [items] = await withDeadlockRetry(() => connection.query(
       `SELECT * FROM ${table}
-        WHERE page_section_id = ? AND (status IN ('draft', 'archived') OR published_data IS NULL)
+        WHERE page_section_id = ? AND ${COLLECTION_PENDING_WHERE}
         FOR UPDATE`,
       [sectionId]
     ));
@@ -296,6 +307,7 @@ async function publishCollection(table, sectionId, cacheNs, { actorId = null } =
 
     for (const item of items) {
       if (item.status === 'archived') {
+        if (item.published_data == null) continue;
         await connection.query(
           `UPDATE ${table}
               SET published_data = NULL, published_at = NOW(), deleted_at = NOW(), updated_by = ?
@@ -406,5 +418,6 @@ module.exports = {
   publishCollection,
   publishedSnapshot,
   PUBLISHED_FIELDS,
+  COLLECTION_PENDING_WHERE,
   registerPanelUsageSources,
 };
