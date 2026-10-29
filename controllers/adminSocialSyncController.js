@@ -346,6 +346,12 @@ async function testConnection(req, res, next) {
     }
 
     const result = await syncService.testConnection(provider);
+    if (result && result.connected === false) {
+      setAlerts(req, [ninja('err', 'error',
+        `La conexión con ${provider} ya no es válida. Reconectá la integración.`
+      )]);
+      return res.redirect(BASE_PATH);
+    }
     let msg = `Conexión con ${provider} exitosa.`;
     if (result.expirationWarning) msg += ` ⚠ ${result.expiresInDays ? `Token expira en ${result.expiresInDays} días.` : 'Reconecta pronto.'}`;
     setAlerts(req, [ninja('ok', 'success', msg)]);

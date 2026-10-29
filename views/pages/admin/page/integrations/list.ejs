@@ -60,6 +60,12 @@
         <% } %>
       </div>
       <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <% const isMetaProvider = integration.provider === 'instagram' || integration.provider === 'facebook'; %>
+        <% if (!integration.isConnected && isMetaProvider) { %>
+          <a class="btn btn-primary" href="/admin/page/integrations/meta-connect?provider=<%= integration.provider %>">
+            <%= (integration.lastSyncStatus === 'error' || integration.lastSyncError) ? 'Reconectar' : 'Conectar' %> <%= integration.label %>
+          </a>
+        <% } %>
         <a class="btn btn-outline" href="/admin/page/integrations/edit?provider=<%= integration.provider %>">Configurar</a>
         <% if (integration.isConnected) { %>
           <form method="POST" action="/admin/page/integrations/test" style="display:inline">

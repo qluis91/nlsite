@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-29 — Validate operational Meta credentials
+
+### Fixed
+- Facebook `Probar conexión` validates the Page access token via `/{pageId}/posts` (same path as sync), not only the user `/me` token
+- Instagram `Probar conexión` validates `/{igUserId}/media` after `/me`
+- Facebook/Instagram sync disconnects on terminal auth from Page/media endpoints (`code 190`, permissions), not only the initial user-token check
+
+## 2026-10-29 — Handle revoked Meta sessions and reconnection
+
+### Fixed
+- Meta OAuth `error.code === 190` is treated as terminal auth failure even when HTTP status is 400 (not only 401/403)
+- Invalid/revoked Meta tokens disconnect Instagram/Facebook (`is_connected=0`, `is_enabled=0`, `auto_sync=0`) with a Spanish reconnect message instead of leaving stale CONECTADO
+- `Probar conexión` no longer reports success when `validateToken()` fails; it disconnects and shows a reconnect Ninja Alert
+- Successful Meta OAuth clears `last_sync_error` / `last_sync_status` without re-enabling `auto_sync`
+
+### Changed
+- Integrations list/config show primary **Reconectar Instagram/Facebook** when Meta auth previously failed
+
 ## 2026-10-29 — Persist TikTok social thumbnails locally
 
 ### Fixed

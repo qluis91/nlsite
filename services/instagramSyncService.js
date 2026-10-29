@@ -53,9 +53,15 @@ async function fetchInstagramMedia(igUserId, accessToken, maxResults = MAX_MEDIA
   const { status, data } = await fetch(url);
 
   if (status !== 200) {
-    const isAuth = status === 401 || status === 403 || data?.error?.code === 190;
+    const classified = metaOAuth.classifyMetaApiError(status, data);
+    const isAuth = classified.category !== 'transient' && metaOAuth.requiresReconnect(classified.category);
     throw Object.assign(new Error(`Instagram API error: ${data?.error?.message || status}`), {
-      code: 'IG_API_ERROR', status, authError: isAuth, retryable: !isAuth && (status >= 500 || status === 429),
+      code: 'IG_API_ERROR',
+      status,
+      data,
+      authError: isAuth,
+      category: classified.category,
+      retryable: !isAuth && (status >= 500 || status === 429),
     });
   }
 
@@ -241,18 +247,47 @@ async function syncInstagram(intRow) {
   if (!validation.valid) {
     await metaOAuth.handleConnectionFailure(PROVIDER, validation.category);
     throw Object.assign(
-      new Error(`Token de Instagram inválido: ${validation.reason}. Reconecta la integración.`),
-      { code: 'TOKEN_INVALID', category: validation.category, authError: true }
+      new Error(metaOAuth.friendlyAuthErrorMessage(validation.category)),
+      {
+        code: metaOAuth.requiresReconnect(validation.category)
+          ? 'META_RECONNECT_REQUIRED'
+          : 'TOKEN_INVALID',
+        category: validation.category,
+        authError: metaOAuth.requiresReconnect(validation.category),
+      }
     );
   }
 
   const accessToken = await metaOAuth.getUserAccessToken(PROVIDER);
   if (!accessToken) {
-    throw Object.assign(new Error('Token de acceso no disponible para Instagram.'), { code: 'NO_TOKEN' });
+    await metaOAuth.handleConnectionFailure(PROVIDER, 'missing');
+    throw Object.assign(
+      new Error(metaOAuth.friendlyAuthErrorMessage('missing')),
+      { code: 'META_RECONNECT_REQUIRED', category: 'missing', authError: true }
+    );
   }
 
   const maxResults = Math.min(50, Math.max(1, Number(config.maxPosts) || MAX_MEDIA_DEFAULT));
-  const items = await fetchInstagramMedia(igUserId, accessToken, maxResults);
+  let items;
+  try {
+    items = await fetchInstagramMedia(igUserId, accessToken, maxResults);
+  } catch (err) {
+    const classified = metaOAuth.classifyMetaApiError(err.status, err.data);
+    if (metaOAuth.requiresReconnect(classified.category)) {
+      await metaOAuth.handleConnectionFailure(PROVIDER, classified.category);
+      throw Object.assign(
+        new Error(metaOAuth.friendlyAuthErrorMessage(classified.category)),
+        {
+          code: 'META_RECONNECT_REQUIRED',
+          category: classified.category,
+          authError: true,
+          status: err.status,
+          data: err.data,
+        }
+      );
+    }
+    throw err;
+  }
 
   let imported = 0;
   let skipped = 0;

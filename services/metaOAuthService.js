@@ -443,7 +443,8 @@ async function completeConnection(provider, accessToken, expiresIn, pageData, ig
 
   await pool.query(
     `UPDATE social_integrations SET
-       config_json = ?, is_connected = 1, is_enabled = 1
+       config_json = ?, is_connected = 1, is_enabled = 1,
+       last_sync_status = NULL, last_sync_error = NULL
      WHERE provider = ?`,
     [JSON.stringify(configJson), provider]
   );
@@ -533,7 +534,99 @@ async function getAccessTokenForCall(provider, config) {
   return getUserAccessToken(provider);
 }
 
-// ── Token lifecycle ──
+// ── Token lifecycle / Meta error classification ──
+
+const TERMINAL_AUTH_CATEGORIES = new Set([
+  'expired',
+  'revoked',
+  'invalid_token',
+  'permission_denied',
+  'missing',
+]);
+
+function requiresReconnect(category) {
+  return TERMINAL_AUTH_CATEGORIES.has(category);
+}
+
+function friendlyAuthErrorMessage(category) {
+  if (category === 'permission_denied') {
+    return 'Meta revocó o cambió los permisos. Reconectá la integración.';
+  }
+  return 'La sesión de Meta ya no es válida. Reconectá la integración.';
+}
+
+/**
+ * Classify Meta Graph API errors without requiring HTTP 401/403.
+ * OAuth code 190 can arrive as HTTP 400 in production.
+ *
+ * @param {number} status
+ * @param {object} [data]
+ */
+function classifyMetaApiError(status, data) {
+  const code = data?.error?.code;
+  const subcode = data?.error?.error_subcode;
+  const message = String(data?.error?.message || '').trim();
+
+  if (code === 190) {
+    if (subcode === 463 || subcode === 464) {
+      return {
+        valid: false,
+        reason: 'token_expired',
+        category: 'expired',
+        errorCode: 190,
+        errorSubcode: subcode,
+      };
+    }
+    if (subcode === 458 || subcode === 459 || subcode === 460) {
+      return {
+        valid: false,
+        reason: 'token_revoked',
+        category: 'revoked',
+        errorCode: 190,
+        errorSubcode: subcode,
+      };
+    }
+    return {
+      valid: false,
+      reason: 'invalid_token',
+      category: 'invalid_token',
+      errorCode: 190,
+      errorSubcode: subcode ?? null,
+    };
+  }
+
+  if (code === 10 || code === 200) {
+    return {
+      valid: false,
+      reason: 'permission_denied',
+      category: 'permission_denied',
+      errorCode: code,
+      errorSubcode: subcode ?? null,
+    };
+  }
+
+  if (status === 401 || status === 403) {
+    return {
+      valid: false,
+      reason: message || 'auth_error',
+      category: 'invalid_token',
+      errorCode: code ?? null,
+      errorSubcode: subcode ?? null,
+    };
+  }
+
+  if (status === 200) {
+    return { valid: true, category: 'ok', errorCode: null, errorSubcode: null };
+  }
+
+  return {
+    valid: false,
+    reason: message || `HTTP ${status}`,
+    category: 'transient',
+    errorCode: code ?? null,
+    errorSubcode: subcode ?? null,
+  };
+}
 
 /**
  * Validate a token and categorize the result.
@@ -549,18 +642,25 @@ async function validateToken(provider) {
     if (status === 200 && data.id) {
       return { valid: true, userId: data.id, category: 'ok' };
     }
-    if (status === 401 || status === 403) {
-      const code = data?.error?.code;
-      if (code === 190) {
-        const subcode = data?.error?.error_subcode;
-        if (subcode === 463 || subcode === 464) return { valid: false, reason: 'token_expired', category: 'expired' };
-        if (subcode === 458 || subcode === 459 || subcode === 460) return { valid: false, reason: 'token_revoked', category: 'revoked' };
-        return { valid: false, reason: 'auth_error', category: 'auth_error' };
-      }
-      if (code === 10 || code === 200) return { valid: false, reason: 'permission_denied', category: 'permission_denied' };
-      return { valid: false, reason: data?.error?.message || 'auth_error', category: 'auth_error' };
-    }
-    return { valid: false, reason: data?.error?.message || `HTTP ${status}`, category: 'transient' };
+
+    const classified = classifyMetaApiError(status, data);
+    console.log(JSON.stringify({
+      ts: new Date().toISOString(),
+      stage: 'meta_token_validation',
+      provider,
+      httpStatus: status,
+      errorCode: classified.errorCode ?? null,
+      errorSubcode: classified.errorSubcode ?? null,
+      category: classified.category,
+    }));
+
+    return {
+      valid: false,
+      reason: classified.reason,
+      category: classified.category,
+      errorCode: classified.errorCode ?? null,
+      errorSubcode: classified.errorSubcode ?? null,
+    };
   } catch {
     return { valid: false, reason: 'network_error', category: 'transient' };
   }
@@ -591,17 +691,26 @@ async function checkTokenExpiration(provider) {
 }
 
 /**
- * Handle a failed connection: disable auto-sync for expired/revoked tokens.
+ * Handle a failed connection: disconnect + disable sync for terminal auth failures.
+ * Does not delete imported posts or cached thumbnails.
+ * @param {string} provider
+ * @param {string} category
+ * @param {{ message?: string }} [options]
  */
-async function handleConnectionFailure(provider, category) {
-  if (category === 'expired' || category === 'revoked' || category === 'permission_denied') {
-    await pool.query(
-      'UPDATE social_integrations SET is_connected = 0, auto_sync = 0, last_sync_status = ?, last_sync_error = ? WHERE provider = ?',
-      ['error', `Token ${category}`, provider]
-    );
-    return { action: 'disabled', reason: category };
+async function handleConnectionFailure(provider, category, options = {}) {
+  if (!requiresReconnect(category)) {
+    return { action: 'unchanged', reason: category };
   }
-  return { action: 'unchanged', reason: category };
+
+  const friendly = String(options.message || friendlyAuthErrorMessage(category)).slice(0, 500);
+  await pool.query(
+    `UPDATE social_integrations SET
+       is_connected = 0, is_enabled = 0, auto_sync = 0,
+       last_sync_status = 'error', last_sync_error = ?
+     WHERE provider = ?`,
+    [friendly, provider]
+  );
+  return { action: 'disabled', reason: category };
 }
 
 // ── Exports ──
@@ -636,6 +745,10 @@ module.exports = {
   validateToken,
   checkTokenExpiration,
   handleConnectionFailure,
+  classifyMetaApiError,
+  requiresReconnect,
+  friendlyAuthErrorMessage,
+  TERMINAL_AUTH_CATEGORIES,
   setHttpGet,
   setHttpPost,
   httpGet,

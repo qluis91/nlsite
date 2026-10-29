@@ -57,10 +57,13 @@ test.after(async () => {
 // ═══════════════════════════════════════════════════════════
 
 test('migration 27 checksum matches restored original', async () => {
-  const fs = require('fs');
-  const buf = fs.readFileSync('scripts/migrate-social-integrations.js');
-  const sha = crypto.createHash('sha256').update(buf).digest('hex');
-  assert.equal(sha, '6154521b99fb5a26a8aee31e6bae5ab151f4e5505f655d52244314ca03fb6575');
+  const path = require('path');
+  const { computeChecksum } = require('../scripts/migrationTracker');
+  // LF-normalized checksum (raw Windows CRLF bytes differ; content unchanged)
+  assert.equal(
+    computeChecksum(path.resolve('scripts/migrate-social-integrations.js')),
+    '6154521b99fb5a26a8aee31e6bae5ab151f4e5505f655d52244314ca03fb6575'
+  );
 });
 
 test('migration 27 only seeds YouTube (not Instagram/Facebook)', () => {
@@ -96,9 +99,11 @@ test('migration 32 adds session_id column to social_oauth_states', async () => {
   assert.equal(cnt, 1);
 });
 
-test('MIGRATION_REGISTRY has 32 entries (31 base + 1 new)', () => {
+test('MIGRATION_REGISTRY includes Meta seed without a new Meta auth migration', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 36);
+  assert.equal(MIGRATION_REGISTRY.length, 42);
+  assert.ok(MIGRATION_REGISTRY.some((e) => e.name === 'migrateSeedMetaIntegrations'));
+  assert.ok(!MIGRATION_REGISTRY.some((e) => /meta.*reconnect|reconnect.*meta/i.test(e.name)));
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -334,18 +339,404 @@ test('checkTokenExpiration detects expired', async () => {
 });
 
 test('handleConnectionFailure disables sync for auth errors', async () => {
-  await pool.query("UPDATE social_integrations SET auto_sync = 1, is_connected = 1 WHERE provider = 'facebook'");
+  await pool.query("UPDATE social_integrations SET auto_sync = 1, is_connected = 1, is_enabled = 1 WHERE provider = 'facebook'");
   const result = await metaOAuth.handleConnectionFailure('facebook', 'expired');
   assert.equal(result.action, 'disabled');
-  const [[row]] = await pool.query("SELECT auto_sync, is_connected FROM social_integrations WHERE provider = 'facebook'");
+  const [[row]] = await pool.query(
+    "SELECT auto_sync, is_connected, is_enabled, last_sync_status, last_sync_error FROM social_integrations WHERE provider = 'facebook'"
+  );
   assert.equal(row.auto_sync, 0);
   assert.equal(row.is_connected, 0);
+  assert.equal(row.is_enabled, 0);
+  assert.equal(row.last_sync_status, 'error');
+  assert.match(String(row.last_sync_error), /sesión de Meta|Reconectá/i);
 });
 
 test('handleConnectionFailure keeps config for transient errors', async () => {
   await pool.query("UPDATE social_integrations SET auto_sync = 1, is_connected = 1 WHERE provider = 'instagram'");
   const result = await metaOAuth.handleConnectionFailure('instagram', 'transient');
   assert.equal(result.action, 'unchanged');
+});
+
+test('classifyMetaApiError: HTTP 400 + code 190 / subcode 460 is revoked', () => {
+  const result = metaOAuth.classifyMetaApiError(400, {
+    error: {
+      code: 190,
+      error_subcode: 460,
+      message: 'The session has been invalidated because the user changed their password',
+    },
+  });
+  assert.equal(result.valid, false);
+  assert.equal(result.category, 'revoked');
+  assert.equal(metaOAuth.requiresReconnect(result.category), true);
+});
+
+test('classifyMetaApiError: HTTP 400 + code 190 unknown subcode is invalid_token', () => {
+  const result = metaOAuth.classifyMetaApiError(400, {
+    error: { code: 190, error_subcode: 9999, message: 'Unknown 190' },
+  });
+  assert.equal(result.valid, false);
+  assert.equal(result.category, 'invalid_token');
+  assert.equal(metaOAuth.requiresReconnect(result.category), true);
+  assert.notEqual(result.category, 'transient');
+});
+
+test('validateToken treats HTTP 400 code 190 as terminal (production scenario)', async () => {
+  metaOAuth.setHttpGet(async () => ({
+    status: 400,
+    data: {
+      error: {
+        code: 190,
+        error_subcode: 460,
+        message: 'The session has been invalidated because the user changed their password',
+      },
+    },
+  }));
+  await pool.query(
+    "UPDATE social_integrations SET is_connected = 1, config_json = ? WHERE provider = 'instagram'",
+    [JSON.stringify({ pageId: 'page_val_400' })]
+  );
+  await encryption.storeToken(pool, 'instagram', 'page_val_400', 'dead-token', {});
+  const result = await metaOAuth.validateToken('instagram');
+  assert.equal(result.valid, false);
+  assert.equal(result.category, 'revoked');
+  assert.equal(metaOAuth.requiresReconnect(result.category), true);
+  await encryption.deleteToken(pool, 'instagram', 'page_val_400');
+  await pool.query("UPDATE social_integrations SET config_json = '{}', is_connected = 0 WHERE provider = 'instagram'");
+  metaOAuth.setHttpGet(null);
+});
+
+test('testConnection throws reconnect-required and disconnects on revoked token', async () => {
+  const syncService = require('../services/socialSyncService');
+  metaOAuth.setHttpGet(async () => ({
+    status: 400,
+    data: { error: { code: 190, error_subcode: 460, message: 'session invalidated' } },
+  }));
+  await encryption.storeToken(pool, 'instagram', 'page_test_conn', 'dead-token', {});
+  await pool.query(
+    "UPDATE social_integrations SET is_connected = 1, is_enabled = 1, auto_sync = 1, config_json = ? WHERE provider = 'instagram'",
+    [JSON.stringify({ pageId: 'page_test_conn', igUserId: 'ig_test' })]
+  );
+  await assert.rejects(
+    () => syncService.testConnection('instagram'),
+    (err) => err.code === 'META_RECONNECT_REQUIRED'
+  );
+  const [[row]] = await pool.query(
+    "SELECT is_connected, is_enabled, auto_sync, last_sync_status FROM social_integrations WHERE provider = 'instagram'"
+  );
+  assert.equal(row.is_connected, 0);
+  assert.equal(row.is_enabled, 0);
+  assert.equal(row.auto_sync, 0);
+  assert.equal(row.last_sync_status, 'error');
+  await metaOAuth.disconnectProvider('instagram');
+  metaOAuth.setHttpGet(null);
+});
+
+test('failed sync with HTTP 400/190 disconnects without deleting posts', async () => {
+  const crypto = require('node:crypto');
+  const publicId = crypto.randomUUID();
+  const extId = `ig-meta-auth-${Date.now()}`;
+  await encryption.storeToken(pool, 'instagram', 'page_sync_auth', 'dead-token', {});
+  await pool.query(
+    "UPDATE social_integrations SET is_connected = 1, is_enabled = 1, auto_sync = 1, config_json = ? WHERE provider = 'instagram'",
+    [JSON.stringify({ pageId: 'page_sync_auth', igUserId: 'ig_sync_auth', maxPosts: 5 })]
+  );
+  await pool.query(
+    `INSERT INTO social_posts
+      (public_id, platform, post_url, title, description, thumbnail_media_ref,
+       provider_thumbnail_url, provider_thumbnail_local_path,
+       embed_enabled, display_mode, is_active, is_featured, sort_order, status,
+       provider, provider_external_id, is_imported)
+     VALUES (?, 'instagram', ?, 'Keep me', '', '',
+       'https://scontent.cdninstagram.com/v/x.jpg', 'social/instagram/keep.webp',
+       0, 'external', 1, 0, 0, 'published', 'instagram', ?, 1)`,
+    [publicId, `https://www.instagram.com/p/${extId}/`, extId]
+  );
+
+  metaOAuth.setHttpGet(async () => ({
+    status: 400,
+    data: { error: { code: 190, error_subcode: 460, message: 'session invalidated' } },
+  }));
+
+  const [[intRow]] = await pool.query("SELECT * FROM social_integrations WHERE provider = 'instagram'");
+  await assert.rejects(
+    () => instagram.syncInstagram({
+      ...intRow,
+      config_json: typeof intRow.config_json === 'string'
+        ? JSON.parse(intRow.config_json) : (intRow.config_json || {}),
+    }),
+    (err) => err.code === 'META_RECONNECT_REQUIRED' || err.category === 'revoked'
+  );
+
+  const [[row]] = await pool.query(
+    "SELECT is_connected, is_enabled, auto_sync, last_sync_status FROM social_integrations WHERE provider = 'instagram'"
+  );
+  assert.equal(row.is_connected, 0);
+  assert.equal(row.is_enabled, 0);
+  assert.equal(row.auto_sync, 0);
+  assert.equal(row.last_sync_status, 'error');
+
+  const [[post]] = await pool.query(
+    'SELECT public_id, provider_thumbnail_local_path FROM social_posts WHERE public_id = ?',
+    [publicId]
+  );
+  assert.equal(post.public_id, publicId);
+  assert.equal(post.provider_thumbnail_local_path, 'social/instagram/keep.webp');
+
+  await pool.query('DELETE FROM social_posts WHERE public_id = ?', [publicId]);
+  await metaOAuth.disconnectProvider('instagram');
+  metaOAuth.setHttpGet(null);
+});
+
+test('completeConnection clears prior auth error and restores connected state', async () => {
+  await pool.query(
+    `UPDATE social_integrations SET
+       is_connected = 0, is_enabled = 0, auto_sync = 0,
+       last_sync_status = 'error', last_sync_error = 'old auth error',
+       config_json = ?
+     WHERE provider = 'facebook'`,
+    [JSON.stringify({ pageId: 'page_reconn' })]
+  );
+  await metaOAuth.completeConnection(
+    'facebook',
+    'fresh-user-token',
+    5184000,
+    { id: 'page_reconn', name: 'Reconn Page', accessToken: 'fresh-page-token', picture: '' },
+    null,
+    'sess-reconn'
+  );
+  const [[row]] = await pool.query(
+    "SELECT is_connected, is_enabled, auto_sync, last_sync_status, last_sync_error FROM social_integrations WHERE provider = 'facebook'"
+  );
+  assert.equal(row.is_connected, 1);
+  assert.equal(row.is_enabled, 1);
+  assert.equal(row.auto_sync, 0); // must not auto-enable
+  assert.equal(row.last_sync_status, null);
+  assert.equal(row.last_sync_error, null);
+  const userTok = await metaOAuth.getUserAccessToken('facebook');
+  assert.equal(userTok, 'fresh-user-token');
+  const pageTok = await metaOAuth.getPageAccessToken('page_reconn');
+  assert.equal(pageTok, 'fresh-page-token');
+  await metaOAuth.disconnectProvider('facebook');
+});
+
+test('network/transient validation does not disconnect', async () => {
+  metaOAuth.setHttpGet(async () => {
+    throw new Error('ECONNRESET');
+  });
+  await encryption.storeToken(pool, 'instagram', 'page_net', 'net-token', {});
+  await pool.query(
+    "UPDATE social_integrations SET is_connected = 1, is_enabled = 1, auto_sync = 1, config_json = ? WHERE provider = 'instagram'",
+    [JSON.stringify({ pageId: 'page_net' })]
+  );
+  const result = await metaOAuth.validateToken('instagram');
+  assert.equal(result.valid, false);
+  assert.equal(result.category, 'transient');
+  const failure = await metaOAuth.handleConnectionFailure('instagram', result.category);
+  assert.equal(failure.action, 'unchanged');
+  const [[row]] = await pool.query(
+    "SELECT is_connected, is_enabled, auto_sync FROM social_integrations WHERE provider = 'instagram'"
+  );
+  assert.equal(row.is_connected, 1);
+  assert.equal(row.is_enabled, 1);
+  assert.equal(row.auto_sync, 1);
+  await encryption.deleteToken(pool, 'instagram', 'page_net');
+  await pool.query("UPDATE social_integrations SET config_json = '{}', is_connected = 0 WHERE provider = 'instagram'");
+  metaOAuth.setHttpGet(null);
+});
+
+// ═══════════════════════════════════════════════════════════
+// Operational connection tests (Page token / IG media)
+// ═══════════════════════════════════════════════════════════
+
+test('testConnection Facebook fails when Page token is revoked (user token valid)', async () => {
+  const syncService = require('../services/socialSyncService');
+  metaOAuth.setHttpGet(async (url) => {
+    if (url.includes('/me?') || /\/me$/.test(url.split('?')[0])) {
+      return { status: 200, data: { id: 'user_ok' } };
+    }
+    if (url.includes('/posts')) {
+      return {
+        status: 400,
+        data: { error: { code: 190, error_subcode: 460, message: 'session invalidated' } },
+      };
+    }
+    return { status: 500, data: {} };
+  });
+  await encryption.storeToken(pool, 'facebook', 'page_op_fail', 'user-ok', {});
+  await encryption.storeToken(pool, 'facebook_page', 'page_op_fail', 'page-dead', {});
+  await pool.query(
+    "UPDATE social_integrations SET is_connected = 1, is_enabled = 1, auto_sync = 1, config_json = ? WHERE provider = 'facebook'",
+    [JSON.stringify({ pageId: 'page_op_fail' })]
+  );
+
+  await assert.rejects(
+    () => syncService.testConnection('facebook'),
+    (err) => err.code === 'META_RECONNECT_REQUIRED' && /página de Facebook/i.test(err.message)
+  );
+
+  const [[row]] = await pool.query(
+    "SELECT is_connected, is_enabled, auto_sync FROM social_integrations WHERE provider = 'facebook'"
+  );
+  assert.equal(row.is_connected, 0);
+  assert.equal(row.is_enabled, 0);
+  assert.equal(row.auto_sync, 0);
+
+  await metaOAuth.disconnectProvider('facebook');
+  metaOAuth.setHttpGet(null);
+});
+
+test('testConnection Facebook succeeds when user + page posts endpoint work', async () => {
+  const syncService = require('../services/socialSyncService');
+  metaOAuth.setHttpGet(async (url) => {
+    if (url.includes('/me?') || /\/me$/.test(url.split('?')[0])) {
+      return { status: 200, data: { id: 'user_ok' } };
+    }
+    if (url.includes('/posts')) {
+      return {
+        status: 200,
+        data: { data: [{ id: 'p1', message: 'Hello', full_picture: '', created_time: '2026-01-01', permalink_url: 'https://facebook.com/p1' }] },
+      };
+    }
+    return { status: 500, data: {} };
+  });
+  await encryption.storeToken(pool, 'facebook', 'page_op_ok', 'user-ok', {});
+  await encryption.storeToken(pool, 'facebook_page', 'page_op_ok', 'page-ok', {});
+  await pool.query(
+    "UPDATE social_integrations SET is_connected = 1, is_enabled = 1, config_json = ? WHERE provider = 'facebook'",
+    [JSON.stringify({ pageId: 'page_op_ok', tokenExpiresAt: new Date(Date.now() + 30 * 86400000).toISOString() })]
+  );
+
+  const result = await syncService.testConnection('facebook');
+  assert.equal(result.connected, true);
+
+  await metaOAuth.disconnectProvider('facebook');
+  metaOAuth.setHttpGet(null);
+});
+
+test('testConnection Facebook fails when Page token is missing', async () => {
+  const syncService = require('../services/socialSyncService');
+  metaOAuth.setHttpGet(async () => ({ status: 200, data: { id: 'user_ok' } }));
+  await encryption.storeToken(pool, 'facebook', 'page_op_miss', 'user-ok', {});
+  await pool.query(
+    "UPDATE social_integrations SET is_connected = 1, is_enabled = 1, config_json = ? WHERE provider = 'facebook'",
+    [JSON.stringify({ pageId: 'page_op_miss' })]
+  );
+
+  await assert.rejects(
+    () => syncService.testConnection('facebook'),
+    (err) => err.code === 'META_RECONNECT_REQUIRED'
+  );
+  const [[row]] = await pool.query(
+    "SELECT is_connected FROM social_integrations WHERE provider = 'facebook'"
+  );
+  assert.equal(row.is_connected, 0);
+
+  await metaOAuth.disconnectProvider('facebook');
+  metaOAuth.setHttpGet(null);
+});
+
+test('testConnection Instagram fails when media endpoint returns code 190', async () => {
+  const syncService = require('../services/socialSyncService');
+  metaOAuth.setHttpGet(async (url) => {
+    if (url.includes('/me?') || /\/me$/.test(url.split('?')[0])) {
+      return { status: 200, data: { id: 'user_ok' } };
+    }
+    if (url.includes('/media')) {
+      return {
+        status: 400,
+        data: { error: { code: 190, error_subcode: 460, message: 'session invalidated' } },
+      };
+    }
+    return { status: 500, data: {} };
+  });
+  await encryption.storeToken(pool, 'instagram', 'page_ig_op', 'user-ok', {});
+  await pool.query(
+    "UPDATE social_integrations SET is_connected = 1, is_enabled = 1, auto_sync = 1, config_json = ? WHERE provider = 'instagram'",
+    [JSON.stringify({ pageId: 'page_ig_op', igUserId: 'ig_op_fail' })]
+  );
+
+  await assert.rejects(
+    () => syncService.testConnection('instagram'),
+    (err) => err.code === 'META_RECONNECT_REQUIRED'
+  );
+  const [[row]] = await pool.query(
+    "SELECT is_connected, is_enabled FROM social_integrations WHERE provider = 'instagram'"
+  );
+  assert.equal(row.is_connected, 0);
+  assert.equal(row.is_enabled, 0);
+
+  await metaOAuth.disconnectProvider('instagram');
+  metaOAuth.setHttpGet(null);
+});
+
+test('testConnection Instagram succeeds when /me and /media work', async () => {
+  const syncService = require('../services/socialSyncService');
+  metaOAuth.setHttpGet(async (url) => {
+    if (url.includes('/me?') || /\/me$/.test(url.split('?')[0])) {
+      return { status: 200, data: { id: 'user_ok' } };
+    }
+    if (url.includes('/media')) {
+      return { status: 200, data: { data: [{ id: 'm1', media_type: 'IMAGE', caption: 'x', permalink: 'https://instagram.com/p/m1' }] } };
+    }
+    return { status: 500, data: {} };
+  });
+  await encryption.storeToken(pool, 'instagram', 'page_ig_ok', 'user-ok', {});
+  await pool.query(
+    "UPDATE social_integrations SET is_connected = 1, is_enabled = 1, config_json = ? WHERE provider = 'instagram'",
+    [JSON.stringify({
+      pageId: 'page_ig_ok',
+      igUserId: 'ig_op_ok',
+      tokenExpiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
+    })]
+  );
+
+  const result = await syncService.testConnection('instagram');
+  assert.equal(result.connected, true);
+
+  await metaOAuth.disconnectProvider('instagram');
+  metaOAuth.setHttpGet(null);
+});
+
+test('syncFacebook disconnects when Page posts endpoint returns code 190', async () => {
+  metaOAuth.setHttpGet(async (url) => {
+    if (url.includes('/me?') || /\/me$/.test(url.split('?')[0])) {
+      return { status: 200, data: { id: 'user_ok' } };
+    }
+    if (url.includes('/posts')) {
+      return {
+        status: 400,
+        data: { error: { code: 190, error_subcode: 460, message: 'session invalidated' } },
+      };
+    }
+    return { status: 500, data: {} };
+  });
+  await encryption.storeToken(pool, 'facebook', 'page_sync_pg', 'user-ok', {});
+  await encryption.storeToken(pool, 'facebook_page', 'page_sync_pg', 'page-dead', {});
+  await pool.query(
+    "UPDATE social_integrations SET is_connected = 1, is_enabled = 1, auto_sync = 1, config_json = ? WHERE provider = 'facebook'",
+    [JSON.stringify({ pageId: 'page_sync_pg', maxPosts: 5 })]
+  );
+
+  const [[intRow]] = await pool.query("SELECT * FROM social_integrations WHERE provider = 'facebook'");
+  await assert.rejects(
+    () => facebook.syncFacebook({
+      ...intRow,
+      config_json: typeof intRow.config_json === 'string'
+        ? JSON.parse(intRow.config_json) : (intRow.config_json || {}),
+    }),
+    (err) => err.code === 'META_RECONNECT_REQUIRED'
+  );
+
+  const [[row]] = await pool.query(
+    "SELECT is_connected, is_enabled, auto_sync FROM social_integrations WHERE provider = 'facebook'"
+  );
+  assert.equal(row.is_connected, 0);
+  assert.equal(row.is_enabled, 0);
+  assert.equal(row.auto_sync, 0);
+
+  await metaOAuth.disconnectProvider('facebook');
+  metaOAuth.setHttpGet(null);
 });
 
 // ═══════════════════════════════════════════════════════════

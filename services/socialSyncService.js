@@ -158,6 +158,132 @@ async function syncProvider(provider) {
 }
 
 /**
+ * Meta health check: auth validation + same provider endpoint used by sync.
+ * Never imports posts or touches thumbnails.
+ */
+async function testMetaOperationalConnection(provider, intRow) {
+  const meta = require('./metaOAuthService');
+  const config = intRow.config_json || {};
+
+  const validation = await meta.validateToken(provider);
+  if (!validation.valid) {
+    if (meta.requiresReconnect(validation.category)) {
+      await meta.handleConnectionFailure(provider, validation.category);
+      const label = provider === 'instagram' ? 'Instagram' : 'Facebook';
+      throw Object.assign(
+        new Error(`La conexión con ${label} ya no es válida. Reconectá Meta para continuar.`),
+        {
+          code: 'META_RECONNECT_REQUIRED',
+          category: validation.category,
+          authError: true,
+        }
+      );
+    }
+    throw Object.assign(
+      new Error(`No se pudo verificar la conexión con ${provider}. Intentalo de nuevo.`),
+      { code: 'META_TEST_FAILED', category: validation.category }
+    );
+  }
+
+  if (provider === 'facebook') {
+    const pageId = config.pageId;
+    if (!pageId) {
+      const message = 'El acceso a la página de Facebook ya no es válido. Reconectá Meta para generar un nuevo Page Access Token.';
+      await meta.handleConnectionFailure(provider, 'missing', { message });
+      throw Object.assign(new Error(message), {
+        code: 'META_RECONNECT_REQUIRED',
+        category: 'missing',
+        authError: true,
+      });
+    }
+
+    const pageToken = await meta.getPageAccessToken(pageId);
+    if (!pageToken) {
+      const message = 'El acceso a la página de Facebook ya no es válido. Reconectá Meta para generar un nuevo Page Access Token.';
+      await meta.handleConnectionFailure(provider, 'missing', { message });
+      throw Object.assign(new Error(message), {
+        code: 'META_RECONNECT_REQUIRED',
+        category: 'missing',
+        authError: true,
+      });
+    }
+
+    const facebook = require('./facebookSyncService');
+    try {
+      await facebook.fetchFacebookPosts(pageId, pageToken, 1);
+    } catch (err) {
+      const classified = meta.classifyMetaApiError(err.status, err.data);
+      if (meta.requiresReconnect(classified.category)) {
+        const message = classified.category === 'permission_denied'
+          ? 'Facebook ya no permite leer las publicaciones de esta página. Reconectá Meta y autorizá nuevamente los permisos.'
+          : 'El acceso a la página de Facebook ya no es válido. Reconectá Meta para generar un nuevo Page Access Token.';
+        await meta.handleConnectionFailure(provider, classified.category, { message });
+        throw Object.assign(new Error(message), {
+          code: 'META_RECONNECT_REQUIRED',
+          category: classified.category,
+          authError: true,
+        });
+      }
+      throw Object.assign(
+        new Error(`No se pudo verificar la conexión con Facebook. Intentalo de nuevo.`),
+        { code: 'META_TEST_FAILED', category: classified.category || 'transient' }
+      );
+    }
+  } else {
+    const igUserId = config.igUserId;
+    if (!igUserId) {
+      const message = 'La cuenta de Instagram ya no está disponible. Reconectá Meta para continuar.';
+      await meta.handleConnectionFailure(provider, 'missing', { message });
+      throw Object.assign(new Error(message), {
+        code: 'META_RECONNECT_REQUIRED',
+        category: 'missing',
+        authError: true,
+      });
+    }
+
+    const accessToken = await meta.getUserAccessToken(provider);
+    if (!accessToken) {
+      await meta.handleConnectionFailure(provider, 'missing');
+      throw Object.assign(
+        new Error(meta.friendlyAuthErrorMessage('missing')),
+        { code: 'META_RECONNECT_REQUIRED', category: 'missing', authError: true }
+      );
+    }
+
+    const instagram = require('./instagramSyncService');
+    try {
+      await instagram.fetchInstagramMedia(igUserId, accessToken, 1);
+    } catch (err) {
+      const classified = meta.classifyMetaApiError(err.status, err.data);
+      if (meta.requiresReconnect(classified.category)) {
+        await meta.handleConnectionFailure(provider, classified.category);
+        throw Object.assign(
+          new Error(meta.friendlyAuthErrorMessage(classified.category)),
+          {
+            code: 'META_RECONNECT_REQUIRED',
+            category: classified.category,
+            authError: true,
+          }
+        );
+      }
+      throw Object.assign(
+        new Error(`No se pudo verificar la conexión con Instagram. Intentalo de nuevo.`),
+        { code: 'META_TEST_FAILED', category: classified.category || 'transient' }
+      );
+    }
+  }
+
+  const expiration = await meta.checkTokenExpiration(provider);
+  return {
+    provider,
+    connected: true,
+    ...validation,
+    expirationWarning: expiration?.warning || false,
+    expiresInDays: expiration?.daysLeft || null,
+  };
+}
+
+/**
  * Test connection to a provider (without importing).
  */
 async function testConnection(provider) {
@@ -187,15 +313,7 @@ async function testConnection(provider) {
     }
     case 'instagram':
     case 'facebook': {
-      const meta = require('./metaOAuthService');
-      const validation = await meta.validateToken(provider);
-      const expiration = await meta.checkTokenExpiration(provider);
-      return {
-        provider, connected: validation.valid,
-        ...validation,
-        expirationWarning: expiration?.warning || false,
-        expiresInDays: expiration?.daysLeft || null,
-      };
+      return testMetaOperationalConnection(provider, intRow);
     }
     default:
       throw new Error(`Proveedor no soportado: ${provider}`);
