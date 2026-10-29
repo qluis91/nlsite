@@ -1,21 +1,34 @@
 /**
  * Centralized image processing service using Sharp.
- * All image uploads in the project route through this service.
+ * All image uploads in the project route through this service
+ * (except CMS media library variants, which use mediaStorageService).
  */
 const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const {
+  PUBLIC_IMAGE_SOURCE_MAX_BYTES,
+  PUBLIC_IMAGE_WEBP_QUALITY,
+  PUBLIC_IMAGE_MAX_DIMENSION,
+  PUBLIC_IMAGE_MAX_PIXELS,
+  PUBLIC_IMAGE_BATCH_MAX_BYTES,
+  PUBLIC_IMAGE_BATCH_MAX_MB,
+  PUBLIC_IMAGE_SOURCE_MAX_MB,
+  AVATAR_SOURCE_MAX_BYTES,
+  AVATAR_SOURCE_MAX_MB,
+} = require('../config/imageUploadPolicy');
 
 // ── Configuration ──
 const UPLOAD_ROOT = process.env.UPLOAD_PUBLIC_DIR || path.join(__dirname, '..', 'public', 'uploads');
 const DEFAULT_PROFILE = {
   maxWidth: 1800,
   maxHeight: 1800,
-  quality: 80,
+  quality: PUBLIC_IMAGE_WEBP_QUALITY,
   format: 'webp',
 };
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+/** @deprecated Prefer PUBLIC_IMAGE_SOURCE_MAX_BYTES — kept for existing imports. */
+const MAX_FILE_SIZE = PUBLIC_IMAGE_SOURCE_MAX_BYTES;
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -25,37 +38,87 @@ const ALLOWED_MIME_TYPES = new Set([
 
 // ── Profiles ──
 const PROFILES = {
-  product: { maxWidth: 1800, maxHeight: 1800, quality: 80, format: 'webp' },
+  product: {
+    maxWidth: 1800,
+    maxHeight: 1800,
+    quality: PUBLIC_IMAGE_WEBP_QUALITY,
+    format: 'webp',
+  },
   avatar: {
     maxWidth: 512,
     maxHeight: 512,
-    quality: 80,
+    quality: PUBLIC_IMAGE_WEBP_QUALITY,
     format: 'webp',
     fit: 'cover',
     position: 'attention',
     withoutEnlargement: false,
   },
-  gallery: { maxWidth: 2400, maxHeight: 1600, quality: 80, format: 'webp' },
-  category: { maxWidth: 1200, maxHeight: 800, quality: 80, format: 'webp' },
-  carousel: { maxWidth: 2560, maxHeight: 2560, quality: 80, format: 'webp' },
-  icon: { maxWidth: 800, maxHeight: 800, quality: 80, format: 'webp' },
+  gallery: {
+    maxWidth: 2400,
+    maxHeight: 1600,
+    quality: PUBLIC_IMAGE_WEBP_QUALITY,
+    format: 'webp',
+  },
+  category: {
+    maxWidth: 1200,
+    maxHeight: 800,
+    quality: PUBLIC_IMAGE_WEBP_QUALITY,
+    format: 'webp',
+  },
+  carousel: {
+    maxWidth: 2560,
+    maxHeight: 2560,
+    quality: PUBLIC_IMAGE_WEBP_QUALITY,
+    format: 'webp',
+  },
+  icon: {
+    maxWidth: 800,
+    maxHeight: 800,
+    quality: PUBLIC_IMAGE_WEBP_QUALITY,
+    format: 'webp',
+  },
 };
 
 /**
  * Validate a file buffer/object before processing.
  * @param {{ buffer?: Buffer, mimetype?: string, size?: number, path?: string }} file
+ * @param {{ maxBytes?: number, sizeLabel?: string }} [options]
  * @returns {{ valid: boolean, error?: string }}
  */
-function validateImageFile(file) {
+function validateImageFile(file, options = {}) {
   if (!file) return { valid: false, error: 'No se recibió ningún archivo.' };
-  if (file.size && file.size > MAX_FILE_SIZE) {
-    return { valid: false, error: 'Cada imagen debe pesar menos de 10 MB.' };
+  const maxBytes = options.maxBytes ?? PUBLIC_IMAGE_SOURCE_MAX_BYTES;
+  const sizeLabel = options.sizeLabel
+    || `${Math.round(maxBytes / (1024 * 1024))} MB`;
+  const size = Number(file.size || file.buffer?.length || 0);
+  if (size && size > maxBytes) {
+    return { valid: false, error: `Cada imagen debe pesar menos de ${sizeLabel}.` };
   }
   const mimetype = file.mimetype || '';
   if (!ALLOWED_MIME_TYPES.has(mimetype)) {
     return { valid: false, error: `Formato no permitido: ${mimetype}. Use JPEG, PNG, WebP o AVIF.` };
   }
   return { valid: true };
+}
+
+/**
+ * Reject multi-file public uploads whose combined source size exceeds the batch cap.
+ * @param {Record<string, Array>|Array|null|undefined} filesByField
+ */
+function assertPublicImageBatchWithinLimit(filesByField) {
+  if (!filesByField) return;
+  const files = Array.isArray(filesByField)
+    ? filesByField
+    : Object.values(filesByField).flatMap((list) => (Array.isArray(list) ? list : []));
+  const total = files.reduce(
+    (sum, file) => sum + Number(file?.size || file?.buffer?.length || 0),
+    0
+  );
+  if (total > PUBLIC_IMAGE_BATCH_MAX_BYTES) {
+    throw new Error(
+      `El conjunto de imágenes supera el límite total permitido de ${PUBLIC_IMAGE_BATCH_MAX_MB} MB.`
+    );
+  }
 }
 
 /**
@@ -114,6 +177,37 @@ function categoryStoragePath(categoryId) {
 }
 
 /**
+ * Decode-time safety checks before any resize/encode.
+ * @param {Buffer} inputBuffer
+ */
+async function inspectRasterBuffer(inputBuffer) {
+  let metadata;
+  try {
+    metadata = await sharp(inputBuffer, { limitInputPixels: PUBLIC_IMAGE_MAX_PIXELS }).metadata();
+  } catch {
+    throw new Error('El archivo no es una imagen válida o está corrupto.');
+  }
+  if (!metadata.width || !metadata.height) {
+    throw new Error('El archivo no es una imagen válida o está corrupto.');
+  }
+  if (
+    metadata.width > PUBLIC_IMAGE_MAX_DIMENSION
+    || metadata.height > PUBLIC_IMAGE_MAX_DIMENSION
+  ) {
+    throw new Error(
+      `La imagen excede el máximo de ${PUBLIC_IMAGE_MAX_DIMENSION} × ${PUBLIC_IMAGE_MAX_DIMENSION} píxeles.`
+    );
+  }
+  if (metadata.width * metadata.height > PUBLIC_IMAGE_MAX_PIXELS) {
+    throw new Error('La imagen excede el límite de píxeles permitido.');
+  }
+  if (Number(metadata.pages || 1) > 1) {
+    throw new Error('Las imágenes animadas no son compatibles. Cargue una imagen estática.');
+  }
+  return metadata;
+}
+
+/**
  * Process a single image buffer through Sharp.
  * @param {Buffer} inputBuffer
  * @param {{ maxWidth?: number, maxHeight?: number, quality?: number, format?: string }} profile
@@ -121,7 +215,9 @@ function categoryStoragePath(categoryId) {
  */
 async function processBuffer(inputBuffer, profile = {}) {
   const cfg = { ...DEFAULT_PROFILE, ...profile };
-  const pipeline = sharp(inputBuffer)
+  await inspectRasterBuffer(inputBuffer);
+
+  const pipeline = sharp(inputBuffer, { limitInputPixels: PUBLIC_IMAGE_MAX_PIXELS })
     .rotate()
     .resize({
       width: cfg.maxWidth,
@@ -132,17 +228,17 @@ async function processBuffer(inputBuffer, profile = {}) {
     });
 
   if (cfg.format === 'webp') {
-    pipeline.webp({ quality: cfg.quality });
+    pipeline.webp({ quality: cfg.quality ?? PUBLIC_IMAGE_WEBP_QUALITY });
   } else if (cfg.format === 'avif') {
-    pipeline.avif({ quality: cfg.quality });
+    pipeline.avif({ quality: cfg.quality ?? PUBLIC_IMAGE_WEBP_QUALITY });
   } else if (cfg.format === 'jpeg') {
-    pipeline.jpeg({ quality: cfg.quality });
+    pipeline.jpeg({ quality: cfg.quality ?? PUBLIC_IMAGE_WEBP_QUALITY });
   } else if (cfg.format === 'png') {
-    pipeline.png({ quality: cfg.quality });
+    pipeline.png({ quality: cfg.quality ?? PUBLIC_IMAGE_WEBP_QUALITY });
   }
 
   const outputBuffer = await pipeline.toBuffer();
-  const metadata = await sharp(outputBuffer).metadata();
+  const metadata = await sharp(outputBuffer, { limitInputPixels: PUBLIC_IMAGE_MAX_PIXELS }).metadata();
 
   return {
     buffer: outputBuffer,
@@ -160,7 +256,13 @@ async function processBuffer(inputBuffer, profile = {}) {
  * @returns {Promise<{ filePath: string, fileName: string, mimeType: string, width: number, height: number, sizeBytes: number }>}
  */
 async function processImage(file, destDir, profile = {}) {
-  const validation = validateImageFile(file);
+  const isAvatar = profile === PROFILES.avatar;
+  const validation = validateImageFile(
+    file,
+    isAvatar
+      ? { maxBytes: AVATAR_SOURCE_MAX_BYTES, sizeLabel: `${AVATAR_SOURCE_MAX_MB} MB` }
+      : { maxBytes: PUBLIC_IMAGE_SOURCE_MAX_BYTES, sizeLabel: `${PUBLIC_IMAGE_SOURCE_MAX_MB} MB` }
+  );
   if (!validation.valid) {
     throw new Error(validation.error);
   }
@@ -168,13 +270,6 @@ async function processImage(file, destDir, profile = {}) {
   const inputBuffer = file.buffer || (file.path ? fs.readFileSync(file.path) : null);
   if (!inputBuffer) {
     throw new Error('No se pudo leer el archivo de imagen.');
-  }
-
-  // Validate with Sharp (catches invalid/corrupt images regardless of MIME)
-  try {
-    await sharp(inputBuffer).metadata();
-  } catch {
-    throw new Error('El archivo no es una imagen válida o está corrupto.');
   }
 
   const result = await processBuffer(inputBuffer, profile);
@@ -203,6 +298,7 @@ async function processImage(file, destDir, profile = {}) {
  */
 async function processUploadedImages(files, destDir, profile = {}) {
   if (!files || !files.length) return [];
+  assertPublicImageBatchWithinLimit(files);
   const results = [];
   for (const file of files) {
     const result = await processImage(file, destDir, profile);
@@ -258,11 +354,13 @@ module.exports = {
   ALLOWED_MIME_TYPES,
   PROFILES,
   validateImageFile,
+  assertPublicImageBatchWithinLimit,
   uniqueFileName,
   ensureDir,
   productStoragePath,
   avatarStoragePath,
   categoryStoragePath,
+  inspectRasterBuffer,
   processBuffer,
   processImage,
   processUploadedImages,

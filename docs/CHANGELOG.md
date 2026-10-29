@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-28 — Unify public image upload optimization
+
+### Changed
+- Centralized PUBLIC/CONTENT raster source policy at 25 MB with WebP quality 80 (`config/imageUploadPolicy.js`)
+- Gallery, products, categories, CMS media profiles, and related public uploads accept larger sources then persist only Sharp-optimized WebP
+- Avatar source max raised to 10 MB (still Sharp WebP ~512×512); product multi-image requests capped at 75 MB total
+
+### Fixed
+- Gallery no longer rejects 10–25 MB sources before Sharp runs
+
 ## 2026-10-28 — Carousel image framing zoom
 
 ### Added

@@ -609,6 +609,12 @@ exports.createProduct = async (req, res, next) => {
       req.session.error_msg = `Máximo ${v.MAX_IMAGES} imágenes por producto.`;
       return res.redirect('/admin/catalogo/productos/nuevo');
     }
+    try {
+      imgProc.assertPublicImageBatchWithinLimit(req.files);
+    } catch (batchError) {
+      req.session.error_msg = batchError.message;
+      return res.redirect('/admin/catalogo/productos/nuevo');
+    }
 
     const slug = v.slugify(nameResult.value);
     const [existing] = await pool.query('SELECT id FROM products WHERE slug = ?', [slug]);
@@ -773,6 +779,12 @@ exports.updateProduct = async (req, res, next) => {
     const countResult = v.validateImageCount(product.images.length, removeIds, newImageCount);
     if (!countResult.valid) {
       req.session.error_msg = countResult.error;
+      return res.redirect(`/admin/catalogo/productos/${product.id}/editar`);
+    }
+    try {
+      imgProc.assertPublicImageBatchWithinLimit(req.files);
+    } catch (batchError) {
+      req.session.error_msg = batchError.message;
       return res.redirect(`/admin/catalogo/productos/${product.id}/editar`);
     }
 

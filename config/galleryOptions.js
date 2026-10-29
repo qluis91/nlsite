@@ -1,5 +1,9 @@
 const path = require('path');
 const { UPLOAD_PUBLIC_ROOT } = require('./uploadPaths');
+const {
+  PUBLIC_IMAGE_SOURCE_MAX_BYTES,
+  PUBLIC_IMAGE_WEBP_QUALITY,
+} = require('./imageUploadPolicy');
 
 const MEDIA_TYPES = Object.freeze({
   IMAGE: 'image',
@@ -14,9 +18,9 @@ const VIDEO_EXTENSIONS = Object.freeze({
   'video/webm': '.webm',
 });
 
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_IMAGE_SIZE = PUBLIC_IMAGE_SOURCE_MAX_BYTES;
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
-const MAX_POSTER_SIZE = 10 * 1024 * 1024;
+const MAX_POSTER_SIZE = PUBLIC_IMAGE_SOURCE_MAX_BYTES;
 const TITLE_MAX_LENGTH = 160;
 const DESCRIPTION_MAX_LENGTH = 5000;
 const ALT_TEXT_MAX_LENGTH = 300;
@@ -47,7 +51,7 @@ const IMAGE_PROFILES = Object.freeze({
     maxHeight: 2400,
     fit: 'inside',
     withoutEnlargement: true,
-    quality: 80,
+    quality: PUBLIC_IMAGE_WEBP_QUALITY,
     format: 'webp',
   }),
   thumbnail: Object.freeze({
@@ -56,7 +60,7 @@ const IMAGE_PROFILES = Object.freeze({
     fit: 'cover',
     position: 'attention',
     withoutEnlargement: false,
-    quality: 80,
+    quality: PUBLIC_IMAGE_WEBP_QUALITY,
     format: 'webp',
   }),
   poster: Object.freeze({
@@ -64,7 +68,7 @@ const IMAGE_PROFILES = Object.freeze({
     maxHeight: 2400,
     fit: 'inside',
     withoutEnlargement: true,
-    quality: 80,
+    quality: PUBLIC_IMAGE_WEBP_QUALITY,
     format: 'webp',
   }),
 });

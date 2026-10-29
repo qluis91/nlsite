@@ -59,7 +59,7 @@
 
 - [x] Admin `Administrar página` overview with media aggregates and non-linked placeholders for navbar, Panel 1/2/3 and publishing (see `docs/CMS_PHASE_11A.md`)
 - [x] CMS media library with upload, metadata editing, file replacement preserving media identity, archive (soft delete) and restore, behind admin auth, capability checks and CSRF
-- [x] Content-based upload validation (MIME/extension/decoded bytes), 15 MB image and 30 MB GLB limits, 10000 px dimension cap, decompression-bomb and animated-image rejection, SVG disabled by design
+- [x] Content-based upload validation (MIME/extension/decoded bytes), 25 MB public raster source and 30 MB GLB limits, 10000 px dimension cap, decompression-bomb and animated-image rejection, SVG disabled by design (shared `config/imageUploadPolicy.js`)
 - [x] Sharp WebP variants (2560 / 1280 / 400) without upscaling, metadata stripped, transparency preserved, SHA-256 checksum duplicate detection and bounded-concurrency batch uploads with partial-success reporting
 - [x] GLB magic-byte, version, length and JSON-chunk validation with stored model metadata; models never processed by Sharp
 - [x] Configurable media storage under `<UPLOAD_PUBLIC_DIR>/media` with traversal-resistant resolution, never-overwrite writes and failure compensation

@@ -1,6 +1,6 @@
 # CMS Media Uploads — Phase 11C-S
 
-**Last updated:** 2026-07-25
+**Last updated:** 2026-10-28
 
 ## Overview
 
@@ -9,12 +9,17 @@ All CMS image selectors support two modes:
 1. **Seleccionar de la biblioteca** — browse and select existing media assets
 2. **Subir desde mi dispositivo** — upload a new image directly from the device
 
-Every newly uploaded public/content image is:
+Every newly uploaded public/content raster image is:
 - Validated securely (decoded content, not extension alone)
-- Processed with Sharp (rotate, resize, metadata stripped)
-- Converted to WebP at quality 80
+- Source-size capped at **25 MB** (browser upload before optimization)
+- Processed with Sharp (rotate, resize, metadata stripped by re-encoding)
+- Converted to **WebP quality 80**
 - Saved with 3 variant sizes (large 2560px, medium 1280px, thumbnail 400px)
 - Registered in `media_assets` with revisions
+
+The raw source upload is **not** persisted; only optimized WebP variants are stored.
+
+Shared policy lives in `config/imageUploadPolicy.js` and is reused by Gallery, products, categories, CMS, and related public raster flows. User avatars use a separate **10 MB** source cap (still WebP quality 80, ~512×512).
 
 ## Direct upload flow
 
@@ -45,12 +50,14 @@ Every newly uploaded public/content image is:
 All public/content raster images use the shared standard:
 
 - Output format: WebP
-- Quality: 80
-- Metadata: stripped
-- Orientation: normalized (rotate())
+- Quality: 80 (`PUBLIC_IMAGE_WEBP_QUALITY`)
+- Metadata: stripped by re-encoding
+- Orientation: normalized (`rotate()`)
 - Transparency: preserved
 - Without enlargement: true
-- Maximum dimensions: 2560 × 2560 (fit: inside)
+- Maximum dimensions: 2560 × 2560 (fit: inside) for CMS large variant
+
+Quality 80 is a Sharp encode setting, not “reduce file size by 80%”.
 
 ### Variants generated
 
@@ -64,24 +71,26 @@ All public/content raster images use the shared standard:
 
 Each media selector has a server-side profile defining allowed types, category, and size limits.
 
-| Profile | Allowed MIME | Category | Max size | Kind |
+| Profile | Allowed MIME | Category | Max source size | Kind |
 |---|---|---|---|---|
-| `navbar-logo` | JPEG, PNG, WebP | logo | 15 MB | image |
-| `navbar-light` | JPEG, PNG, WebP | logo | 15 MB | image |
-| `navbar-dark` | JPEG, PNG, WebP | logo | 15 MB | image |
-| `favicon` | JPEG, PNG, WebP | logo | 15 MB | image |
-| `hero-background` | JPEG, PNG, WebP | site | 15 MB | image |
+| `navbar-logo` | JPEG, PNG, WebP | logo | 25 MB | image |
+| `navbar-light` | JPEG, PNG, WebP | logo | 25 MB | image |
+| `navbar-dark` | JPEG, PNG, WebP | logo | 25 MB | image |
+| `favicon` | JPEG, PNG, WebP | logo | 25 MB | image |
+| `hero-background` | JPEG, PNG, WebP | site | 25 MB | image |
 | `hero-model` | GLB, octet-stream | model | 30 MB | model |
-| `hero-fallback` | JPEG, PNG, WebP | site | 15 MB | image |
-| `logo-loop` | JPEG, PNG, WebP | logo | 15 MB | image |
-| `carousel-main` | JPEG, PNG, WebP | carousel | 15 MB | image |
-| `carousel-preview` | JPEG, PNG, WebP | carousel | 15 MB | image |
-| `feature-icon` | JPEG, PNG, WebP | icon | 15 MB | image |
-| `nav-item-icon` | JPEG, PNG, WebP | icon | 15 MB | image |
-| `gallery` | JPEG, PNG, WebP | gallery | 15 MB | image |
-| `product` | JPEG, PNG, WebP | gallery | 10 MB | image |
-| `category` | JPEG, PNG, WebP | gallery | 10 MB | image |
-| `avatar` | JPEG, PNG, WebP | other | 2 MB | image |
+| `hero-fallback` | JPEG, PNG, WebP | site | 25 MB | image |
+| `logo-loop` | JPEG, PNG, WebP | logo | 25 MB | image |
+| `carousel-main` | JPEG, PNG, WebP | carousel | 25 MB | image |
+| `carousel-preview` | JPEG, PNG, WebP | carousel | 25 MB | image |
+| `feature-icon` | JPEG, PNG, WebP | icon | 25 MB | image |
+| `nav-item-icon` | JPEG, PNG, WebP | icon | 25 MB | image |
+| `gallery` | JPEG, PNG, WebP | gallery | 25 MB | image |
+| `product` | JPEG, PNG, WebP | gallery | 25 MB | image |
+| `category` | JPEG, PNG, WebP | gallery | 25 MB | image |
+| `avatar` | JPEG, PNG, WebP | other | 10 MB | image |
+
+Videos, GLB models, PDFs, and private payment-proof uploads keep isolated pipelines and limits.
 
 ## Storage
 
@@ -109,7 +118,7 @@ Uses `UPLOAD_PUBLIC_DIR` from environment. Files stored on the Railway persisten
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/admin/api/page/media` | Browse/query media library (JSON) |
+| GET | `/admin/api/page/media` | Browse and query media library (JSON) |
 | POST | `/admin/api/page/media/upload` | Direct upload from selector (multipart, JSON response) |
 
 Both require: admin auth, capability check, CSRF token.
@@ -166,8 +175,8 @@ New uploads create complete `media_assets` records:
 - `isAuthenticated` + `isAdmin` middleware
 - Capability check (`media.upload`)
 - CSRF validation
-- Multer limits (30MB max, memoryStorage)
-- Content validation (Sharp decode, not extension)
+- Multer limits (memoryStorage; model max 30 MB drives request ceiling)
+- Content validation (Sharp decode, `limitInputPixels`, max dimension/pixels, animated rejection)
 - Profile validation (server-side allowlist, never trust client)
 - Path containment (`path.resolve`, startsWith check)
 - No directory listing, `X-Content-Type-Options: nosniff`
@@ -176,7 +185,8 @@ New uploads create complete `media_assets` records:
 
 ## Excluded from scope
 
-- **Payment proofs**: unchanged — private storage (`UPLOAD_PROOFS_DIR`), quality 86, separate flow
-- **GLB files**: not passed through Sharp, model-only selectors
+- **Payment proofs**: unchanged — private storage (`UPLOAD_PROOFS_DIR`), separate flow
+- **GLB files**: not passed through Sharp, model-only selectors (30 MB)
 - **SVG**: remains disabled (no trusted sanitizer)
-- **Historical files**: not auto-converted, only new uploads/replacements use WebP quality 80
+- **Videos**: Gallery/local video pipeline remains independent (100 MB)
+- **Historical files**: not auto-converted; only new uploads/replacements use WebP quality 80

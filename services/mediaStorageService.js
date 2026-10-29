@@ -188,7 +188,7 @@ function assertUploadAllowed(file, category) {
     throw new Error('La extensión del archivo no coincide con su tipo real.');
   }
   if (size > MAX_IMAGE_SIZE) {
-    throw new Error('La imagen supera el límite de 15 MB.');
+    throw new Error(`La imagen supera el límite de ${Math.round(MAX_IMAGE_SIZE / (1024 * 1024))} MB.`);
   }
   return { kind, mimeType, extension };
 }

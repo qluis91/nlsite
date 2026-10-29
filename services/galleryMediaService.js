@@ -14,6 +14,7 @@ const {
   IMAGE_PROFILES,
   MEDIA_TYPES,
 } = require('../config/galleryOptions');
+const { PUBLIC_IMAGE_SOURCE_MAX_MB } = require('../config/imageUploadPolicy');
 
 function actualSize(file) {
   return Number(file?.size || file?.buffer?.length || 0);
@@ -25,7 +26,7 @@ function validateImageUpload(file, maxSize = MAX_IMAGE_SIZE) {
     throw new Error('La imagen debe ser JPG, PNG o WebP.');
   }
   if (!actualSize(file) || actualSize(file) > maxSize) {
-    throw new Error('La imagen supera el límite de 10 MB.');
+    throw new Error(`La imagen supera el límite de ${PUBLIC_IMAGE_SOURCE_MAX_MB} MB.`);
   }
 }
 

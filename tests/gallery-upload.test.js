@@ -82,9 +82,22 @@ test('malformed, renamed, SVG, HTML, and oversized images are rejected', async (
   );
   const onePixel = await sharp({ create: { width: 1, height: 1, channels: 3, background: '#fff' } }).jpeg().toBuffer();
   await assert.rejects(
-    media.processImagePair({ ...imageFile(onePixel, 'image/jpeg'), size: 10 * 1024 * 1024 + 1 }),
-    /10 MB/
+    media.processImagePair({ ...imageFile(onePixel, 'image/jpeg'), size: 25 * 1024 * 1024 + 1 }),
+    /25 MB/
   );
+});
+
+test('gallery accepts source images between 10 MB and 25 MB and still outputs WebP', async () => {
+  const buffer = await sharp({ create: { width: 640, height: 480, channels: 3, background: '#4a7' } }).jpeg().toBuffer();
+  const result = await media.processImagePair({
+    ...imageFile(buffer, 'image/jpeg'),
+    size: 12 * 1024 * 1024,
+  });
+  created.push(...result.createdPaths);
+  assert.match(result.mediaPath, /\.webp$/);
+  assert.match(result.thumbnailPath, /\.webp$/);
+  const display = await sharp(media.resolveSafeGalleryPath(result.mediaPath, 'images')).metadata();
+  assert.equal(display.format, 'webp');
 });
 
 test('MP4 and WebM require matching extensions, signatures, and random filenames', async () => {

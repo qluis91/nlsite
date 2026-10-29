@@ -421,7 +421,7 @@
         showUploadError(`Formato no permitido. Use: ${allowedExtensions.join(', ').toUpperCase()}.`);
         return false;
       }
-      const maxSizeMb = allowedExtensions.includes('glb') ? 30 : 15;
+      const maxSizeMb = allowedExtensions.includes('glb') ? 30 : 25;
       if (state.pendingFile.size > maxSizeMb * 1024 * 1024) {
         showUploadError(`El archivo supera el límite de ${maxSizeMb} MB.`);
         return false;

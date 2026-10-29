@@ -254,7 +254,7 @@ Production silences server errors but other `console.error` calls throughout the
 - **Status:** Confirmed
 - **Files:** `config/cmsOptions.js:136`
 - **Evidence:** `100 * 1000 * 1000` = 100 megapixels. Sharp's `limitInputPixels` uses this value. A malicious 10K×10K PNG (compressed to ~2MB) could decompress to 100MP, which Sharp would process using significant memory. The `MAX_IMAGE_DIMENSION` = 10000 prevents larger still.
-- **Mitigation:** The `MAX_IMAGE_SIZE` = 15MB file size limit prevents truly gigantic compressed inputs. A 15MB PNG at maximum compression could still be large when decompressed, but Sharp's `limitInputPixels` prevents extreme cases.
+- **Mitigation:** The `MAX_IMAGE_SIZE` = 25MB public raster source limit prevents truly gigantic compressed inputs. A 25MB PNG at maximum compression could still be large when decompressed, but Sharp's `limitInputPixels` prevents extreme cases.
 - **Recommendation:** Reduce to 50M pixels (adequate for all CMS image categories: carousel max is 2560×2560 = 6.5M). 100M is overkill.
 - **Phase:** 16C
 

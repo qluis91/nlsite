@@ -1,6 +1,9 @@
 const multer = require('multer');
-const path = require('path');
 const { MAX_FILE_SIZE, ALLOWED_MIME_TYPES } = require('../services/imageProcessingService');
+const {
+  AVATAR_SOURCE_MAX_BYTES,
+  FORM_FIELD_MAX_BYTES,
+} = require('../config/imageUploadPolicy');
 
 // Memory storage — buffers are processed by Sharp before writing to disk
 const storage = multer.memoryStorage();
@@ -26,7 +29,7 @@ const productImageUpload = multer({
     // The existing product form has 14 non-file fields (including CSRF).
     // Keep this bounded while allowing the real create/update payload.
     fields: 20,
-    fieldSize: MAX_FILE_SIZE,
+    fieldSize: FORM_FIELD_MAX_BYTES,
   },
 }).fields([
   { name: 'primaryImage', maxCount: 1 },
@@ -43,6 +46,7 @@ const singleImageUpload = multer({
   limits: {
     fileSize: MAX_FILE_SIZE,
     files: 1,
+    fieldSize: FORM_FIELD_MAX_BYTES,
   },
 }).single('image');
 
@@ -54,10 +58,10 @@ const avatarImageUpload = multer({
     return cb(new Error('El avatar debe ser una imagen JPG, PNG o WebP.'));
   },
   limits: {
-    fileSize: 2 * 1024 * 1024,
+    fileSize: AVATAR_SOURCE_MAX_BYTES,
     files: 1,
     fields: 5,
-    fieldSize: 64 * 1024,
+    fieldSize: FORM_FIELD_MAX_BYTES,
   },
 }).single('avatar');
 
@@ -83,7 +87,7 @@ const categoryHeroUpload = multer({
     fileSize: MAX_FILE_SIZE,
     files: 1,
     fields: 12,
-    fieldSize: 64 * 1024,
+    fieldSize: FORM_FIELD_MAX_BYTES,
   },
 }).single('hero_image');
 
