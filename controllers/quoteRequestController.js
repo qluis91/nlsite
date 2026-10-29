@@ -4,6 +4,11 @@ const publicNavbar = require('../services/publicNavbarService');
 const quoteService = require('../services/quoteRequestService');
 const validator = require('../validators/quoteRequestValidator');
 const { buildWhatsAppUrl } = require('../config/publicContact');
+const {
+  MAX_FILES,
+  MAX_BYTES,
+  MAX_MB,
+} = require('../middleware/quoteRequestUpload');
 
 const REDIRECT = Object.freeze({
   website: '/cotizar/sitio-web',
@@ -118,6 +123,9 @@ async function renderQuotePage(req, res, next, opts) {
       referenceId,
       whatsappUrl: buildWhatsAppUrl('Hola NinjaLabCR, quiero cotizar una pieza 3D.'),
       successReference: opts.successReference || '',
+      maxImageFiles: MAX_FILES,
+      maxImageBytes: MAX_BYTES,
+      maxImageMb: MAX_MB,
     });
   } catch (error) {
     return next(error);

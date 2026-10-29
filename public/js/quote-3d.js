@@ -8,7 +8,9 @@ const previews = document.getElementById('cot-previews');
 const submit = document.getElementById('cotizacion-submit');
 const msg = document.getElementById('cotizacion-msg');
 
-const MAX = 5;
+const MAX_FILES = Number(form?.dataset.maxImageFiles) || 5;
+const MAX_BYTES = Number(form?.dataset.maxImageBytes) || (12 * 1024 * 1024);
+const MAX_MB = Number(form?.dataset.maxImageMb) || Math.round(MAX_BYTES / (1024 * 1024));
 const SUBMIT_LABEL = 'Enviar cotización';
 /** @type {File[]} */
 let selected = [];
@@ -82,15 +84,47 @@ function clearFormKeepAuth() {
   if (keepPhone && authPhone) keepPhone.value = authPhone;
 }
 
+function safeFileLabel(name) {
+  return String(name || 'archivo').replace(/[<>&"']/g, '').slice(0, 120);
+}
+
 input?.addEventListener('change', () => {
   const incoming = [...(input.files || [])];
+  const warnings = [];
+  let skippedCapacity = 0;
+
   for (const file of incoming) {
-    if (!String(file.type || '').startsWith('image/')) continue;
-    if (selected.length >= MAX) break;
+    const mime = String(file.type || '').toLowerCase();
+    if (!mime.startsWith('image/') || mime.includes('svg')) {
+      warnings.push('Solo podés subir imágenes PNG, JPG o WEBP.');
+      continue;
+    }
+    if (Number(file.size) > MAX_BYTES) {
+      const sizeMb = (Number(file.size) / 1024 / 1024).toFixed(1);
+      warnings.push(
+        `La imagen “${safeFileLabel(file.name)}” pesa ${sizeMb} MB. El máximo permitido es ${MAX_MB} MB.`
+      );
+      continue;
+    }
+    if (selected.length >= MAX_FILES) {
+      skippedCapacity += 1;
+      continue;
+    }
     selected.push(file);
   }
+
+  if (skippedCapacity > 0) {
+    warnings.push(`Podés subir hasta ${MAX_FILES} imágenes de referencia.`);
+  }
+
   syncInputFiles();
   renderPreviews();
+
+  if (warnings.length) {
+    // Deduplicate identical MIME warnings while preserving order.
+    const unique = [...new Set(warnings)];
+    showMessage(unique.join(' '), true);
+  }
 });
 
 ['#cot-name', '#cot-email', '#cot-phone'].forEach((sel) => {
@@ -129,9 +163,11 @@ form?.addEventListener('submit', async (event) => {
 
     if (!response.ok || !payload?.ok) {
       const errorText = payload?.error
-        || (response.status >= 500
-          ? 'No se pudo enviar la cotización. Intentá nuevamente.'
-          : 'Revisá los datos e intentá nuevamente.');
+        || (response.status === 413
+          ? `Cada imagen puede pesar máximo ${MAX_MB} MB.`
+          : (response.status >= 500
+            ? 'No se pudo enviar la cotización. Intentá nuevamente.'
+            : 'Revisá los datos e intentá nuevamente.'));
       showMessage(errorText, true);
       setSubmitting(false);
       if (payload?.field) {

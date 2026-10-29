@@ -500,6 +500,98 @@ describe('3d quote submission', () => {
     assert.ok(again.text.includes('keep me'));
     assert.ok(again.text.includes('value="33"'));
   });
+
+  it('renders shared 12 MB / 5 file limits on the 3D page', async () => {
+    const page = await req('GET', '/cotizar/pieza-3d');
+    assert.equal(page.status, 200);
+    assert.ok(page.text.includes('data-max-image-files="5"'));
+    assert.ok(page.text.includes('data-max-image-bytes="12582912"'));
+    assert.ok(page.text.includes('data-max-image-mb="12"'));
+    assert.ok(page.text.includes('12 MB'));
+  });
+});
+
+describe('quote upload size errors', () => {
+  const uploadMw = require('../middleware/quoteRequestUpload');
+
+  it('maps LIMIT_FILE_SIZE to FILE_TOO_LARGE / 413', () => {
+    const mapped = uploadMw.mapUploadError({
+      code: 'LIMIT_FILE_SIZE',
+      message: 'Cada imagen puede pesar máximo 12 MB.',
+    });
+    assert.equal(mapped.status, 413);
+    assert.equal(mapped.code, 'FILE_TOO_LARGE');
+    assert.equal(mapped.field, 'images');
+    assert.match(mapped.error, /12 MB/);
+  });
+
+  it('AJAX LIMIT_FILE_SIZE returns 413 JSON (no 500)', async () => {
+    const jar = { cookie: '' };
+    const page = await req('GET', '/cotizar/pieza-3d', null, jar);
+    const token = csrf(page.text);
+    // Simulate Multer by invoking the error handler through an oversized buffer.
+    // Creating a real 13MB payload is acceptable for one regression test.
+    const big = Buffer.alloc(13 * 1024 * 1024, 1);
+    const mp = buildMultipart({
+      _csrf: token,
+      customer_name: 'Big File',
+      customer_email: `${marker}_big@example.invalid`,
+      customer_phone: '1',
+      width: '10',
+      height: '10',
+    }, [{ field: 'images', name: 'huge.jpg', type: 'image/jpeg', buffer: big }]);
+    const [before] = await pool.query('SELECT COUNT(*) AS c FROM quote_requests');
+    const r = await req('POST', '/cotizar/pieza-3d', null, jar, {
+      multipart: mp.body,
+      multipartHeaders: { ...mp.headers, Accept: 'application/json' },
+      accept: 'application/json',
+    });
+    assert.equal(r.status, 413, `expected 413 got ${r.status}: ${r.text.slice(0, 300)}`);
+    const json = JSON.parse(r.text);
+    assert.equal(json.ok, false);
+    assert.equal(json.field, 'images');
+    assert.equal(json.code, 'FILE_TOO_LARGE');
+    assert.match(json.error, /12 MB/);
+    const [after] = await pool.query('SELECT COUNT(*) AS c FROM quote_requests');
+    assert.equal(Number(after[0].c), Number(before[0].c));
+  });
+
+  it('HTML LIMIT_FILE_SIZE redirects with friendly alert (no 500)', async () => {
+    const jar = { cookie: '' };
+    const page = await req('GET', '/cotizar/pieza-3d', null, jar);
+    const token = csrf(page.text);
+    const big = Buffer.alloc(13 * 1024 * 1024, 1);
+    const mp = buildMultipart({
+      _csrf: token,
+      customer_name: 'Big Html',
+      customer_email: `${marker}_bightml@example.invalid`,
+      customer_phone: '1',
+      width: '10',
+      height: '10',
+      description: 'keep sticky',
+    }, [{ field: 'images', name: 'huge.jpg', type: 'image/jpeg', buffer: big }]);
+    const r = await req('POST', '/cotizar/pieza-3d', null, jar, {
+      multipart: mp.body,
+      multipartHeaders: mp.headers,
+    });
+    assert.ok([302, 303].includes(r.status), `status=${r.status}`);
+    assert.ok((r.location || '').includes('/cotizar/pieza-3d'));
+    const again = await req('GET', r.location || '/cotizar/pieza-3d', null, jar);
+    assert.equal(again.status, 200);
+    assert.ok(again.text.includes('12 MB') || again.text.includes('máximo'));
+  });
+
+  it('client JS rejects oversized files before upload and never clears on error', () => {
+    const js = fs.readFileSync(path.join(__dirname, '../public/js/quote-3d.js'), 'utf8');
+    assert.match(js, /dataset\.maxImageBytes|maxImageBytes/);
+    assert.match(js, /file\.size/);
+    assert.match(js, /máximo permitido es/);
+    const submitIdx = js.indexOf("addEventListener('submit'");
+    const clearIdx = js.indexOf('clearFormKeepAuth()', submitIdx);
+    const errorBranch = js.slice(submitIdx, clearIdx);
+    assert.ok(!errorBranch.includes('form.reset()'));
+    assert.ok(!errorBranch.includes('selected = []'));
+  });
 });
 
 describe('other + auth user quotes', () => {

@@ -19,7 +19,17 @@
   </section>
 
   <div class="quote-layout">
-    <form id="cotizacion-form" class="quote-form" method="POST" action="/cotizar/pieza-3d" enctype="multipart/form-data" novalidate>
+    <form
+      id="cotizacion-form"
+      class="quote-form"
+      method="POST"
+      action="/cotizar/pieza-3d"
+      enctype="multipart/form-data"
+      novalidate
+      data-max-image-files="<%= maxImageFiles || 5 %>"
+      data-max-image-bytes="<%= maxImageBytes || 12582912 %>"
+      data-max-image-mb="<%= maxImageMb || 12 %>"
+    >
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="reference_id" value="<%= referenceId || val('reference_id') %>">
       <input type="hidden" name="reference_product" value="<%= referenceName || val('reference_product') %>">
@@ -70,8 +80,8 @@
 
       <label class="quote-upload" for="cot-images">
         <input id="cot-images" name="images" type="file" accept="image/*" multiple>
-        <span>Subir imágenes de referencia (hasta 5)</span>
-        <small>PNG, JPG o WEBP. Se optimizan automáticamente a WebP. Máximo 5 imágenes.</small>
+        <span>Subir imágenes de referencia (hasta <%= maxImageFiles || 5 %>)</span>
+        <small>PNG, JPG o WEBP. Máximo <%= maxImageFiles || 5 %> imágenes de <%= maxImageMb || 12 %> MB cada una. Se optimizan automáticamente.</small>
       </label>
       <div class="cotizacion-previews" id="cot-previews" hidden></div>
 
