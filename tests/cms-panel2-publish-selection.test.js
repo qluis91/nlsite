@@ -41,7 +41,7 @@ async function withNeutralizedForeignPending(sectionId, ownedPublicIds, fn) {
       `SELECT id, public_id, status, deleted_at, published_data, published_at, updated_by, is_visible, sort_order
          FROM ${table}
         WHERE page_section_id = ?
-          AND (status IN ('draft', 'archived') OR published_data IS NULL)`,
+          AND ${repeatable.COLLECTION_PENDING_WHERE}`,
       [sectionId]
     );
     for (const row of rows) {
@@ -341,8 +341,91 @@ describe('Panel 2 publish module selection', () => {
         published = await repeatable.getPublishedItems('logo_loop_items', showcaseId);
         assert.equal(published.some((item) => item.public_id === doomed.public_id), false);
         assert.ok(published.some((item) => item.public_id === keep.public_id));
+
+        // Already-cleared archive must leave the collection not pending.
+        assert.equal(await moduleRegistry.getModule('home.logoLoop').pendingCheck(), false);
+        const modulesAfter = await selectPanel2PublishModules();
+        assert.equal(modulesAfter.includes('home.logoLoop'), false);
       }
     );
+  });
+
+  it('archived publish is idempotent for centralized and direct publish paths', async () => {
+    const keep = await repeatable.createItem('logo_loop_items', showcaseId, {
+      item_type: 'text',
+      text_content: `${MARKER}logo_idem_keep`,
+      sort_order: 8810,
+      is_visible: 1,
+      status: 'draft',
+    });
+    track('logo_loop_items', keep.public_id, 'logo_loop_item');
+
+    const doomed = await repeatable.createItem('logo_loop_items', showcaseId, {
+      item_type: 'text',
+      text_content: `${MARKER}logo_idem_archive`,
+      sort_order: 8811,
+      is_visible: 1,
+      status: 'draft',
+    });
+    track('logo_loop_items', doomed.public_id, 'logo_loop_item');
+
+    await repeatable.publishCollection('logo_loop_items', showcaseId, 'logoLoop_p2sel');
+    await repeatable.archiveItem('logo_loop_items', doomed.public_id);
+
+    await withNeutralizedForeignPending(showcaseId, [keep.public_id, doomed.public_id], async () => {
+      assert.equal(await moduleRegistry.getModule('home.logoLoop').pendingCheck(), true);
+
+      await publicationService.publishModules(['home.logoLoop'], 'module', { actorId: null });
+
+      const [[cleared]] = await pool.query(
+        'SELECT status, published_data FROM logo_loop_items WHERE public_id = ?',
+        [doomed.public_id]
+      );
+      assert.equal(cleared.status, 'archived');
+      assert.equal(cleared.published_data, null);
+      assert.equal(await moduleRegistry.getModule('home.logoLoop').pendingCheck(), false);
+
+      const [[revCountBefore]] = await pool.query(
+        `SELECT COUNT(*) AS cnt
+           FROM content_revisions cr
+           INNER JOIN logo_loop_items i ON i.id = cr.entity_id
+          WHERE cr.entity_type = 'logo_loop_item'
+            AND i.public_id = ?
+            AND cr.action = 'publish'`,
+        [doomed.public_id]
+      );
+
+      // Second centralized publish must not revise the already-cleared archive.
+      const second = await publicationService.publishModules(['home.logoLoop'], 'module', {
+        actorId: null,
+      });
+      assert.ok(second);
+
+      const [[revCountAfter]] = await pool.query(
+        `SELECT COUNT(*) AS cnt
+           FROM content_revisions cr
+           INNER JOIN logo_loop_items i ON i.id = cr.entity_id
+          WHERE cr.entity_type = 'logo_loop_item'
+            AND i.public_id = ?
+            AND cr.action = 'publish'`,
+        [doomed.public_id]
+      );
+      assert.equal(Number(revCountAfter.cnt), Number(revCountBefore.cnt));
+
+      // Direct publishCollection is also idempotent for the cleared archive.
+      await repeatable.publishCollection('logo_loop_items', showcaseId, 'logoLoop_p2sel');
+      const [[revCountDirect]] = await pool.query(
+        `SELECT COUNT(*) AS cnt
+           FROM content_revisions cr
+           INNER JOIN logo_loop_items i ON i.id = cr.entity_id
+          WHERE cr.entity_type = 'logo_loop_item'
+            AND i.public_id = ?
+            AND cr.action = 'publish'`,
+        [doomed.public_id]
+      );
+      assert.equal(Number(revCountDirect.cnt), Number(revCountBefore.cnt));
+      assert.equal(await moduleRegistry.getModule('home.logoLoop').pendingCheck(), false);
+    });
   });
 
   it('archive one item while other published visible items remain succeeds', async () => {

@@ -131,10 +131,9 @@ const MODULES = Object.freeze({
       return { valid: true, warnings: [] };
     },
     pendingCheck: async () => {
-      // Match publishCollectionInTx / publishCollection selection semantics.
+      const { COLLECTION_PENDING_WHERE } = require('./cmsRepeatableService');
       const [[{ cnt }]] = await pool.query(
-        `SELECT COUNT(*) cnt FROM logo_loop_items
-          WHERE status IN ('draft', 'archived') OR published_data IS NULL`
+        `SELECT COUNT(*) cnt FROM logo_loop_items WHERE ${COLLECTION_PENDING_WHERE}`
       );
       return cnt > 0;
     },
@@ -161,9 +160,9 @@ const MODULES = Object.freeze({
       return { valid: true, warnings: [] };
     },
     pendingCheck: async () => {
+      const { COLLECTION_PENDING_WHERE } = require('./cmsRepeatableService');
       const [[{ cnt }]] = await pool.query(
-        `SELECT COUNT(*) cnt FROM home_carousel_items
-          WHERE status IN ('draft', 'archived') OR published_data IS NULL`
+        `SELECT COUNT(*) cnt FROM home_carousel_items WHERE ${COLLECTION_PENDING_WHERE}`
       );
       return cnt > 0;
     },
