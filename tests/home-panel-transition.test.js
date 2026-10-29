@@ -377,8 +377,8 @@ test('project carousel hierarchy favors a clearer active slide over softer previ
     css,
     /\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*brightness\(1\.08\)/,
   );
-  assert.match(css, /\.is-preview-near\s*\{[\s\S]*top: calc\(50% \+ 110px\)[\s\S]*opacity: 0\.94/);
-  assert.match(css, /\.is-preview-rear\s*\{[\s\S]*top: calc\(50% \+ 130px\)[\s\S]*opacity: 0\.82/);
+  assert.match(css, /\.is-preview-near\s*\{[\s\S]*bottom: clamp\(1\.55rem, 3\.3vw, 2\.85rem\)[\s\S]*opacity: 0\.94/);
+  assert.match(css, /\.is-preview-rear\s*\{[\s\S]*bottom: clamp\(1\.35rem, 3vw, 2\.55rem\)[\s\S]*opacity: 0\.82/);
   assert.match(css, /\.project-carousel__face\s*\{[\s\S]*--preview-scale/);
   assert.match(css, /\.is-preview-near \.project-carousel__face\s*\{[\s\S]*--preview-scale: 0\.96/);
   assert.match(css, /\.is-preview-rear \.project-carousel__face\s*\{[\s\S]*--preview-scale: 0\.9/);
