@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-29 — Improve sparse Infinite Gallery layout
+
+### Fixed
+- 1–3 item Galleries use explicit front-facing sphere points so the first view is intentional (not a side-biased Fibonacci artifact)
+
 ## 2026-10-29 — Unique Infinite Gallery bubbles and click-to-center
 
 ### Fixed

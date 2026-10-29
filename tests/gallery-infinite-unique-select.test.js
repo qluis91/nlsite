@@ -30,6 +30,64 @@ before(async () => {
   );
 });
 
+describe('Sparse low-count layouts (1–3)', () => {
+  function assertOnSphere(point, radius = 4.2) {
+    const length = Math.hypot(point[0], point[1], point[2]);
+    assert.ok(Math.abs(length - radius) < 1e-5, `expected radius ${radius}, got ${length}`);
+  }
+
+  it('1 item sits on FRONT_DIRECTION and is closest front', () => {
+    const points = renderer.createSpherePoints(1);
+    assert.equal(points.length, 1);
+    assert.ok(Math.abs(points[0][0]) < 1e-6);
+    assert.ok(Math.abs(points[0][1]) < 1e-6);
+    assert.ok(Math.abs(points[0][2] - 4.2) < 1e-5);
+    assertOnSphere(points[0]);
+    const orientation = mat.quat.create();
+    assert.equal(renderer.closestFrontPointIndex(points, orientation), 0);
+  });
+
+  it('2 items are symmetric front-hemisphere bubbles', () => {
+    const points = renderer.createSpherePoints(2);
+    assert.equal(points.length, 2);
+    points.forEach((point) => assertOnSphere(point));
+    assert.ok(points[0][0] < 0);
+    assert.ok(points[1][0] > 0);
+    assert.ok(Math.abs(points[0][0] + points[1][0]) < 1e-5);
+    assert.ok(Math.abs(points[0][1] - points[1][1]) < 1e-5);
+    assert.ok(points[0][2] > 0 && points[1][2] > 0);
+    assert.ok(Math.abs(points[0][2] - points[1][2]) < 1e-5);
+    assert.notDeepEqual(
+      Array.from(points[0]).map((v) => v.toFixed(5)),
+      Array.from(points[1]).map((v) => v.toFixed(5))
+    );
+  });
+
+  it('3 items form a compact front-facing triangle', () => {
+    const points = renderer.createSpherePoints(3);
+    assert.equal(points.length, 3);
+    points.forEach((point) => {
+      assertOnSphere(point);
+      assert.ok(point[2] > 0, 'all points start in front hemisphere');
+    });
+    const sortedByY = [...points].sort((a, b) => b[1] - a[1]);
+    assert.ok(sortedByY[0][1] > sortedByY[1][1]);
+    assert.ok(Math.abs(sortedByY[0][0]) < 0.35);
+    const lower = sortedByY.slice(1);
+    assert.ok(lower.some((point) => point[0] < 0));
+    assert.ok(lower.some((point) => point[0] > 0));
+  });
+
+  it('count >= 4 keeps Fibonacci distribution cardinality', () => {
+    assert.equal(renderer.createSpherePoints(4).length, 4);
+    assert.equal(renderer.createSpherePoints(6).length, 6);
+    assert.equal(renderer.createSpherePoints(30).length, 30);
+    // Fibonacci count=1 would place off-front; count=4 must not use the count-1 special case.
+    const four = renderer.createSpherePoints(4);
+    assert.notEqual(four.length, 1);
+  });
+});
+
 describe('Unique bubbles — no duplication', () => {
   it('5 items → 5 sphere points and 1:1 mapping', () => {
     const points = renderer.createSpherePoints(5);

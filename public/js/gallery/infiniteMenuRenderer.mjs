@@ -164,6 +164,46 @@ export function createDiscGeometry(segments = DISC_SEGMENTS) {
 export function createSpherePoints(count = 1, radius = SPHERE_RADIUS) {
   const safeCount = clamp(Math.trunc(count) || 1, 1, MAX_ITEMS);
   const safeRadius = Number.isFinite(radius) && radius > 0 ? radius : SPHERE_RADIUS;
+
+  // Intentional front-facing compositions for tiny Galleries (no duplicates).
+  if (safeCount === 1) {
+    return [vec3.fromValues(0, 0, safeRadius)];
+  }
+
+  if (safeCount === 2) {
+    const angle = (34 * Math.PI) / 180;
+    const x = Math.sin(angle) * safeRadius;
+    const z = Math.cos(angle) * safeRadius;
+    return [
+      vec3.fromValues(-x, 0, z),
+      vec3.fromValues(x, 0, z),
+    ];
+  }
+
+  if (safeCount === 3) {
+    const elev = (28 * Math.PI) / 180;
+    const spread = (36 * Math.PI) / 180;
+    const top = vec3.fromValues(
+      0,
+      Math.sin(elev) * safeRadius,
+      Math.cos(elev) * safeRadius
+    );
+    const lowerElev = (-22 * Math.PI) / 180;
+    const lowerY = Math.sin(lowerElev) * safeRadius;
+    const lowerRing = Math.cos(lowerElev) * safeRadius;
+    const left = vec3.fromValues(
+      -Math.sin(spread) * lowerRing,
+      lowerY,
+      Math.cos(spread) * lowerRing
+    );
+    const right = vec3.fromValues(
+      Math.sin(spread) * lowerRing,
+      lowerY,
+      Math.cos(spread) * lowerRing
+    );
+    return [top, left, right];
+  }
+
   const goldenAngle = Math.PI * (3 - Math.sqrt(5));
   const points = [];
 
@@ -225,6 +265,11 @@ export function resolveSphereLayout(width, height, itemCount = 24) {
     const boost = 1 + (12 - safeItemCount) * 0.035;
     discScale = Math.min(discScale * boost, selectedDiscScale * 0.92);
     selectedDiscScale = Math.min(selectedDiscScale * Math.min(boost, 1.22), discScale * 1.85);
+  }
+  // Single item: keep the selected disc premium but not viewport-filling.
+  if (safeItemCount === 1) {
+    selectedDiscScale = Math.min(selectedDiscScale, SELECTED_DISC_SCALE * 1.08);
+    discScale = Math.min(discScale, selectedDiscScale * 0.85);
   }
 
   const spreadX = spreadY * horizontalRatio;
