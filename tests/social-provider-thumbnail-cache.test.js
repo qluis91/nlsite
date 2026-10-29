@@ -98,16 +98,24 @@ describe('migration registry', () => {
 });
 
 describe('isValidMetaImageUrl / redirects / limits', () => {
-  it('accepts official Meta CDN hosts', () => {
-    assert.ok(thumbnailCache.isValidMetaImageUrl('https://scontent.cdninstagram.com/v/t51.jpg'));
-    assert.ok(thumbnailCache.isValidMetaImageUrl('https://scontent-lax3-2.fbcdn.net/v/pic.png'));
+  it('accepts official Meta CDN hosts including fbsbx and apex', () => {
+    assert.ok(thumbnailCache.isValidMetaImageUrl('https://scontent-abc.cdninstagram.com/v/t51.jpg'));
+    assert.ok(thumbnailCache.isValidMetaImageUrl('https://instagram.xxx.fbcdn.net/v/pic.png'));
+    assert.ok(thumbnailCache.isValidMetaImageUrl('https://lookaside.fbsbx.com/lookaside/v/x.jpg'));
+    assert.ok(thumbnailCache.isValidMetaImageUrl('https://cdninstagram.com/v/apex.jpg'));
+    assert.ok(thumbnailCache.isValidMetaImageUrl('https://fbcdn.net/v/apex.jpg'));
+    assert.ok(thumbnailCache.isValidMetaImageUrl('https://fbsbx.com/v/apex.jpg'));
   });
 
   it('rejects lookalikes, http, credentials, and foreign hosts', () => {
     assert.ok(!thumbnailCache.isValidMetaImageUrl('https://fbcdn.net.attacker.com/x.jpg'));
     assert.ok(!thumbnailCache.isValidMetaImageUrl('https://cdninstagram.com.attacker.com/x.jpg'));
+    assert.ok(!thumbnailCache.isValidMetaImageUrl('https://fbsbx.com.attacker.com/x.jpg'));
+    assert.ok(!thumbnailCache.isValidMetaImageUrl('https://evil-fbcdn.net/x.jpg'));
     assert.ok(!thumbnailCache.isValidMetaImageUrl('http://scontent.fbcdn.net/x.jpg'));
     assert.ok(!thumbnailCache.isValidMetaImageUrl('https://example.com/x.jpg'));
+    assert.ok(!thumbnailCache.isValidMetaImageUrl('https://facebook.com/photo.jpg'));
+    assert.ok(!thumbnailCache.isValidMetaImageUrl('https://instagram.com/p/x/media'));
     assert.ok(!thumbnailCache.isValidMetaImageUrl('https://user:pass@scontent.fbcdn.net/x.jpg'));
   });
 
@@ -929,5 +937,339 @@ describe('TikTok prepareAndUpsert backfill / no-redownload / preserve / public e
     assert.equal(post.thumbnailUrl, publicUrlForStoragePath(cached.storagePath));
     assert.match(post.thumbnailUrl, /^\/uploads\/social\/tiktok\//);
     assert.ok(!post.thumbnailUrl.includes('social-feed-fallback'));
+  });
+});
+
+describe('public uploads route for social WebP', () => {
+  it('resolveLocalThumbnailPublicUrl maps social/instagram/*.webp to /uploads/...', async () => {
+    const png = await makePngBuffer();
+    thumbnailCache.setDownloadImpl(async () => png);
+    const created = await thumbnailCache.cacheProviderThumbnail({
+      provider: 'instagram',
+      sourceUrl: 'https://scontent.cdninstagram.com/v/route.jpg',
+    });
+    trackFile(created.storagePath);
+    assert.match(created.storagePath, /^social\/instagram\/.+\.webp$/);
+    const publicUrl = thumbnailCache.resolveLocalThumbnailPublicUrl(created.storagePath);
+    assert.equal(publicUrl, `/uploads/${created.storagePath}`);
+    assert.equal(publicUrl, publicUrlForStoragePath(created.storagePath));
+    assert.ok(fs.existsSync(resolveUploadStoragePath(created.storagePath)));
+  });
+});
+
+describe('thumbnail cache observability + signed URL retry', () => {
+  const adminCtrl = require('../controllers/adminSocialSyncController');
+
+  afterEach(() => {
+    thumbnailCache.setDownloadImpl(null);
+    thumbnailCache.setHttpFetch(null);
+    instagram.setHttpGet(null);
+  });
+
+  it('logs invalid_source and returns diagnostic meta without signed URL', async () => {
+    const warnings = [];
+    const origWarn = console.warn;
+    console.warn = (...args) => { warnings.push(args.join(' ')); };
+
+    try {
+      const prepared = await thumbnailCache.ensureProviderThumbnailCached({
+        provider: 'instagram',
+        sourceUrl: 'https://cdninstagram.com.attacker.com/v/t.jpg?oh=SECRET&oe=DEAD',
+        existingLocalPath: '',
+      });
+      assert.equal(prepared.cached, false);
+      assert.equal(prepared.status, 'invalid_source');
+      assert.equal(prepared.errorCode, 'INVALID_URL');
+      assert.equal(prepared.sourceHost, 'cdninstagram.com.attacker.com');
+      const joined = warnings.join('\n');
+      assert.match(joined, /invalid_source/);
+      assert.ok(!joined.includes('oh=SECRET'));
+      assert.ok(!joined.includes('oe=DEAD'));
+      assert.ok(!joined.includes('access_token'));
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('HTTP 403 cache failure is not silent — stats + warning alert', async () => {
+    const extId = `ig-obs-403-${Date.now()}`;
+    thumbnailCache.setDownloadImpl(async () => {
+      throw Object.assign(new Error('Thumbnail HTTP 403'), {
+        code: 'HTTP_ERROR',
+        status: 403,
+        sourceHost: 'scontent-xxx.cdninstagram.com',
+      });
+    });
+    // Prevent refresh retry from calling Graph (no token / no mock needed for this unit path)
+    const originalFetchById = instagram.fetchInstagramMediaById;
+    instagram.fetchInstagramMediaById = async () => {
+      throw new Error('no refresh in this test');
+    };
+
+    try {
+      const result = await instagram.prepareAndUpsert(
+        {
+          externalId: extId,
+          mediaType: 'IMAGE',
+          caption: 'Obs 403',
+          mediaUrl: 'https://scontent-xxx.cdninstagram.com/v/img.jpg?oh=SEC&oe=BEEF',
+          permalink: `https://www.instagram.com/p/${extId}/`,
+          thumbnailUrl: 'https://scontent-xxx.cdninstagram.com/v/img.jpg?oh=SEC&oe=BEEF',
+          timestamp: '2026-01-01',
+          username: 'test',
+        },
+        { require_approval: 0, config_json: {} },
+        { accessToken: 'test-token-no-refresh' }
+      );
+      assert.equal(result.action, 'imported');
+      assert.equal(result.thumbnailCache.cached, false);
+      assert.equal(result.thumbnailCache.code, 'HTTP_ERROR');
+      assert.equal(result.thumbnailCache.httpStatus, 403);
+      assert.equal(result.thumbnailCache.sourceHost, 'scontent-xxx.cdninstagram.com');
+      const metaJson = JSON.stringify(result.thumbnailCache);
+      assert.ok(!metaJson.includes('oh=SEC'));
+      assert.ok(!metaJson.includes('access_token'));
+
+      const [[row]] = await pool.query(
+        'SELECT provider_thumbnail_url, provider_thumbnail_local_path FROM social_posts WHERE provider_external_id = ?',
+        [extId]
+      );
+      assert.equal(row.provider_thumbnail_url, 'https://scontent-xxx.cdninstagram.com/v/img.jpg?oh=SEC&oe=BEEF');
+      assert.equal(row.provider_thumbnail_local_path, '');
+
+      const syncResult = {
+        imported: 1,
+        updated: 0,
+        skipped: 0,
+        thumbnailStats: { cached: 0, reused: 0, failed: 1, noSource: 0, invalidSource: 0 },
+        thumbnailErrors: [{
+          provider: 'instagram',
+          code: 'HTTP_ERROR',
+          status: 403,
+          host: 'scontent-xxx.cdninstagram.com',
+          count: 1,
+        }],
+      };
+      const alert = adminCtrl.buildSyncAlert(syncResult);
+      assert.equal(alert.type, 'warning');
+      assert.match(alert.text, /advertencias/i);
+      assert.match(alert.text, /HTTP_ERROR 403/);
+      assert.ok(!alert.text.includes('oh=SEC'));
+    } finally {
+      instagram.fetchInstagramMediaById = originalFetchById;
+      await pool.query('DELETE FROM social_posts WHERE provider_external_id = ?', [extId]);
+    }
+  });
+
+  it('successful cache increments thumbnailStats.cached and stores social/instagram/*.webp', async () => {
+    const extId = `ig-obs-ok-${Date.now()}`;
+    thumbnailCache.setDownloadImpl(async () => makePngBuffer());
+    const result = await instagram.prepareAndUpsert(
+      {
+        externalId: extId,
+        mediaType: 'IMAGE',
+        caption: 'Obs OK',
+        mediaUrl: 'https://scontent.cdninstagram.com/v/ok.jpg',
+        permalink: `https://www.instagram.com/p/${extId}/`,
+        thumbnailUrl: 'https://scontent.cdninstagram.com/v/ok.jpg',
+        timestamp: '2026-01-01',
+        username: 'test',
+      },
+      { require_approval: 0, config_json: {} }
+    );
+    assert.equal(result.action, 'imported');
+    assert.equal(result.thumbnailCache.cached, true);
+    assert.equal(result.thumbnailCache.status, 'cached_new');
+
+    const stats = thumbnailCache.createEmptyThumbnailStats();
+    thumbnailCache.accumulateThumbnailStat(stats, {
+      status: result.thumbnailCache.status,
+      cached: result.thumbnailCache.cached,
+      skippedDownload: result.thumbnailCache.reused,
+    });
+    assert.equal(stats.cached, 1);
+    assert.equal(stats.failed, 0);
+
+    const [[row]] = await pool.query(
+      'SELECT provider_thumbnail_local_path FROM social_posts WHERE provider_external_id = ?',
+      [extId]
+    );
+    assert.match(row.provider_thumbnail_local_path, /^social\/instagram\/.+\.webp$/);
+    trackFile(row.provider_thumbnail_local_path);
+    await pool.query('DELETE FROM social_posts WHERE provider_external_id = ?', [extId]);
+  });
+
+  it('Instagram 403 refresh retry succeeds on second URL once', async () => {
+    const extId = `ig-retry-ok-${Date.now()}`;
+    const url1 = 'https://scontent.cdninstagram.com/v/old.jpg?oh=AAA&oe=111';
+    const url2 = 'https://scontent.cdninstagram.com/v/fresh.jpg?oh=BBB&oe=222';
+    let cacheAttempts = 0;
+    let refreshCount = 0;
+
+    thumbnailCache.setDownloadImpl(async (url) => {
+      cacheAttempts += 1;
+      if (String(url).includes('old.jpg')) {
+        throw Object.assign(new Error('Thumbnail HTTP 403'), {
+          code: 'HTTP_ERROR',
+          status: 403,
+          sourceHost: 'scontent.cdninstagram.com',
+        });
+      }
+      return makePngBuffer();
+    });
+
+    const originalFetchById = instagram.fetchInstagramMediaById;
+    instagram.fetchInstagramMediaById = async (mediaId) => {
+      refreshCount += 1;
+      assert.equal(mediaId, extId);
+      return {
+        externalId: extId,
+        mediaType: 'IMAGE',
+        caption: 'Retry OK',
+        mediaUrl: url2,
+        permalink: `https://www.instagram.com/p/${extId}/`,
+        thumbnailUrl: url2,
+        timestamp: '2026-01-01',
+        username: 'test',
+      };
+    };
+
+    try {
+      const result = await instagram.prepareAndUpsert(
+        {
+          externalId: extId,
+          mediaType: 'IMAGE',
+          caption: 'Retry OK',
+          mediaUrl: url1,
+          permalink: `https://www.instagram.com/p/${extId}/`,
+          thumbnailUrl: url1,
+          timestamp: '2026-01-01',
+          username: 'test',
+        },
+        { require_approval: 0, config_json: {} },
+        { accessToken: 'test-token' }
+      );
+      assert.equal(result.action, 'imported');
+      assert.equal(refreshCount, 1);
+      assert.equal(cacheAttempts, 2);
+      assert.equal(result.thumbnailCache.cached, true);
+      assert.equal(result.thumbnailCache.refreshAttempts, 1);
+
+      const [[row]] = await pool.query(
+        'SELECT provider_thumbnail_url, provider_thumbnail_local_path FROM social_posts WHERE provider_external_id = ?',
+        [extId]
+      );
+      assert.equal(row.provider_thumbnail_url, url2);
+      assert.match(row.provider_thumbnail_local_path, /^social\/instagram\/.+\.webp$/);
+      trackFile(row.provider_thumbnail_local_path);
+
+      const [[dupes]] = await pool.query(
+        'SELECT COUNT(*) AS c FROM social_posts WHERE provider_external_id = ?',
+        [extId]
+      );
+      assert.equal(Number(dupes.c), 1);
+    } finally {
+      instagram.fetchInstagramMediaById = originalFetchById;
+      await pool.query('DELETE FROM social_posts WHERE provider_external_id = ?', [extId]);
+    }
+  });
+
+  it('Instagram 403 refresh retry still fails once — no third attempt', async () => {
+    const extId = `ig-retry-fail-${Date.now()}`;
+    const url1 = 'https://scontent.cdninstagram.com/v/a.jpg?oh=A';
+    const url2 = 'https://scontent.cdninstagram.com/v/b.jpg?oh=B';
+    let cacheAttempts = 0;
+    let refreshCount = 0;
+
+    thumbnailCache.setDownloadImpl(async () => {
+      cacheAttempts += 1;
+      throw Object.assign(new Error('Thumbnail HTTP 403'), {
+        code: 'HTTP_ERROR',
+        status: 403,
+        sourceHost: 'scontent.cdninstagram.com',
+      });
+    });
+
+    const originalFetchById = instagram.fetchInstagramMediaById;
+    instagram.fetchInstagramMediaById = async () => {
+      refreshCount += 1;
+      return {
+        externalId: extId,
+        mediaType: 'IMAGE',
+        caption: 'Retry fail',
+        mediaUrl: url2,
+        permalink: `https://www.instagram.com/p/${extId}/`,
+        thumbnailUrl: url2,
+        timestamp: '2026-01-01',
+        username: 'test',
+      };
+    };
+
+    try {
+      const result = await instagram.prepareAndUpsert(
+        {
+          externalId: extId,
+          mediaType: 'IMAGE',
+          caption: 'Retry fail',
+          mediaUrl: url1,
+          permalink: `https://www.instagram.com/p/${extId}/`,
+          thumbnailUrl: url1,
+          timestamp: '2026-01-01',
+          username: 'test',
+        },
+        { require_approval: 0, config_json: {} },
+        { accessToken: 'test-token' }
+      );
+      assert.equal(result.action, 'imported');
+      assert.equal(refreshCount, 1);
+      assert.equal(cacheAttempts, 2);
+      assert.equal(result.thumbnailCache.cached, false);
+      assert.equal(result.thumbnailCache.code, 'HTTP_ERROR');
+
+      const alert = adminCtrl.buildSyncAlert({
+        imported: 1,
+        updated: 0,
+        skipped: 0,
+        thumbnailStats: { cached: 0, reused: 0, failed: 1, noSource: 0, invalidSource: 0 },
+        thumbnailErrors: [{
+          provider: 'instagram', code: 'HTTP_ERROR', status: 403,
+          host: 'scontent.cdninstagram.com', count: 1,
+        }],
+      });
+      assert.equal(alert.type, 'warning');
+
+      const [[row]] = await pool.query(
+        'SELECT provider_thumbnail_url, title FROM social_posts WHERE provider_external_id = ?',
+        [extId]
+      );
+      assert.equal(row.provider_thumbnail_url, url2);
+      assert.equal(row.title, 'Retry fail');
+    } finally {
+      instagram.fetchInstagramMediaById = originalFetchById;
+      await pool.query('DELETE FROM social_posts WHERE provider_external_id = ?', [extId]);
+    }
+  });
+
+  it('download request sends image Accept + stable User-Agent (no cookies/token)', async () => {
+    const png = await makePngBuffer();
+    let seenHeaders = null;
+    thumbnailCache.setHttpFetch(async (_url, init) => {
+      seenHeaders = init?.headers || {};
+      return {
+        status: 200,
+        ok: true,
+        headers: { get: () => null },
+        arrayBuffer: async () => png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength),
+        body: null,
+      };
+    });
+    await thumbnailCache.downloadProviderImageBytes(
+      'instagram',
+      'https://lookaside.fbsbx.com/lookaside/v/pic.jpg'
+    );
+    assert.equal(seenHeaders['User-Agent'], thumbnailCache.CACHE_USER_AGENT);
+    assert.equal(seenHeaders.Accept, thumbnailCache.CACHE_ACCEPT);
+    assert.ok(!Object.keys(seenHeaders).some((k) => /cookie/i.test(k)));
+    assert.ok(!JSON.stringify(seenHeaders).includes('access_token'));
   });
 });

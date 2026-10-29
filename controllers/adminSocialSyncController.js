@@ -365,6 +365,58 @@ async function testConnection(req, res, next) {
 
 // ── Sync now ──
 
+/**
+ * Build admin sync alert from provider sync result (posts + thumbnail cache).
+ * @param {object} result
+ * @returns {{ type: string, text: string }}
+ */
+function buildSyncAlert(result) {
+  const stats = result?.thumbnailStats || {};
+  const thumbErrors = Array.isArray(result?.thumbnailErrors) ? result.thumbnailErrors : [];
+  const cached = Number(stats.cached) || 0;
+  const reused = Number(stats.reused) || 0;
+  const failed = Number(stats.failed) || 0;
+  const invalidSource = Number(stats.invalidSource) || 0;
+  const processed = (Number(result.imported) || 0) + (Number(result.updated) || 0) + (Number(result.skipped) || 0);
+  const thumbWarn = failed > 0 || invalidSource > 0 || (result.errors?.length > 0);
+
+  const postParts = [];
+  if (result.updated) postParts.push(`${result.updated} actualizados`);
+  if (result.imported) postParts.push(`${result.imported} importados`);
+  if (result.skipped) postParts.push(`${result.skipped} omitidos`);
+
+  const thumbParts = [];
+  if (cached) thumbParts.push(`${cached} miniaturas guardadas`);
+  if (reused) thumbParts.push(`${reused} reutilizadas`);
+  if (failed) thumbParts.push(`${failed} fallaron`);
+  if (invalidSource) thumbParts.push(`${invalidSource} URL inválida`);
+
+  let text;
+  if (thumbWarn) {
+    const main = thumbErrors[0];
+    let principal = '';
+    if (main) {
+      const hostLabel = main.host ? ` en ${main.host}` : '';
+      if (main.code === 'HTTP_ERROR' && main.status) {
+        principal = `Principal: HTTP_ERROR ${main.status}${hostLabel}`;
+      } else if (main.code) {
+        principal = `Principal: ${main.code}${hostLabel}`;
+      }
+    }
+    text = [
+      'Sincronización completada con advertencias:',
+      `${processed} posts procesados · ${cached} miniaturas guardadas · ${failed + invalidSource} fallaron.`,
+      `Miniaturas: ${cached} guardadas, ${failed + invalidSource} fallidas.`,
+      principal,
+    ].filter(Boolean).join(' ');
+  } else {
+    const bits = [...postParts, ...thumbParts];
+    text = `Sincronización completada: ${bits.join(' · ') || 'sin cambios'}.`;
+  }
+
+  return { type: thumbWarn ? 'warning' : 'success', text };
+}
+
 async function syncNow(req, res, next) {
   try {
     const provider = String(req.body.provider || '').trim();
@@ -373,15 +425,8 @@ async function syncNow(req, res, next) {
     }
 
     const result = await syncService.syncProvider(provider);
-    const parts = [];
-    if (result.imported) parts.push(`${result.imported} importado(s)`);
-    if (result.updated) parts.push(`${result.updated} actualizado(s)`);
-    if (result.skipped) parts.push(`${result.skipped} omitido(s)`);
-    if (result.errors?.length) parts.push(`${result.errors.length} error(es)`);
-
-    setAlerts(req, [ninja('sync', result.errors?.length ? 'warning' : 'success',
-      `Sincronización completada: ${parts.join(', ') || 'sin cambios'}.`
-    )]);
+    const alert = buildSyncAlert(result);
+    setAlerts(req, [ninja('sync', alert.type, alert.text)]);
     return res.redirect(BASE_PATH);
   } catch (error) {
     if (error.code === 'SYNC_IN_PROGRESS') {
@@ -726,6 +771,7 @@ module.exports = {
   structuredLog,
   saveSession,
   ninja,
+  buildSyncAlert,
   showList,
   showEdit,
   saveConfig,

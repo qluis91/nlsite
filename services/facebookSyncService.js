@@ -11,6 +11,9 @@ const thumbnailCache = require('./socialProviderThumbnailService');
 
 const PROVIDER = 'facebook';
 const MAX_POSTS_DEFAULT = 25;
+const POST_FIELDS = [
+  'id', 'message', 'full_picture', 'created_time', 'permalink_url',
+].join(',');
 
 const { isValidMetaImageUrl } = thumbnailCache;
 
@@ -30,11 +33,7 @@ async function fetchFacebookPosts(pageId, accessToken, maxResults = MAX_POSTS_DE
   const limit = Math.min(100, Math.max(1, maxResults));
   const baseUrl = metaOAuth.getBaseUrl();
 
-  const fields = [
-    'id', 'message', 'full_picture', 'created_time', 'permalink_url',
-  ].join(',');
-
-  const url = `${baseUrl}/${pageId}/posts?fields=${encodeURIComponent(fields)}&limit=${limit}&access_token=${encodeURIComponent(accessToken)}`;
+  const url = `${baseUrl}/${pageId}/posts?fields=${encodeURIComponent(POST_FIELDS)}&limit=${limit}&access_token=${encodeURIComponent(accessToken)}`;
   const { status, data } = await fetch(url);
 
   if (status !== 200) {
@@ -56,6 +55,33 @@ async function fetchFacebookPosts(pageId, accessToken, maxResults = MAX_POSTS_DE
       return true;
     })
     .map(normalizeFacebookPost);
+}
+
+/**
+ * Lightweight single-post metadata refresh (signed URL retry).
+ * @param {string} postId
+ * @param {string} accessToken
+ */
+async function fetchFacebookPostById(postId, accessToken) {
+  const id = String(postId || '').trim();
+  if (!id || !accessToken) {
+    throw Object.assign(new Error('Facebook post id required'), { code: 'NO_POST_ID' });
+  }
+  const baseUrl = metaOAuth.getBaseUrl();
+  const url = `${baseUrl}/${encodeURIComponent(id)}?fields=${encodeURIComponent(POST_FIELDS)}&access_token=${encodeURIComponent(accessToken)}`;
+  const { status, data } = await fetch(url);
+
+  if (status !== 200) {
+    const classified = metaOAuth.classifyMetaApiError(status, data);
+    throw Object.assign(new Error(`Facebook post refresh error: ${data?.error?.message || status}`), {
+      code: 'FB_POST_REFRESH_ERROR',
+      status,
+      data,
+      category: classified.category,
+    });
+  }
+
+  return normalizeFacebookPost(data);
 }
 
 // ── Normalize ──
@@ -80,6 +106,12 @@ function expiresAtFromNow() {
   return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
 }
 
+function resolveProviderThumbnailUrl(candidate, existingUrl = '') {
+  if (isValidMetaImageUrl(candidate)) return candidate;
+  if (isValidMetaImageUrl(existingUrl)) return existingUrl;
+  return '';
+}
+
 /**
  * @param {import('mysql2/promise').PoolConnection} conn
  * @param {object} post
@@ -92,22 +124,30 @@ async function upsertPost(conn, post, intRow, options = {}) {
   const localThumbnailPath = hasLocalOpt ? String(options.localThumbnailPath || '') : null;
 
   const [[existing]] = await conn.query(
-    'SELECT id, public_id, is_imported, archived_at FROM social_posts WHERE provider = ? AND provider_external_id = ?',
+    'SELECT id, public_id, is_imported, archived_at, provider_thumbnail_url, provider_thumbnail_local_path FROM social_posts WHERE provider = ? AND provider_external_id = ?',
     [PROVIDER, post.externalId]
   );
 
   if (existing) {
     if (existing.archived_at) return { action: 'skipped', reason: 'archived' };
     if (existing.is_imported) {
-      const thumbnailUrl = isValidMetaImageUrl(post.fullPicture) ? post.fullPicture : '';
+      const thumbnailUrl = resolveProviderThumbnailUrl(post.fullPicture, existing.provider_thumbnail_url);
       const expiresAt = thumbnailUrl ? expiresAtFromNow() : null;
       if (hasLocalOpt) {
+        let pathToStore = localThumbnailPath;
+        if (
+          !pathToStore
+          && existing.provider_thumbnail_local_path
+          && thumbnailCache.localThumbnailFileExists(existing.provider_thumbnail_local_path)
+        ) {
+          pathToStore = existing.provider_thumbnail_local_path;
+        }
         await conn.query(
           `UPDATE social_posts SET provider_synced_at = NOW(),
             provider_thumbnail_url = ?, provider_thumbnail_expires_at = ?,
             provider_thumbnail_local_path = ?
            WHERE id = ?`,
-          [thumbnailUrl || '', expiresAt, localThumbnailPath, existing.id]
+          [thumbnailUrl || '', expiresAt, pathToStore || '', existing.id]
         );
       } else {
         await conn.query(
@@ -135,7 +175,7 @@ async function upsertPost(conn, post, intRow, options = {}) {
   const description = post.message.length > 300 ? post.message.slice(300, 800) : '';
   const status = autoPublish ? 'published' : 'draft';
 
-  const thumbnailUrl = isValidMetaImageUrl(post.fullPicture) ? post.fullPicture : '';
+  const thumbnailUrl = resolveProviderThumbnailUrl(post.fullPicture, '');
   const expiresAt = thumbnailUrl ? expiresAtFromNow() : null;
   const insertLocalPath = hasLocalOpt ? localThumbnailPath : '';
 
@@ -165,29 +205,81 @@ async function upsertPost(conn, post, intRow, options = {}) {
   return { action: 'imported', publicId };
 }
 
-async function prepareAndUpsert(post, intRow) {
+/**
+ * @param {object} post
+ * @param {object} intRow
+ * @param {{ accessToken?: string }} [options]
+ */
+async function prepareAndUpsert(post, intRow, options = {}) {
   const [[existing]] = await pool.query(
-    `SELECT id, public_id, is_imported, archived_at, provider_thumbnail_local_path
+    `SELECT id, public_id, is_imported, archived_at, provider_thumbnail_local_path, provider_thumbnail_url
        FROM social_posts
       WHERE provider = ? AND provider_external_id = ?`,
     [PROVIDER, post.externalId]
   );
 
-  if (existing?.archived_at) return { action: 'skipped', reason: 'archived' };
-  if (existing && !existing.is_imported) return { action: 'skipped', reason: 'manual_post' };
+  if (existing?.archived_at) {
+    return {
+      action: 'skipped',
+      reason: 'archived',
+      thumbnailCache: thumbnailCache.toThumbnailCacheMeta({
+        status: thumbnailCache.CACHE_STATUS.NO_SOURCE,
+        cached: false,
+        attempted: false,
+      }),
+    };
+  }
+  if (existing && !existing.is_imported) {
+    return {
+      action: 'skipped',
+      reason: 'manual_post',
+      thumbnailCache: thumbnailCache.toThumbnailCacheMeta({
+        status: thumbnailCache.CACHE_STATUS.NO_SOURCE,
+        cached: false,
+        attempted: false,
+      }),
+    };
+  }
 
-  const thumbUrl = isValidMetaImageUrl(post.fullPicture) ? post.fullPicture : '';
-  const prepared = await thumbnailCache.ensureProviderThumbnailCached({
+  let working = post;
+  let prepared = await thumbnailCache.ensureProviderThumbnailCached({
     provider: PROVIDER,
-    sourceUrl: thumbUrl,
+    sourceUrl: working.fullPicture || '',
     existingLocalPath: existing?.provider_thumbnail_local_path || '',
   });
+
+  let refreshAttempts = 0;
+  if (
+    thumbnailCache.isRetryableCacheFailure(prepared)
+    && working.externalId
+  ) {
+    const accessToken = options.accessToken
+      || await metaOAuth.getPageAccessToken(String(intRow.config_json?.pageId || ''))
+      || await metaOAuth.getUserAccessToken(PROVIDER);
+    if (accessToken) {
+      try {
+        refreshAttempts = 1;
+        // Call through exports so tests can stub metadata refresh.
+        const refreshed = await module.exports.fetchFacebookPostById(working.externalId, accessToken);
+        if (refreshed?.fullPicture) {
+          working = { ...working, ...refreshed };
+          prepared = await thumbnailCache.ensureProviderThumbnailCached({
+            provider: PROVIDER,
+            sourceUrl: working.fullPicture || '',
+            existingLocalPath: existing?.provider_thumbnail_local_path || '',
+          });
+        }
+      } catch {
+        /* keep first failure diagnostics */
+      }
+    }
+  }
 
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
     // Call through exports so tests can stub persistence failures.
-    const result = await module.exports.upsertPost(conn, post, intRow, {
+    const result = await module.exports.upsertPost(conn, working, intRow, {
       localThumbnailPath: prepared.localPath,
     });
     await conn.commit();
@@ -203,7 +295,13 @@ async function prepareAndUpsert(post, intRow) {
       await thumbnailCache.deleteLocalThumbnailSafe(prepared.replacedPrevious);
     }
 
-    return result;
+    return {
+      ...result,
+      thumbnailCache: {
+        ...thumbnailCache.toThumbnailCacheMeta(prepared),
+        refreshAttempts,
+      },
+    };
   } catch (err) {
     try { await conn.rollback(); } catch { /* ignore */ }
     if (prepared.createdAbsolute) {
@@ -213,6 +311,30 @@ async function prepareAndUpsert(post, intRow) {
     throw err;
   } finally {
     conn.release();
+  }
+}
+
+function recordThumbnailOutcome(thumbnailStats, thumbnailErrors, result) {
+  const meta = result?.thumbnailCache || {};
+  thumbnailCache.accumulateThumbnailStat(thumbnailStats, {
+    status: meta.status,
+    cached: meta.cached,
+    skippedDownload: meta.reused,
+    errorCode: meta.code,
+  });
+  if (
+    meta.cached !== true
+    && meta.status
+    && meta.status !== thumbnailCache.CACHE_STATUS.CACHED_NEW
+    && meta.status !== thumbnailCache.CACHE_STATUS.CACHED_EXISTING
+    && meta.status !== thumbnailCache.CACHE_STATUS.NO_SOURCE
+  ) {
+    thumbnailErrors.push({
+      provider: PROVIDER,
+      code: meta.code || meta.status,
+      status: meta.httpStatus ?? null,
+      host: meta.sourceHost || null,
+    });
   }
 }
 
@@ -293,14 +415,19 @@ async function syncFacebook(intRow) {
   let imported = 0;
   let skipped = 0;
   let updated = 0;
+  const thumbnailStats = thumbnailCache.createEmptyThumbnailStats();
+  const rawThumbErrors = [];
 
   for (const post of items) {
     if (!post.externalId) { skipped++; continue; }
     try {
-      const result = await prepareAndUpsert(post, intRow);
+      const result = await prepareAndUpsert(post, intRow, { accessToken });
       if (result.action === 'imported') imported++;
       else if (result.action === 'updated') updated++;
       else skipped++;
+      if (result.action === 'imported' || result.action === 'updated') {
+        recordThumbnailOutcome(thumbnailStats, rawThumbErrors, result);
+      }
     } catch {
       skipped++;
     }
@@ -308,16 +435,23 @@ async function syncFacebook(intRow) {
 
   console.log(JSON.stringify({
     ts: new Date().toISOString(), provider: PROVIDER, stage: 'facebook_sync_done',
-    pageIdHash, imported, skipped, updated,
+    pageIdHash, imported, skipped, updated, thumbnailStats,
   }));
 
-  return { imported, skipped, updated };
+  return {
+    imported,
+    skipped,
+    updated,
+    thumbnailStats,
+    thumbnailErrors: thumbnailCache.summarizeThumbnailErrors(rawThumbErrors),
+  };
 }
 
 module.exports = {
   PROVIDER,
   syncFacebook,
   fetchFacebookPosts,
+  fetchFacebookPostById,
   normalizeFacebookPost,
   upsertPost,
   prepareAndUpsert,

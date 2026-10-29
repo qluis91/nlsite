@@ -248,8 +248,28 @@ async function prepareAndUpsert(video, intRow) {
     [PROVIDER, video.externalId]
   );
 
-  if (existing?.archived_at) return { action: 'skipped', reason: 'archived' };
-  if (existing && !existing.is_imported) return { action: 'skipped', reason: 'manual_post' };
+  if (existing?.archived_at) {
+    return {
+      action: 'skipped',
+      reason: 'archived',
+      thumbnailCache: thumbnailCache.toThumbnailCacheMeta({
+        status: thumbnailCache.CACHE_STATUS.NO_SOURCE,
+        cached: false,
+        attempted: false,
+      }),
+    };
+  }
+  if (existing && !existing.is_imported) {
+    return {
+      action: 'skipped',
+      reason: 'manual_post',
+      thumbnailCache: thumbnailCache.toThumbnailCacheMeta({
+        status: thumbnailCache.CACHE_STATUS.NO_SOURCE,
+        cached: false,
+        attempted: false,
+      }),
+    };
+  }
 
   const prepared = await thumbnailCache.ensureProviderThumbnailCached({
     provider: PROVIDER,
@@ -276,7 +296,10 @@ async function prepareAndUpsert(video, intRow) {
       await thumbnailCache.deleteLocalThumbnailSafe(prepared.replacedPrevious);
     }
 
-    return result;
+    return {
+      ...result,
+      thumbnailCache: thumbnailCache.toThumbnailCacheMeta(prepared),
+    };
   } catch (err) {
     try { await conn.rollback(); } catch { /* ignore */ }
     if (prepared.createdAbsolute) {
@@ -308,6 +331,8 @@ async function syncTikTok(intRow) {
   let imported = 0;
   let skipped = 0;
   let updated = 0;
+  const thumbnailStats = thumbnailCache.createEmptyThumbnailStats();
+  const rawThumbErrors = [];
 
   for (const video of items) {
     if (!video.externalId) { skipped++; continue; }
@@ -316,12 +341,41 @@ async function syncTikTok(intRow) {
       if (result.action === 'imported') imported++;
       else if (result.action === 'updated') updated++;
       else skipped++;
+      if (result.action === 'imported' || result.action === 'updated') {
+        const meta = result.thumbnailCache || {};
+        thumbnailCache.accumulateThumbnailStat(thumbnailStats, {
+          status: meta.status,
+          cached: meta.cached,
+          skippedDownload: meta.reused,
+          errorCode: meta.code,
+        });
+        if (
+          meta.cached !== true
+          && meta.status
+          && meta.status !== thumbnailCache.CACHE_STATUS.CACHED_NEW
+          && meta.status !== thumbnailCache.CACHE_STATUS.CACHED_EXISTING
+          && meta.status !== thumbnailCache.CACHE_STATUS.NO_SOURCE
+        ) {
+          rawThumbErrors.push({
+            provider: PROVIDER,
+            code: meta.code || meta.status,
+            status: meta.httpStatus ?? null,
+            host: meta.sourceHost || null,
+          });
+        }
+      }
     } catch {
       skipped++;
     }
   }
 
-  return { imported, skipped, updated };
+  return {
+    imported,
+    skipped,
+    updated,
+    thumbnailStats,
+    thumbnailErrors: thumbnailCache.summarizeThumbnailErrors(rawThumbErrors),
+  };
 }
 
 module.exports = {
