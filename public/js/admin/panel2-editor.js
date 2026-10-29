@@ -372,6 +372,51 @@
   window.NLCarouselFocalEditor = { init: bindFocalEditors };
   bindFocalEditors(document);
 
+  function bindRangeOutputs(scope) {
+    (scope || document).querySelectorAll('[data-range-sync]').forEach(function (input) {
+      if (input.dataset.rangeSyncBound) return;
+      input.dataset.rangeSyncBound = '1';
+      var output = null;
+      if (input.id) {
+        output = (scope || document).querySelector('output[for="' + input.id + '"][data-range-output]');
+      }
+      if (!output) {
+        var group = input.closest('.form-group');
+        output = group ? group.querySelector('[data-range-output]') : null;
+      }
+      function sync() {
+        var decimals = Number(input.dataset.rangeDecimals);
+        if (!Number.isFinite(decimals) || decimals < 0) decimals = 0;
+        var numeric = Number(input.value);
+        var display = Number.isFinite(numeric)
+          ? numeric.toFixed(decimals)
+          : String(input.value || '');
+        var suffix = input.dataset.rangeSuffix || '';
+        if (output) output.textContent = display + suffix;
+      }
+      input.addEventListener('input', sync);
+      sync();
+    });
+  }
+
+  function bindAutoplayToggle(scope) {
+    (scope || document).querySelectorAll('[data-carousel-autoplay-toggle]').forEach(function (input) {
+      if (input.dataset.autoplayToggleBound) return;
+      input.dataset.autoplayToggleBound = '1';
+      var label = null;
+      var group = input.closest('.form-group') || input.parentElement;
+      if (group) label = group.querySelector('[data-carousel-autoplay-label]');
+      function sync() {
+        if (label) label.textContent = input.checked ? 'Activada' : 'Desactivada';
+      }
+      input.addEventListener('change', sync);
+      sync();
+    });
+  }
+
+  bindRangeOutputs(document);
+  bindAutoplayToggle(document);
+
   // ── CSP-safe delete confirmation ──
   document.querySelectorAll('[data-cms-delete-submit]').forEach(function (btn) {
     if (btn.dataset.cmsDeleteBound) return;

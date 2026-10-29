@@ -197,13 +197,109 @@
   <% } %>
 
 
+  <%
+    const carouselBehavior = (function () {
+      try {
+        return require('../../../../validators/cmsPanelsValidator').resolveCarouselBehavior(content || {});
+      } catch (_) {
+        return {
+          carouselAutoplayEnabled: true,
+          carouselIntervalSeconds: 5.5,
+          carouselZoomDurationSeconds: 32,
+          carouselZoomIntensityPercent: 7,
+        };
+      }
+    })();
+  %>
   <div class="cms-card">
-    <form method="POST" action="/admin/page/home/panel-2/carousel/items/reorder" class="cms-form cms-form--inline">
+    <h3>Comportamiento del carrusel</h3>
+    <p class="form-help">Ajusta la reproducción automática y el movimiento de las imágenes.</p>
+    <form method="POST" action="/admin/page/home/panel-2/draft" class="cms-form" data-cms-editor-form novalidate>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="active_tab" value="carousel">
-      <label class="field-label">Reordenar (IDs separados por coma)</label>
-      <input type="text" name="ids" class="form-input" value="<%= carouselItems.map(i => i.public_id).join(',') %>" style="width:100%">
-      <button type="submit" class="btn btn-secondary btn-sm">Actualizar orden</button>
+
+      <div class="form-group">
+        <label class="field-label" for="carousel-autoplay-enabled">Reproducción automática</label>
+        <label class="field-check">
+          <input
+            type="checkbox"
+            id="carousel-autoplay-enabled"
+            name="carouselAutoplayEnabled"
+            value="1"
+            data-carousel-autoplay-toggle
+            <%= carouselBehavior.carouselAutoplayEnabled ? 'checked' : '' %>
+          >
+          <span data-carousel-autoplay-label><%= carouselBehavior.carouselAutoplayEnabled ? 'Activada' : 'Desactivada' %></span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="field-label" for="carousel-interval-seconds">
+          Tiempo entre proyectos:
+          <output for="carousel-interval-seconds" data-range-output><%= Number(carouselBehavior.carouselIntervalSeconds).toFixed(1) %> s</output>
+        </label>
+        <input
+          class="form-input"
+          type="range"
+          id="carousel-interval-seconds"
+          name="carouselIntervalSeconds"
+          min="3"
+          max="15"
+          step="0.5"
+          value="<%= carouselBehavior.carouselIntervalSeconds %>"
+          data-range-sync
+          data-range-decimals="1"
+          data-range-suffix=" s"
+        >
+        <p class="form-help">Tiempo que permanece visible cada proyecto antes del cambio automático.</p>
+      </div>
+
+      <div class="form-group">
+        <label class="field-label" for="carousel-zoom-duration-seconds">
+          Velocidad del zoom:
+          <output for="carousel-zoom-duration-seconds" data-range-output><%= carouselBehavior.carouselZoomDurationSeconds %> s</output>
+        </label>
+        <input
+          class="form-input"
+          type="range"
+          id="carousel-zoom-duration-seconds"
+          name="carouselZoomDurationSeconds"
+          min="10"
+          max="60"
+          step="1"
+          value="<%= carouselBehavior.carouselZoomDurationSeconds %>"
+          data-range-sync
+          data-range-decimals="0"
+          data-range-suffix=" s"
+        >
+        <p class="form-help">Menos segundos = movimiento más rápido.</p>
+      </div>
+
+      <div class="form-group">
+        <label class="field-label" for="carousel-zoom-intensity-percent">
+          Intensidad del zoom:
+          <output for="carousel-zoom-intensity-percent" data-range-output><%= carouselBehavior.carouselZoomIntensityPercent %> %</output>
+        </label>
+        <input
+          class="form-input"
+          type="range"
+          id="carousel-zoom-intensity-percent"
+          name="carouselZoomIntensityPercent"
+          min="0"
+          max="12"
+          step="1"
+          value="<%= carouselBehavior.carouselZoomIntensityPercent %>"
+          data-range-sync
+          data-range-decimals="0"
+          data-range-suffix=" %"
+        >
+        <p class="form-help">0% desactiva el crecimiento de la imagen; valores mayores producen un acercamiento más visible.</p>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-save" name="action" value="draft">Guardar configuración</button>
+        <p class="form-help">Guarda los cambios aquí y usa “Publicar Panel 2” para aplicarlos al sitio.</p>
+      </div>
     </form>
   </div>
 

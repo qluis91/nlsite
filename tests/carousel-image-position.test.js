@@ -292,7 +292,7 @@ test('public carousel keeps 16:9 desktop frame, cover crop, zoom layer, Ken Burn
   assert.match(css, /@keyframes project-carousel-kenburns/);
   assert.match(
     css,
-    /\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*?animation:\s*project-carousel-kenburns/
+    /\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*?animation:\s*project-carousel-kenburns\s+var\(--carousel-kenburns-duration,\s*32s\)/
   );
   assert.match(css, /\.project-carousel__content\s*\{[\s\S]*?bottom:\s*clamp\(/);
   assert.match(css, /\.project-carousel__content\s*\{[\s\S]*?background:\s*rgba\(5,\s*8,\s*7,\s*0\.42\)/);
