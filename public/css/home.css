@@ -3034,6 +3034,11 @@ body.is-social-embed-open {
     background: linear-gradient(0deg, rgba(0, 0, 0, 0.36) 0%, rgba(0, 0, 0, 0.16) 52%, rgba(0, 0, 0, 0.04) 82%);
   }
 
+  .project-carousel__image {
+    object-fit: contain;
+    object-position: var(--carousel-position-x, 50%) var(--carousel-position-y, 50%);
+  }
+
   .project-carousel__content {
     top: auto;
     right: 1.2rem;

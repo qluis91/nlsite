@@ -296,9 +296,13 @@ test('public carousel keeps 16:9 desktop frame, cover crop, zoom layer, Ken Burn
   );
   assert.match(css, /\.project-carousel__content\s*\{[\s\S]*?background:\s*rgba\(7,\s*10,\s*9,\s*0\.68\)/);
   assert.match(css, /\.project-carousel__content\s*\{[\s\S]*?backdrop-filter:\s*blur\(10px\)/);
-  assert.doesNotMatch(
+  const desktopImageRule = css.match(/\.project-carousel__image\s*\{[\s\S]*?\}/);
+  assert.ok(desktopImageRule, 'base carousel image rule must exist');
+  assert.match(desktopImageRule[0], /object-fit:\s*cover/);
+  assert.doesNotMatch(desktopImageRule[0], /object-fit:\s*contain/);
+  assert.match(
     css,
-    /\.project-carousel__image\s*\{[\s\S]*?object-fit:\s*contain/
+    /@media\s*\(\s*max-width:\s*768px\s*\)[\s\S]*?\.project-carousel__image\s*\{[\s\S]*?object-fit:\s*contain/
   );
 });
 
