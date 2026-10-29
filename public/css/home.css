@@ -2763,6 +2763,9 @@ body.is-social-embed-open {
   bottom: clamp(1.5rem, 3vw, 2.75rem);
   z-index: 3;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   width: min(22rem, 30%);
   max-width: 400px;
   padding: clamp(0.7rem, 1.15vw, 1rem);
@@ -2823,6 +2826,8 @@ body.is-social-embed-open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  align-self: flex-start;
   min-height: 38px;
   padding: 0.45rem 0.85rem;
   border: 1px solid var(--home-accent);
@@ -2832,6 +2837,56 @@ body.is-social-embed-open {
   font-size: 0.76rem;
   font-weight: 800;
   transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
+}
+
+/* Desktop: lock content height to preview-card budget */
+@media (min-width: 1025px) {
+  .project-carousel__content {
+    height: var(--preview-height);
+    max-height: var(--preview-height);
+    gap: 0.15rem;
+    padding: 0.55rem 0.8rem;
+  }
+
+  .project-carousel__category {
+    flex: 0 0 auto;
+    margin: 0 0 0.25rem;
+    font-size: clamp(0.52rem, 0.55vw, 0.64rem);
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .project-carousel__title {
+    flex: 0 1 auto;
+    min-height: 0;
+    font-size: clamp(1.25rem, 1.55vw, 1.75rem);
+    line-height: 0.98;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .project-carousel__description {
+    flex: 0 1 auto;
+    min-height: 0;
+    margin: 0.15rem 0 0.3rem;
+    font-size: clamp(0.64rem, 0.7vw, 0.76rem);
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .project-carousel__cta {
+    flex: 0 0 auto;
+    min-height: 31px;
+    padding: 0.28rem 0.7rem;
+    font-size: 0.7rem;
+  }
 }
 
 .project-carousel__cta:hover {
@@ -2975,6 +3030,8 @@ body.is-social-embed-open {
   .project-carousel__content {
     width: min(22rem, 34%);
     max-width: 420px;
+    height: auto;
+    max-height: none;
   }
 }
 
@@ -3051,6 +3108,8 @@ body.is-social-embed-open {
     left: 1.2rem;
     width: auto;
     max-width: none;
+    height: auto;
+    max-height: none;
     transform: translateY(16px);
   }
 

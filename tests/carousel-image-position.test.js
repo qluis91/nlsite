@@ -297,7 +297,31 @@ test('public carousel keeps 16:9 desktop frame, cover crop, zoom layer, Ken Burn
   assert.match(css, /\.project-carousel__content\s*\{[\s\S]*?bottom:\s*clamp\(/);
   assert.match(css, /\.project-carousel__content\s*\{[\s\S]*?background:\s*rgba\(5,\s*8,\s*7,\s*0\.42\)/);
   assert.match(css, /\.project-carousel__content\s*\{[\s\S]*?backdrop-filter:\s*blur\(6px\)/);
-  assert.match(css, /\.project-carousel__title\s*\{[\s\S]*?font-size:\s*clamp\(1\.65rem/);
+  assert.match(
+    css,
+    /@media\s*\(\s*min-width:\s*1025px\s*\)[\s\S]*?\.project-carousel__content\s*\{[\s\S]*?height:\s*var\(--preview-height\)/
+  );
+  assert.match(
+    css,
+    /@media\s*\(\s*min-width:\s*1025px\s*\)[\s\S]*?\.project-carousel__content\s*\{[\s\S]*?max-height:\s*var\(--preview-height\)/
+  );
+  assert.match(
+    css,
+    /@media\s*\(\s*min-width:\s*1025px\s*\)[\s\S]*?\.project-carousel__title\s*\{[\s\S]*?-webkit-line-clamp:\s*2/
+  );
+  assert.match(
+    css,
+    /@media\s*\(\s*min-width:\s*1025px\s*\)[\s\S]*?\.project-carousel__description\s*\{[\s\S]*?-webkit-line-clamp:\s*2/
+  );
+  assert.match(
+    css,
+    /@media\s*\(\s*min-width:\s*1025px\s*\)[\s\S]*?\.project-carousel__cta\s*\{[\s\S]*?min-height:\s*31px/
+  );
+  const ctaRule = css.match(/\.project-carousel__cta\s*\{[\s\S]*?\}/);
+  assert.ok(ctaRule, 'carousel CTA rule must exist');
+  assert.match(ctaRule[0], /display:\s*inline-flex/);
+  assert.doesNotMatch(ctaRule[0], /display:\s*none/);
+  assert.doesNotMatch(ctaRule[0], /visibility:\s*hidden/);
   const desktopImageRule = css.match(/\.project-carousel__image\s*\{[\s\S]*?\}/);
   assert.ok(desktopImageRule, 'base carousel image rule must exist');
   assert.match(desktopImageRule[0], /object-fit:\s*cover/);
