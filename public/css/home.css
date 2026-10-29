@@ -2638,23 +2638,26 @@ body.is-social-embed-open {
   opacity: 1;
 }
 
-/* Preview cards: clearer secondary stack, lowered for composition */
+/* Preview cards: lower-right group aligned with bottom-left content */
 .project-carousel__slide.is-preview {
+  top: auto;
+  bottom: clamp(1.5rem, 3.2vw, 2.75rem);
   z-index: 4;
   overflow: visible;
   pointer-events: auto;
   border: 1px solid rgba(255, 255, 255, 0.22);
+  transform: none;
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 
 .project-carousel__slide.is-preview-near {
-  top: calc(50% + 110px);
+  bottom: clamp(1.55rem, 3.3vw, 2.85rem);
   opacity: 0.94;
 }
 
 .project-carousel__slide.is-preview-rear {
-  top: calc(50% + 130px);
+  bottom: clamp(1.35rem, 3vw, 2.55rem);
   opacity: 0.82;
 }
 
@@ -2755,24 +2758,25 @@ body.is-social-embed-open {
 
 .project-carousel__content {
   position: absolute;
-  top: 50%;
-  left: clamp(1.25rem, 3.2vw, 3.25rem);
+  top: auto;
+  left: clamp(1.5rem, 3vw, 3rem);
+  bottom: clamp(1.5rem, 3vw, 2.75rem);
   z-index: 3;
   box-sizing: border-box;
-  width: min(26rem, 36%);
-  max-width: 38%;
-  padding: clamp(1rem, 2vw, 1.5rem);
+  width: min(22rem, 30%);
+  max-width: 400px;
+  padding: clamp(0.7rem, 1.15vw, 1rem);
   color: #fff;
-  background: rgba(7, 10, 9, 0.68);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  background: rgba(5, 8, 7, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   visibility: hidden;
   opacity: 0;
   filter: blur(7px);
-  transform: translateY(calc(-50% + 18px));
+  transform: translateY(14px);
   transition:
     opacity 360ms ease 160ms,
     filter 420ms ease 160ms,
@@ -2785,46 +2789,47 @@ body.is-social-embed-open {
   visibility: visible;
   opacity: 1;
   filter: blur(0);
-  transform: translateY(-50%);
+  transform: translateY(0);
   transition-delay: 230ms, 230ms, 210ms, 0s;
 }
 
 .project-carousel__category {
-  margin: 0 0 0.9rem;
+  margin: 0 0 0.4rem;
   color: var(--home-accent);
-  font-size: clamp(0.68rem, 0.9vw, 0.8rem);
+  font-size: clamp(0.58rem, 0.65vw, 0.72rem);
   font-weight: 800;
   letter-spacing: 0.15em;
+  text-transform: uppercase;
 }
 
 .project-carousel__title {
   margin: 0;
   color: #fff;
-  font-size: clamp(2rem, 3.5vw, 4rem);
+  font-size: clamp(1.65rem, 2.1vw, 2.5rem);
   font-weight: 800;
-  line-height: 0.95;
-  letter-spacing: -0.045em;
+  line-height: 0.98;
+  letter-spacing: -0.04em;
 }
 
 .project-carousel__description {
-  max-width: 34rem;
-  margin: clamp(0.75rem, 1.5vw, 1.15rem) 0 clamp(1rem, 2vw, 0.95rem);
+  max-width: 100%;
+  margin: 0.45rem 0 0.7rem;
   color: rgba(255, 255, 255, 0.82);
-  font-size: clamp(0.86rem, 1.1vw, 1rem);
-  line-height: 1.65;
+  font-size: clamp(0.72rem, 0.82vw, 0.9rem);
+  line-height: 1.5;
 }
 
 .project-carousel__cta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 42px;
-  padding: 0.6rem 1rem;
+  min-height: 38px;
+  padding: 0.45rem 0.85rem;
   border: 1px solid var(--home-accent);
   border-radius: 999px;
   color: #0b0d0f;
   background: var(--home-accent);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 800;
   transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
 }
@@ -2885,18 +2890,18 @@ body.is-social-embed-open {
 
 @media (max-width: 1024px) {
   .project-carousel__slide.is-preview-near {
-    top: calc(50% + 120px);
+    bottom: clamp(1.35rem, 2.8vw, 2.35rem);
   }
 
   .project-carousel__slide.is-preview-rear {
-    top: calc(50% + 140px);
+    bottom: clamp(1.2rem, 2.5vw, 2.1rem);
   }
 }
 
 .project-carousel__controls {
   position: absolute;
   left: 50%;
-  bottom: clamp(0.8rem, 2vw, 1.65rem);
+  bottom: clamp(0.7rem, 1.6vw, 1.25rem);
   z-index: 6;
   display: flex;
   gap: 0.7rem;
@@ -2968,8 +2973,8 @@ body.is-social-embed-open {
   }
 
   .project-carousel__content {
-    width: min(22rem, 42%);
-    max-width: 46%;
+    width: min(22rem, 34%);
+    max-width: 420px;
   }
 }
 
