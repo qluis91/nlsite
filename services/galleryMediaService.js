@@ -100,19 +100,50 @@ function resolveFraming(framing = {}) {
   );
 }
 
+const EXIF_AXIS_SWAP_ORIENTATIONS = Object.freeze([5, 6, 7, 8]);
+
+/**
+ * Resolve visually auto-oriented width/height for crop math.
+ * Prefers Sharp metadata.autoOrient when present; otherwise swaps axes for
+ * EXIF orientations 5–8. Does not transform pixels.
+ */
+function resolveAutoOrientedDimensions(metadata = {}) {
+  const orientation = Number(metadata.orientation) || 1;
+  const autoOrient = metadata.autoOrient && typeof metadata.autoOrient === 'object'
+    ? metadata.autoOrient
+    : null;
+
+  if (autoOrient) {
+    const width = Number(autoOrient.width) || 0;
+    const height = Number(autoOrient.height) || 0;
+    if (width > 0 && height > 0) {
+      return { width, height, orientation };
+    }
+  }
+
+  const physicalWidth = Number(metadata.width) || 0;
+  const physicalHeight = Number(metadata.height) || 0;
+  const swapsAxes = EXIF_AXIS_SWAP_ORIENTATIONS.includes(orientation);
+  return {
+    width: swapsAxes ? physicalHeight : physicalWidth,
+    height: swapsAxes ? physicalWidth : physicalHeight,
+    orientation,
+  };
+}
+
 /**
  * Build a 512×512 WebP thumbnail using cover scale + authored X/Y/Zoom.
  * X/Y are focal percentages (0 left/top → 100 right/bottom). Zoom 100–200.
+ * Crop geometry uses AUTO-ORIENTED dimensions so EXIF phone photos match
+ * the browser preview coordinate system.
  */
 async function writeFramedThumbnailFromBuffer(inputBuffer, framing = {}) {
   await imageProcessing.inspectRasterBuffer(inputBuffer);
   const { x, y, zoom } = resolveFraming(framing);
   const size = FRAMED_THUMB_SIZE;
 
-  const oriented = sharp(inputBuffer, { limitInputPixels: PUBLIC_IMAGE_MAX_PIXELS }).rotate();
-  const metadata = await oriented.metadata();
-  const width = Number(metadata.width) || 0;
-  const height = Number(metadata.height) || 0;
+  const metadata = await sharp(inputBuffer, { limitInputPixels: PUBLIC_IMAGE_MAX_PIXELS }).metadata();
+  const { width, height } = resolveAutoOrientedDimensions(metadata);
   if (!width || !height) throw new Error('No se pudo leer el tamaño de la imagen.');
 
   const coverScale = Math.max(size / width, size / height);
@@ -128,8 +159,9 @@ async function writeFramedThumbnailFromBuffer(inputBuffer, framing = {}) {
   const fileName = imageProcessing.uniqueFileName('webp');
   const filePath = path.join(STORAGE_ROOTS.thumbnails, fileName);
 
+  // autoOrient once — matches browser EXIF decoding; do not also .rotate().
   await sharp(inputBuffer, { limitInputPixels: PUBLIC_IMAGE_MAX_PIXELS })
-    .rotate()
+    .autoOrient()
     .resize(resizedW, resizedH, { fit: 'fill' })
     .extract({ left, top, width: size, height: size })
     .webp({ quality: PUBLIC_IMAGE_WEBP_QUALITY })
@@ -273,6 +305,7 @@ module.exports = {
   validateVideoUpload,
   resolveSafeGalleryPath,
   resolveFraming,
+  resolveAutoOrientedDimensions,
   writeFramedThumbnailFromBuffer,
   processFramedThumbnailFromFile,
   processFramedThumbnailFromPublicPath,

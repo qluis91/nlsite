@@ -260,6 +260,145 @@ describe('Gallery thumbnail framing', () => {
     assert.equal(thumbMeta.width, 512);
     assert.equal(thumbMeta.height, 512);
   });
+
+  it('resolveAutoOrientedDimensions prefers autoOrient and swaps EXIF axes', () => {
+    assert.deepEqual(
+      media.resolveAutoOrientedDimensions({ width: 900, height: 600, orientation: 1 }),
+      { width: 900, height: 600, orientation: 1 }
+    );
+    assert.deepEqual(
+      media.resolveAutoOrientedDimensions({ width: 900, height: 600, orientation: 6 }),
+      { width: 600, height: 900, orientation: 6 }
+    );
+    assert.deepEqual(
+      media.resolveAutoOrientedDimensions({ width: 900, height: 600, orientation: 8 }),
+      { width: 600, height: 900, orientation: 8 }
+    );
+    assert.deepEqual(
+      media.resolveAutoOrientedDimensions({ width: 900, height: 600, orientation: 3 }),
+      { width: 900, height: 600, orientation: 3 }
+    );
+    assert.deepEqual(
+      media.resolveAutoOrientedDimensions({ width: 900, height: 600 }),
+      { width: 900, height: 600, orientation: 1 }
+    );
+    assert.deepEqual(
+      media.resolveAutoOrientedDimensions({
+        width: 900,
+        height: 600,
+        orientation: 6,
+        autoOrient: { width: 600, height: 900 },
+      }),
+      { width: 600, height: 900, orientation: 6 }
+    );
+  });
+
+  async function jpegWithOrientation(orientation) {
+    // Physical landscape: left half red, right half blue.
+    const physical = await sharp({
+      create: {
+        width: 900,
+        height: 600,
+        channels: 3,
+        background: { r: 220, g: 30, b: 30 },
+      },
+    })
+      .composite([{
+        input: await sharp({
+          create: {
+            width: 450,
+            height: 600,
+            channels: 3,
+            background: { r: 30, g: 60, b: 220 },
+          },
+        }).png().toBuffer(),
+        left: 450,
+        top: 0,
+      }])
+      .jpeg()
+      .toBuffer();
+
+    return sharp(physical)
+      .withMetadata({ orientation })
+      .jpeg()
+      .toBuffer();
+  }
+
+  async function meanChannels(filePath) {
+    const { channels } = await sharp(filePath).stats();
+    return {
+      r: channels[0].mean,
+      g: channels[1].mean,
+      b: channels[2].mean,
+    };
+  }
+
+  it('EXIF orientation 6 uses auto-oriented 600×900 and yields 512×512 WebP', async () => {
+    const buffer = await jpegWithOrientation(6);
+    const meta = await sharp(buffer).metadata();
+    assert.equal(meta.width, 900);
+    assert.equal(meta.height, 600);
+    assert.equal(meta.orientation, 6);
+    const oriented = media.resolveAutoOrientedDimensions(meta);
+    assert.equal(oriented.width, 600);
+    assert.equal(oriented.height, 900);
+
+    const framed = await media.writeFramedThumbnailFromBuffer(buffer, {
+      thumbnailPositionX: 50,
+      thumbnailPositionY: 50,
+      thumbnailZoomPercent: 100,
+    });
+    created.push(framed.filePath);
+    const thumbMeta = await sharp(framed.filePath).metadata();
+    assert.equal(thumbMeta.format, 'webp');
+    assert.equal(thumbMeta.width, 512);
+    assert.equal(thumbMeta.height, 512);
+  });
+
+  it('EXIF orientation 6 crop geometry follows visual (oriented) coordinates', async () => {
+    // Orientation 6 + left=red/right=blue physical → visual top=red, bottom=blue.
+    const buffer = await jpegWithOrientation(6);
+    const topBias = await media.writeFramedThumbnailFromBuffer(buffer, {
+      thumbnailPositionX: 20,
+      thumbnailPositionY: 20,
+      thumbnailZoomPercent: 150,
+    });
+    const bottomBias = await media.writeFramedThumbnailFromBuffer(buffer, {
+      thumbnailPositionX: 80,
+      thumbnailPositionY: 80,
+      thumbnailZoomPercent: 150,
+    });
+    created.push(topBias.filePath, bottomBias.filePath);
+
+    const topMean = await meanChannels(topBias.filePath);
+    const bottomMean = await meanChannels(bottomBias.filePath);
+
+    // Top-left bias should be redder; bottom-right bias bluer.
+    assert.ok(topMean.r > topMean.b + 20, `expected top bias redder, got ${JSON.stringify(topMean)}`);
+    assert.ok(bottomMean.b > bottomMean.r + 20, `expected bottom bias bluer, got ${JSON.stringify(bottomMean)}`);
+    assert.ok(topMean.r > bottomMean.r + 15);
+    assert.ok(bottomMean.b > topMean.b + 15);
+  });
+
+  it('EXIF orientation 8 also swaps physical axes for crop math', async () => {
+    const buffer = await jpegWithOrientation(8);
+    const meta = await sharp(buffer).metadata();
+    assert.equal(meta.orientation, 8);
+    const oriented = media.resolveAutoOrientedDimensions(meta);
+    assert.equal(oriented.width, 600);
+    assert.equal(oriented.height, 900);
+
+    const framed = await media.writeFramedThumbnailFromBuffer(buffer, {
+      thumbnailPositionX: 50,
+      thumbnailPositionY: 50,
+      thumbnailZoomPercent: 120,
+    });
+    created.push(framed.filePath);
+    const thumbMeta = await sharp(framed.filePath).metadata();
+    assert.equal(thumbMeta.format, 'webp');
+    assert.equal(thumbMeta.width, 512);
+    assert.equal(thumbMeta.height, 512);
+  });
 });
 
 describe('Automatic gallery item order', () => {

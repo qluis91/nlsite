@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-29 — Honor EXIF orientation in gallery thumbnail framing
+
+### Fixed
+- Gallery framed-thumbnail crop math uses auto-oriented dimensions (`metadata.autoOrient` / EXIF 5–8 axis swap) so phone JPEGs match the admin preview
+
 ## 2026-10-29 — Stabilize gallery thumbnails and admin workflow
 
 ### Fixed
