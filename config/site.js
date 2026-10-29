@@ -1,8 +1,9 @@
 // config/site.js
 require('dotenv').config();
+const { normalizeSiteName } = require('./siteBranding');
 
 module.exports = {
-  name: process.env.SITE_NAME || 'NinjaLabCR',
+  name: normalizeSiteName(process.env.SITE_NAME),
   description: process.env.SITE_DESCRIPTION || 'Plantilla modular',
   colors: {
     primary: process.env.BRAND_PRIMARY || '#2563eb',

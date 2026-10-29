@@ -5,6 +5,7 @@
  *
  * Thumbnail strategy:
  * - `provider_thumbnail_url` stores expiring TikTok cover_image_url
+ * - `provider_thumbnail_local_path` stores persistent WebP under UPLOAD_PUBLIC_ROOT/social/tiktok/
  * - `thumbnail_media_ref` is reserved for local Media Library assets only
  * - During sync, only provider-managed metadata is updated (never manual fields)
  *
@@ -15,6 +16,7 @@
 const crypto = require('node:crypto');
 const pool = require('../config/db');
 const tiktok = require('./tiktokOAuthService');
+const thumbnailCache = require('./socialProviderThumbnailService');
 
 const PROVIDER = 'tiktok';
 const MAX_VIDEOS_DEFAULT = 25;
@@ -24,34 +26,17 @@ const MAX_PAGES = 3;
 // We use 24h as a conservative bound; sync refreshes them frequently.
 const THUMBNAIL_TTL_MS = 24 * 60 * 60 * 1000;
 
+const {
+  isValidTikTokThumbnail,
+  ALLOWED_THUMBNAIL_ORIGINS,
+} = thumbnailCache;
+
 // ── HTTP mock ──
 
 let _httpGet = null;
 let _httpPost = null;
 function setHttpGet(fn) { _httpGet = fn; }
 function setHttpPost(fn) { _httpPost = fn; }
-
-// ── Origin allowlist for thumbnails ──
-
-const ALLOWED_THUMBNAIL_ORIGINS = Object.freeze([
-  'p16-sign.tiktokcdn-us.com',
-  'p19-sign.tiktokcdn-us.com',
-  'p16-sign-va.tiktokcdn.com',
-  'p16-sign-sg.tiktokcdn.com',
-]);
-
-function isValidTikTokThumbnail(urlStr) {
-  if (!urlStr) return false;
-  try {
-    const u = new URL(urlStr);
-    if (u.protocol !== 'https:') return false;
-    return ALLOWED_THUMBNAIL_ORIGINS.some(o =>
-      u.hostname === o || u.hostname.endsWith('.' + o)
-    );
-  } catch {
-    return false;
-  }
-}
 
 // ── Video list ──
 
@@ -153,13 +138,23 @@ const PROVIDER_MANAGED_FIELDS = Object.freeze([
   'provider_synced_at',
   'provider_thumbnail_url',
   'provider_thumbnail_expires_at',
+  'provider_thumbnail_local_path',
 ]);
 
-// ── Upsert ──
+function expiresAtFromNow() {
+  return new Date(Date.now() + THUMBNAIL_TTL_MS);
+}
 
-async function upsertPost(conn, video, intRow) {
-  const requireApproval = intRow.require_approval === 1;
+/**
+ * @param {import('mysql2/promise').PoolConnection} conn
+ * @param {object} video
+ * @param {object} intRow
+ * @param {{ localThumbnailPath?: string }} [options]
+ */
+async function upsertPost(conn, video, intRow, options = {}) {
   const autoPublish = intRow.config_json?.defaultPublished === true;
+  const hasLocalOpt = Object.prototype.hasOwnProperty.call(options, 'localThumbnailPath');
+  const localThumbnailPath = hasLocalOpt ? String(options.localThumbnailPath || '') : null;
 
   const [[existing]] = await conn.query(
     `SELECT id, public_id, is_imported, archived_at,
@@ -176,15 +171,27 @@ async function upsertPost(conn, video, intRow) {
 
     // Imported post — update ONLY provider-managed fields
     // Never touch: title, description, thumbnail_media_ref, status, published_content_json
-    const expiresAt = new Date(Date.now() + THUMBNAIL_TTL_MS);
-    await conn.query(
-      `UPDATE social_posts
-       SET provider_synced_at = NOW(),
-           provider_thumbnail_url = ?,
-           provider_thumbnail_expires_at = ?
-       WHERE id = ?`,
-      [video.coverImageUrl, expiresAt, existing.id]
-    );
+    const expiresAt = expiresAtFromNow();
+    if (hasLocalOpt) {
+      await conn.query(
+        `UPDATE social_posts
+         SET provider_synced_at = NOW(),
+             provider_thumbnail_url = ?,
+             provider_thumbnail_expires_at = ?,
+             provider_thumbnail_local_path = ?
+         WHERE id = ?`,
+        [video.coverImageUrl || '', expiresAt, localThumbnailPath, existing.id]
+      );
+    } else {
+      await conn.query(
+        `UPDATE social_posts
+         SET provider_synced_at = NOW(),
+             provider_thumbnail_url = ?,
+             provider_thumbnail_expires_at = ?
+         WHERE id = ?`,
+        [video.coverImageUrl || '', expiresAt, existing.id]
+      );
+    }
     return { action: 'updated', publicId: existing.public_id };
   }
 
@@ -199,7 +206,8 @@ async function upsertPost(conn, video, intRow) {
 
   const publicId = crypto.randomUUID();
   const status = autoPublish ? 'published' : 'draft';
-  const expiresAt = new Date(Date.now() + THUMBNAIL_TTL_MS);
+  const expiresAt = expiresAtFromNow();
+  const insertLocalPath = hasLocalOpt ? localThumbnailPath : '';
 
   // `thumbnail_media_ref` stays EMPTY — reserved for local Media Library
   // `provider_thumbnail_url` holds the expiring TikTok cover
@@ -219,16 +227,66 @@ async function upsertPost(conn, video, intRow) {
     `INSERT INTO social_posts
       (public_id, platform, post_url, title, description,
        thumbnail_media_ref, provider_thumbnail_url, provider_thumbnail_expires_at,
+       provider_thumbnail_local_path,
        embed_enabled, display_mode, is_active, is_featured, sort_order, status,
        published_content_json, provider, provider_external_id, provider_synced_at, is_imported)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0, ?, ?, ?, ?, NOW(), 1)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0, ?, ?, ?, ?, NOW(), 1)`,
     [publicId, 'tiktok', video.shareUrl, video.title, video.description,
-     '', video.coverImageUrl, expiresAt,
+     '', video.coverImageUrl || '', expiresAt, insertLocalPath,
      true, 'embed', status,
      publishedContentJson, PROVIDER, video.externalId]
   );
 
   return { action: 'imported', publicId };
+}
+
+async function prepareAndUpsert(video, intRow) {
+  const [[existing]] = await pool.query(
+    `SELECT id, public_id, is_imported, archived_at, provider_thumbnail_local_path
+       FROM social_posts
+      WHERE provider = ? AND provider_external_id = ?`,
+    [PROVIDER, video.externalId]
+  );
+
+  if (existing?.archived_at) return { action: 'skipped', reason: 'archived' };
+  if (existing && !existing.is_imported) return { action: 'skipped', reason: 'manual_post' };
+
+  const prepared = await thumbnailCache.ensureProviderThumbnailCached({
+    provider: PROVIDER,
+    sourceUrl: video.coverImageUrl || '',
+    existingLocalPath: existing?.provider_thumbnail_local_path || '',
+  });
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const result = await module.exports.upsertPost(conn, video, intRow, {
+      localThumbnailPath: prepared.localPath,
+    });
+    await conn.commit();
+
+    if (result.action === 'skipped' && prepared.createdAbsolute) {
+      const imageProcessing = require('./imageProcessingService');
+      await imageProcessing.deleteProcessedImage(prepared.createdAbsolute);
+    } else if (
+      prepared.createdAbsolute
+      && prepared.replacedPrevious
+      && prepared.replacedPrevious !== prepared.localPath
+    ) {
+      await thumbnailCache.deleteLocalThumbnailSafe(prepared.replacedPrevious);
+    }
+
+    return result;
+  } catch (err) {
+    try { await conn.rollback(); } catch { /* ignore */ }
+    if (prepared.createdAbsolute) {
+      const imageProcessing = require('./imageProcessingService');
+      await imageProcessing.deleteProcessedImage(prepared.createdAbsolute);
+    }
+    throw err;
+  } finally {
+    conn.release();
+  }
 }
 
 // ── Main sync ──
@@ -247,27 +305,20 @@ async function syncTikTok(intRow) {
   const maxResults = Math.min(50, Math.max(1, Number(config.maxVideos) || MAX_VIDEOS_DEFAULT));
   const items = await fetchVideoList(accessToken, maxResults);
 
-  const conn = await pool.getConnection();
-  let imported = 0, skipped = 0, updated = 0;
-  try {
-    await conn.beginTransaction();
-    for (const video of items) {
-      if (!video.externalId) { skipped++; continue; }
-      try {
-        const result = await upsertPost(conn, video, intRow);
-        if (result.action === 'imported') imported++;
-        else if (result.action === 'updated') updated++;
-        else skipped++;
-      } catch {
-        skipped++;
-      }
+  let imported = 0;
+  let skipped = 0;
+  let updated = 0;
+
+  for (const video of items) {
+    if (!video.externalId) { skipped++; continue; }
+    try {
+      const result = await prepareAndUpsert(video, intRow);
+      if (result.action === 'imported') imported++;
+      else if (result.action === 'updated') updated++;
+      else skipped++;
+    } catch {
+      skipped++;
     }
-    await conn.commit();
-  } catch (err) {
-    await conn.rollback();
-    throw err;
-  } finally {
-    conn.release();
   }
 
   return { imported, skipped, updated };
@@ -280,6 +331,7 @@ module.exports = {
   queryVideos,
   normalizeTikTokVideo,
   upsertPost,
+  prepareAndUpsert,
   setHttpGet,
   setHttpPost,
   isValidTikTokThumbnail,
@@ -287,4 +339,5 @@ module.exports = {
   MAX_VIDEOS_DEFAULT,
   MAX_PAGES,
   THUMBNAIL_TTL_MS,
+  PROVIDER_MANAGED_FIELDS,
 };

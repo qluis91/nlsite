@@ -132,4 +132,19 @@ describe('global site local', () => {
     };
     assert.equal(runSetLocals(existingSite), existingSite);
   });
+
+  it('canonical no-site layout fallback remains NinjaLabCR', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const main = fs.readFileSync(
+      path.join(__dirname, '..', 'views', 'layouts', 'main.ejs'),
+      'utf8'
+    );
+    assert.match(main, /:\s*'NinjaLabCR'/);
+    assert.doesNotMatch(main, /Mi Sitio/);
+    assert.doesNotMatch(main, /'NinjaLab CR'/);
+    const { normalizeSiteName, CANONICAL_SITE_NAME } = require('../config/siteBranding');
+    assert.equal(normalizeSiteName(''), CANONICAL_SITE_NAME);
+    assert.equal(normalizeSiteName('Mi Sitio Web'), CANONICAL_SITE_NAME);
+  });
 });

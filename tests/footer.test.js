@@ -199,6 +199,18 @@ describe('Footer Magic Rings', () => {
   });
 });
 
+describe('Footer branding source', () => {
+  test('footer brand text is driven by site.name (not hardcoded legacy placeholders)', () => {
+    assert.match(footerMarkup, /<%= site\.name %>/);
+    assert.doesNotMatch(footerMarkup, /Mi Sitio Web/);
+    assert.doesNotMatch(footerMarkup, />Mi Sitio</);
+    assert.doesNotMatch(footerMarkup, /NinjaLab CR(?!CMS)/);
+    // Copyright / heading stay centralized on the shared local
+    assert.match(footerMarkup, /&copy;[\s\S]*<%= site\.name %>/);
+    assert.match(footerMarkup, /<h4[^>]*>[\s\S]*<%= site\.name %>/);
+  });
+});
+
 describe('Footer Layout Integration', () => {
   test('main layout always includes footer', () => {
     assert.match(mainLayout, /include\('\.\.\/components\/footer',\s*\{/);

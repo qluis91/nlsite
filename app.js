@@ -296,10 +296,14 @@ app.use(async (req, res, next) => {
   try {
     const cms = require('./services/cmsPublishingService');
     const cmsContent = require('./services/cmsContentService');
+    const { normalizeSiteName } = require('./config/siteBranding');
     const settings = await cms.getPublishedSettings(['global.site_name', 'site.favicon']);
     if (settings['global.site_name']) {
       const siteConfig = require('./config/site');
-      res.locals.site = { ...siteConfig, name: settings['global.site_name'] };
+      res.locals.site = {
+        ...siteConfig,
+        name: normalizeSiteName(settings['global.site_name']),
+      };
     }
     if (settings['site.favicon']) {
       const fav = await cmsContent.resolveMediaReference(settings['site.favicon'], null);
@@ -338,6 +342,7 @@ app.use(async (req, res, next) => {
 
     // Build list of all keys to load: global + page-specific
     const globalKeys = [
+      'global.site_name',
       'global.seo_title', 'global.seo_description', 'global.og_image',
       'global.canonical_url', 'global.indexing_mode', 'site.favicon',
       'global.ga_measurement_id', 'global.ga_consent_enabled', 'global.ga_enabled',
@@ -350,6 +355,13 @@ app.use(async (req, res, next) => {
     const allKeys = [...globalKeys, ...pageKeys];
 
     const settings = await cms.getPublishedSettings(allKeys);
+    const { normalizeSiteName } = require('./config/siteBranding');
+    const siteConfig = require('./config/site');
+    const baseSite = res.locals.site || siteConfig;
+    res.locals.site = {
+      ...baseSite,
+      name: normalizeSiteName(settings['global.site_name'] || baseSite.name),
+    };
 
     // Global defaults
     if (settings['global.seo_title']) {
@@ -408,14 +420,17 @@ app.use(async (req, res, next) => {
       }
     }
     // Phase 12D: inject common JSON-LD (Organization + WebSite)
+    // Brand name ≠ SEO title — prefer published site_name / normalized site.name.
     const { buildOrganizationLd, buildWebSiteLd, jsonLdScript } = require('./config/jsonLdHelper');
     const hasSettings = settings && typeof settings === 'object';
-    const siteName = hasSettings && settings['global.seo_title']
-      ? settings['global.seo_title']
-      : (res.locals.globalSeoTitle || require('./config/site').name);
+    const siteName = normalizeSiteName(
+      (hasSettings && settings['global.site_name'])
+      || res.locals.site?.name
+      || siteConfig.name
+    );
     const siteDescription = hasSettings && settings['global.seo_description']
       ? settings['global.seo_description']
-      : (res.locals.globalSeoDescription || require('./config/site').description);
+      : (res.locals.globalSeoDescription || siteConfig.description);
     const orgLd = buildOrganizationLd({
       siteName,
       siteDescription,

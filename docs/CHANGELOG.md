@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-10-29 — Persist TikTok social thumbnails locally
+
+### Fixed
+- TikTok Social Feed covers use the same persistent local WebP cache as Instagram/Facebook (`social/tiktok/<uuid>.webp`)
+- TikTok sync downloads/covers outside MySQL transactions; backfills existing imported posts on next sync without duplicates
+
+### Changed
+- `socialProviderThumbnailService` is provider-aware (Meta + approved TikTok CDN hosts); `downloadMetaImageBytes` kept as compatibility wrapper
+
+## 2026-10-29 — Persist social feed Meta thumbnails locally
+
+### Fixed
+- Instagram/Facebook Social Feed cards no longer fall back to `social-feed-fallback.svg` after Meta CDN URLs expire
+- Provider thumbnails are downloaded once (SSRF-safe), optimized to WebP q80, and stored under `UPLOAD_PUBLIC_ROOT/social/{instagram|facebook}/`
+- Public feed priority: CMS media → local provider cache → valid temporary CDN URL → fallback SVG
+- Manual/automatic sync backfills `provider_thumbnail_local_path` for existing imported posts without holding MySQL transactions during HTTP/Sharp work
+
+### Added
+- `services/socialProviderThumbnailService.js`
+- Migration `migrateSocialProviderThumbnailCache` (`provider_thumbnail_local_path`)
+
+## 2026-10-29 — Normalize site branding to NinjaLabCR
+
+### Fixed
+- Runtime `site.name` normalizes legacy placeholders (`Mi Sitio`, `Mi Sitio Web`, `NinjaLab CR`) and empty env values to `NinjaLabCR`
+- Public CMS middleware loads published `global.site_name` and applies it to `res.locals.site.name`
+- Admin branding and account header resolve site name through the same helper
+- Organization/WebSite JSON-LD uses site brand (`global.site_name` / `site.name`), not `global.seo_title`
+
+### Added
+- `config/siteBranding.js` — `normalizeSiteName`, `CANONICAL_SITE_NAME`, `LEGACY_SITE_NAMES`
+
 ## 2026-10-29 — Improve sparse Infinite Gallery layout
 
 ### Fixed

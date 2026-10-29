@@ -147,6 +147,12 @@ const MIGRATION_REGISTRY = [
     exportName: 'migrateGalleryThumbnailFraming',
     passPool: true,
   },
+  {
+    name: 'migrateSocialProviderThumbnailCache',
+    file: './migrate-social-provider-thumbnail-cache',
+    exportName: 'migrateSocialProviderThumbnailCache',
+    passPool: true,
+  },
 ];
 
 async function ensureMigrationsTable(pool) {
