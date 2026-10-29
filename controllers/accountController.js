@@ -51,8 +51,9 @@ async function resolveAccountSiteLogo() {
 }
 
 // ── Resolve account site name ──
-// Priority: CMS global.site_name → .env SITE_NAME → NinjaLabCR
+// Priority: CMS global.site_name → .env SITE_NAME → NinjaLabCR (normalized)
 async function resolveAccountSiteName() {
+  const { normalizeSiteName } = require('../config/siteBranding');
   try {
     const [draft, published] = await Promise.all([
       cmsPublishing.getDraftSettings(['global.site_name']),
@@ -60,10 +61,10 @@ async function resolveAccountSiteName() {
     ]);
     const cmsName = draft['global.site_name'] || published['global.site_name'];
     if (cmsName && typeof cmsName === 'string' && cmsName.trim()) {
-      return cmsName.trim();
+      return normalizeSiteName(cmsName);
     }
   } catch { /* fall through */ }
-  return siteConfig.name;
+  return normalizeSiteName(siteConfig.name);
 }
 
 function accountViewOptions(accountUser, accountSection, extra = {}) {

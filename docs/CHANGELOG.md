@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-29 — Normalize site branding to NinjaLabCR
+
+### Fixed
+- Runtime `site.name` normalizes legacy placeholders (`Mi Sitio`, `Mi Sitio Web`, `NinjaLab CR`) and empty env values to `NinjaLabCR`
+- Public CMS middleware loads published `global.site_name` and applies it to `res.locals.site.name`
+- Admin branding and account header resolve site name through the same helper
+- Organization/WebSite JSON-LD uses site brand (`global.site_name` / `site.name`), not `global.seo_title`
+
+### Added
+- `config/siteBranding.js` — `normalizeSiteName`, `CANONICAL_SITE_NAME`, `LEGACY_SITE_NAMES`
+
 ## 2026-10-29 — Improve sparse Infinite Gallery layout
 
 ### Fixed

@@ -3,12 +3,20 @@
  */
 
 const siteConfig = require('../config/site');
+const { normalizeSiteName } = require('../config/siteBranding');
 const { normalizeFlashMessages } = require('../utils/alertMessages');
 
 // ── Inyectar variables globales en todas las vistas ──
 function setLocals(req, res, next) {
   res.locals.user = req.session.user || null;
-  res.locals.site = res.locals.site || siteConfig;
+  if (!res.locals.site) {
+    res.locals.site = siteConfig;
+  } else {
+    const normalized = normalizeSiteName(res.locals.site.name);
+    if (res.locals.site.name !== normalized) {
+      res.locals.site = { ...res.locals.site, name: normalized };
+    }
+  }
   res.locals.currentPath = req.path;
   res.locals.ninjaAlerts = normalizeFlashMessages(req.session, { consume: true });
   // Kept as empty compatibility locals while templates migrate to NinjaAlerts.

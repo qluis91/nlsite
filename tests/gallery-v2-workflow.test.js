@@ -33,7 +33,8 @@ after(async () => {
 
 describe('Branding — NinjaLabCR', () => {
   it('runtime defaults no longer use Mi Sitio placeholders', () => {
-    assert.equal(site.name, process.env.SITE_NAME || 'NinjaLabCR');
+    const { normalizeSiteName } = require('../config/siteBranding');
+    assert.equal(site.name, normalizeSiteName(process.env.SITE_NAME));
     assert.doesNotMatch(site.name, /Mi Sitio/);
     const main = fs.readFileSync(path.join(root, 'views', 'layouts', 'main.ejs'), 'utf8');
     const envExample = fs.readFileSync(path.join(root, '.env.example'), 'utf8');
