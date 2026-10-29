@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-29 — Validate operational Meta credentials
+
+### Fixed
+- Facebook `Probar conexión` validates the Page access token via `/{pageId}/posts` (same path as sync), not only the user `/me` token
+- Instagram `Probar conexión` validates `/{igUserId}/media` after `/me`
+- Facebook/Instagram sync disconnects on terminal auth from Page/media endpoints (`code 190`, permissions), not only the initial user-token check
+
 ## 2026-10-29 — Handle revoked Meta sessions and reconnection
 
 ### Fixed

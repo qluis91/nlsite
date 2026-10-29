@@ -693,13 +693,16 @@ async function checkTokenExpiration(provider) {
 /**
  * Handle a failed connection: disconnect + disable sync for terminal auth failures.
  * Does not delete imported posts or cached thumbnails.
+ * @param {string} provider
+ * @param {string} category
+ * @param {{ message?: string }} [options]
  */
-async function handleConnectionFailure(provider, category) {
+async function handleConnectionFailure(provider, category, options = {}) {
   if (!requiresReconnect(category)) {
     return { action: 'unchanged', reason: category };
   }
 
-  const friendly = friendlyAuthErrorMessage(category);
+  const friendly = String(options.message || friendlyAuthErrorMessage(category)).slice(0, 500);
   await pool.query(
     `UPDATE social_integrations SET
        is_connected = 0, is_enabled = 0, auto_sync = 0,

@@ -38,10 +38,15 @@ async function fetchFacebookPosts(pageId, accessToken, maxResults = MAX_POSTS_DE
   const { status, data } = await fetch(url);
 
   if (status !== 200) {
-    const isPermission = data?.error?.code === 10;
-    const isAuth = status === 401 || status === 403 || data?.error?.code === 190 || isPermission;
+    const classified = metaOAuth.classifyMetaApiError(status, data);
+    const isAuth = classified.category !== 'transient' && metaOAuth.requiresReconnect(classified.category);
     throw Object.assign(new Error(`Facebook API error: ${data?.error?.message || status}`), {
-      code: 'FB_API_ERROR', status, data, authError: isAuth, retryable: !isAuth && (status >= 500 || status === 429),
+      code: 'FB_API_ERROR',
+      status,
+      data,
+      authError: isAuth,
+      category: classified.category,
+      retryable: !isAuth && (status >= 500 || status === 429),
     });
   }
 
@@ -237,10 +242,13 @@ async function syncFacebook(intRow) {
 
   const pageToken = await metaOAuth.getPageAccessToken(pageId);
   if (!pageToken) {
-    throw Object.assign(
-      new Error('Page Access Token no disponible. Reconecta la integración de Facebook para regenerarlo.'),
-      { code: 'NO_PAGE_TOKEN', authError: true }
-    );
+    const message = 'El acceso a la página de Facebook ya no es válido. Reconectá Meta para generar un nuevo Page Access Token.';
+    await metaOAuth.handleConnectionFailure(PROVIDER, 'missing', { message });
+    throw Object.assign(new Error(message), {
+      code: 'META_RECONNECT_REQUIRED',
+      category: 'missing',
+      authError: true,
+    });
   }
   const accessToken = pageToken;
 
@@ -255,15 +263,29 @@ async function syncFacebook(intRow) {
   try {
     items = await fetchFacebookPosts(pageId, accessToken, maxResults);
   } catch (err) {
-    if (err.status && err.data?.error?.code === 10) {
+    const classified = metaOAuth.classifyMetaApiError(err.status, err.data);
+    if (metaOAuth.requiresReconnect(classified.category)) {
+      const message = classified.category === 'permission_denied'
+        ? 'Facebook ya no permite leer las publicaciones de esta página. Reconectá Meta y autorizá nuevamente los permisos.'
+        : 'El acceso a la página de Facebook ya no es válido. Reconectá Meta para generar un nuevo Page Access Token.';
       console.log(JSON.stringify({
-        ts: new Date().toISOString(), provider: PROVIDER, stage: 'facebook_permission_error',
-        pageIdHash, errorCode: 10, endpoint: 'page_posts',
+        ts: new Date().toISOString(),
+        provider: PROVIDER,
+        stage: 'facebook_page_auth_error',
+        pageIdHash,
+        errorCode: classified.errorCode,
+        errorSubcode: classified.errorSubcode,
+        category: classified.category,
+        endpoint: 'page_posts',
       }));
-      throw Object.assign(
-        new Error('Facebook rechazó la consulta de publicaciones de la página. Verificá que el Page Access Token sea válido y que el permiso pages_read_engagement esté concedido.'),
-        { code: 'FB_PERMISSION_ERROR', status: err.status, authError: true, retryable: false }
-      );
+      await metaOAuth.handleConnectionFailure(PROVIDER, classified.category, { message });
+      throw Object.assign(new Error(message), {
+        code: 'META_RECONNECT_REQUIRED',
+        category: classified.category,
+        authError: true,
+        status: err.status,
+        data: err.data,
+      });
     }
     throw err;
   }
