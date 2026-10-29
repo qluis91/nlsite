@@ -55,9 +55,9 @@ const heroContent = hasCmsHero ? _previewCms.heroContent : {};
 const heroStyle = (_previewCms && _previewCms.heroStyle) ? _previewCms.heroStyle : {};
 
 // Hero texts
-const heroEyebrow = (hasCmsHero && heroContent.eyebrow) ? heroContent.eyebrow : 'IMPRESIÓN 3D EN COSTA RICA';
-const heroHeading = (hasCmsHero && heroContent.heading) ? heroContent.heading : 'Fabricamos tus ideas con precisión milimétrica';
-const heroDescription = (hasCmsHero && heroContent.description) ? heroContent.description : 'Diseño, prototipado y fabricación con precisión para convertir ideas en piezas reales.';
+const heroEyebrow = (hasCmsHero && heroContent.eyebrow) ? heroContent.eyebrow : 'TECNOLOGÍA · DISEÑO · INNOVACIÓN';
+const heroHeading = (hasCmsHero && heroContent.heading) ? heroContent.heading : 'Transformamos ideas en soluciones reales';
+const heroDescription = (hasCmsHero && heroContent.description) ? heroContent.description : 'Desde la fabricación de piezas personalizadas hasta el desarrollo de plataformas digitales para empresa.';
 
 // Primary button
 const primaryBtn = hasCmsHero && heroContent.primaryButton ? heroContent.primaryButton : null;
@@ -364,11 +364,12 @@ const heroVisible = hasCmsHero ? heroContent.isVisible !== false : true;
             data-project-theme="<%= item.theme_key || 'graphite' %>"
             data-project-preview-image="<%= previewSrc %>"
             data-project-preview-alt="<%= item.preview_media_alt || item.media_alt || item.title %>"
-            style="--carousel-position-x:<%= item.position_x %>%;--carousel-position-y:<%= item.position_y %>%"
+            style="--carousel-position-x:<%= item.position_x %>%;--carousel-position-y:<%= item.position_y %>%;--carousel-zoom:<%= item.zoom_percent %>"
             aria-label="<%= idx + 1 %> de <%= cmsCarouselItems.length %>"
           >
             <div class="project-carousel__card" data-panel2-animate="card">
             <div class="project-carousel__face">
+            <div class="project-carousel__image-frame">
 <img
               class="project-carousel__image"
               src="<%= imgSrc %>"
@@ -381,6 +382,7 @@ const heroVisible = hasCmsHero ? heroContent.isVisible !== false : true;
               decoding="async"
               draggable="false"
             >
+            </div>
             <div class="project-carousel__content">
               <p class="project-carousel__category"><%= item.eyebrow || '' %></p>
               <h3 class="project-carousel__title"><%= item.title %></h3>

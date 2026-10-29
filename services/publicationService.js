@@ -12,7 +12,7 @@ const publishing = require('./cmsPublishingService');
 const repeatable = require('./cmsRepeatableService');
 const revisions = require('./contentRevisionService');
 const registry = require('./moduleRegistry');
-const { normalizePosition } = require('../public/js/admin/carousel-image-position');
+const { normalizePosition, normalizeZoom } = require('../public/js/admin/carousel-image-position');
 
 function batchPublicId() {
   return crypto.randomUUID();
@@ -521,6 +521,7 @@ function buildCollectionPublicationSnapshot(table, fields, item) {
   if (table === 'home_carousel_items') {
     snapshot.position_x = normalizePosition(item.position_x);
     snapshot.position_y = normalizePosition(item.position_y);
+    snapshot.zoom_percent = normalizeZoom(item.zoom_percent);
   }
   return snapshot;
 }

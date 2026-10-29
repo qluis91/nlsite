@@ -392,7 +392,7 @@ async function deleteLogoLoopItem(req, res) {
 // ── Carousel items ──
 
 async function persistCarouselItem(req, editing) {
-  const position = validator.normalizeCarouselPosition(req.body);
+  const framing = validator.normalizeCarouselFraming(req.body);
   const mediaPublicId = await verifyImagePublicId(req.body.media_public_id);
   const previewMediaPublicId = await verifyImagePublicId(req.body.preview_media_public_id);
   const values = {
@@ -406,8 +406,9 @@ async function persistCarouselItem(req, editing) {
     media_alt: req.body.media_alt?.trim() || null,
     preview_media_public_id: previewMediaPublicId,
     preview_media_alt: req.body.preview_media_alt?.trim() || null,
-    position_x: position.x,
-    position_y: position.y,
+    position_x: framing.x,
+    position_y: framing.y,
+    zoom_percent: framing.zoom,
     theme_key: req.body.theme_key?.trim() || null,
     is_visible: req.body.is_visible === '0' ? 0 : 1,
   };

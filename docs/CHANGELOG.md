@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-28 — Carousel image framing zoom
+
+### Added
+- `zoom_percent` (100–200) on `home_carousel_items` with forward migration `migrateCarouselImageZoom`
+- Admin Panel 2 Zoom slider + live preview scale/`transform-origin` alongside existing X/Y focal controls
+- Public carousel nested `.project-carousel__image-frame` so authored zoom composes with Ken Burns
+
 ## 2026-10-05 — Stabilize Cotización 3D catalog Tab + save API errors
 
 ### Fixed

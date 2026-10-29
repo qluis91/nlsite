@@ -16,7 +16,7 @@ const revisionService = require('../services/contentRevisionService');
 const diffEngine = require('../services/diffEngine');
 const registry = require('../services/moduleRegistry');
 const pool = require('../config/db');
-const { normalizePosition } = require('../public/js/admin/carousel-image-position');
+const { normalizePosition, normalizeZoom } = require('../public/js/admin/carousel-image-position');
 
 // ── Helpers ──
 
@@ -674,6 +674,11 @@ function normalizeRepeatableRestoreSnapshot(entityType, snapshot) {
       Object.prototype.hasOwnProperty.call(snapshot, 'position_y')
         ? snapshot.position_y
         : publishedData.position_y
+    ),
+    zoom_percent: normalizeZoom(
+      Object.prototype.hasOwnProperty.call(snapshot, 'zoom_percent')
+        ? snapshot.zoom_percent
+        : publishedData.zoom_percent
     ),
   };
 }

@@ -2674,6 +2674,17 @@ body.is-social-embed-open {
   background: rgba(42, 50, 54, 0.42);
 }
 
+.project-carousel__image-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  transform: scale(calc(var(--carousel-zoom, 100) / 100));
+  transform-origin: var(--carousel-position-x, 50%) var(--carousel-position-y, 50%);
+  will-change: transform;
+  pointer-events: none;
+}
+
 .project-carousel__image {
   position: absolute;
   inset: 0;

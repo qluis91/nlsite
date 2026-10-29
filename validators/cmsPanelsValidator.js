@@ -151,6 +151,10 @@ function normalizeCarouselPosition(body = {}) {
   return carouselPosition.normalizePositionPair(body.position_x, body.position_y);
 }
 
+function normalizeCarouselFraming(body = {}) {
+  return carouselPosition.normalizeFraming(body.position_x, body.position_y, body.zoom_percent);
+}
+
 // ── Panel 3 general ──
 
 function validatePanel3Content(body = {}) {
@@ -253,6 +257,7 @@ module.exports = {
   validateLogoLoopItem,
   validateCarouselItem,
   normalizeCarouselPosition,
+  normalizeCarouselFraming,
   validatePanel3Content,
   validatePanel3Style,
   validateFeatureItem,

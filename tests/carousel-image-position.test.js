@@ -8,6 +8,10 @@ const {
   migrateCarouselImagePosition,
   parsePublishedSnapshot,
 } = require('../scripts/migrate-carousel-image-position');
+const {
+  migrateCarouselImageZoom,
+  parsePublishedSnapshot: parseZoomPublishedSnapshot,
+} = require('../scripts/migrate-carousel-image-zoom');
 const { normalizeRepeatableRestoreSnapshot } = require('../controllers/adminPublishingController');
 
 function migrationPool({ columns = [], items = [] } = {}) {
@@ -100,6 +104,38 @@ test('applyPreviewPosition and resetPosition stay synchronized', () => {
   assert.deepEqual(focal.resetPosition(), { x: 50, y: 50 });
 });
 
+test('normalizeZoom uses integer rounding, clamping, and safe fallback', () => {
+  const cases = [
+    [null, 100],
+    [undefined, 100],
+    ['', 100],
+    ['   ', 100],
+    [50, 100],
+    [100, 100],
+    [150, 150],
+    [250, 200],
+    ['130.4', 130],
+    ['bad', 100],
+    [Number.NaN, 100],
+    [[150], 100],
+  ];
+  cases.forEach(([input, expected]) => {
+    assert.equal(focal.normalizeZoom(input), expected, String(input));
+  });
+});
+
+test('applyPreviewFraming sets object-position, scale, and transform-origin', () => {
+  const image = { style: {} };
+  assert.deepEqual(
+    focal.applyPreviewFraming(image, '25.7', 'bad', '130.4'),
+    { x: 26, y: 50, zoom: 130 }
+  );
+  assert.equal(image.style.objectPosition, '26% 50%');
+  assert.equal(image.style.transformOrigin, '26% 50%');
+  assert.equal(image.style.transform, 'scale(1.3)');
+  assert.deepEqual(focal.resetFraming(), { x: 50, y: 50, zoom: 100 });
+});
+
 test('migration recovers a partial schema and is idempotent per column', async () => {
   const pool = migrationPool({ columns: ['position_x'] });
   await migrateCarouselImagePosition(pool);
@@ -170,16 +206,91 @@ test('revision restore defaults missing axes independently without broad snapsho
       published_data: { title: 'Published title', future_key: 'kept', position_x: '18.8' },
       position_x: 19,
       position_y: 50,
+      zoom_percent: 100,
     }
   );
   assert.deepEqual(
     normalizeRepeatableRestoreSnapshot('carousel_item', { title: 'Old revision', position_y: 'bad' }),
-    { title: 'Old revision', position_x: 50, position_y: 50 }
+    { title: 'Old revision', position_x: 50, position_y: 50, zoom_percent: 100 }
   );
   assert.deepEqual(
-    normalizeRepeatableRestoreSnapshot('carousel_item', { position_x: [], position_y: '72.6' }),
-    { position_x: 50, position_y: 73 }
+    normalizeRepeatableRestoreSnapshot('carousel_item', { position_x: [], position_y: '72.6', zoom_percent: 250 }),
+    { position_x: 50, position_y: 73, zoom_percent: 200 }
   );
+});
+
+test('zoom migration adds missing column and is idempotent', async () => {
+  const pool = migrationPool({ columns: ['position_x', 'position_y'] });
+  await migrateCarouselImageZoom(pool);
+  assert.deepEqual(pool.state.alters, ['zoom_percent']);
+  assert.equal(pool.state.commits, 1);
+
+  pool.state.alters.length = 0;
+  await migrateCarouselImageZoom(pool);
+  assert.deepEqual(pool.state.alters, []);
+  assert.equal(pool.state.commits, 2);
+});
+
+test('zoom migration merges zoom_percent without removing published snapshot keys', async () => {
+  const pool = migrationPool({
+    columns: ['position_x', 'position_y', 'zoom_percent'],
+    items: [{
+      id: 11,
+      published_data: JSON.stringify({
+        title: 'Keep me',
+        future_key: { enabled: true },
+        position_x: 40,
+        position_y: 60,
+      }),
+    }],
+  });
+  await migrateCarouselImageZoom(pool);
+  assert.deepEqual(pool.state.updates, [{
+    id: 11,
+    snapshot: {
+      title: 'Keep me',
+      future_key: { enabled: true },
+      position_x: 40,
+      position_y: 60,
+      zoom_percent: 100,
+    },
+  }]);
+});
+
+test('zoom migration reports malformed published_data and rolls back', async () => {
+  const pool = migrationPool({
+    columns: ['zoom_percent'],
+    items: [{ id: 12, published_data: '{not-json' }],
+  });
+  await assert.rejects(
+    migrateCarouselImageZoom(pool),
+    (error) => error.code === 'CMS_CAROUSEL_ZOOM_MALFORMED_PUBLISHED_DATA'
+  );
+  assert.equal(pool.state.commits, 0);
+  assert.equal(pool.state.rollbacks, 1);
+});
+
+test('parseZoomPublishedSnapshot rejects non-object legacy snapshots', () => {
+  assert.throws(
+    () => parseZoomPublishedSnapshot('[]', 9),
+    (error) => error.code === 'CMS_CAROUSEL_ZOOM_MALFORMED_PUBLISHED_DATA'
+  );
+});
+
+test('public home template exposes carousel zoom CSS variable', () => {
+  const home = fs.readFileSync(path.join(__dirname, '..', 'views', 'pages', 'home.ejs'), 'utf8');
+  assert.match(home, /--carousel-zoom:<%= item\.zoom_percent %>/);
+  assert.match(home, /project-carousel__image-frame/);
+});
+
+test('admin preview helper wiring binds zoom with framing sync', () => {
+  const editor = fs.readFileSync(
+    path.join(__dirname, '..', 'public', 'js', 'admin', 'panel2-editor.js'),
+    'utf8'
+  );
+  assert.match(editor, /data-carousel-zoom/);
+  assert.match(editor, /applyPreviewFraming/);
+  assert.match(editor, /normalizeZoom\(item\.zoom_percent\)/);
 });
 
 test('carousel focal media listeners are scoped to each editor form', () => {
