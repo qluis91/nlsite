@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-29 — Handle revoked Meta sessions and reconnection
+
+### Fixed
+- Meta OAuth `error.code === 190` is treated as terminal auth failure even when HTTP status is 400 (not only 401/403)
+- Invalid/revoked Meta tokens disconnect Instagram/Facebook (`is_connected=0`, `is_enabled=0`, `auto_sync=0`) with a Spanish reconnect message instead of leaving stale CONECTADO
+- `Probar conexión` no longer reports success when `validateToken()` fails; it disconnects and shows a reconnect Ninja Alert
+- Successful Meta OAuth clears `last_sync_error` / `last_sync_status` without re-enabling `auto_sync`
+
+### Changed
+- Integrations list/config show primary **Reconectar Instagram/Facebook** when Meta auth previously failed
+
 ## 2026-10-29 — Persist TikTok social thumbnails locally
 
 ### Fixed

@@ -189,9 +189,28 @@ async function testConnection(provider) {
     case 'facebook': {
       const meta = require('./metaOAuthService');
       const validation = await meta.validateToken(provider);
+      if (!validation.valid) {
+        if (meta.requiresReconnect(validation.category)) {
+          await meta.handleConnectionFailure(provider, validation.category);
+          const label = provider === 'instagram' ? 'Instagram' : 'Facebook';
+          throw Object.assign(
+            new Error(`La conexión con ${label} ya no es válida. Reconectá Meta para continuar.`),
+            {
+              code: 'META_RECONNECT_REQUIRED',
+              category: validation.category,
+              authError: true,
+            }
+          );
+        }
+        throw Object.assign(
+          new Error(`No se pudo verificar la conexión con ${provider}. Intentalo de nuevo.`),
+          { code: 'META_TEST_FAILED', category: validation.category }
+        );
+      }
       const expiration = await meta.checkTokenExpiration(provider);
       return {
-        provider, connected: validation.valid,
+        provider,
+        connected: true,
         ...validation,
         expirationWarning: expiration?.warning || false,
         expiresInDays: expiration?.daysLeft || null,

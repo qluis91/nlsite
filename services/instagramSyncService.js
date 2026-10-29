@@ -241,8 +241,14 @@ async function syncInstagram(intRow) {
   if (!validation.valid) {
     await metaOAuth.handleConnectionFailure(PROVIDER, validation.category);
     throw Object.assign(
-      new Error(`Token de Instagram inválido: ${validation.reason}. Reconecta la integración.`),
-      { code: 'TOKEN_INVALID', category: validation.category, authError: true }
+      new Error(metaOAuth.friendlyAuthErrorMessage(validation.category)),
+      {
+        code: metaOAuth.requiresReconnect(validation.category)
+          ? 'META_RECONNECT_REQUIRED'
+          : 'TOKEN_INVALID',
+        category: validation.category,
+        authError: metaOAuth.requiresReconnect(validation.category),
+      }
     );
   }
 

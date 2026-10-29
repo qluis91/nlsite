@@ -37,8 +37,17 @@
       </form>
     </div>
   <% } else { %>
-    <p>No hay una cuenta Meta conectada para <%= provider %>.</p>
-    <a class="btn btn-primary" href="/admin/page/integrations/meta-connect?provider=<%= provider %>">Conectar con Facebook</a>
+    <% const needsReconnect = integration.last_sync_status === 'error' || !!integration.last_sync_error; %>
+    <% if (needsReconnect) { %>
+      <p>La autorización de Meta ya no es válida. Volvé a conectar la cuenta para continuar sincronizando.</p>
+      <% if (integration.last_sync_error) { %>
+        <p style="font-size: 0.85rem; color: var(--color-danger);"><%= integration.last_sync_error %></p>
+      <% } %>
+      <a class="btn btn-primary" href="/admin/page/integrations/meta-connect?provider=<%= provider %>">Reconectar con Facebook</a>
+    <% } else { %>
+      <p>No hay una cuenta Meta conectada para <%= provider %>.</p>
+      <a class="btn btn-primary" href="/admin/page/integrations/meta-connect?provider=<%= provider %>">Conectar con Facebook</a>
+    <% } %>
   <% } %>
 </div>
 
