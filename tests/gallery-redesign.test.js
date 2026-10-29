@@ -70,7 +70,7 @@ test('homepage and gallery render the same Panel 2 background component and impl
   assert.doesNotMatch(galleryEntry, /TetrahedronGeometry|InstancedMesh|requestAnimationFrame\(frame\)/);
 
   const html = await ejs.renderFile(path.join(root, 'views/pages/gallery.ejs'), {
-    site: { name: 'NinjaLab CR' },
+    site: { name: 'NinjaLabCR' },
     user: { name: 'Ada', avatar_path: null },
     cartItemCount: 2,
     cmsData: null,

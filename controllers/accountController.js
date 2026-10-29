@@ -51,7 +51,7 @@ async function resolveAccountSiteLogo() {
 }
 
 // ── Resolve account site name ──
-// Priority: CMS global.site_name → .env SITE_NAME → NinjaLab CR
+// Priority: CMS global.site_name → .env SITE_NAME → NinjaLabCR
 async function resolveAccountSiteName() {
   try {
     const [draft, published] = await Promise.all([

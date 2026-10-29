@@ -13,7 +13,28 @@ const INERTIA_FRICTION = 0.91;
 const INERTIA_EPSILON = 0.015;
 const SNAP_EPSILON = 0.0025;
 const POINTER_SENSITIVITY = 0.006;
-const SAFE_THUMBNAIL = /^\/uploads\/gallery\/thumbnails\/[a-zA-Z0-9._-]+$/;
+const SAFE_LOCAL_THUMBNAIL = /^\/uploads\/gallery\/thumbnails\/[a-zA-Z0-9._-]+$/;
+const SAFE_YOUTUBE_THUMBNAIL = /^https:\/\/img\.youtube\.com\/vi\/[a-zA-Z0-9_-]{11}\/(?:hq|mq)default\.jpg$/;
+const SAFE_LOCAL_PLACEHOLDER = '/images/gallery-video-placeholder.svg';
+
+function isSafeAtlasSource(value) {
+  return typeof value === 'string'
+    && (
+      SAFE_LOCAL_THUMBNAIL.test(value)
+      || SAFE_YOUTUBE_THUMBNAIL.test(value)
+      || value === SAFE_LOCAL_PLACEHOLDER
+    );
+}
+
+export function atlasThumbnailCandidates(item = {}) {
+  return [
+    item.thumbnail,
+    ...(Array.isArray(item.thumbnailFallbacks) ? item.thumbnailFallbacks : []),
+    SAFE_LOCAL_PLACEHOLDER,
+  ].filter((candidate, index, candidates) => (
+    isSafeAtlasSource(candidate) && candidates.indexOf(candidate) === index
+  ));
+}
 const CAMERA_FOV = Math.PI / 3;
 const FRAME_MARGIN = 0.86;
 const MOBILE_LAYOUT_MAX = 639;
@@ -78,10 +99,13 @@ void main() {
 
   int itemIndex = vInstanceId % uItemCount;
   int column = itemIndex % uAtlasColumns;
-  int row = itemIndex / uAtlasColumns;
+  int logicalRow = itemIndex / uAtlasColumns;
+  // UNPACK_FLIP_Y_WEBGL flips the atlas vertically; compensate so logical
+  // row 0 (top of canvas) maps to the correct flipped texture row.
+  int textureRow = uAtlasRows - 1 - logicalRow;
   vec2 atlasUv = vec2(
     (float(column) + vUv.x) / float(uAtlasColumns),
-    (float(row) + vUv.y) / float(uAtlasRows)
+    (float(textureRow) + vUv.y) / float(uAtlasRows)
   );
   vec4 texColor = texture(uAtlas, atlasUv);
 
@@ -330,12 +354,13 @@ export function createAtlasLayout(itemCount, maxTextureSize, preferredCellSize =
 
 export function atlasCellUv(index, layout) {
   const column = index % layout.columns;
-  const row = Math.floor(index / layout.columns);
+  const logicalRow = Math.floor(index / layout.columns);
+  const textureRow = layout.rows - 1 - logicalRow;
   return {
     minU: column / layout.columns,
     maxU: (column + 1) / layout.columns,
-    minV: row / layout.rows,
-    maxV: (row + 1) / layout.rows,
+    minV: textureRow / layout.rows,
+    maxV: (textureRow + 1) / layout.rows,
   };
 }
 
@@ -609,10 +634,13 @@ export class InfiniteMenuRenderer {
 
   loadAtlasImage(item, index) {
     return new Promise((resolve) => {
-      if (!SAFE_THUMBNAIL.test(item.thumbnail || '')) {
+      const candidates = atlasThumbnailCandidates(item);
+      if (!candidates.length) {
         resolve(false);
         return;
       }
+
+      let candidateIndex = 0;
       const image = new Image();
       const record = {
         image,
@@ -620,6 +648,7 @@ export class InfiniteMenuRenderer {
         settled: false,
         settle: null,
       };
+
       const settle = (loaded) => {
         if (record.settled) return;
         record.settled = true;
@@ -629,6 +658,16 @@ export class InfiniteMenuRenderer {
         this.imageRecords.delete(record);
         resolve(loaded);
       };
+
+      const tryNext = () => {
+        if (this.destroyed || candidateIndex >= candidates.length) {
+          settle(false);
+          return;
+        }
+        image.src = candidates[candidateIndex];
+        candidateIndex += 1;
+      };
+
       record.settle = settle;
       this.imageRecords.add(record);
       record.timeoutId = window.setTimeout(() => settle(false), IMAGE_TIMEOUT_MS);
@@ -636,8 +675,8 @@ export class InfiniteMenuRenderer {
         if (!this.destroyed) this.drawAtlasImage(image, index);
         settle(!this.destroyed);
       };
-      image.onerror = () => settle(false);
-      image.src = item.thumbnail;
+      image.onerror = () => tryNext();
+      tryNext();
     });
   }
 

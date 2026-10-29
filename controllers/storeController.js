@@ -129,7 +129,7 @@ async function showStore(req, res) {
   res.render('pages/tienda', {
     title: activeCategory ? `${activeCategory.name} | Tienda` : 'Tienda de impresión 3D',
     metaTitle: catMetaTitle || undefined,
-    metaDescription: catMetaDescription || 'Explora productos, figuras y piezas personalizadas impresas en 3D por NinjaLab CR.',
+    metaDescription: catMetaDescription || 'Explora productos, figuras y piezas personalizadas impresas en 3D por NinjaLabCR.',
     ogImage: catOgImage || undefined,
     canonical: storeCanonical,
     robots: activeFilters.length ? 'noindex,follow' : 'index,follow',

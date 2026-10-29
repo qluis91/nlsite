@@ -1,7 +1,11 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 const imageProcessing = require('./imageProcessingService');
+const {
+  normalizeFraming,
+} = require('../public/js/admin/carousel-image-position');
 const {
   IMAGE_MIME_TYPES,
   VIDEO_MIME_TYPES,
@@ -14,7 +18,13 @@ const {
   IMAGE_PROFILES,
   MEDIA_TYPES,
 } = require('../config/galleryOptions');
-const { PUBLIC_IMAGE_SOURCE_MAX_MB } = require('../config/imageUploadPolicy');
+const {
+  PUBLIC_IMAGE_SOURCE_MAX_MB,
+  PUBLIC_IMAGE_WEBP_QUALITY,
+  PUBLIC_IMAGE_MAX_PIXELS,
+} = require('../config/imageUploadPolicy');
+
+const FRAMED_THUMB_SIZE = 512;
 
 function actualSize(file) {
   return Number(file?.size || file?.buffer?.length || 0);
@@ -82,7 +92,69 @@ function resolveSafeGalleryPath(relativePath, expectedRoot) {
   return resolved;
 }
 
-async function processImagePair(file, { poster = false } = {}) {
+function resolveFraming(framing = {}) {
+  return normalizeFraming(
+    framing.thumbnailPositionX ?? framing.x,
+    framing.thumbnailPositionY ?? framing.y,
+    framing.thumbnailZoomPercent ?? framing.zoom
+  );
+}
+
+/**
+ * Build a 512×512 WebP thumbnail using cover scale + authored X/Y/Zoom.
+ * X/Y are focal percentages (0 left/top → 100 right/bottom). Zoom 100–200.
+ */
+async function writeFramedThumbnailFromBuffer(inputBuffer, framing = {}) {
+  await imageProcessing.inspectRasterBuffer(inputBuffer);
+  const { x, y, zoom } = resolveFraming(framing);
+  const size = FRAMED_THUMB_SIZE;
+
+  const oriented = sharp(inputBuffer, { limitInputPixels: PUBLIC_IMAGE_MAX_PIXELS }).rotate();
+  const metadata = await oriented.metadata();
+  const width = Number(metadata.width) || 0;
+  const height = Number(metadata.height) || 0;
+  if (!width || !height) throw new Error('No se pudo leer el tamaño de la imagen.');
+
+  const coverScale = Math.max(size / width, size / height);
+  const scale = coverScale * (zoom / 100);
+  const resizedW = Math.max(size, Math.round(width * scale));
+  const resizedH = Math.max(size, Math.round(height * scale));
+  const maxLeft = Math.max(0, resizedW - size);
+  const maxTop = Math.max(0, resizedH - size);
+  const left = Math.min(maxLeft, Math.max(0, Math.round(maxLeft * (x / 100))));
+  const top = Math.min(maxTop, Math.max(0, Math.round(maxTop * (y / 100))));
+
+  await fs.promises.mkdir(STORAGE_ROOTS.thumbnails, { recursive: true });
+  const fileName = imageProcessing.uniqueFileName('webp');
+  const filePath = path.join(STORAGE_ROOTS.thumbnails, fileName);
+
+  await sharp(inputBuffer, { limitInputPixels: PUBLIC_IMAGE_MAX_PIXELS })
+    .rotate()
+    .resize(resizedW, resizedH, { fit: 'fill' })
+    .extract({ left, top, width: size, height: size })
+    .webp({ quality: PUBLIC_IMAGE_WEBP_QUALITY })
+    .toFile(filePath);
+
+  return {
+    filePath,
+    fileName,
+    thumbnailPath: publicPath('thumbnails', fileName),
+  };
+}
+
+async function processFramedThumbnailFromFile(file, framing = {}) {
+  validateImageUpload(file, MAX_IMAGE_SIZE);
+  if (!file?.buffer) throw new Error('Debe seleccionar una imagen válida.');
+  return writeFramedThumbnailFromBuffer(file.buffer, framing);
+}
+
+async function processFramedThumbnailFromPublicPath(publicMediaPath, framing = {}) {
+  const absolute = resolveSafeGalleryPath(publicMediaPath, 'images');
+  const inputBuffer = await fs.promises.readFile(absolute);
+  return writeFramedThumbnailFromBuffer(inputBuffer, framing);
+}
+
+async function processImagePair(file, { poster = false, framing = null } = {}) {
   validateImageUpload(file, poster ? MAX_POSTER_SIZE : MAX_IMAGE_SIZE);
   const created = [];
   try {
@@ -93,17 +165,31 @@ async function processImagePair(file, { poster = false } = {}) {
       poster ? IMAGE_PROFILES.poster : IMAGE_PROFILES.display
     );
     created.push(display.filePath);
-    const thumbnail = await imageProcessing.processImage(
-      file,
-      STORAGE_ROOTS.thumbnails,
-      IMAGE_PROFILES.thumbnail
-    );
-    created.push(thumbnail.filePath);
+
+    let thumbnail;
+    if (poster || !framing) {
+      thumbnail = await imageProcessing.processImage(
+        file,
+        STORAGE_ROOTS.thumbnails,
+        IMAGE_PROFILES.thumbnail
+      );
+      created.push(thumbnail.filePath);
+      return {
+        mediaPath: publicPath(displayKind, display.fileName),
+        posterPath: poster ? publicPath(displayKind, display.fileName) : null,
+        thumbnailPath: publicPath('thumbnails', thumbnail.fileName),
+        createdPaths: created,
+      };
+    }
+
+    const framed = await processFramedThumbnailFromFile(file, framing);
+    created.push(framed.filePath);
     return {
       mediaPath: publicPath(displayKind, display.fileName),
-      posterPath: poster ? publicPath(displayKind, display.fileName) : null,
-      thumbnailPath: publicPath('thumbnails', thumbnail.fileName),
+      posterPath: null,
+      thumbnailPath: framed.thumbnailPath,
       createdPaths: created,
+      framing: resolveFraming(framing),
     };
   } catch (error) {
     await deleteAbsolutePaths(created);
@@ -186,10 +272,15 @@ module.exports = {
   validateImageUpload,
   validateVideoUpload,
   resolveSafeGalleryPath,
+  resolveFraming,
+  writeFramedThumbnailFromBuffer,
+  processFramedThumbnailFromFile,
+  processFramedThumbnailFromPublicPath,
   processImagePair,
   saveVideo,
   deleteAbsolutePaths,
   deleteGalleryPaths,
   galleryPathExists,
   assertPublishable,
+  FRAMED_THUMB_SIZE,
 };

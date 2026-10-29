@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-29 — Stabilize gallery thumbnails and admin workflow
+
+### Fixed
+- Infinite Gallery multi-row atlas UV mapping compensates for `UNPACK_FLIP_Y_WEBGL`
+- Admin confirmation dialog styled (centered, blurred backdrop) instead of bare top-left `<dialog>`
+- Placeholder branding (`Mi Sitio` / `NinjaLab CR`) normalized to `NinjaLabCR` in source + forward data migration
+
+### Added
+- Editable Gallery IMAGE thumbnail framing (X/Y/Zoom) with canonical 512×512 WebP crop
+- Automatic Gallery item sort order (10, 20, 30…) — manual Orden removed from item form
+
 ## 2026-10-29 — Separate carousel autoplay from image motion
 
 ### Fixed

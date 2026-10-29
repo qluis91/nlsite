@@ -82,13 +82,83 @@
           <p>Si no cargas reemplazos, se conservan los archivos actuales. Cambiar el tipo exige archivos compatibles nuevos.
           <% if (item && item.media_type === 'youtube') { %>Para YouTube, la miniatura se obtiene automáticamente o puedes cargar una portada personalizada.<% } %></p>
         </div>
+
+        <div
+          class="gallery-thumb-framing"
+          data-gallery-thumb-framing
+          data-media-source="<%= item && item.media_type === 'image' ? item.media_path : '' %>"
+          hidden
+        >
+          <h3 class="gallery-thumb-framing__title">Encuadre de miniatura</h3>
+          <p class="form-hint">Ajusta el recorte cuadrado usado en el listado admin y el menú infinito. La imagen completa del visor no cambia.</p>
+          <div class="gallery-thumb-framing__layout">
+            <div class="gallery-thumb-framing__preview" data-gallery-framing-preview>
+              <img
+                src="<%= item && item.media_type === 'image' ? item.media_path : '' %>"
+                alt="Vista previa del encuadre"
+                data-gallery-framing-image
+                <% if (!(item && item.media_type === 'image' && item.media_path)) { %>hidden<% } %>
+              >
+            </div>
+            <div class="gallery-thumb-framing__controls">
+              <div class="form-group">
+                <label for="gallery-thumb-x">
+                  Horizontal
+                  <output for="gallery-thumb-x" data-gallery-framing-x-output><%= item && item.thumbnail_position_x != null ? item.thumbnail_position_x : 50 %></output>
+                </label>
+                <input
+                  id="gallery-thumb-x"
+                  class="form-control"
+                  type="range"
+                  name="thumbnailPositionX"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="<%= item && item.thumbnail_position_x != null ? item.thumbnail_position_x : 50 %>"
+                  data-gallery-framing-x
+                >
+              </div>
+              <div class="form-group">
+                <label for="gallery-thumb-y">
+                  Vertical
+                  <output for="gallery-thumb-y" data-gallery-framing-y-output><%= item && item.thumbnail_position_y != null ? item.thumbnail_position_y : 50 %></output>
+                </label>
+                <input
+                  id="gallery-thumb-y"
+                  class="form-control"
+                  type="range"
+                  name="thumbnailPositionY"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="<%= item && item.thumbnail_position_y != null ? item.thumbnail_position_y : 50 %>"
+                  data-gallery-framing-y
+                >
+              </div>
+              <div class="form-group">
+                <label for="gallery-thumb-zoom">
+                  Zoom
+                  <output for="gallery-thumb-zoom" data-gallery-framing-zoom-output><%= item && item.thumbnail_zoom_percent != null ? item.thumbnail_zoom_percent : 100 %></output>
+                </label>
+                <input
+                  id="gallery-thumb-zoom"
+                  class="form-control"
+                  type="range"
+                  name="thumbnailZoomPercent"
+                  min="100"
+                  max="200"
+                  step="1"
+                  value="<%= item && item.thumbnail_zoom_percent != null ? item.thumbnail_zoom_percent : 100 %>"
+                  data-gallery-framing-zoom
+                >
+              </div>
+              <button type="button" class="btn btn-outline" data-gallery-framing-reset>Centrar</button>
+            </div>
+          </div>
+        </div>
     </fieldset>
 
     <div class="form-row">
-      <div class="form-group">
-        <label for="gallery-order">Orden</label>
-        <input id="gallery-order" class="form-control" type="number" name="sortOrder" min="-100000" max="100000" value="<%= item ? item.sort_order : 0 %>">
-      </div>
       <div class="form-group gallery-admin-checkboxes">
         <label class="checkbox-label"><input type="checkbox" name="isFeatured" value="1" <%= item && item.is_featured ? 'checked' : '' %>> Destacado</label>
         <label class="checkbox-label"><input type="checkbox" name="isPublished" value="1" <%= item && item.is_published ? 'checked' : '' %>> Publicado</label>
@@ -260,9 +330,13 @@
       } else if (posterLabel && val === 'image') {
         posterLabel.textContent = '';
         if (posterHint) posterHint.textContent = 'Póster no aplica a imágenes.';
+        if (posterField) posterField.style.display = 'none';
       }
     }
     updateYoutubePreview();
+    if (window.GalleryThumbnailFraming && typeof window.GalleryThumbnailFraming.syncVisibility === 'function') {
+      window.GalleryThumbnailFraming.syncVisibility();
+    }
   }
 
   typeSelect.addEventListener('change', updateFields);

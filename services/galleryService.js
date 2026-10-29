@@ -89,37 +89,71 @@ async function getItemById(id) {
   return rows[0] || null;
 }
 
+async function nextItemSortOrder(connection) {
+  const [rows] = await connection.query(
+    `SELECT id, sort_order
+       FROM gallery_items
+      ORDER BY sort_order DESC, id DESC
+      LIMIT 1
+      FOR UPDATE`
+  );
+  if (!rows[0]) return 10;
+  return Number(rows[0].sort_order) + 10;
+}
+
 async function createItem(data) {
   const publishedAt = data.isPublished ? new Date() : null;
-  const [result] = await pool.query(
-    `INSERT INTO gallery_items
-      (category_id, title, slug, description, media_type, media_path, thumbnail_path,
-       poster_path, youtube_url, custom_cover_path, alt_text, sort_order, is_featured, is_published, published_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      data.categoryId, data.title, data.slug, data.description, data.mediaType,
-      data.mediaPath, data.thumbnailPath, data.posterPath || null,
-      data.youtubeUrl || null, data.customCoverPath || null,
-      data.altText, data.sortOrder,
-      data.isFeatured ? 1 : 0, data.isPublished ? 1 : 0,
-      publishedAt,
-    ]
-  );
-  return result.insertId;
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const sortOrder = await nextItemSortOrder(connection);
+    const [result] = await connection.query(
+      `INSERT INTO gallery_items
+        (category_id, title, slug, description, media_type, media_path, thumbnail_path,
+         poster_path, youtube_url, custom_cover_path, alt_text,
+         thumbnail_position_x, thumbnail_position_y, thumbnail_zoom_percent,
+         sort_order, is_featured, is_published, published_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        data.categoryId, data.title, data.slug, data.description, data.mediaType,
+        data.mediaPath, data.thumbnailPath, data.posterPath || null,
+        data.youtubeUrl || null, data.customCoverPath || null,
+        data.altText,
+        data.thumbnailPositionX ?? 50,
+        data.thumbnailPositionY ?? 50,
+        data.thumbnailZoomPercent ?? 100,
+        sortOrder,
+        data.isFeatured ? 1 : 0, data.isPublished ? 1 : 0,
+        publishedAt,
+      ]
+    );
+    await connection.commit();
+    return result.insertId;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function updateItem(id, data) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const [locked] = await connection.query('SELECT id FROM gallery_items WHERE id = ? FOR UPDATE', [id]);
+    const [locked] = await connection.query(
+      'SELECT id, sort_order FROM gallery_items WHERE id = ? FOR UPDATE',
+      [id]
+    );
     if (!locked[0]) throw new Error('Elemento de galería no encontrado.');
     const publishedAt = data.isPublished ? new Date() : null;
+    const preservedSortOrder = Number(locked[0].sort_order);
     await connection.query(
       `UPDATE gallery_items
           SET category_id = ?, title = ?, slug = ?, description = ?, media_type = ?,
               media_path = ?, thumbnail_path = ?, poster_path = ?, youtube_url = ?, custom_cover_path = ?,
               alt_text = ?,
+              thumbnail_position_x = ?, thumbnail_position_y = ?, thumbnail_zoom_percent = ?,
               sort_order = ?, is_featured = ?, is_published = ?,
               published_at = ?
         WHERE id = ?`,
@@ -127,7 +161,11 @@ async function updateItem(id, data) {
         data.categoryId, data.title, data.slug, data.description, data.mediaType,
         data.mediaPath, data.thumbnailPath, data.posterPath || null,
         data.youtubeUrl || null, data.customCoverPath || null,
-        data.altText, data.sortOrder,
+        data.altText,
+        data.thumbnailPositionX ?? 50,
+        data.thumbnailPositionY ?? 50,
+        data.thumbnailZoomPercent ?? 100,
+        preservedSortOrder,
         data.isFeatured ? 1 : 0, data.isPublished ? 1 : 0,
         publishedAt,
         id,

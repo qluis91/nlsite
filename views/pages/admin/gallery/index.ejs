@@ -71,7 +71,13 @@
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button class="btn btn-sm btn-outline" type="submit"><%= item.is_featured ? 'No destacar' : 'Destacar' %></button>
               </form>
-              <form action="/admin/galeria/<%= item.id %>/eliminar" method="POST" data-confirm="¿Eliminar este elemento y sus archivos?">
+              <form
+                action="/admin/galeria/<%= item.id %>/eliminar"
+                method="POST"
+                data-confirm="¿Eliminar este elemento y sus archivos?"
+                data-confirm-title="Eliminar elemento"
+                data-confirm-destructive
+              >
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button class="btn btn-sm btn-danger" type="submit">Eliminar</button>
               </form>

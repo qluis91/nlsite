@@ -1,8 +1,9 @@
 # nlSite — Project Status
 
 **Last updated:** 2026-10-29
-**Current phase:** Cotización 3D — proven module port (Oct 2026)
+**Current phase:** Gallery v2 — thumbnails, branding, admin workflow
 **Next:** CSS variable homogenization or feature expansion
+- [x] **Gallery v2**: NinjaLabCR branding + site_settings migration; styled admin confirm dialog; Infinite Gallery multi-row atlas flip fix; IMAGE thumbnail X/Y/Zoom framing (512² WebP); automatic gallery item sort order.
 - [x] **Cotización 3D port**: Proven `ninjalab3dcr@f8070b6` admin module ported into NLSite (`AdminCostQuote.mount`, catalog/quote MySQL adapters, PDF/CSS, CSRF header support, `migrateCostQuoteVarcharId`).
 - [x] **Phase 13**: Automatic production migrations via prestart hook. MySQL advisory lock serialises concurrent instances. SHA-256 checksum verification detects stale migrations. 14-migration registry tracked in schema_migrations table. App does not start if migration fails. 899 tests, 0 failures.
 - [x] **Phase 12D**: Technical SEO & structured data. JSON-LD Organization + WebSite on all public pages. JSON-LD Product + BreadcrumbList on product/category pages. Absolute canonicals. Sitemap with products, categories, gallery. robots.txt with sitemap URL. No unsafe-inline. 878 tests, 0 failures.

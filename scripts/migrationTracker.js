@@ -135,6 +135,18 @@ const MIGRATION_REGISTRY = [
     exportName: 'migrateCostQuoteVarcharId',
     passPool: true,
   },
+  {
+    name: 'migrateSiteBrandingNinjaLabCR',
+    file: './migrate-site-branding-ninjalabcr',
+    exportName: 'migrateSiteBrandingNinjaLabCR',
+    passPool: true,
+  },
+  {
+    name: 'migrateGalleryThumbnailFraming',
+    file: './migrate-gallery-thumbnail-framing',
+    exportName: 'migrateGalleryThumbnailFraming',
+    passPool: true,
+  },
 ];
 
 async function ensureMigrationsTable(pool) {

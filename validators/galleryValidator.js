@@ -8,6 +8,12 @@ const {
   ADMIN_PAGE_SIZE,
   MAX_PAGE_SIZE,
 } = require('../config/galleryOptions');
+const {
+  normalizePosition,
+  normalizeZoom,
+  DEFAULT_POSITION,
+  DEFAULT_ZOOM,
+} = require('../public/js/admin/carousel-image-position');
 
 function slugify(value) {
   return String(value || '')
@@ -50,6 +56,45 @@ function sortOrder(value) {
   return { valid: true, value: parsed };
 }
 
+function framingAxis(value, fieldLabel, fallback = DEFAULT_POSITION) {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return { valid: true, value: fallback };
+  }
+  const raw = String(value).trim();
+  if (!/^-?\d+(\.\d+)?$/.test(raw)) {
+    return { valid: false, error: `${fieldLabel} debe ser un número entero.`, value: fallback };
+  }
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric)) {
+    return { valid: false, error: `${fieldLabel} debe ser un número entero.`, value: fallback };
+  }
+  if (!Number.isInteger(numeric)) {
+    return { valid: false, error: `${fieldLabel} debe ser un número entero.`, value: fallback };
+  }
+  if (numeric < 0 || numeric > 100) {
+    return { valid: false, error: `${fieldLabel} debe estar entre 0 y 100.`, value: fallback };
+  }
+  return { valid: true, value: normalizePosition(numeric, fallback) };
+}
+
+function framingZoom(value, fallback = DEFAULT_ZOOM) {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return { valid: true, value: fallback };
+  }
+  const raw = String(value).trim();
+  if (!/^-?\d+(\.\d+)?$/.test(raw)) {
+    return { valid: false, error: 'El zoom de la miniatura debe ser un número entero.', value: fallback };
+  }
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric) || !Number.isInteger(numeric)) {
+    return { valid: false, error: 'El zoom de la miniatura debe ser un número entero.', value: fallback };
+  }
+  if (numeric < 100 || numeric > 200) {
+    return { valid: false, error: 'El zoom de la miniatura debe estar entre 100 y 200.', value: fallback };
+  }
+  return { valid: true, value: normalizeZoom(numeric, fallback) };
+}
+
 function booleanField(value) {
   return value === '1' || value === 1 || value === true || value === 'true';
 }
@@ -78,10 +123,13 @@ function validateItem(body = {}, availableCategoryIds = []) {
   const title = boundedText(body.title, 'El título', TITLE_MAX_LENGTH, { required: true });
   const description = boundedText(body.description, 'La descripción', DESCRIPTION_MAX_LENGTH);
   const altText = boundedText(body.altText, 'El texto alternativo', ALT_TEXT_MAX_LENGTH, { required: true });
-  const order = sortOrder(body.sortOrder);
   const mediaType = String(body.mediaType || '');
   const category = positiveId(body.categoryId, { nullable: true });
-  const firstError = [title, description, altText, order, category].find((result) => !result.valid);
+  const positionX = framingAxis(body.thumbnailPositionX, 'La posición horizontal');
+  const positionY = framingAxis(body.thumbnailPositionY, 'La posición vertical');
+  const zoom = framingZoom(body.thumbnailZoomPercent);
+  const firstError = [title, description, altText, category, positionX, positionY, zoom]
+    .find((result) => !result.valid);
   if (firstError) return firstError;
   if (!Object.values(MEDIA_TYPES).includes(mediaType)) {
     return { valid: false, error: 'El tipo de medio debe ser imagen, video o YouTube.' };
@@ -110,7 +158,9 @@ function validateItem(body = {}, availableCategoryIds = []) {
       mediaType,
       youtubeUrl: mediaType === MEDIA_TYPES.YOUTUBE ? String(body.youtubeUrl || '').trim() : null,
       altText: altText.value,
-      sortOrder: order.value,
+      thumbnailPositionX: positionX.value,
+      thumbnailPositionY: positionY.value,
+      thumbnailZoomPercent: zoom.value,
       isFeatured: booleanField(body.isFeatured),
       isPublished: booleanField(body.isPublished),
     },
@@ -142,6 +192,8 @@ module.exports = {
   boundedText,
   positiveId,
   sortOrder,
+  framingAxis,
+  framingZoom,
   booleanField,
   validateCategory,
   validateItem,

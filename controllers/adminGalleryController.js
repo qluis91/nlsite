@@ -58,12 +58,20 @@ async function listItems(req, res, next) {
   }
 }
 
+function galleryFormPageScripts() {
+  return [
+    '/js/admin/carousel-image-position.js',
+    '/js/admin/gallery-thumbnail-framing.js',
+  ];
+}
+
 async function showCreateItem(req, res, next) {
   try {
     res.render('pages/admin/gallery/form', {
       title: 'Nuevo elemento de galería',
       layout: 'layouts/admin',
       pageStyles: ['/css/admin-gallery.css'],
+      pageScripts: galleryFormPageScripts(),
       item: null,
       categories: await gallery.listCategories(),
       action: '/admin/galeria',
@@ -106,7 +114,12 @@ async function createItem(req, res, next) {
     } else if (data.mediaType === MEDIA_TYPES.IMAGE) {
       if (!files.media) throw new Error('La imagen principal es obligatoria.');
       if (files.poster) throw new Error('Una imagen no debe incluir un póster de video.');
-      const processed = await media.processImagePair(files.media);
+      const framing = {
+        thumbnailPositionX: data.thumbnailPositionX,
+        thumbnailPositionY: data.thumbnailPositionY,
+        thumbnailZoomPercent: data.thumbnailZoomPercent,
+      };
+      const processed = await media.processImagePair(files.media, { framing });
       createdPaths.push(...processed.createdPaths);
       Object.assign(data, {
         mediaPath: processed.mediaPath,
@@ -154,6 +167,7 @@ async function showEditItem(req, res, next) {
       title: 'Editar elemento de galería',
       layout: 'layouts/admin',
       pageStyles: ['/css/admin-gallery.css'],
+      pageScripts: galleryFormPageScripts(),
       item,
       categories: await gallery.listCategories(),
       action: `/admin/galeria/${item.id}`,
@@ -185,17 +199,29 @@ async function updateItem(req, res, next) {
       customCoverPath: existing.custom_cover_path || null,
     });
     const files = uploadFiles(req);
+    const framing = {
+      thumbnailPositionX: data.thumbnailPositionX,
+      thumbnailPositionY: data.thumbnailPositionY,
+      thumbnailZoomPercent: data.thumbnailZoomPercent,
+    };
+    const framingChanged = Number(existing.thumbnail_position_x ?? 50) !== framing.thumbnailPositionX
+      || Number(existing.thumbnail_position_y ?? 50) !== framing.thumbnailPositionY
+      || Number(existing.thumbnail_zoom_percent ?? 100) !== framing.thumbnailZoomPercent;
 
     if (data.mediaType === MEDIA_TYPES.IMAGE) {
       if (files.poster) throw new Error('Una imagen no debe incluir un póster de video.');
       if (files.media) {
-        const processed = await media.processImagePair(files.media);
+        const processed = await media.processImagePair(files.media, { framing });
         createdPaths.push(...processed.createdPaths);
         data.mediaPath = processed.mediaPath;
         data.thumbnailPath = processed.thumbnailPath;
         data.posterPath = null;
       } else if (existing.media_type !== MEDIA_TYPES.IMAGE) {
         throw new Error('Al cambiar de video a imagen debe cargar una imagen nueva.');
+      } else if (framingChanged) {
+        const framed = await media.processFramedThumbnailFromPublicPath(existing.media_path, framing);
+        createdPaths.push(framed.filePath);
+        data.thumbnailPath = framed.thumbnailPath;
       }
     } else if (data.mediaType === MEDIA_TYPES.YOUTUBE) {
       const yt = validateAndNormalize(data.youtubeUrl);

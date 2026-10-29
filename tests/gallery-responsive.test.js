@@ -10,7 +10,7 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 
 function galleryLocals(overrides = {}) {
   return {
-    site: { name: 'NinjaLab CR' },
+    site: { name: 'NinjaLabCR' },
     user: null,
     cartItemCount: 0,
     cmsData: null,
