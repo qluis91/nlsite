@@ -338,6 +338,112 @@ function recordThumbnailOutcome(thumbnailStats, thumbnailErrors, result) {
   }
 }
 
+async function listImportedPostsForThumbnailBackfill() {
+  const [rows] = await pool.query(
+    `SELECT id, public_id, provider_external_id, provider_thumbnail_local_path,
+            provider_thumbnail_url, status, is_active, sort_order, published_at, created_at
+       FROM social_posts
+      WHERE provider = ?
+        AND is_imported = 1
+        AND archived_at IS NULL
+        AND provider_external_id IS NOT NULL
+        AND provider_external_id != ''
+      ORDER BY
+        CASE
+          WHEN status = 'published' AND is_active = 1 THEN 0
+          WHEN status = 'published' THEN 1
+          ELSE 2
+        END ASC,
+        sort_order ASC,
+        COALESCE(published_at, created_at) DESC,
+        id ASC`,
+    [PROVIDER]
+  );
+  return rows;
+}
+
+/**
+ * After normal sync: repair imported Facebook posts outside the recent posts window.
+ * @param {object} intRow
+ * @param {string} accessToken
+ * @param {{ limit?: number }} [options]
+ */
+async function backfillLegacyThumbnails(intRow, accessToken, options = {}) {
+  const limit = Math.min(
+    500,
+    Math.max(1, Number(options.limit) || thumbnailCache.THUMBNAIL_BACKFILL_LIMIT)
+  );
+  const backfillStats = thumbnailCache.createEmptyBackfillStats();
+  const rawErrors = [];
+
+  const rows = await listImportedPostsForThumbnailBackfill();
+  backfillStats.scanned = rows.length;
+
+  const needed = rows.filter((row) =>
+    thumbnailCache.needsLocalThumbnailBackfill(row.provider_thumbnail_local_path)
+  );
+  backfillStats.needed = needed.length;
+  const batch = needed.slice(0, limit);
+
+  for (const row of batch) {
+    try {
+      const post = await module.exports.fetchFacebookPostById(row.provider_external_id, accessToken);
+      const result = await module.exports.prepareAndUpsert(post, intRow, { accessToken });
+      const meta = result?.thumbnailCache || {};
+      if (meta.cached === true && meta.reused === true) {
+        backfillStats.reused += 1;
+      } else if (meta.cached === true) {
+        backfillStats.cached += 1;
+      } else {
+        backfillStats.failed += 1;
+        rawErrors.push({
+          provider: PROVIDER,
+          code: meta.code || meta.status || 'CACHE_FAIL',
+          status: meta.httpStatus ?? null,
+          host: meta.sourceHost || null,
+        });
+      }
+    } catch (err) {
+      const classified = metaOAuth.classifyMetaApiError(err.status, err.data);
+      if (metaOAuth.requiresReconnect(classified.category)) {
+        const message = classified.category === 'permission_denied'
+          ? 'Facebook ya no permite leer las publicaciones de esta página. Reconectá Meta y autorizá nuevamente los permisos.'
+          : 'El acceso a la página de Facebook ya no es válido. Reconectá Meta para generar un nuevo Page Access Token.';
+        await metaOAuth.handleConnectionFailure(PROVIDER, classified.category, { message });
+        throw Object.assign(new Error(message), {
+          code: 'META_RECONNECT_REQUIRED',
+          category: classified.category,
+          authError: true,
+          status: err.status,
+          data: err.data,
+        });
+      }
+      if (thumbnailCache.isProviderMediaUnavailableError(err)) {
+        backfillStats.unavailable += 1;
+        rawErrors.push({
+          provider: PROVIDER,
+          code: 'UNAVAILABLE',
+          status: err.status ?? null,
+          host: null,
+        });
+        continue;
+      }
+      backfillStats.failed += 1;
+      rawErrors.push({
+        provider: PROVIDER,
+        code: err.code || 'BACKFILL_FAIL',
+        status: err.status ?? null,
+        host: null,
+      });
+    }
+  }
+
+  return {
+    backfillStats,
+    backfillErrors: thumbnailCache.summarizeThumbnailErrors(rawErrors),
+  };
+}
+
 // ── Main sync ──
 
 async function syncFacebook(intRow) {
@@ -433,9 +539,11 @@ async function syncFacebook(intRow) {
     }
   }
 
+  const { backfillStats, backfillErrors } = await backfillLegacyThumbnails(intRow, accessToken);
+
   console.log(JSON.stringify({
     ts: new Date().toISOString(), provider: PROVIDER, stage: 'facebook_sync_done',
-    pageIdHash, imported, skipped, updated, thumbnailStats,
+    pageIdHash, imported, skipped, updated, thumbnailStats, backfillStats,
   }));
 
   return {
@@ -444,17 +552,22 @@ async function syncFacebook(intRow) {
     updated,
     thumbnailStats,
     thumbnailErrors: thumbnailCache.summarizeThumbnailErrors(rawThumbErrors),
+    backfillStats,
+    backfillErrors,
   };
 }
 
 module.exports = {
   PROVIDER,
+  THUMBNAIL_BACKFILL_LIMIT: thumbnailCache.THUMBNAIL_BACKFILL_LIMIT,
   syncFacebook,
   fetchFacebookPosts,
   fetchFacebookPostById,
   normalizeFacebookPost,
   upsertPost,
   prepareAndUpsert,
+  listImportedPostsForThumbnailBackfill,
+  backfillLegacyThumbnails,
   isValidMetaImageUrl,
   setHttpGet,
 };

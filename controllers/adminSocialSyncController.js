@@ -366,19 +366,26 @@ async function testConnection(req, res, next) {
 // ── Sync now ──
 
 /**
- * Build admin sync alert from provider sync result (posts + thumbnail cache).
+ * Build admin sync alert from provider sync result (posts + thumbnail cache + legacy backfill).
  * @param {object} result
  * @returns {{ type: string, text: string }}
  */
 function buildSyncAlert(result) {
   const stats = result?.thumbnailStats || {};
+  const bf = result?.backfillStats || null;
   const thumbErrors = Array.isArray(result?.thumbnailErrors) ? result.thumbnailErrors : [];
+  const backfillErrors = Array.isArray(result?.backfillErrors) ? result.backfillErrors : [];
   const cached = Number(stats.cached) || 0;
   const reused = Number(stats.reused) || 0;
   const failed = Number(stats.failed) || 0;
   const invalidSource = Number(stats.invalidSource) || 0;
+  const bfCached = Number(bf?.cached) || 0;
+  const bfFailed = Number(bf?.failed) || 0;
+  const bfUnavailable = Number(bf?.unavailable) || 0;
+  const bfNeeded = Number(bf?.needed) || 0;
   const processed = (Number(result.imported) || 0) + (Number(result.updated) || 0) + (Number(result.skipped) || 0);
-  const thumbWarn = failed > 0 || invalidSource > 0 || (result.errors?.length > 0);
+  const backfillWarn = bfFailed > 0 || bfUnavailable > 0;
+  const thumbWarn = failed > 0 || invalidSource > 0 || (result.errors?.length > 0) || backfillWarn;
 
   const postParts = [];
   if (result.updated) postParts.push(`${result.updated} actualizados`);
@@ -391,9 +398,18 @@ function buildSyncAlert(result) {
   if (failed) thumbParts.push(`${failed} fallaron`);
   if (invalidSource) thumbParts.push(`${invalidSource} URL inválida`);
 
+  const backfillParts = [];
+  if (bf) {
+    if (bfCached) backfillParts.push(`${bfCached} miniaturas antiguas reparadas`);
+    else if (bfNeeded === 0) backfillParts.push('backfill al día');
+    if (bfUnavailable || bfFailed) {
+      backfillParts.push(`${bfUnavailable + bfFailed} no pudieron recuperarse`);
+    }
+  }
+
   let text;
   if (thumbWarn) {
-    const main = thumbErrors[0];
+    const main = thumbErrors[0] || backfillErrors[0];
     let principal = '';
     if (main) {
       const hostLabel = main.host ? ` en ${main.host}` : '';
@@ -403,14 +419,19 @@ function buildSyncAlert(result) {
         principal = `Principal: ${main.code}${hostLabel}`;
       }
     }
+    const bits = [...postParts];
+    if (bfCached) bits.push(`${bfCached} miniaturas antiguas reparadas`);
+    if (bfUnavailable || bfFailed) bits.push(`${bfUnavailable + bfFailed} no pudieron recuperarse`);
+    if (!bfCached && (failed || invalidSource)) {
+      bits.push(`${cached} miniaturas guardadas · ${failed + invalidSource} fallaron`);
+    }
     text = [
       'Sincronización completada con advertencias:',
-      `${processed} posts procesados · ${cached} miniaturas guardadas · ${failed + invalidSource} fallaron.`,
-      `Miniaturas: ${cached} guardadas, ${failed + invalidSource} fallidas.`,
+      bits.join(' · ') || `${processed} posts procesados.`,
       principal,
     ].filter(Boolean).join(' ');
   } else {
-    const bits = [...postParts, ...thumbParts];
+    const bits = [...postParts, ...thumbParts, ...backfillParts];
     text = `Sincronización completada: ${bits.join(' · ') || 'sin cambios'}.`;
   }
 

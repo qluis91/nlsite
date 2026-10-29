@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-29 — Legacy social thumbnail backfill
+
+### Fixed
+- Instagram/Facebook sync repairs imported posts outside the provider `maxPosts` window that still lack a local WebP
+- Homepage cards older than the current Graph page no longer stay stuck on `social-feed-fallback.svg` after a successful recent-only sync
+
+### Changed
+- Sync returns `backfillStats` / `backfillErrors`; admin alert reports miniaturas antiguas reparadas (or backfill al día)
+
 ## 2026-10-29 — Social thumbnail backfill reliability + observability
 
 ### Fixed

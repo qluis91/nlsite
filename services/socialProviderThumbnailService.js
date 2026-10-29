@@ -177,6 +177,8 @@ function assertProvider(provider) {
   return value;
 }
 
+const THUMBNAIL_BACKFILL_LIMIT = 100;
+
 function createEmptyThumbnailStats() {
   return {
     cached: 0,
@@ -185,6 +187,53 @@ function createEmptyThumbnailStats() {
     noSource: 0,
     invalidSource: 0,
   };
+}
+
+function createEmptyBackfillStats() {
+  return {
+    scanned: 0,
+    needed: 0,
+    cached: 0,
+    reused: 0,
+    failed: 0,
+    unavailable: 0,
+  };
+}
+
+/**
+ * True when DB path is empty or the WebP file is missing/empty on disk.
+ * @param {unknown} localPath
+ * @returns {boolean}
+ */
+function needsLocalThumbnailBackfill(localPath) {
+  const raw = String(localPath || '').trim();
+  if (!raw) return true;
+  return !localThumbnailFileExists(raw);
+}
+
+/**
+ * Public feed URL is a local social WebP under /uploads/social/{provider}/.
+ * @param {unknown} thumbnailUrl
+ * @returns {boolean}
+ */
+function isLocalSocialThumbnailPublicUrl(thumbnailUrl) {
+  return typeof thumbnailUrl === 'string'
+    && /^\/uploads\/social\/(instagram|facebook|tiktok)\/[^/]+\.webp$/i.test(thumbnailUrl);
+}
+
+/**
+ * Graph single-object failures that are not terminal auth (deleted / inaccessible media).
+ * @param {{ status?: number, data?: object, code?: string }} err
+ * @returns {boolean}
+ */
+function isProviderMediaUnavailableError(err) {
+  const status = Number(err?.status);
+  const code = err?.data?.error?.code;
+  if (status === 404) return true;
+  if (code === 100) return true;
+  const msg = String(err?.data?.error?.message || err?.message || '').toLowerCase();
+  if (msg.includes('does not exist') || msg.includes('unsupported get request')) return true;
+  return false;
 }
 
 /**
@@ -737,7 +786,12 @@ module.exports = {
   localThumbnailFileExists,
   resolveLocalThumbnailPublicUrl,
   deleteLocalThumbnailSafe,
+  THUMBNAIL_BACKFILL_LIMIT,
   createEmptyThumbnailStats,
+  createEmptyBackfillStats,
+  needsLocalThumbnailBackfill,
+  isLocalSocialThumbnailPublicUrl,
+  isProviderMediaUnavailableError,
   accumulateThumbnailStat,
   summarizeThumbnailErrors,
   toThumbnailCacheMeta,
