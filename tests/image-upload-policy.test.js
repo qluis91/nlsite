@@ -37,6 +37,8 @@ test('shared public image policy constants', () => {
   assert.equal(policy.PUBLIC_IMAGE_MAX_PIXELS, 100 * 1000 * 1000);
   assert.equal(policy.PUBLIC_IMAGE_BATCH_MAX_BYTES, 75 * 1024 * 1024);
   assert.equal(policy.AVATAR_SOURCE_MAX_BYTES, 10 * 1024 * 1024);
+  assert.equal(policy.GALLERY_REQUEST_MAX_BYTES, 125 * 1024 * 1024);
+  assert.equal(policy.CMS_MEDIA_BATCH_MAX_BYTES, 90 * 1024 * 1024);
   assert.equal(galleryOptions.MAX_IMAGE_SIZE, policy.PUBLIC_IMAGE_SOURCE_MAX_BYTES);
   assert.equal(galleryOptions.MAX_POSTER_SIZE, policy.PUBLIC_IMAGE_SOURCE_MAX_BYTES);
   assert.equal(galleryOptions.IMAGE_PROFILES.display.quality, 80);

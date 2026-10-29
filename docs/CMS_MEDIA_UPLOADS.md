@@ -175,7 +175,7 @@ New uploads create complete `media_assets` records:
 - `isAuthenticated` + `isAdmin` middleware
 - Capability check (`media.upload`)
 - CSRF validation
-- Multer limits (memoryStorage; model max 30 MB drives request ceiling)
+- Bounded Multer memory storage: raster 25 MB / GLB 30 MB per file; CMS batch aggregate 90 MB while streaming (not after full buffer)
 - Content validation (Sharp decode, `limitInputPixels`, max dimension/pixels, animated rejection)
 - Profile validation (server-side allowlist, never trust client)
 - Path containment (`path.resolve`, startsWith check)

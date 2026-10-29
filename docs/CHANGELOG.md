@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-28 — Enforce upload memory limits while streaming
+
+### Fixed
+- Gallery/product/CMS/avatar multipart uploads abort during buffering once per-file or aggregate byte caps are exceeded (bounded Multer memory storage)
+- CMS library batch capped at 90 MB aggregate; Gallery request capped at 125 MB (100 MB video + 25 MB poster)
+
 ## 2026-10-28 — Unify public image upload optimization
 
 ### Changed

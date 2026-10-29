@@ -11,24 +11,13 @@ const mediaController = require('../controllers/adminMediaController');
 const { csrfSynchronisedProtection } = require('../config/csrf');
 const { requireCapability } = require('../middlewares/capabilityMiddleware');
 const { CAPABILITIES } = require('../config/capabilities');
-const { mediaBatchUpload, mediaReplaceUpload, handleUpload } = require('../middleware/mediaUpload');
-const multer = require('multer');
-const { RASTER_MIME_TYPES, MODEL_MIME_TYPES, MAX_UPLOAD_SIZE, MAX_FILES_PER_REQUEST } = require('../config/cmsOptions');
-
-const selectorAcceptedMimeTypes = new Set([...RASTER_MIME_TYPES, ...MODEL_MIME_TYPES]);
-
-function selectorFileFilter(_req, file, callback) {
-  if (selectorAcceptedMimeTypes.has(String(file.mimetype || '').toLowerCase())) {
-    return callback(null, true);
-  }
-  return callback(new Error('Formato no permitido. Use JPG, PNG, WebP o un modelo GLB.'));
-}
-
-const selectorUploadMulter = multer({
-  storage: multer.memoryStorage(),
-  fileFilter: selectorFileFilter,
-  limits: { fileSize: 30 * 1024 * 1024 },
-}).single('file');
+const {
+  mediaBatchUpload,
+  mediaReplaceUpload,
+  mediaSelectorUpload,
+  handleUpload,
+  friendlyUploadError,
+} = require('../middleware/mediaUpload');
 
 const router = express.Router();
 
@@ -115,12 +104,9 @@ router.post(
   '/api/page/media/upload',
   requireCapability(CAPABILITIES.MEDIA_UPLOAD),
   (req, res, next) => {
-    selectorUploadMulter(req, res, (err) => {
+    mediaSelectorUpload(req, res, (err) => {
       if (err) {
-        if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ success: false, error: 'El archivo supera el límite de tamaño.' });
-        }
-        return res.status(400).json({ success: false, error: 'Error al recibir el archivo.' });
+        return res.status(400).json({ success: false, error: friendlyUploadError(err) });
       }
       next();
     });

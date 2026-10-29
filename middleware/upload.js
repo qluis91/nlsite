@@ -2,11 +2,14 @@ const multer = require('multer');
 const { MAX_FILE_SIZE, ALLOWED_MIME_TYPES } = require('../services/imageProcessingService');
 const {
   AVATAR_SOURCE_MAX_BYTES,
+  AVATAR_SOURCE_MAX_MB,
   FORM_FIELD_MAX_BYTES,
+  PUBLIC_IMAGE_SOURCE_MAX_BYTES,
+  PUBLIC_IMAGE_SOURCE_MAX_MB,
+  PUBLIC_IMAGE_BATCH_MAX_BYTES,
+  PUBLIC_IMAGE_BATCH_MAX_MB,
 } = require('../config/imageUploadPolicy');
-
-// Memory storage — buffers are processed by Sharp before writing to disk
-const storage = multer.memoryStorage();
+const { boundedMemoryStorage, ERROR_CODES } = require('./boundedMemoryStorage');
 
 function fileFilter(req, file, cb) {
   if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
@@ -16,18 +19,28 @@ function fileFilter(req, file, cb) {
   }
 }
 
-/**
- * Product image upload middleware (5 images max: primaryImage + secondaryImages).
- * Fields: primaryImage (single), secondaryImages (up to 4)
- */
-const productImageUpload = multer({
-  storage,
+function mapProductUploadError(error) {
+  if (!error) return 'No fue posible procesar la carga.';
+  if (error.code === ERROR_CODES.UPLOAD_BATCH_TOO_LARGE) {
+    return `El conjunto de imágenes supera el límite total permitido de ${PUBLIC_IMAGE_BATCH_MAX_MB} MB.`;
+  }
+  if (error.code === ERROR_CODES.PUBLIC_FILE_TOO_LARGE || error.code === 'LIMIT_FILE_SIZE') {
+    return `La imagen supera el límite permitido de ${PUBLIC_IMAGE_SOURCE_MAX_MB} MB.`;
+  }
+  return error.message || 'No fue posible procesar la carga.';
+}
+
+const productStorage = boundedMemoryStorage({
+  resolveMaxFileBytes: () => PUBLIC_IMAGE_SOURCE_MAX_BYTES,
+  maxRequestBytes: PUBLIC_IMAGE_BATCH_MAX_BYTES,
+});
+
+const productImageMulter = multer({
+  storage: productStorage,
   fileFilter,
   limits: {
     fileSize: MAX_FILE_SIZE,
     files: 5,
-    // The existing product form has 14 non-file fields (including CSRF).
-    // Keep this bounded while allowing the real create/update payload.
     fields: 20,
     fieldSize: FORM_FIELD_MAX_BYTES,
   },
@@ -37,11 +50,32 @@ const productImageUpload = multer({
 ]);
 
 /**
+ * Product image upload middleware (5 images max: primaryImage + secondaryImages).
+ * Enforces 25 MB per file and 75 MB aggregate while streaming.
+ */
+function productImageUpload(req, res, next) {
+  productImageMulter(req, res, (error) => {
+    if (!error) return next();
+    req.session.error_msg = mapProductUploadError(error);
+    const editMatch = req.originalUrl.match(/\/catalogo\/productos\/([1-9]\d*)(?:\/|$)/);
+    if (editMatch) {
+      return res.redirect(`/admin/catalogo/productos/${editMatch[1]}/editar`);
+    }
+    return res.redirect('/admin/catalogo/productos/nuevo');
+  });
+}
+
+const publicImageStorage = boundedMemoryStorage({
+  resolveMaxFileBytes: () => PUBLIC_IMAGE_SOURCE_MAX_BYTES,
+  maxRequestBytes: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
+});
+
+/**
  * Single image upload middleware for any module needing one image.
  * Field name: 'image'
  */
 const singleImageUpload = multer({
-  storage,
+  storage: publicImageStorage,
   fileFilter,
   limits: {
     fileSize: MAX_FILE_SIZE,
@@ -51,8 +85,13 @@ const singleImageUpload = multer({
 }).single('image');
 
 const AVATAR_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const avatarStorage = boundedMemoryStorage({
+  resolveMaxFileBytes: () => AVATAR_SOURCE_MAX_BYTES,
+  maxRequestBytes: AVATAR_SOURCE_MAX_BYTES,
+});
+
 const avatarImageUpload = multer({
-  storage,
+  storage: avatarStorage,
   fileFilter(req, file, cb) {
     if (AVATAR_MIME_TYPES.has(file.mimetype)) return cb(null, true);
     return cb(new Error('El avatar debe ser una imagen JPG, PNG o WebP.'));
@@ -67,7 +106,7 @@ const avatarImageUpload = multer({
 
 const PROOF_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const proofFileUpload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter(req, file, cb) {
     if (PROOF_MIME_TYPES.has(file.mimetype)) return cb(null, true);
     return cb(new Error('Solo se permiten archivos JPG, PNG, WebP o PDF.'));
@@ -81,7 +120,7 @@ const proofFileUpload = multer({
 }).single('proofFile');
 
 const categoryHeroUpload = multer({
-  storage,
+  storage: publicImageStorage,
   fileFilter,
   limits: {
     fileSize: MAX_FILE_SIZE,
@@ -91,10 +130,22 @@ const categoryHeroUpload = multer({
   },
 }).single('hero_image');
 
+function mapAvatarUploadError(error) {
+  if (!error) return 'El archivo seleccionado no es una imagen válida.';
+  if (error.code === ERROR_CODES.PUBLIC_FILE_TOO_LARGE || error.code === 'LIMIT_FILE_SIZE') {
+    return `La imagen no puede superar ${AVATAR_SOURCE_MAX_MB} MB.`;
+  }
+  return error.message || 'El archivo seleccionado no es una imagen válida.';
+}
+
 module.exports = {
   productImageUpload,
+  productImageMulter,
   singleImageUpload,
   avatarImageUpload,
   proofFileUpload,
   categoryHeroUpload,
+  mapProductUploadError,
+  mapAvatarUploadError,
+  AVATAR_SOURCE_MAX_MB,
 };
