@@ -1,10 +1,10 @@
 import { mat4, quat, vec3 } from '../../vendor/gl-matrix/index.js';
 
-const MAX_ITEMS = 24;
+const MAX_ITEMS = 64;
 const MAX_DPR = 2;
 const DISC_SEGMENTS = 56;
-const SPHERE_POINT_COUNT = 42;
 const SPHERE_RADIUS = 4.2;
+const CLICK_DISTANCE_PX = 6;
 const DISC_SCALE = 0.68;
 const SELECTED_DISC_SCALE = 1.16;
 const MAX_FRAME_MS = 50;
@@ -97,7 +97,8 @@ void main() {
     return;
   }
 
-  int itemIndex = vInstanceId % uItemCount;
+  // One instance ID = one unique Gallery item (no modulo duplication).
+  int itemIndex = vInstanceId;
   int column = itemIndex % uAtlasColumns;
   int logicalRow = itemIndex / uAtlasColumns;
   // UNPACK_FLIP_Y_WEBGL flips the atlas vertically; compensate so logical
@@ -160,8 +161,8 @@ export function createDiscGeometry(segments = DISC_SEGMENTS) {
   return geometry;
 }
 
-export function createSpherePoints(count = SPHERE_POINT_COUNT, radius = SPHERE_RADIUS) {
-  const safeCount = clamp(Math.trunc(count) || SPHERE_POINT_COUNT, 1, 512);
+export function createSpherePoints(count = 1, radius = SPHERE_RADIUS) {
+  const safeCount = clamp(Math.trunc(count) || 1, 1, MAX_ITEMS);
   const safeRadius = Number.isFinite(radius) && radius > 0 ? radius : SPHERE_RADIUS;
   const goldenAngle = Math.PI * (3 - Math.sqrt(5));
   const points = [];
@@ -179,10 +180,11 @@ export function createSpherePoints(count = SPHERE_POINT_COUNT, radius = SPHERE_R
   return points;
 }
 
-export function resolveSphereLayout(width, height) {
+export function resolveSphereLayout(width, height, itemCount = 24) {
   const safeWidth = Math.max(1, Number(width) || 1);
   const safeHeight = Math.max(1, Number(height) || 1);
   const aspect = clamp(safeWidth / safeHeight, 0.55, 2.4);
+  const safeItemCount = clamp(Math.trunc(itemCount) || 1, 1, MAX_ITEMS);
   let spreadY;
   let spreadZ;
   let horizontalRatio;
@@ -216,6 +218,13 @@ export function resolveSphereLayout(width, height) {
     selectedDiscScale = SELECTED_DISC_SCALE;
     centerOffsetY = 0;
     infoCardStartRatio = null;
+  }
+
+  // Sparse galleries: slightly larger discs — never invent duplicate bubbles.
+  if (safeItemCount < 12) {
+    const boost = 1 + (12 - safeItemCount) * 0.035;
+    discScale = Math.min(discScale * boost, selectedDiscScale * 0.92);
+    selectedDiscScale = Math.min(selectedDiscScale * Math.min(boost, 1.22), discScale * 1.85);
   }
 
   const spreadX = spreadY * horizontalRatio;
@@ -395,6 +404,128 @@ export function closestFrontPointIndex(points, orientation) {
   return closestIndex;
 }
 
+/** Quaternion that rotates `point` (under `orientation`) onto FRONT_DIRECTION. */
+export function snapTargetForPoint(point, orientation, front = FRONT_DIRECTION) {
+  const rotated = vec3.transformQuat(vec3.create(), point, orientation);
+  vec3.normalize(rotated, rotated);
+  const correction = quat.rotationTo(quat.create(), rotated, front);
+  const target = quat.multiply(quat.create(), correction, orientation);
+  quat.normalize(target, target);
+  return target;
+}
+
+function transformWorldToClip(world, viewProjection) {
+  const x = world[0];
+  const y = world[1];
+  const z = world[2];
+  return {
+    x: viewProjection[0] * x + viewProjection[4] * y + viewProjection[8] * z + viewProjection[12],
+    y: viewProjection[1] * x + viewProjection[5] * y + viewProjection[9] * z + viewProjection[13],
+    z: viewProjection[2] * x + viewProjection[6] * y + viewProjection[10] * z + viewProjection[14],
+    w: viewProjection[3] * x + viewProjection[7] * y + viewProjection[11] * z + viewProjection[15],
+  };
+}
+
+/**
+ * Project a sphere bubble to canvas pixels for pointer hit-testing.
+ * Returns null when the bubble is behind the camera / outside clip / back hemisphere.
+ */
+export function projectBubbleToScreen({
+  point,
+  orientation,
+  layout,
+  viewMatrix,
+  projectionMatrix,
+  cameraPosition,
+  canvasWidth,
+  canvasHeight,
+  pointIndex = 0,
+  activePointIndex = -1,
+}) {
+  const rotated = vec3.transformQuat(vec3.create(), point, orientation);
+  const frontDot = vec3.dot(vec3.normalize(vec3.create(), rotated), FRONT_DIRECTION);
+  // Skip clearly back-facing hemisphere bubbles.
+  if (frontDot < -0.05) return null;
+
+  const positioned = positionSpherePoint(rotated, layout);
+  const viewProjection = mat4.multiply(mat4.create(), projectionMatrix, viewMatrix);
+  const clip = transformWorldToClip(positioned, viewProjection);
+  if (!(clip.w > 0)) return null;
+
+  const ndcX = clip.x / clip.w;
+  const ndcY = clip.y / clip.w;
+  const ndcZ = clip.z / clip.w;
+  if (Math.abs(ndcX) > 1.15 || Math.abs(ndcY) > 1.15 || ndcZ < -1 || ndcZ > 1) return null;
+
+  const screenX = (ndcX * 0.5 + 0.5) * canvasWidth;
+  const screenY = (1 - (ndcY * 0.5 + 0.5)) * canvasHeight;
+  const distToCamera = Math.max(0.001, vec3.distance(cameraPosition, positioned));
+  const discScale = sphereDiscScale(pointIndex, activePointIndex, layout);
+  const pixelRadius = (discScale / (distToCamera * Math.tan(CAMERA_FOV / 2))) * (canvasHeight / 2);
+
+  return {
+    screenX,
+    screenY,
+    depth: distToCamera,
+    pixelRadius,
+    frontDot,
+  };
+}
+
+/**
+ * Pick the front-most visible bubble under a canvas-local pointer.
+ * Pure helper — no WebGL side effects.
+ */
+export function pickBubbleAtScreenPoint({
+  spherePoints,
+  orientation,
+  layout,
+  viewMatrix,
+  projectionMatrix,
+  cameraPosition,
+  canvasWidth,
+  canvasHeight,
+  pointerX,
+  pointerY,
+  activePointIndex = -1,
+}) {
+  if (!Array.isArray(spherePoints) || !spherePoints.length) return null;
+
+  let best = null;
+  for (let index = 0; index < spherePoints.length; index += 1) {
+    const projected = projectBubbleToScreen({
+      point: spherePoints[index],
+      orientation,
+      layout,
+      viewMatrix,
+      projectionMatrix,
+      cameraPosition,
+      canvasWidth,
+      canvasHeight,
+      pointIndex: index,
+      activePointIndex,
+    });
+    if (!projected) continue;
+
+    const distance = Math.hypot(pointerX - projected.screenX, pointerY - projected.screenY);
+    if (distance > projected.pixelRadius * 1.08) continue;
+
+    if (
+      !best
+      || projected.depth < best.depth - 0.02
+      || (Math.abs(projected.depth - best.depth) <= 0.02 && distance < best.distance)
+    ) {
+      best = {
+        pointIndex: index,
+        itemIndex: index,
+        depth: projected.depth,
+        distance,
+      };
+    }
+  }
+  return best;
+}
+
 function compileShader(gl, type, source) {
   const shader = gl.createShader(type);
   if (!shader) throw new Error('Infinite Menu could not create a shader.');
@@ -462,6 +593,11 @@ export class InfiniteMenuRenderer {
       throw new Error('Infinite Menu requires at least one gallery item.');
     }
     this.container = container;
+    if (items.length > MAX_ITEMS) {
+      console.warn(
+        `[InfiniteMenu] Rendering first ${MAX_ITEMS} of ${items.length} gallery items (safety cap).`
+      );
+    }
     this.items = items.slice(0, MAX_ITEMS);
     this.options = {
       onActiveChange: () => {},
@@ -477,6 +613,7 @@ export class InfiniteMenuRenderer {
     this.lastFrameTime = 0;
     this.activePointIndex = -1;
     this.activeItemIndex = -1;
+    this.pendingSelectionPointIndex = null;
     this.orientation = quat.create();
     this.angularVelocity = vec3.create();
     this.snapTarget = null;
@@ -568,7 +705,7 @@ export class InfiniteMenuRenderer {
 
     const geometry = createDiscGeometry();
     this.indexCount = geometry.indices.length;
-    this.spherePoints = createSpherePoints();
+    this.spherePoints = createSpherePoints(this.items.length);
     this.instanceCount = this.options.diagnosticStage === 'disc' ? 1 : this.spherePoints.length;
     this.instanceData = new Float32Array(this.spherePoints.length * 16);
 
@@ -793,7 +930,7 @@ export class InfiniteMenuRenderer {
     this.width = width;
     this.height = height;
     this.gl.viewport(0, 0, pixelWidth, pixelHeight);
-    this.sphereLayout = resolveSphereLayout(width, height);
+    this.sphereLayout = resolveSphereLayout(width, height, this.items.length);
     if (this.sphereLayout.infoCardStartRatio) {
       this.container.style.setProperty(
         '--infinite-info-start',
@@ -822,6 +959,7 @@ export class InfiniteMenuRenderer {
     this.pointer.distance = 0;
     vec3.set(this.angularVelocity, 0, 0, 0);
     this.snapTarget = null;
+    this.pendingSelectionPointIndex = null;
     this.canvas.setPointerCapture?.(event.pointerId);
     this.container.classList.add('is-dragging');
     this.requestFrame();
@@ -854,14 +992,56 @@ export class InfiniteMenuRenderer {
 
   onPointerUp(event) {
     if (!this.pointer.active || event.pointerId !== this.pointer.id) return;
-    const shouldSelect = this.pointer.distance < 6 && event.type !== 'pointercancel';
+    const shouldSelect = this.pointer.distance < CLICK_DISTANCE_PX && event.type !== 'pointercancel';
+    const clientX = event.clientX;
+    const clientY = event.clientY;
     this.releasePointer();
     if (shouldSelect) {
-      const item = this.items[this.activeItemIndex];
-      if (item) this.options.onSelect(item);
+      this.handleBubbleClick(clientX, clientY);
+    } else if (vec3.length(this.angularVelocity) < INERTIA_EPSILON) {
+      this.beginSnap();
     }
-    if (vec3.length(this.angularVelocity) < INERTIA_EPSILON) this.beginSnap();
     this.requestFrame();
+  }
+
+  handleBubbleClick(clientX, clientY) {
+    vec3.set(this.angularVelocity, 0, 0, 0);
+    const rect = this.canvas?.getBoundingClientRect?.() || {
+      left: 0,
+      top: 0,
+      width: this.canvas?.clientWidth || 1,
+      height: this.canvas?.clientHeight || 1,
+    };
+    const hit = pickBubbleAtScreenPoint({
+      spherePoints: this.spherePoints,
+      orientation: this.orientation,
+      layout: this.sphereLayout,
+      viewMatrix: this.viewMatrix,
+      projectionMatrix: this.projectionMatrix,
+      cameraPosition: this.cameraPosition,
+      canvasWidth: rect.width || 1,
+      canvasHeight: rect.height || 1,
+      pointerX: clientX - rect.left,
+      pointerY: clientY - rect.top,
+      activePointIndex: this.activePointIndex,
+    });
+
+    if (!hit) {
+      this.pendingSelectionPointIndex = null;
+      this.beginSnap();
+      return;
+    }
+
+    if (hit.pointIndex === this.activePointIndex) {
+      this.pendingSelectionPointIndex = null;
+      this.beginSnapToPoint(hit.pointIndex);
+      const item = this.items[hit.itemIndex];
+      if (item) this.options.onSelect(item);
+      return;
+    }
+
+    this.pendingSelectionPointIndex = hit.pointIndex;
+    this.beginSnapToPoint(hit.pointIndex);
   }
 
   onLostPointerCapture(event) {
@@ -916,15 +1096,25 @@ export class InfiniteMenuRenderer {
   beginSnap() {
     if (!this.spherePoints?.length) return;
     const pointIndex = closestFrontPointIndex(this.spherePoints, this.orientation);
-    const rotated = vec3.transformQuat(
-      vec3.create(),
-      this.spherePoints[pointIndex],
-      this.orientation
-    );
-    vec3.normalize(rotated, rotated);
-    const correction = quat.rotationTo(quat.create(), rotated, FRONT_DIRECTION);
-    this.snapTarget = quat.multiply(quat.create(), correction, this.orientation);
-    quat.normalize(this.snapTarget, this.snapTarget);
+    this.beginSnapToPoint(pointIndex);
+  }
+
+  beginSnapToPoint(pointIndex) {
+    if (!this.spherePoints?.length) return;
+    const index = Number(pointIndex);
+    if (!Number.isInteger(index) || index < 0 || index >= this.spherePoints.length) return;
+    this.snapTarget = snapTargetForPoint(this.spherePoints[index], this.orientation);
+  }
+
+  finishPendingSelection() {
+    if (this.pendingSelectionPointIndex == null) return;
+    const index = this.pendingSelectionPointIndex;
+    this.pendingSelectionPointIndex = null;
+    this.emitActive(true);
+    const frontIndex = closestFrontPointIndex(this.spherePoints || [], this.orientation);
+    if (frontIndex !== index) return;
+    const item = this.items[index];
+    if (item) this.options.onSelect(item);
   }
 
   applyInertia(elapsedMs) {
@@ -965,6 +1155,7 @@ export class InfiniteMenuRenderer {
     if (1 - dot < SNAP_EPSILON) {
       quat.copy(this.orientation, this.snapTarget);
       this.snapTarget = null;
+      this.finishPendingSelection();
       return false;
     }
     return true;
@@ -1064,11 +1255,12 @@ export class InfiniteMenuRenderer {
   emitActive(force = false) {
     const pointIndex = closestFrontPointIndex(this.spherePoints || [], this.orientation);
     if (pointIndex < 0) return;
-    const itemIndex = pointIndex % this.items.length;
+    const itemIndex = pointIndex;
     if (!force && itemIndex === this.activeItemIndex) return;
     this.activePointIndex = pointIndex;
     this.activeItemIndex = itemIndex;
     const item = this.items[itemIndex];
+    if (!item) return;
     const title = this.container.querySelector('[data-gallery-infinite-title]');
     const meta = this.container.querySelector('[data-gallery-infinite-meta]');
     if (title) title.textContent = item.title || 'Proyecto';
