@@ -99,7 +99,7 @@ Root: `<UPLOAD_PUBLIC_DIR>/media` (development default:
 
 | Category | Accepted | Limit |
 |----------|----------|-------|
-| site, gallery, logo, carousel, icon, other | JPEG, PNG, WebP (AVIF only when the installed Sharp runtime can decode it) | 15 MB, max 10000 × 10000 px |
+| site, gallery, logo, carousel, icon, other | JPEG, PNG, WebP (AVIF only when the installed Sharp runtime can decode it) | 25 MB source, max 10000 × 10000 px |
 | model | GLB (glTF binary v2) | 30 MB |
 
 Rejected: SVG (see below), HTML, JS, CSS, EXE, PHP, ZIP, XML, animated images

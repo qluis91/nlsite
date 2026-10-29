@@ -66,7 +66,7 @@ Every write and deletion resolves against an allowlisted gallery root. Absolute 
 
 ## Images and posters
 
-Image inputs are limited to JPEG, PNG, and WebP at 10 MB. Sharp must successfully decode every input. Display images are auto-rotated, metadata-stripped, bounded inside 2400×2400 without enlargement, and encoded as WebP at quality 86.
+Image inputs are limited to JPEG, PNG, and WebP at 25 MB source size. Sharp must successfully decode every input. Display images are auto-rotated, metadata-stripped, bounded inside 2400×2400 without enlargement, and encoded as WebP quality 80.
 
 Every image also produces a 512×512 cropped WebP thumbnail at quality 82. Video posters use the same safe decode and output pipeline and also produce the required square thumbnail.
 

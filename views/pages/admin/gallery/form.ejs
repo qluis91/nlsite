@@ -50,7 +50,7 @@
         <div class="form-group gallery-field-file">
           <label for="gallery-media"><%= item ? 'Reemplazar medio' : 'Archivo principal' %> <span class="gallery-required-local"><%= item ? '' : '*' %></span></label>
           <input id="gallery-media" class="form-control" type="file" name="media" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" <%= item ? '' : 'required' %>>
-          <span class="form-hint">Imagen: JPG/PNG/WebP, 10 MB. Video: MP4/WebM, 100 MB.</span>
+          <span class="form-hint">Imagen: JPG/PNG/WebP, hasta 25 MB. Se optimiza automáticamente. Video: MP4/WebM, 100 MB.</span>
         </div>
 
         <div class="form-group gallery-field-youtube">
@@ -62,7 +62,7 @@
         <div class="form-group gallery-field-poster">
           <label for="gallery-poster"><span class="gallery-poster-label"><%= item ? '' : '(obligatorio para video)' %></span></label>
           <input id="gallery-poster" class="form-control" type="file" name="poster" accept="image/jpeg,image/png,image/webp">
-          <span class="form-hint gallery-poster-hint">JPG/PNG/WebP. Se genera también la miniatura cuadrada.</span>
+          <span class="form-hint gallery-poster-hint">JPG/PNG/WebP, hasta 25 MB. Se optimiza automáticamente. Se genera también la miniatura cuadrada.</span>
         </div>
       </div>
         <div
@@ -256,7 +256,7 @@
       // Poster label
       if (posterLabel && val === 'video') {
         posterLabel.textContent = 'Póster de video';
-        if (posterHint) posterHint.textContent = 'JPG/PNG/WebP. Se genera también la miniatura cuadrada.';
+        if (posterHint) posterHint.textContent = 'JPG/PNG/WebP, hasta 25 MB. Se optimiza automáticamente. Se genera también la miniatura cuadrada.';
       } else if (posterLabel && val === 'image') {
         posterLabel.textContent = '';
         if (posterHint) posterHint.textContent = 'Póster no aplica a imágenes.';

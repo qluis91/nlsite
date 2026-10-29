@@ -266,8 +266,8 @@ test('MIME/extension mismatch, invalid bytes and dangerous files are rejected', 
 test('oversized files are rejected before anything is written', async () => {
   const buffer = await png(10, 10);
   await assert.rejects(
-    () => storage.storeUpload({ buffer, mimetype: 'image/png', originalname: 'grande.png', size: 15 * 1024 * 1024 + 1 }, 'site'),
-    /15 MB/
+    () => storage.storeUpload({ buffer, mimetype: 'image/png', originalname: 'grande.png', size: 25 * 1024 * 1024 + 1 }, 'site'),
+    /25 MB/
   );
   await assert.rejects(
     () => storage.storeUpload({ buffer: glbBuffer(), mimetype: 'model/gltf-binary', originalname: 'grande.glb', size: 30 * 1024 * 1024 + 1 }, 'model'),

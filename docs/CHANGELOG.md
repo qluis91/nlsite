@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-28 — Enforce upload memory limits while streaming
+
+### Fixed
+- Gallery/product/CMS/avatar multipart uploads abort during buffering once per-file or aggregate byte caps are exceeded (bounded Multer memory storage)
+- CMS library batch capped at 90 MB aggregate; Gallery request capped at 125 MB (100 MB video + 25 MB poster)
+
+## 2026-10-28 — Unify public image upload optimization
+
+### Changed
+- Centralized PUBLIC/CONTENT raster source policy at 25 MB with WebP quality 80 (`config/imageUploadPolicy.js`)
+- Gallery, products, categories, CMS media profiles, and related public uploads accept larger sources then persist only Sharp-optimized WebP
+- Avatar source max raised to 10 MB (still Sharp WebP ~512×512); product multi-image requests capped at 75 MB total
+
+### Fixed
+- Gallery no longer rejects 10–25 MB sources before Sharp runs
+
 ## 2026-10-28 — Carousel image framing zoom
 
 ### Added

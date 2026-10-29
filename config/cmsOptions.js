@@ -11,6 +11,13 @@ const {
   MEDIA_ROOT,
   UPLOAD_PUBLIC_URL_PREFIX,
 } = require('./uploadPaths');
+const {
+  PUBLIC_IMAGE_SOURCE_MAX_BYTES,
+  PUBLIC_IMAGE_WEBP_QUALITY,
+  PUBLIC_IMAGE_MAX_DIMENSION,
+  PUBLIC_IMAGE_MAX_PIXELS,
+  AVATAR_SOURCE_MAX_BYTES,
+} = require('./imageUploadPolicy');
 
 const MEDIA_CATEGORIES = Object.freeze({
   SITE: 'site',
@@ -131,13 +138,13 @@ const SVG_UPLOAD_ENABLED = false;
 const SVG_MIME_TYPE = 'image/svg+xml';
 const MAX_SVG_SIZE = 2 * 1024 * 1024;
 
-const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
+const MAX_IMAGE_SIZE = PUBLIC_IMAGE_SOURCE_MAX_BYTES;
 const MAX_MODEL_SIZE = 30 * 1024 * 1024;
 const MAX_UPLOAD_SIZE = Math.max(MAX_IMAGE_SIZE, MAX_MODEL_SIZE);
 const MAX_FILES_PER_REQUEST = 10;
-const MAX_IMAGE_DIMENSION = 10000;
+const MAX_IMAGE_DIMENSION = PUBLIC_IMAGE_MAX_DIMENSION;
 /** Decompression-bomb ceiling for decoded pixels. */
-const MAX_IMAGE_PIXELS = 100 * 1000 * 1000;
+const MAX_IMAGE_PIXELS = PUBLIC_IMAGE_MAX_PIXELS;
 /** Bounded Sharp concurrency for multi-file uploads. */
 const UPLOAD_CONCURRENCY = 2;
 
@@ -153,7 +160,7 @@ const IMAGE_VARIANTS = Object.freeze({
     key: 'large',
     maxWidth: 2560,
     maxHeight: 2560,
-    quality: 80,
+    quality: PUBLIC_IMAGE_WEBP_QUALITY,
     format: 'webp',
     fit: 'inside',
     withoutEnlargement: true,
@@ -162,7 +169,7 @@ const IMAGE_VARIANTS = Object.freeze({
     key: 'medium',
     maxWidth: 1280,
     maxHeight: 1280,
-    quality: 80,
+    quality: PUBLIC_IMAGE_WEBP_QUALITY,
     format: 'webp',
     fit: 'inside',
     withoutEnlargement: true,
@@ -171,7 +178,7 @@ const IMAGE_VARIANTS = Object.freeze({
     key: 'thumbnail',
     maxWidth: 400,
     maxHeight: 400,
-    quality: 80,
+    quality: PUBLIC_IMAGE_WEBP_QUALITY,
     format: 'webp',
     fit: 'inside',
     withoutEnlargement: true,
@@ -226,7 +233,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'navbar-logo',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'logo',
-    maxSize: 15 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Logo del navbar',
   }),
@@ -234,7 +241,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'navbar-light',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'logo',
-    maxSize: 15 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Logo claro',
   }),
@@ -242,7 +249,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'navbar-dark',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'logo',
-    maxSize: 15 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Logo oscuro',
   }),
@@ -250,7 +257,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'favicon',
     allowedMimeTypes: ['image/png','image/jpeg','image/webp'],
     category: 'logo',
-    maxSize: 15 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Favicon',
   }),
@@ -258,7 +265,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'hero-background',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'site',
-    maxSize: 15 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Fondo del hero',
   }),
@@ -274,7 +281,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'hero-fallback',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'site',
-    maxSize: 15 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Imagen de respaldo',
   }),
@@ -282,7 +289,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'logo-loop',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'logo',
-    maxSize: 15 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'LogoLoop',
   }),
@@ -290,7 +297,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'carousel-main',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'carousel',
-    maxSize: 15 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Imagen de carrusel',
   }),
@@ -298,7 +305,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'carousel-preview',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'carousel',
-    maxSize: 15 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Preview de carrusel',
   }),
@@ -306,7 +313,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'feature-icon',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'icon',
-    maxSize: 15 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Icono de tarjeta',
   }),
@@ -314,7 +321,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'nav-item-icon',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'icon',
-    maxSize: 15 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Icono de navegación',
   }),
@@ -322,7 +329,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'gallery',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'gallery',
-    maxSize: 15 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Imagen de galería',
   }),
@@ -330,7 +337,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'product',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'gallery',
-    maxSize: 10 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Imagen de producto',
   }),
@@ -338,7 +345,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'category',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'gallery',
-    maxSize: 10 * 1024 * 1024,
+    maxSize: PUBLIC_IMAGE_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Imagen de categoría',
   }),
@@ -346,7 +353,7 @@ const UPLOAD_PROFILES = Object.freeze({
     field: 'avatar',
     allowedMimeTypes: ['image/jpeg','image/png','image/webp'],
     category: 'other',
-    maxSize: 2 * 1024 * 1024,
+    maxSize: AVATAR_SOURCE_MAX_BYTES,
     kind: 'image',
     label: 'Avatar de usuario',
   }),
