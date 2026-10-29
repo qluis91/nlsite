@@ -133,6 +133,23 @@ test('mobile restores flow layout for hero-social', () => {
   assert.match(mobileSocial, /position:\s*static/);
 });
 
+test('desktop hero social enhancement is scoped above mobile breakpoint', () => {
+  const desktopSocial = css.slice(css.indexOf('@media (min-width: 769px)'));
+  assert.match(desktopSocial, /\.hero-social\s*\{[\s\S]*?backdrop-filter:\s*blur\(10px\)/);
+  assert.match(desktopSocial, /\.hero-social-link\s*\{[\s\S]*?animation:\s*hero-social-idle-pulse/);
+  assert.match(desktopSocial, /\.hero-social-link:nth-child\(2\)[\s\S]*?animation-delay:\s*0\.45s/);
+  assert.match(desktopSocial, /\.hero-social-link:hover[\s\S]*?animation-play-state:\s*paused/);
+  assert.match(css, /@keyframes\s+hero-social-idle-pulse/);
+  assert.match(
+    css,
+    /@media\s*\(\s*min-width:\s*769px\s*\)\s*and\s*\(\s*prefers-reduced-motion:\s*reduce\s*\)[\s\S]*?\.hero-social-link[\s\S]*?animation:\s*none/
+  );
+  const firstMobile = css.indexOf('@media (max-width: 768px)');
+  const mobileBlock = css.slice(firstMobile, css.indexOf('@media (max-width: 480px)', firstMobile));
+  assert.match(mobileBlock, /\.hero-social\s*\{[\s\S]*?position:\s*static/);
+  assert.doesNotMatch(mobileBlock, /hero-social-idle-pulse/);
+});
+
 test('desktop Panel 1 constrains height to viewport', () => {
   const heroPanelRules = css.slice(
     css.indexOf('.home-panel--hero {'),
