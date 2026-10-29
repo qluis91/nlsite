@@ -1,4 +1,11 @@
 <%- include('../../components/home-navbar', { navbarOnHome: false }) %>
+<%
+  const fv = typeof formValues !== 'undefined' && formValues ? formValues : {};
+  const val = function (key, fallback) {
+    if (Object.prototype.hasOwnProperty.call(fv, key) && fv[key] != null && fv[key] !== '') return fv[key];
+    return fallback == null ? '' : fallback;
+  };
+%>
 <div class="quote-page">
   <section class="quote-hero">
     <span class="svc-eyebrow" style="color:var(--color-accent,#39ff14)">Cotizar</span>
@@ -11,14 +18,14 @@
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <h2>Tus datos</h2>
       <div class="quote-grid">
-        <label class="quote-field">Nombre *<input name="customer_name" type="text" required maxlength="150" autocomplete="name" value="<%= prefill.name || '' %>"></label>
-        <label class="quote-field">Correo electrónico *<input name="customer_email" type="email" required maxlength="180" autocomplete="email" value="<%= prefill.email || '' %>"></label>
-        <label class="quote-field">Teléfono / WhatsApp *<input name="customer_phone" type="tel" required maxlength="80" autocomplete="tel" value="<%= prefill.phone || '' %>"></label>
-        <label class="quote-field">Asunto / tipo de proyecto *<input name="project_type" type="text" required maxlength="200"></label>
-        <label class="quote-field">Presupuesto aproximado<input name="budget" type="text" maxlength="100"></label>
-        <label class="quote-field">Fecha deseada<input name="desired_date" type="text" maxlength="80"></label>
+        <label class="quote-field">Nombre *<input name="customer_name" type="text" required maxlength="150" autocomplete="name" value="<%= val('customer_name', prefill.name || '') %>"></label>
+        <label class="quote-field">Correo electrónico *<input name="customer_email" type="email" required maxlength="180" autocomplete="email" value="<%= val('customer_email', prefill.email || '') %>"></label>
+        <label class="quote-field">Teléfono / WhatsApp *<input name="customer_phone" type="tel" required maxlength="80" autocomplete="tel" value="<%= val('customer_phone', prefill.phone || '') %>"></label>
+        <label class="quote-field">Asunto / tipo de proyecto *<input name="project_type" type="text" required maxlength="200" value="<%= val('project_type') %>"></label>
+        <label class="quote-field">Presupuesto aproximado<input name="budget" type="text" maxlength="100" value="<%= val('budget') %>"></label>
+        <label class="quote-field">Fecha deseada<input name="desired_date" type="text" maxlength="80" value="<%= val('desired_date') %>"></label>
         <label class="quote-field quote-field--block">Descripción *
-          <textarea name="description" rows="5" required maxlength="5000"></textarea>
+          <textarea name="description" rows="5" required maxlength="5000"><%= val('description') %></textarea>
         </label>
       </div>
       <label class="quote-upload" for="other-images">

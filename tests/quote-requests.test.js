@@ -34,10 +34,11 @@ function csrf(html) {
   return m ? m[1] : null;
 }
 
-async function req(method, urlPath, body, jar, { multipart, multipartHeaders } = {}) {
+async function req(method, urlPath, body, jar, { multipart, multipartHeaders, accept } = {}) {
   const headers = {};
   let payload = body;
   if (jar?.cookie) headers.Cookie = jar.cookie;
+  if (accept) headers.Accept = accept;
   if (multipart) {
     payload = multipart;
     if (multipartHeaders) Object.assign(headers, multipartHeaders);
@@ -333,6 +334,8 @@ describe('3d quote submission', () => {
       customer_email: `${marker}_6img@example.invalid`,
       customer_phone: '1',
       description: 'test',
+      width: '10',
+      height: '10',
     }, files);
     const [before] = await pool.query(
       'SELECT COUNT(*) AS c FROM quote_requests WHERE customer_email = ?',
@@ -360,6 +363,8 @@ describe('3d quote submission', () => {
       customer_email: `${marker}_badimg@example.invalid`,
       customer_phone: '1',
       description: 'test',
+      width: '10',
+      height: '10',
     }, [{ field: 'images', name: 'fake.png', type: 'image/png', buffer: Buffer.from('not-an-image') }]);
     const [before] = await pool.query(
       'SELECT COUNT(*) AS c FROM quote_requests WHERE customer_email = ?',
@@ -381,10 +386,119 @@ describe('3d quote submission', () => {
       customer_name: 'A',
       customer_email: 'a@b.co',
       customer_phone: '1',
-      description: 'x',
+      width: '10',
+      height: '10',
       file_link: 'javascript:alert(1)',
     });
     assert.equal(v.valid, false);
+  });
+
+  it('allows empty description when width and height are present', async () => {
+    const v = validator.validate3dQuote({
+      customer_name: 'A',
+      customer_email: 'a@b.co',
+      customer_phone: '1',
+      description: '',
+      width: '100',
+      height: '50',
+    });
+    assert.equal(v.valid, true);
+    assert.equal(v.value.payload.description, '');
+    assert.equal(v.value.payload.width, 100);
+    assert.equal(v.value.payload.height, 50);
+    assert.equal(v.value.payload.depth, null);
+  });
+
+  it('requires width and height > 0', async () => {
+    const missingW = validator.validate3dQuote({
+      customer_name: 'A', customer_email: 'a@b.co', customer_phone: '1', height: '50',
+    });
+    assert.equal(missingW.valid, false);
+    assert.match(missingW.error, /ancho/i);
+
+    const missingH = validator.validate3dQuote({
+      customer_name: 'A', customer_email: 'a@b.co', customer_phone: '1', width: '100',
+    });
+    assert.equal(missingH.valid, false);
+    assert.match(missingH.error, /altura/i);
+
+    const zero = validator.validate3dQuote({
+      customer_name: 'A', customer_email: 'a@b.co', customer_phone: '1', width: '0', height: '0',
+    });
+    assert.equal(zero.valid, false);
+  });
+
+  it('AJAX missing width returns 422 JSON without creating quote', async () => {
+    const jar = { cookie: '' };
+    const page = await req('GET', '/cotizar/pieza-3d', null, jar);
+    const token = csrf(page.text);
+    const [before] = await pool.query('SELECT COUNT(*) AS c FROM quote_requests');
+    const r = await req('POST', '/cotizar/pieza-3d', {
+      _csrf: token,
+      customer_name: 'Ajax Fail',
+      customer_email: `${marker}_ajaxfail@example.invalid`,
+      customer_phone: '1',
+      height: '50',
+    }, jar, { accept: 'application/json' });
+    assert.equal(r.status, 422);
+    const json = JSON.parse(r.text);
+    assert.equal(json.ok, false);
+    assert.match(json.error, /ancho/i);
+    const [after] = await pool.query('SELECT COUNT(*) AS c FROM quote_requests');
+    assert.equal(Number(after[0].c), Number(before[0].c));
+  });
+
+  it('AJAX success returns JSON reference and creates quote without description', async () => {
+    const jar = { cookie: '' };
+    const page = await req('GET', '/cotizar/pieza-3d', null, jar);
+    const token = csrf(page.text);
+    const r = await req('POST', '/cotizar/pieza-3d', {
+      _csrf: token,
+      customer_name: 'Ajax Ok',
+      customer_email: `${marker}_ajaxok@example.invalid`,
+      customer_phone: '9999',
+      description: '',
+      width: '120',
+      height: '40',
+      quantity: '1',
+    }, jar, { accept: 'application/json' });
+    assert.ok([200, 201].includes(r.status), `status=${r.status} body=${r.text.slice(0, 200)}`);
+    const json = JSON.parse(r.text);
+    assert.equal(json.ok, true);
+    assert.ok(json.reference);
+    const [rows] = await pool.query(
+      'SELECT * FROM quote_requests WHERE customer_email = ? ORDER BY id DESC LIMIT 1',
+      [`${marker}_ajaxok@example.invalid`]
+    );
+    assert.equal(rows.length, 1);
+    createdPublicIds.push(rows[0].public_id);
+    const payload = typeof rows[0].payload_json === 'string'
+      ? JSON.parse(rows[0].payload_json)
+      : rows[0].payload_json;
+    assert.equal(payload.description, '');
+    assert.equal(payload.width, 120);
+    assert.equal(payload.height, 40);
+  });
+
+  it('preserves sticky text values after HTML validation failure', async () => {
+    const jar = { cookie: '' };
+    const page = await req('GET', '/cotizar/pieza-3d', null, jar);
+    const token = csrf(page.text);
+    const fail = await req('POST', '/cotizar/pieza-3d', {
+      _csrf: token,
+      customer_name: 'Sticky Name',
+      customer_email: `${marker}_sticky@example.invalid`,
+      customer_phone: '5555',
+      description: 'keep me',
+      height: '33',
+    }, jar);
+    assert.ok([302, 303].includes(fail.status));
+    const again = await req('GET', fail.location || '/cotizar/pieza-3d', null, jar);
+    assert.equal(again.status, 200);
+    assert.ok(again.text.includes('value="Sticky Name"'));
+    assert.ok(again.text.includes('value="5555"'));
+    assert.ok(again.text.includes('keep me'));
+    assert.ok(again.text.includes('value="33"'));
   });
 });
 

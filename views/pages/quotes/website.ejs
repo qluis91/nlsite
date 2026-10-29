@@ -1,4 +1,12 @@
 <%- include('../../components/home-navbar', { navbarOnHome: false }) %>
+<%
+  const fv = typeof formValues !== 'undefined' && formValues ? formValues : {};
+  const val = function (key, fallback) {
+    if (Object.prototype.hasOwnProperty.call(fv, key) && fv[key] != null && fv[key] !== '') return fv[key];
+    return fallback == null ? '' : fallback;
+  };
+  const sel = function (key, option) { return String(val(key)) === String(option) ? 'selected' : ''; };
+%>
 <div class="quote-page">
   <section class="quote-hero">
     <span class="svc-eyebrow" style="color:var(--color-accent,#39ff14)">Cotizar</span>
@@ -11,10 +19,10 @@
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <h2>Tus datos</h2>
       <div class="quote-grid">
-        <label class="quote-field">Nombre *<input name="customer_name" type="text" required maxlength="150" autocomplete="name" value="<%= prefill.name || '' %>"></label>
-        <label class="quote-field">Correo electrónico *<input name="customer_email" type="email" required maxlength="180" autocomplete="email" value="<%= prefill.email || '' %>"></label>
-        <label class="quote-field">Teléfono / WhatsApp *<input name="customer_phone" type="tel" required maxlength="80" autocomplete="tel" value="<%= prefill.phone || '' %>"></label>
-        <label class="quote-field">Empresa / marca<input name="company" type="text" maxlength="200"></label>
+        <label class="quote-field">Nombre *<input name="customer_name" type="text" required maxlength="150" autocomplete="name" value="<%= val('customer_name', prefill.name || '') %>"></label>
+        <label class="quote-field">Correo electrónico *<input name="customer_email" type="email" required maxlength="180" autocomplete="email" value="<%= val('customer_email', prefill.email || '') %>"></label>
+        <label class="quote-field">Teléfono / WhatsApp *<input name="customer_phone" type="tel" required maxlength="80" autocomplete="tel" value="<%= val('customer_phone', prefill.phone || '') %>"></label>
+        <label class="quote-field">Empresa / marca<input name="company" type="text" maxlength="200" value="<%= val('company') %>"></label>
       </div>
 
       <h2 style="margin-top:1.25rem">Proyecto</h2>
@@ -22,35 +30,31 @@
         <label class="quote-field">Tipo de sitio
           <select name="website_type">
             <option value="">Seleccioná una opción</option>
-            <option>Sitio corporativo</option>
-            <option>Landing page</option>
-            <option>Tienda en línea</option>
-            <option>Portafolio</option>
-            <option>Catálogo</option>
-            <option>Rediseño de sitio existente</option>
-            <option>Otro</option>
+            <% ['Sitio corporativo','Landing page','Tienda en línea','Portafolio','Catálogo','Rediseño de sitio existente','Otro'].forEach(function (opt) { %>
+              <option <%= sel('website_type', opt) %>><%= opt %></option>
+            <% }); %>
           </select>
         </label>
-        <label class="quote-field">Cantidad aproximada de páginas<input name="page_count" type="number" min="0" max="500" step="1"></label>
+        <label class="quote-field">Cantidad aproximada de páginas<input name="page_count" type="number" min="0" max="500" step="1" value="<%= val('page_count') %>"></label>
         <label class="quote-field">¿Ya tiene dominio?
-          <select name="has_domain"><option value="unknown">No estoy seguro</option><option value="yes">Sí</option><option value="no">No</option></select>
+          <select name="has_domain"><option value="unknown" <%= sel('has_domain','unknown') || !val('has_domain') ? 'selected' : '' %>>No estoy seguro</option><option value="yes" <%= sel('has_domain','yes') %>>Sí</option><option value="no" <%= sel('has_domain','no') %>>No</option></select>
         </label>
         <label class="quote-field">¿Ya tiene hosting?
-          <select name="has_hosting"><option value="unknown">No estoy seguro</option><option value="yes">Sí</option><option value="no">No</option></select>
+          <select name="has_hosting"><option value="unknown" <%= sel('has_hosting','unknown') || !val('has_hosting') ? 'selected' : '' %>>No estoy seguro</option><option value="yes" <%= sel('has_hosting','yes') %>>Sí</option><option value="no" <%= sel('has_hosting','no') %>>No</option></select>
         </label>
         <label class="quote-field">¿Necesita correos empresariales?
-          <select name="business_email"><option value="unknown">No estoy seguro</option><option value="yes">Sí</option><option value="no">No</option></select>
+          <select name="business_email"><option value="unknown" <%= sel('business_email','unknown') || !val('business_email') ? 'selected' : '' %>>No estoy seguro</option><option value="yes" <%= sel('business_email','yes') %>>Sí</option><option value="no" <%= sel('business_email','no') %>>No</option></select>
         </label>
         <label class="quote-field">¿Necesita tienda en línea?
-          <select name="ecommerce"><option value="unknown">No estoy seguro</option><option value="yes">Sí</option><option value="no">No</option></select>
+          <select name="ecommerce"><option value="unknown" <%= sel('ecommerce','unknown') || !val('ecommerce') ? 'selected' : '' %>>No estoy seguro</option><option value="yes" <%= sel('ecommerce','yes') %>>Sí</option><option value="no" <%= sel('ecommerce','no') %>>No</option></select>
         </label>
         <label class="quote-field">¿Necesita marketing / redes?
-          <select name="marketing"><option value="unknown">No estoy seguro</option><option value="yes">Sí</option><option value="no">No</option></select>
+          <select name="marketing"><option value="unknown" <%= sel('marketing','unknown') || !val('marketing') ? 'selected' : '' %>>No estoy seguro</option><option value="yes" <%= sel('marketing','yes') %>>Sí</option><option value="no" <%= sel('marketing','no') %>>No</option></select>
         </label>
-        <label class="quote-field">Presupuesto aproximado<input name="budget" type="text" maxlength="100"></label>
-        <label class="quote-field">Fecha objetivo<input name="desired_date" type="text" maxlength="80" placeholder="Ej. en 4 semanas"></label>
+        <label class="quote-field">Presupuesto aproximado<input name="budget" type="text" maxlength="100" value="<%= val('budget') %>"></label>
+        <label class="quote-field">Fecha objetivo<input name="desired_date" type="text" maxlength="80" placeholder="Ej. en 4 semanas" value="<%= val('desired_date') %>"></label>
         <label class="quote-field quote-field--block">Descripción del proyecto *
-          <textarea name="description" rows="5" required maxlength="5000" placeholder="Contanos qué necesitás, referencias y cualquier detalle importante."></textarea>
+          <textarea name="description" rows="5" required maxlength="5000" placeholder="Contanos qué necesitás, referencias y cualquier detalle importante."><%= val('description') %></textarea>
         </label>
       </div>
       <button class="quote-submit" type="submit" style="margin-top:1rem">Enviar solicitud</button>

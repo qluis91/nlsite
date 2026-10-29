@@ -5,6 +5,29 @@ const quoteService = require('../services/quoteRequestService');
 const validator = require('../validators/quoteRequestValidator');
 const { buildWhatsAppUrl } = require('../config/publicContact');
 
+const REDIRECT = Object.freeze({
+  website: '/cotizar/sitio-web',
+  '3d': '/cotizar/pieza-3d',
+  other: '/cotizar/otros',
+});
+
+const STICKY_KEYS = Object.freeze({
+  website: [
+    'customer_name', 'customer_email', 'customer_phone', 'company', 'website_type',
+    'page_count', 'has_domain', 'has_hosting', 'business_email', 'ecommerce',
+    'marketing', 'budget', 'desired_date', 'description',
+  ],
+  '3d': [
+    'customer_name', 'customer_email', 'customer_phone', 'description',
+    'width', 'depth', 'height', 'quantity', 'material', 'file_link',
+    'reference_id', 'reference_product',
+  ],
+  other: [
+    'customer_name', 'customer_email', 'customer_phone', 'project_type',
+    'budget', 'desired_date', 'description',
+  ],
+});
+
 function ninja(key, type, text) {
   return { type, title: String(text || ''), id: key };
 }
@@ -13,18 +36,65 @@ function setAlerts(req, alerts) {
   req.session.cms_alerts = alerts;
 }
 
+function wantsJson(req) {
+  const accept = String(req.get('accept') || '');
+  if (accept.includes('application/json')) return true;
+  return req.xhr === true || req.query?.format === 'json';
+}
+
+function pickStickyValues(type, body = {}) {
+  const keys = STICKY_KEYS[type] || [];
+  const out = {};
+  for (const key of keys) {
+    if (body[key] == null) continue;
+    out[key] = String(body[key]).slice(0, 5000);
+  }
+  return out;
+}
+
+function consumeDraft(req, type) {
+  const draft = req.session?.quote_form_draft;
+  if (!draft || draft.type !== type) return { formValues: {}, fieldErrors: [] };
+  delete req.session.quote_form_draft;
+  return {
+    formValues: draft.values && typeof draft.values === 'object' ? draft.values : {},
+    fieldErrors: Array.isArray(draft.fieldErrors) ? draft.fieldErrors : [],
+  };
+}
+
+function storeDraft(req, type, body, fieldErrors = []) {
+  req.session.quote_form_draft = {
+    type,
+    values: pickStickyValues(type, body),
+    fieldErrors,
+  };
+}
+
+function mergePrefill(user, formValues) {
+  return {
+    name: formValues.customer_name || user?.name || '',
+    email: formValues.customer_email || user?.email || '',
+    phone: formValues.customer_phone || user?.phone || '',
+  };
+}
+
 async function renderQuotePage(req, res, next, opts) {
   try {
     const cmsData = await publicNavbar.getNavbarCmsData();
     const pageAlerts = req.session?.cms_alerts || [];
     if (req.session?.cms_alerts) delete req.session.cms_alerts;
 
+    const draft = consumeDraft(req, opts.draftType || null);
+    const formValues = { ...draft.formValues, ...(opts.formValues || {}) };
     const user = req.session?.user || res.locals.user || null;
-    const prefill = {
-      name: user?.name || '',
-      email: user?.email || '',
-      phone: user?.phone || '',
-    };
+    const prefill = mergePrefill(user, formValues);
+
+    const referenceId = formValues.reference_id
+      || opts.referenceId
+      || '';
+    const referenceName = formValues.reference_product
+      || opts.referenceName
+      || '';
 
     return res.render(opts.view, {
       title: opts.title,
@@ -42,10 +112,10 @@ async function renderQuotePage(req, res, next, opts) {
       pageAlerts,
       prefill,
       csrfToken: res.locals.csrfToken || req.csrfToken?.(),
-      fieldErrors: opts.fieldErrors || [],
-      formValues: opts.formValues || {},
-      referenceName: opts.referenceName || '',
-      referenceId: opts.referenceId || '',
+      fieldErrors: opts.fieldErrors || draft.fieldErrors || [],
+      formValues,
+      referenceName,
+      referenceId,
       whatsappUrl: buildWhatsAppUrl('Hola NinjaLabCR, quiero cotizar una pieza 3D.'),
       successReference: opts.successReference || '',
     });
@@ -61,6 +131,7 @@ function showWebsiteQuote(req, res, next) {
     metaTitle: 'Cotizar sitio web | NinjaLabCR',
     metaDescription: 'Solicitá una cotización para tu sitio web, tienda en línea o presencia digital con NinjaLabCR.',
     canonical: '/cotizar/sitio-web',
+    draftType: 'website',
   });
 }
 
@@ -74,6 +145,7 @@ function show3dQuote(req, res, next) {
     metaDescription: 'Cotizá impresión 3D: medidas, material, imágenes de referencia y link de archivo 3D.',
     canonical: '/cotizar/pieza-3d',
     pageModule: '/js/quote-3d.js',
+    draftType: '3d',
     referenceId,
     referenceName,
   });
@@ -86,7 +158,41 @@ function showOtherQuote(req, res, next) {
     metaTitle: 'Solicitar cotización | NinjaLabCR',
     metaDescription: 'Contanos tu proyecto y solicitá una cotización personalizada con NinjaLabCR.',
     canonical: '/cotizar/otros',
+    draftType: 'other',
   });
+}
+
+function respondValidationError(req, res, type, validation) {
+  const payload = {
+    ok: false,
+    error: validation.error || 'Revisá los datos del formulario.',
+    field: validation.field || null,
+  };
+  if (wantsJson(req)) {
+    return res.status(422).json(payload);
+  }
+  storeDraft(req, type, req.body, validation.field ? [validation.field] : []);
+  setAlerts(req, [ninja('qerr', 'error', payload.error)]);
+  let location = REDIRECT[type] || '/cotizar/otros';
+  if (type === '3d') {
+    const ref = String(req.body.reference_id || '').trim();
+    const nombre = String(req.body.reference_product || '').trim();
+    const qs = new URLSearchParams();
+    if (ref) qs.set('ref', ref.slice(0, 80));
+    if (nombre) qs.set('nombre', nombre.slice(0, 200));
+    const q = qs.toString();
+    if (q) location += `?${q}`;
+  }
+  return res.redirect(location);
+}
+
+function respondFileError(req, res, type, message, status = 400) {
+  if (wantsJson(req)) {
+    return res.status(status).json({ ok: false, error: message, field: 'images' });
+  }
+  storeDraft(req, type, req.body, ['images']);
+  setAlerts(req, [ninja('qerr', 'error', message)]);
+  return res.redirect(REDIRECT[type] || '/cotizar/otros');
 }
 
 async function submitQuote(req, res, next, type) {
@@ -97,19 +203,12 @@ async function submitQuote(req, res, next, type) {
       reference_product: req.body.reference_product || req.body.nombre,
     });
     if (!validation.valid) {
-      setAlerts(req, [ninja('qerr', 'error', validation.error)]);
-      const redirectMap = {
-        website: '/cotizar/sitio-web',
-        '3d': '/cotizar/pieza-3d',
-        other: '/cotizar/otros',
-      };
-      return res.redirect(redirectMap[type] || '/cotizar/otros');
+      return respondValidationError(req, res, type, validation);
     }
 
     const files = Array.isArray(req.files) ? req.files : [];
     if (files.length > 5) {
-      setAlerts(req, [ninja('qerr', 'error', 'Máximo 5 imágenes de referencia.')]);
-      return res.redirect(type === '3d' ? '/cotizar/pieza-3d' : '/cotizar/otros');
+      return respondFileError(req, res, type, 'Máximo 5 imágenes de referencia.', 422);
     }
 
     const user = req.session?.user || res.locals.user || null;
@@ -125,20 +224,33 @@ async function submitQuote(req, res, next, type) {
       files,
     });
 
-    setAlerts(req, [ninja('qok', 'success',
-      `Recibimos tu solicitud (${created.reference}). Revisaremos la información y te contactaremos para preparar la propuesta.`
-    )]);
+    const message = `Recibimos tu solicitud (${created.reference}). Revisaremos la información y te contactaremos para preparar la propuesta.`;
+    if (wantsJson(req)) {
+      return res.status(201).json({
+        ok: true,
+        reference: created.reference,
+        message,
+      });
+    }
 
-    const redirectMap = {
-      website: '/cotizar/sitio-web',
-      '3d': '/cotizar/pieza-3d',
-      other: '/cotizar/otros',
-    };
-    return res.redirect(redirectMap[type] || '/cotizar/otros');
+    if (req.session?.quote_form_draft) delete req.session.quote_form_draft;
+    setAlerts(req, [ninja('qok', 'success', message)]);
+    return res.redirect(REDIRECT[type] || '/cotizar/otros');
   } catch (error) {
     if (error.code === 'TOO_MANY_FILES' || error.code === 'BAD_MIME' || error.code === 'BAD_IMAGE') {
-      setAlerts(req, [ninja('qerr', 'error', error.message || 'No se pudo procesar la imagen.')]);
-      return res.redirect(type === '3d' ? '/cotizar/pieza-3d' : '/cotizar/otros');
+      return respondFileError(
+        req,
+        res,
+        type,
+        error.message || 'No se pudo procesar la imagen.',
+        error.code === 'TOO_MANY_FILES' ? 422 : 400
+      );
+    }
+    if (wantsJson(req)) {
+      return res.status(500).json({
+        ok: false,
+        error: 'No se pudo enviar la cotización. Intentá nuevamente.',
+      });
     }
     return next(error);
   }

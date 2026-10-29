@@ -58,12 +58,29 @@ function normalizeYesNoUnknown(value) {
   return 'unknown';
 }
 
-function optionalNumber(value, label, { min = 0, max = 1e7 } = {}) {
+function optionalNumber(value, label, { min = 0, max = 1e7, exclusiveMin = false } = {}) {
   const v = h(value);
   if (!v) return { valid: true, value: null };
   const n = Number(v);
   if (!Number.isFinite(n)) return { valid: false, error: `${label} no es un número válido.` };
-  if (n < min || n > max) return { valid: false, error: `${label} está fuera de rango.` };
+  if (exclusiveMin ? n <= min : n < min) {
+    return { valid: false, error: `${label} debe ser mayor que ${min}.` };
+  }
+  if (n > max) return { valid: false, error: `${label} está fuera de rango.` };
+  return { valid: true, value: n };
+}
+
+function requiredNumber(value, label, { min = 0, max = 1e7, exclusiveMin = true } = {}) {
+  const v = h(value);
+  if (!v) return { valid: false, error: `${label} es obligatorio.`, field: null };
+  const n = Number(v);
+  if (!Number.isFinite(n)) {
+    return { valid: false, error: `${label} no es un número válido.` };
+  }
+  if (exclusiveMin ? n <= min : n < min) {
+    return { valid: false, error: `${label} debe ser mayor que ${min}.` };
+  }
+  if (n > max) return { valid: false, error: `${label} está fuera de rango.` };
   return { valid: true, value: n };
 }
 
@@ -128,28 +145,28 @@ function validateWebsiteQuote(body = {}) {
 
 function validate3dQuote(body = {}) {
   const common = commonCustomer(body);
-  if (!common.valid) return common;
-  const description = bounded(body.description, 'La descripción', 5000, { required: true });
-  if (!description.valid) return description;
-  const width = optionalNumber(body.width, 'El ancho', { min: 0, max: 1e6 });
-  if (!width.valid) return width;
-  const depth = optionalNumber(body.depth, 'La profundidad', { min: 0, max: 1e6 });
-  if (!depth.valid) return depth;
-  const height = optionalNumber(body.height, 'La altura', { min: 0, max: 1e6 });
-  if (!height.valid) return height;
+  if (!common.valid) return { ...common, field: common.field || 'customer_name' };
+  const description = bounded(body.description, 'La descripción', 5000, { required: false });
+  if (!description.valid) return { ...description, field: 'description' };
+  const width = requiredNumber(body.width, 'El ancho', { min: 0, max: 1e6, exclusiveMin: true });
+  if (!width.valid) return { ...width, field: 'width' };
+  const height = requiredNumber(body.height, 'La altura', { min: 0, max: 1e6, exclusiveMin: true });
+  if (!height.valid) return { ...height, field: 'height' };
+  const depth = optionalNumber(body.depth, 'La profundidad', { min: 0, max: 1e6, exclusiveMin: true });
+  if (!depth.valid) return { ...depth, field: 'depth' };
   const quantity = optionalNumber(body.quantity, 'La cantidad', { min: 1, max: 100000 });
-  if (!quantity.valid) return quantity;
+  if (!quantity.valid) return { ...quantity, field: 'quantity' };
   const material = bounded(body.material, 'El material', 40);
-  if (!material.valid) return material;
+  if (!material.valid) return { ...material, field: 'material' };
   if (material.value && !MATERIALS.has(material.value)) {
-    return { valid: false, error: 'Material no válido.' };
+    return { valid: false, error: 'Material no válido.', field: 'material' };
   }
   const fileLink = safeHttpUrl(body.file_link || body.fileLink);
-  if (!fileLink.valid) return fileLink;
+  if (!fileLink.valid) return { ...fileLink, field: 'file_link' };
   const referenceProduct = bounded(body.reference_product || body.referenceProduct || body.nombre, 'La referencia', 200);
-  if (!referenceProduct.valid) return referenceProduct;
+  if (!referenceProduct.valid) return { ...referenceProduct, field: 'reference_product' };
   const referenceId = bounded(body.reference_id || body.referenceId || body.ref, 'El ID de referencia', 80);
-  if (!referenceId.valid) return referenceId;
+  if (!referenceId.valid) return { ...referenceId, field: 'reference_id' };
 
   return {
     valid: true,
@@ -228,4 +245,6 @@ module.exports = {
   validateByType,
   validateStatus,
   safeHttpUrl,
+  requiredNumber,
+  optionalNumber,
 };

@@ -25,6 +25,10 @@
   font-weight: 600;
 }
 
+.quote-form-msg.is-error {
+  color: #ff8f8f;
+}
+
 .quote-hero__facts {
   display: flex;
   flex-wrap: wrap;
