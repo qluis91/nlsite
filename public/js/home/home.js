@@ -147,11 +147,45 @@ function initShowcase() {
 
   if (carouselRoot) {
     try {
-      destroyProjectCarousel = initProjectCarousel(carouselRoot);
+      destroyProjectCarousel = initProjectCarousel(carouselRoot, readCarouselBehaviorOptions(carouselRoot));
     } catch (error) {
       console.warn('[ProjectCarousel] Initialization failed.', error);
     }
   }
+}
+
+function readCarouselBehaviorOptions(root) {
+  const autoplayRaw = String(root.getAttribute('data-carousel-autoplay') || 'true').trim().toLowerCase();
+  const autoplayEnabled = !(autoplayRaw === 'false' || autoplayRaw === '0' || autoplayRaw === 'off');
+
+  let autoplayInterval = Number(root.getAttribute('data-carousel-interval'));
+  if (!Number.isFinite(autoplayInterval) || autoplayInterval < 3000 || autoplayInterval > 15000) {
+    autoplayInterval = 5500;
+  } else {
+    autoplayInterval = Math.round(autoplayInterval);
+  }
+
+  let zoomDuration = Number(root.getAttribute('data-carousel-zoom-duration'));
+  if (!Number.isFinite(zoomDuration) || zoomDuration < 10 || zoomDuration > 60) {
+    zoomDuration = 32;
+  } else {
+    zoomDuration = Math.round(zoomDuration);
+  }
+
+  let zoomIntensity = Number(root.getAttribute('data-carousel-zoom-intensity'));
+  if (!Number.isFinite(zoomIntensity) || zoomIntensity < 0 || zoomIntensity > 12) {
+    zoomIntensity = 7;
+  } else {
+    zoomIntensity = Math.round(zoomIntensity);
+  }
+
+  root.style.setProperty('--carousel-kenburns-duration', `${zoomDuration}s`);
+  root.style.setProperty('--carousel-kenburns-scale', String(1 + zoomIntensity / 100));
+
+  return {
+    autoplayEnabled,
+    autoplayInterval,
+  };
 }
 
 /**

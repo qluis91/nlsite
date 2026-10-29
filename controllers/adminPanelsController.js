@@ -198,6 +198,17 @@ async function savePanel2Draft(req, res) {
     ...(has('carouselNextLabel') ? { carouselNextLabel: req.body.carouselNextLabel?.trim() || null } : {}),
     ...(has('isVisible') ? { isVisible: req.body.isVisible === '1' } : {}),
   };
+
+  // Carousel behavior is global showcase content; only update from the carousel tab
+  // so unchecked autoplay reliably saves false and other tabs do not overwrite it.
+  if (activeTab === 'carousel') {
+    content.carouselAutoplayEnabled = has('carouselAutoplayEnabled')
+      && ['1', 'true', 'on', 'yes'].includes(String(req.body.carouselAutoplayEnabled).trim().toLowerCase());
+    content.carouselIntervalSeconds = req.body.carouselIntervalSeconds;
+    content.carouselZoomDurationSeconds = req.body.carouselZoomDurationSeconds;
+    content.carouselZoomIntensityPercent = req.body.carouselZoomIntensityPercent;
+  }
+
   const style = {
     ...storedStyle,
     ...(has('backgroundColor') ? { backgroundColor: req.body.backgroundColor?.trim() || null } : {}),
@@ -206,7 +217,11 @@ async function savePanel2Draft(req, res) {
     ...(has('backgroundMedia') ? { backgroundMedia: req.body.backgroundMedia?.trim() || null } : {}),
   };
 
-  const contentErrors = validator.validatePanel2Content(content);
+  const contentErrors = validator.validatePanel2Content(content, {
+    validateCarouselBehavior: activeTab === 'carousel',
+    // Behavior-only carousel saves must not be blocked by empty general heading.
+    requireHeading: activeTab !== 'carousel',
+  });
   const styleErrors = validator.validatePanel2Style(style);
 
   if (contentErrors.length || styleErrors.length) {
@@ -214,6 +229,10 @@ async function savePanel2Draft(req, res) {
     req.cmsEditorErrors = [...contentErrors, ...styleErrors];
     req.cmsEditorStatus = 422;
     return showPanel2(req, res, () => {});
+  }
+
+  if (activeTab === 'carousel') {
+    Object.assign(content, validator.resolveCarouselBehavior(content));
   }
 
   try {

@@ -275,6 +275,18 @@ const heroVisible = hasCmsHero ? heroContent.isVisible !== false : true;
   const cmsCarouselItems = _previewCms && _previewCms.carouselItems;
   const hasCmsLogoLoop = cmsLogoItems && cmsLogoItems.length;
   const hasCmsCarousel = cmsCarouselItems && cmsCarouselItems.length;
+  const carouselBehavior = (function () {
+    try {
+      return require('../../validators/cmsPanelsValidator').resolveCarouselBehavior(panel2Content);
+    } catch (_) {
+      return {
+        carouselAutoplayEnabled: true,
+        carouselIntervalSeconds: 5.5,
+        carouselZoomDurationSeconds: 32,
+        carouselZoomIntensityPercent: 7,
+      };
+    }
+  })();
 %>
   <section
     id="proyectos"
@@ -347,6 +359,10 @@ const heroVisible = hasCmsHero ? heroContent.isVisible !== false : true;
         class="project-carousel"
         data-project-carousel
         data-panel2-animate="carousel"
+        data-carousel-autoplay="<%= carouselBehavior.carouselAutoplayEnabled ? 'true' : 'false' %>"
+        data-carousel-interval="<%= Math.round(carouselBehavior.carouselIntervalSeconds * 1000) %>"
+        data-carousel-zoom-duration="<%= carouselBehavior.carouselZoomDurationSeconds %>"
+        data-carousel-zoom-intensity="<%= carouselBehavior.carouselZoomIntensityPercent %>"
         tabindex="0"
         role="region"
         aria-roledescription="carrusel"

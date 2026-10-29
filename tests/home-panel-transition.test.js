@@ -397,7 +397,7 @@ test('project carousel hierarchy favors a clearer active slide over softer previ
     /\.is-preview-rear \.project-carousel__image\s*\{[\s\S]*opacity: 0\.9[\s\S]*brightness\(0\.99\)/,
   );
   assert.match(css, /@keyframes project-carousel-kenburns/);
-  assert.match(css, /animation: project-carousel-kenburns 32s/);
+  assert.match(css, /animation: project-carousel-kenburns var\(--carousel-kenburns-duration, 32s\)/);
   assert.match(css, /@media \(hover: hover\) and \(pointer: fine\)/);
   assert.match(
     css,

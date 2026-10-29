@@ -3,6 +3,8 @@ const carouselInstances = new WeakMap();
 const DEFAULT_OPTIONS = {
   transitionDuration: 760,
   swipeThreshold: 48,
+  autoplayEnabled: true,
+  autoplayInterval: 5500,
 };
 
 export function initProjectCarousel(root, options = {}) {
@@ -190,7 +192,6 @@ export function initProjectCarousel(root, options = {}) {
   }
 
   // ── Autoplay ──────────────────────────────────────────────
-  const AUTOPLAY_INTERVAL = 5500;
   let autoplayTimer = null;
   let autoplayPaused = false;
 
@@ -201,12 +202,19 @@ export function initProjectCarousel(root, options = {}) {
     }
   }
 
+  function resolveAutoplayInterval() {
+    const interval = Number(settings.autoplayInterval);
+    if (!Number.isFinite(interval) || interval < 3000 || interval > 15000) return 5500;
+    return Math.round(interval);
+  }
+
   function startAutoplay() {
     if (destroyed) return;
+    if (settings.autoplayEnabled === false) return;
     if (reducedMotion.matches) return;
     if (autoplayPaused) return;
     stopAutoplay();
-    autoplayTimer = setInterval(() => move('next'), AUTOPLAY_INTERVAL);
+    autoplayTimer = setInterval(() => move('next'), resolveAutoplayInterval());
   }
 
   function pauseAutoplay() {

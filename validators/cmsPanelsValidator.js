@@ -66,20 +66,116 @@ function validateMediaRef(value) {
   return null; // Format validated at usage time
 }
 
+// ── Panel 2 carousel behavior (showcase content_json) ──
+
+const CAROUSEL_BEHAVIOR_DEFAULTS = Object.freeze({
+  carouselAutoplayEnabled: true,
+  carouselIntervalSeconds: 5.5,
+  carouselZoomDurationSeconds: 32,
+  carouselZoomIntensityPercent: 7,
+});
+
+function normalizeCarouselAutoplayEnabled(value, fallback = CAROUSEL_BEHAVIOR_DEFAULTS.carouselAutoplayEnabled) {
+  if (value === undefined || value === null || value === '') return Boolean(fallback);
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'on', 'yes'].includes(normalized)) return true;
+  if (['0', 'false', 'off', 'no'].includes(normalized)) return false;
+  return Boolean(fallback);
+}
+
+function resolveCarouselBehavior(raw = {}) {
+  const intervalRaw = Number(raw.carouselIntervalSeconds);
+  const durationRaw = Number(raw.carouselZoomDurationSeconds);
+  const intensityRaw = Number(raw.carouselZoomIntensityPercent);
+
+  let interval = CAROUSEL_BEHAVIOR_DEFAULTS.carouselIntervalSeconds;
+  if (Number.isFinite(intervalRaw)) {
+    interval = Math.min(15, Math.max(3, Math.round(intervalRaw * 2) / 2));
+  }
+
+  let duration = CAROUSEL_BEHAVIOR_DEFAULTS.carouselZoomDurationSeconds;
+  if (Number.isFinite(durationRaw)) {
+    duration = Math.min(60, Math.max(10, Math.round(durationRaw)));
+  }
+
+  let intensity = CAROUSEL_BEHAVIOR_DEFAULTS.carouselZoomIntensityPercent;
+  if (Number.isFinite(intensityRaw)) {
+    intensity = Math.min(12, Math.max(0, Math.round(intensityRaw)));
+  }
+
+  return {
+    carouselAutoplayEnabled: normalizeCarouselAutoplayEnabled(
+      raw.carouselAutoplayEnabled,
+      CAROUSEL_BEHAVIOR_DEFAULTS.carouselAutoplayEnabled
+    ),
+    carouselIntervalSeconds: interval,
+    carouselZoomDurationSeconds: duration,
+    carouselZoomIntensityPercent: intensity,
+  };
+}
+
+function validateCarouselBehaviorFields(body = {}) {
+  const errors = [];
+
+  if (Object.prototype.hasOwnProperty.call(body, 'carouselAutoplayEnabled')) {
+    const raw = body.carouselAutoplayEnabled;
+    if (typeof raw !== 'boolean') {
+      const asString = String(raw).trim().toLowerCase();
+      if (!['1', '0', 'true', 'false', 'on', 'off', 'yes', 'no', ''].includes(asString) && raw !== 0 && raw !== 1) {
+        errors.push('Reproducción automática no válida.');
+      }
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'carouselIntervalSeconds')) {
+    const value = Number(body.carouselIntervalSeconds);
+    if (!Number.isFinite(value)) errors.push('Tiempo entre proyectos debe ser un número.');
+    else if (value < 3 || value > 15) errors.push('Tiempo entre proyectos debe estar entre 3 y 15 segundos.');
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'carouselZoomDurationSeconds')) {
+    const value = Number(body.carouselZoomDurationSeconds);
+    if (!Number.isFinite(value) || !Number.isInteger(value)) {
+      errors.push('Velocidad del zoom debe ser un entero.');
+    } else if (value < 10 || value > 60) {
+      errors.push('Velocidad del zoom debe estar entre 10 y 60 segundos.');
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'carouselZoomIntensityPercent')) {
+    const value = Number(body.carouselZoomIntensityPercent);
+    if (!Number.isFinite(value) || !Number.isInteger(value)) {
+      errors.push('Intensidad del zoom debe ser un entero.');
+    } else if (value < 0 || value > 12) {
+      errors.push('Intensidad del zoom debe estar entre 0% y 12%.');
+    }
+  }
+
+  return errors;
+}
+
 // ── Panel 2 general ──
 
-function validatePanel2Content(body = {}) {
+function validatePanel2Content(body = {}, options = {}) {
   const errors = [];
   const e = (msg) => msg ? errors.push(msg) : null;
 
   e(boundedText(body.eyebrow, 'Kicker', 120));
-  e(boundedText(body.heading, 'Encabezado', 220, { required: true }));
+  e(boundedText(body.heading, 'Encabezado', 220, {
+    required: options.requireHeading !== false,
+  }));
   e(boundedText(body.supportText, 'Texto de apoyo', 1200));
   e(boundedText(body.carouselLabel, 'Etiqueta del carrusel', 120));
   e(boundedText(body.logoLoopAriaLabel, 'Etiqueta ARIA del LogoLoop', 160));
   e(boundedText(body.carouselControlsAriaLabel, 'Etiqueta ARIA de controles', 160));
   e(boundedText(body.carouselPreviousLabel, 'Etiqueta anterior', 100));
   e(boundedText(body.carouselNextLabel, 'Etiqueta siguiente', 100));
+
+  if (options.validateCarouselBehavior) {
+    validateCarouselBehaviorFields(body).forEach((msg) => errors.push(msg));
+  }
 
   return errors;
 }
@@ -258,6 +354,10 @@ module.exports = {
   validateCarouselItem,
   normalizeCarouselPosition,
   normalizeCarouselFraming,
+  CAROUSEL_BEHAVIOR_DEFAULTS,
+  normalizeCarouselAutoplayEnabled,
+  resolveCarouselBehavior,
+  validateCarouselBehaviorFields,
   validatePanel3Content,
   validatePanel3Style,
   validateFeatureItem,
