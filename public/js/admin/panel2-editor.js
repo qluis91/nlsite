@@ -418,6 +418,7 @@
           preview_media_alt: values.preview_media_alt,
           position_x: values.position_x,
           position_y: values.position_y,
+          zoom_percent: values.zoom_percent,
           theme_key: values.theme_key,
           is_visible: values.is_visible !== '0',
         });

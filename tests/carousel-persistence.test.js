@@ -410,6 +410,15 @@ describe('Carousel editor JS — panel2-editor.js', () => {
   it('resetCarouselForm calls form.reset()', () => {
     assert.ok(js.includes('form.reset()'), 'cancel must reset form');
   });
+
+  it('submitted carousel form recovery preserves framing including zoom', () => {
+    const recoveryIdx = js.indexOf("submittedItem.kind === 'carousel'");
+    assert.ok(recoveryIdx >= 0, 'must recover submitted carousel items');
+    const recoveryBlock = js.substring(recoveryIdx, recoveryIdx + 900);
+    assert.ok(recoveryBlock.includes('position_x: values.position_x'), 'must restore position_x');
+    assert.ok(recoveryBlock.includes('position_y: values.position_y'), 'must restore position_y');
+    assert.ok(recoveryBlock.includes('zoom_percent: values.zoom_percent'), 'must restore zoom_percent');
+  });
 });
 
 describe('Carousel preview — adminPageContentController', () => {
