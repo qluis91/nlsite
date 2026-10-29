@@ -45,7 +45,7 @@
       <tbody>
         <% items.forEach(function (item) { %>
           <tr>
-            <td><%= item.created_at ? new Date(item.created_at).toLocaleString('es-CR') : '' %></td>
+            <td><%= item.createdAtLabel || '' %></td>
             <td>
               <strong><%= item.customer_name %></strong><br>
               <small><%= item.customer_email %></small>

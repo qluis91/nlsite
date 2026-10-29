@@ -2,6 +2,7 @@
 
 const quoteService = require('../services/quoteRequestService');
 const validator = require('../validators/quoteRequestValidator');
+const { formatDateTimeCR } = require('../utils/dateTime');
 
 function ninja(key, type, text) {
   return { type, title: String(text || ''), id: key };
@@ -15,7 +16,11 @@ async function showList(req, res, next) {
   try {
     const type = String(req.query.type || '').trim();
     const status = String(req.query.status || '').trim();
-    const items = await quoteService.listQuoteRequests({ type, status });
+    const rawItems = await quoteService.listQuoteRequests({ type, status });
+    const items = rawItems.map((item) => ({
+      ...item,
+      createdAtLabel: formatDateTimeCR(item.created_at),
+    }));
     const pageAlerts = req.session?.cms_alerts || [];
     if (req.session?.cms_alerts) delete req.session.cms_alerts;
     return res.render('pages/admin/quotes/index', {
@@ -35,11 +40,15 @@ async function showList(req, res, next) {
 
 async function showDetail(req, res, next) {
   try {
-    const item = await quoteService.getQuoteRequestByPublicId(req.params.publicId);
-    if (!item) {
+    const raw = await quoteService.getQuoteRequestByPublicId(req.params.publicId);
+    if (!raw) {
       setAlerts(req, [ninja('nf', 'error', 'Solicitud no encontrada.')]);
       return res.redirect('/admin/cotizaciones');
     }
+    const item = {
+      ...raw,
+      createdAtLabel: formatDateTimeCR(raw.created_at),
+    };
     const pageAlerts = req.session?.cms_alerts || [];
     if (req.session?.cms_alerts) delete req.session.cms_alerts;
     return res.render('pages/admin/quotes/detail', {

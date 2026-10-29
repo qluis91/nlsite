@@ -19,7 +19,7 @@
   <p><strong><%= item.customer_name %></strong></p>
   <p><%= item.customer_email %></p>
   <p><%= item.customer_phone || '—' %></p>
-  <p>Enviado: <%= item.created_at ? new Date(item.created_at).toLocaleString('es-CR') : '' %></p>
+  <p>Enviado: <%= item.createdAtLabel || '' %></p>
   <% if (item.user_id) { %><p>Usuario vinculado: #<%= item.user_id %></p><% } %>
   <% if (item.source_url) { %><p>Origen: <code><%= item.source_url %></code></p><% } %>
 </div>

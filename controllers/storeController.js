@@ -2,7 +2,6 @@ const { DEFAULT_LIMIT, getPublicCatalog, getPublicCatalogAsync, getPublicCategor
 const pool = require('../config/db');
 const { buildWhatsAppUrl } = require('../config/publicContact');
 const { buildProductLd, buildBreadcrumbLd, jsonLdScript, makeAbsolute } = require('../config/jsonLdHelper');
-const publicNavbar = require('../services/publicNavbarService');
 
 const BASE_URL = process.env.APP_URL || 'http://localhost:' + (process.env.PORT || 3000);
 
@@ -126,7 +125,6 @@ async function showStore(req, res) {
 
   // Build store canonical: no duplicate indexing for filtered views (Phase 12D)
   let storeCanonical = catCanonical || makeAbsolute('/tienda', BASE_URL);
-  const cmsData = await publicNavbar.getNavbarCmsData();
 
   res.render('pages/tienda', {
     title: activeCategory ? `${activeCategory.name} | Tienda` : 'Tienda de impresión 3D',
@@ -139,9 +137,6 @@ async function showStore(req, res) {
     pageClass: 'page-store',
     pageStyles: ['/css/store.css'],
     pageModule: '/js/store/store.js',
-    cmsData,
-    currentPath: '/tienda',
-    searchQuery: filters.search || '',
     catalog,
     categories,
     catalogError,
@@ -168,15 +163,12 @@ async function showProduct(req, res, next) {
     ]);
 
     if (!product) {
-      const cmsData = await publicNavbar.getNavbarCmsData();
       return res.status(404).render('pages/tienda-producto', {
         title: 'Producto no encontrado',
         layout: 'layouts/store',
         pageClass: 'page-store',
         pageStyles: ['/css/store.css'],
         pageModule: '/js/store/product-detail.js',
-        cmsData,
-        currentPath: '/tienda',
         product: null,
         categories,
         activeCategory: null,
@@ -218,7 +210,6 @@ async function showProduct(req, res, next) {
       : null;
     delete req.session.addToCartSuccess;
 
-    const cmsData = await publicNavbar.getNavbarCmsData();
     res.render('pages/tienda-producto', {
       title: `${product.title} | Tienda`,
       metaTitle: product.seoTitle || product.title,
@@ -231,8 +222,6 @@ async function showProduct(req, res, next) {
       pageClass: 'page-store',
       pageStyles: ['/css/store.css'],
       pageModule: '/js/store/product-detail.js',
-      cmsData,
-      currentPath: '/tienda',
       product,
       categories,
       activeCategory,

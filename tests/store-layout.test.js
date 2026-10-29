@@ -259,6 +259,8 @@ describe('Store Layout — Server rendering', () => {
     // The store layout does not include hero-header or home-navbar
     assert.doesNotMatch(storeLayout, /hero-header/);
     assert.doesNotMatch(storeLayout, /home-navbar/);
+    assert.doesNotMatch(storeLayout, /public-navbar\.css/);
+    assert.doesNotMatch(storeLayout, /public-navbar\.js/);
   });
 
   test('/tienda uses store layout not main layout', () => {
@@ -269,8 +271,18 @@ describe('Store Layout — Server rendering', () => {
     assert.match(storeLayout, /footer/);
   });
 
+  test('store controller does not load navbar CMS data', () => {
+    assert.doesNotMatch(storeController, /publicNavbarService/);
+    assert.doesNotMatch(storeController, /getNavbarCmsData\s*\(/);
+    assert.doesNotMatch(storeController, /cmsData/);
+  });
+
   test('/tienda page includes store-sidebar partial', () => {
     assert.match(tiendaEjs, /include\('..\/components\/store-sidebar'\)/);
+  });
+
+  test('/tienda page includes store-mobile-drawer', () => {
+    assert.match(tiendaEjs, /store-mobile-drawer|include\('..\/components\/store-mobile-drawer'\)/);
   });
 
   test('/tienda page includes store-card partial', () => {
