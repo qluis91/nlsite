@@ -102,8 +102,9 @@ test('minimal WebGL 2 pipeline has explicit attributes, VAO, EBO, and instancing
 test('sphere, billboard, and camera math follows the independently tested path', () => {
   const source = read('public/js/gallery/infiniteMenuRenderer.mjs');
   assert.match(source, /function createSpherePoints/);
-  assert.match(source, /SPHERE_POINT_COUNT = 42/);
+  assert.match(source, /MAX_ITEMS = 64/);
   assert.match(source, /SPHERE_RADIUS = 4\.2/);
+  assert.match(source, /createSpherePoints\(this\.items\.length\)/);
   assert.match(source, /function resolveSphereLayout/);
   assert.match(source, /function positionSpherePoint/);
   assert.match(source, /spreadX = spreadY \* horizontalRatio/);
@@ -129,16 +130,19 @@ test('arcball, inertia, snapping, and active item use quaternion/sphere math', (
   assert.match(source, /function decayAngularVelocity/);
   assert.match(source, /applyInertia\(elapsedMs\)/);
   assert.match(source, /beginSnap\(\)/);
+  assert.match(source, /beginSnapToPoint/);
+  assert.match(source, /pickBubbleAtScreenPoint/);
   assert.match(source, /quat\.rotationTo/);
   assert.match(source, /quat\.slerp/);
   assert.match(source, /closestFrontPointIndex/);
-  assert.match(source, /pointIndex % this\.items\.length/);
+  assert.doesNotMatch(source, /pointIndex % this\.items\.length/);
+  assert.doesNotMatch(source, /vInstanceId % uItemCount/);
   assert.doesNotMatch(source, /scroll\.current|scroll\.target|translateX/);
 });
 
 test('atlas is bounded, same-origin, thumbnail-only, and uploads on texture unit zero', () => {
   const source = read('public/js/gallery/infiniteMenuRenderer.mjs');
-  assert.match(source, /SAFE_THUMBNAIL/);
+  assert.match(source, /SAFE_LOCAL_THUMBNAIL/);
   assert.match(source, /\/uploads\\\/gallery\\\/thumbnails/);
   assert.match(source, /createAtlasLayout/);
   assert.match(source, /Math\.ceil\(Math\.sqrt\(count\)\)/);

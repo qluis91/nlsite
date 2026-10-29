@@ -432,7 +432,7 @@ test('disc, sphere, translation, billboard, and camera math is finite and indepe
   assert.ok(geometry.indices instanceof Uint16Array);
   assert.ok(geometry.indices.length > 0);
 
-  const points = createSpherePoints();
+  const points = createSpherePoints(42);
   assert.equal(points.length, 42);
   const radii = points.map((point) => Math.hypot(...point));
   radii.forEach((radius) => assert.ok(Math.abs(radius - 4.2) < 1e-5));
@@ -501,7 +501,7 @@ test('disc, sphere, translation, billboard, and camera math is finite and indepe
 });
 
 test('responsive framing keeps horizontally expanded positions inside safe clip margins', () => {
-  const points = rendererModule.createSpherePoints();
+  const points = rendererModule.createSpherePoints(42);
   for (const [width, height] of [[1440, 800], [900, 700], [390, 700]]) {
     const layout = rendererModule.resolveSphereLayout(width, height);
     const camera = rendererModule.createCameraMatrices(width, height, layout);
@@ -567,7 +567,7 @@ test('diagnostic milestones use one disc, translated sphere, billboards, then fi
     );
     await renderer.ready;
     const draw = env.gl.calls.filter((call) => call[0] === 'drawElementsInstanced').at(-1);
-    assert.equal(draw[5], stage === 'disc' ? 1 : 42);
+    assert.equal(draw[5], stage === 'disc' ? 1 : items().length);
     const diagnostic = env.gl.calls
       .filter((call) => call[0] === 'uniform1i' && call[1]?.name === 'uDiagnostic')
       .at(-1);
