@@ -2853,6 +2853,19 @@ body.is-social-embed-open {
   filter: brightness(1.08) contrast(1.03) saturate(0.97);
   transform-origin: 58% 40%;
   animation: project-carousel-kenburns var(--carousel-kenburns-duration, 32s) ease-in-out infinite alternate;
+  animation-play-state: running;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .project-carousel:hover .project-carousel__slide.is-active .project-carousel__image,
+  .project-carousel:not(.is-enhanced):hover .project-carousel__slide:nth-child(2) .project-carousel__image {
+    animation-play-state: paused;
+  }
+}
+
+.project-carousel.is-image-motion-paused .project-carousel__slide.is-active .project-carousel__image,
+.project-carousel.is-image-motion-paused:not(.is-enhanced) .project-carousel__slide:nth-child(2) .project-carousel__image {
+  animation-play-state: paused;
 }
 
 .project-carousel__slide.is-preview-near .project-carousel__image {
@@ -3133,20 +3146,22 @@ body.is-social-embed-open {
   border: 0;
 }
 
-/* Responsive project carousel: text → clean 16:9 image → previews → controls */
+/* Responsive project carousel: fixed zones text → 16:9 image → previews → controls */
 @media (max-width: 960px) {
   .project-carousel {
-    --preview-width: clamp(145px, 22vw, 170px);
-    --preview-height: clamp(100px, 15vw, 120px);
-    --preview-gap: 0.75rem;
-    --carousel-preview-band: calc(var(--preview-height) + 1.1rem);
-    --carousel-controls-band: 4.35rem;
+    --carousel-mobile-content-height: clamp(150px, 24vw, 180px);
+    --carousel-mobile-preview-height: clamp(72px, 12vw, 92px);
+    --carousel-mobile-controls-band: 64px;
+    --preview-width: clamp(115px, 18vw, 145px);
+    --preview-height: var(--carousel-mobile-preview-height);
+    --preview-gap: 0.7rem;
+    --carousel-mobile-preview-band: calc(var(--preview-height) + 0.95rem);
     max-width: none;
     aspect-ratio: auto;
     height: auto;
     overflow: hidden;
     border-radius: 1.1rem;
-    padding-bottom: var(--carousel-controls-band);
+    padding-bottom: var(--carousel-mobile-controls-band);
   }
 
   .project-carousel__slides {
@@ -3154,7 +3169,7 @@ body.is-social-embed-open {
     inset: auto;
     width: 100%;
     height: auto;
-    padding-bottom: var(--carousel-preview-band);
+    padding-bottom: var(--carousel-mobile-preview-band);
   }
 
   .project-carousel__slide,
@@ -3171,7 +3186,7 @@ body.is-social-embed-open {
     visibility: hidden;
     pointer-events: none;
     transform: none;
-    border-radius: 1rem;
+    border-radius: 0.9rem;
   }
 
   .project-carousel__slide.is-underlay {
@@ -3205,7 +3220,7 @@ body.is-social-embed-open {
     flex-direction: column;
     width: 100%;
     height: auto;
-    overflow: visible;
+    overflow: hidden;
     transform: none;
     border-radius: 0;
   }
@@ -3222,18 +3237,22 @@ body.is-social-embed-open {
     box-sizing: border-box;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr);
     grid-template-areas:
       'category category'
       'title title'
       'desc cta';
-    gap: 0.35rem 0.75rem;
+    gap: 0.3rem 0.65rem;
     align-items: end;
+    align-content: start;
     width: 100%;
     max-width: none;
-    height: auto;
-    max-height: none;
+    flex: 0 0 var(--carousel-mobile-content-height);
+    height: var(--carousel-mobile-content-height);
+    min-height: var(--carousel-mobile-content-height);
+    max-height: var(--carousel-mobile-content-height);
     margin: 0;
-    padding: 1rem 1rem 0.9rem;
+    padding: 0.95rem 1rem 0.8rem;
     color: #fff;
     background: #101413;
     border: 0;
@@ -3245,20 +3264,24 @@ body.is-social-embed-open {
     opacity: 1;
     filter: none;
     transform: none;
+    overflow: hidden;
     transition: opacity 360ms ease 120ms, visibility 0s linear 0s;
   }
 
   .project-carousel__category {
     grid-area: category;
     margin: 0;
-    font-size: clamp(0.58rem, 1.8vw, 0.7rem);
+    font-size: clamp(0.56rem, 1.7vw, 0.68rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .project-carousel__title {
     grid-area: title;
     margin: 0;
-    font-size: clamp(1.4rem, 4.2vw, 1.8rem);
-    line-height: 1.08;
+    font-size: clamp(1.35rem, 4.8vw, 1.8rem);
+    line-height: 1.05;
     letter-spacing: -0.03em;
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -3270,7 +3293,7 @@ body.is-social-embed-open {
     grid-area: desc;
     max-width: none;
     margin: 0;
-    font-size: clamp(0.8rem, 2.2vw, 0.9rem);
+    font-size: clamp(0.78rem, 2.2vw, 0.9rem);
     line-height: 1.4;
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -3282,7 +3305,7 @@ body.is-social-embed-open {
     grid-area: cta;
     align-self: end;
     min-height: 34px;
-    padding: 0.4rem 0.75rem;
+    padding: 0.35rem 0.7rem;
     font-size: 0.72rem;
   }
 
@@ -3290,20 +3313,25 @@ body.is-social-embed-open {
   .project-carousel:not(.is-enhanced) .project-carousel__slide:nth-child(2) .project-carousel__image-frame {
     position: relative;
     inset: auto;
+    flex: 0 0 auto;
     width: 100%;
     height: auto;
     aspect-ratio: 16 / 9;
     overflow: hidden;
     background: #0c100f;
+    pointer-events: auto;
   }
 
   .project-carousel__slide.is-active .project-carousel__face > .project-carousel__image,
   .project-carousel:not(.is-enhanced) .project-carousel__slide:nth-child(2) .project-carousel__face > .project-carousel__image {
     position: relative;
     inset: auto;
+    flex: 0 0 auto;
     width: 100%;
     height: auto;
     aspect-ratio: 16 / 9;
+    pointer-events: auto;
+    background: #0c100f;
   }
 
   .project-carousel__slide.is-active .project-carousel__image,
@@ -3320,14 +3348,15 @@ body.is-social-embed-open {
   .project-carousel__slide.is-preview {
     position: absolute;
     top: auto;
-    bottom: 0.45rem;
+    bottom: 0.4rem;
     z-index: 4;
     width: var(--preview-width);
     height: var(--preview-height);
     visibility: visible;
     pointer-events: auto;
-    overflow: visible;
+    overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 0.9rem;
     -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
   }
@@ -3341,17 +3370,31 @@ body.is-social-embed-open {
     position: absolute;
     inset: 0;
     display: block;
-    height: auto;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
     border-radius: inherit;
+    transform: none;
   }
 
   .project-carousel__slide.is-preview .project-carousel__image-frame {
     position: absolute;
     inset: 0;
-    width: auto;
-    height: auto;
+    width: 100%;
+    height: 100%;
     aspect-ratio: auto;
+    transform: none;
+  }
+
+  .project-carousel__slide.is-preview .project-carousel__image {
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .project-carousel__slide.is-preview-near,
+  .project-carousel__slide.is-preview-rear {
+    top: auto;
+    bottom: 0.4rem;
   }
 
   .project-carousel__slide.is-preview-near {
@@ -3367,7 +3410,7 @@ body.is-social-embed-open {
   }
 
   .project-carousel__controls {
-    bottom: 0.7rem;
+    bottom: calc((var(--carousel-mobile-controls-band) - 2.75rem) / 2);
   }
 }
 
@@ -3400,8 +3443,8 @@ body.is-social-embed-open {
   }
 
   .project-carousel {
-    --preview-width: clamp(120px, 32vw, 145px);
-    --preview-height: clamp(84px, 22vw, 105px);
+    --preview-width: clamp(96px, 27vw, 118px);
+    --carousel-mobile-preview-height: clamp(62px, 18vw, 78px);
   }
 }
 
@@ -3420,48 +3463,53 @@ body.is-social-embed-open {
   }
 
   .project-carousel {
-    --preview-width: clamp(110px, 30vw, 130px);
-    --preview-height: clamp(78px, 21vw, 96px);
+    --carousel-mobile-content-height: clamp(140px, 38vw, 165px);
+    --preview-width: clamp(96px, 27vw, 118px);
+    --carousel-mobile-preview-height: clamp(62px, 18vw, 78px);
     --preview-gap: 0.55rem;
-    --carousel-controls-band: 4.1rem;
+    --carousel-mobile-controls-band: 60px;
     border-radius: 1rem;
   }
 
   .project-carousel__slide.is-active .project-carousel__content,
   .project-carousel:not(.is-enhanced) .project-carousel__slide:nth-child(2) .project-carousel__content {
-    padding: 0.85rem 0.85rem 0.75rem;
-    gap: 0.3rem 0.55rem;
+    padding: 0.8rem 0.85rem 0.7rem;
+    gap: 0.25rem 0.5rem;
   }
 
   .project-carousel__category {
-    font-size: 0.58rem;
+    font-size: 0.56rem;
   }
 
   .project-carousel__title {
-    font-size: clamp(1.3rem, 5.5vw, 1.55rem);
+    font-size: clamp(1.28rem, 5.2vw, 1.55rem);
   }
 
   .project-carousel__description {
-    font-size: 0.8rem;
+    font-size: 0.78rem;
   }
 
   .project-carousel__cta {
     min-height: 32px;
-    padding: 0.35rem 0.65rem;
+    padding: 0.3rem 0.6rem;
     font-size: 0.68rem;
   }
 
   .project-carousel__control {
-    width: 2.65rem;
-    height: 2.65rem;
+    width: 2.55rem;
+    height: 2.55rem;
+  }
+
+  .project-carousel__controls {
+    bottom: calc((var(--carousel-mobile-controls-band) - 2.55rem) / 2);
   }
 }
 
 @media (max-width: 360px) {
   .project-carousel {
-    --preview-width: clamp(96px, 28vw, 118px);
-    --preview-height: clamp(70px, 20vw, 88px);
-    --preview-gap: 0.45rem;
+    --preview-width: clamp(88px, 26vw, 108px);
+    --carousel-mobile-preview-height: clamp(58px, 17vw, 72px);
+    --preview-gap: 0.4rem;
   }
 }
 

@@ -27,6 +27,7 @@ export function initProjectCarousel(root, options = {}) {
   let pointerStartX = 0;
   let pointerStartY = 0;
   let destroyed = false;
+  let lastActiveSlide = null;
 
   root.classList.add('is-enhanced');
 
@@ -45,9 +46,24 @@ export function initProjectCarousel(root, options = {}) {
     root.setAttribute('aria-busy', String(disabled));
   }
 
+  function clearImageMotionPause() {
+    root.classList.remove('is-image-motion-paused');
+  }
+
+  function restartActiveKenBurns(activeSlide) {
+    if (reducedMotion.matches || !activeSlide) return;
+    const image = activeSlide.querySelector('.project-carousel__image');
+    if (!image) return;
+    image.style.animation = 'none';
+    // Force a reflow so the next animation assignment restarts from 0%.
+    void image.offsetWidth;
+    image.style.removeProperty('animation');
+  }
+
   function syncState(announce = false) {
     const currentSlides = slides();
     const activeSlide = currentSlides[1] || currentSlides[0];
+    const activeChanged = activeSlide !== lastActiveSlide;
 
     currentSlides.forEach((slide, index) => {
       const isActive = slide === activeSlide;
@@ -86,6 +102,33 @@ export function initProjectCarousel(root, options = {}) {
       const title = activeSlide.dataset.projectTitle || 'Proyecto';
       status.textContent = announce ? `${title}. Proyecto activo.` : title;
     }
+
+    if (activeChanged) {
+      lastActiveSlide = activeSlide;
+      clearImageMotionPause();
+      restartActiveKenBurns(activeSlide);
+    }
+  }
+
+  function isMainImageMotionTarget(target) {
+    if (!(target instanceof Element)) return false;
+    if (target.closest('.project-carousel__controls, .project-carousel__control, .project-carousel__cta, a, button')) {
+      return false;
+    }
+    if (target.closest('.project-carousel__slide.is-preview')) return false;
+    if (target.closest('.project-carousel__content')) return false;
+
+    const activeSlide = root.querySelector('.project-carousel__slide.is-active');
+    if (!activeSlide || !activeSlide.contains(target)) return false;
+
+    if (target.closest('.project-carousel__image-frame')) return true;
+    if (target.closest('.project-carousel__face > .project-carousel__image')) return true;
+    return target.classList.contains('project-carousel__image');
+  }
+
+  function toggleImageMotionPause() {
+    if (reducedMotion.matches) return;
+    root.classList.toggle('is-image-motion-paused');
   }
 
   function finishTransition() {
@@ -183,12 +226,18 @@ export function initProjectCarousel(root, options = {}) {
         const currentSlides = slides();
         const previewIndex = currentSlides.indexOf(slide);
         if (previewIndex >= 2) promotePreview(previewIndex);
+        return;
+      }
+
+      if (isMainImageMotionTarget(event.target)) {
+        toggleImageMotionPause();
       }
     }
   }
 
   function onMotionChange() {
     root.classList.toggle('is-reduced-motion', reducedMotion.matches);
+    if (reducedMotion.matches) clearImageMotionPause();
   }
 
   // ── Autoplay ──────────────────────────────────────────────
@@ -269,8 +318,12 @@ export function initProjectCarousel(root, options = {}) {
       slide.style.removeProperty('--preview-index');
       slide.removeAttribute('aria-hidden');
       slide.removeAttribute('inert');
+      const image = slide.querySelector('.project-carousel__image');
+      if (image) image.style.removeProperty('animation');
     });
-    root.classList.remove('is-enhanced', 'is-transitioning', 'is-reduced-motion');
+    clearImageMotionPause();
+    lastActiveSlide = null;
+    root.classList.remove('is-enhanced', 'is-transitioning', 'is-reduced-motion', 'is-image-motion-paused');
     root.removeAttribute('aria-busy');
     previousButton.disabled = false;
     nextButton.disabled = false;

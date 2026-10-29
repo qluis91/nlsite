@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-29 — Standardize responsive carousel geometry and motion
+
+### Fixed
+- Responsive project carousel uses fixed content/image/preview/control zones across all slides
+- Ken Burns starts automatically on active slide; hover pauses; main-image tap toggles pause; slide change clears pause
+
 ## 2026-10-28 — Rebuild responsive project carousel layout
 
 ### Changed
