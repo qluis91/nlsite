@@ -9,7 +9,7 @@ const revisions = require('./contentRevisionService');
 const usageService = require('./mediaUsageService');
 const { invalidateNamespace } = require('./cmsPublishingService');
 const { withDeadlockRetry } = require('./mysqlRetry');
-const { normalizePosition } = require('../public/js/admin/carousel-image-position');
+const { normalizePosition, normalizeZoom } = require('../public/js/admin/carousel-image-position');
 
 function serialize(value) { return value === null || value === undefined ? null : JSON.stringify(value); }
 
@@ -34,7 +34,7 @@ const PUBLISHED_FIELDS = Object.freeze({
   home_carousel_items: Object.freeze([
     'eyebrow', 'title', 'description', 'button_label', 'button_url', 'button_target',
     'media_public_id', 'media_alt', 'preview_media_public_id', 'preview_media_alt',
-    'position_x', 'position_y', 'theme_key', 'sort_order', 'is_visible',
+    'position_x', 'position_y', 'zoom_percent', 'theme_key', 'sort_order', 'is_visible',
   ]),
   home_feature_items: Object.freeze([
     'title', 'description', 'detail_text', 'button_label', 'icon_type', 'icon_key',
@@ -61,6 +61,7 @@ function publishedSnapshot(table, row) {
   if (table === 'home_carousel_items') {
     snapshot.position_x = normalizePosition(row.position_x);
     snapshot.position_y = normalizePosition(row.position_y);
+    snapshot.zoom_percent = normalizeZoom(row.zoom_percent);
   }
   return snapshot;
 }
@@ -71,6 +72,7 @@ function normalizedDraftData(table, data) {
     ...data,
     position_x: normalizePosition(data.position_x),
     position_y: normalizePosition(data.position_y),
+    zoom_percent: normalizeZoom(data.zoom_percent),
   };
 }
 
@@ -97,6 +99,7 @@ async function listItems(table, sectionId, { includeArchived = false } = {}) {
       ...row,
       position_x: normalizePosition(row.position_x),
       position_y: normalizePosition(row.position_y),
+      zoom_percent: normalizeZoom(row.zoom_percent),
     }));
   }
   return rows;
@@ -118,6 +121,7 @@ async function getPublishedItems(table, sectionId) {
       if (table === 'home_carousel_items') {
         item.position_x = normalizePosition(data.position_x);
         item.position_y = normalizePosition(data.position_y);
+        item.zoom_percent = normalizeZoom(data.zoom_percent);
       }
       return item;
     })

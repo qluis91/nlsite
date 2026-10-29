@@ -78,12 +78,14 @@
         <img alt="" data-carousel-focal-preview draggable="false" hidden>
         <span class="carousel-focal-editor__empty" data-carousel-focal-empty>Selecciona una imagen para previsualizar el encuadre.</span>
       </div>
-      <p id="carousel-focal-help" class="text-muted">Arrastra la imagen para ajustar el encuadre. Los controles de rango permiten un ajuste accesible y preciso.</p>
+      <p id="carousel-focal-help" class="text-muted">Arrastra la imagen o usa Horizontal/Vertical para el punto focal. Zoom (100–200%) amplía la imagen dentro del marco 16:9 para poder reposicionar cuando la fuente ya coincide con la relación de aspecto. Centrar restablece 50% / 50% / 100%.</p>
       <div class="carousel-focal-editor__controls">
         <label class="field-label" for="carousel-position-x">Horizontal: <output for="carousel-position-x" data-carousel-position-x-output>50%</output></label>
         <input class="form-input carousel-focal-editor__range" type="range" id="carousel-position-x" name="position_x" min="0" max="100" step="1" value="50" data-carousel-position-x>
         <label class="field-label" for="carousel-position-y">Vertical: <output for="carousel-position-y" data-carousel-position-y-output>50%</output></label>
         <input class="form-input carousel-focal-editor__range" type="range" id="carousel-position-y" name="position_y" min="0" max="100" step="1" value="50" data-carousel-position-y>
+        <label class="field-label" for="carousel-zoom-percent">Zoom: <output for="carousel-zoom-percent" data-carousel-zoom-output>100%</output></label>
+        <input class="form-input carousel-focal-editor__range" type="range" id="carousel-zoom-percent" name="zoom_percent" min="100" max="200" step="1" value="100" data-carousel-zoom>
         <button type="button" class="btn btn-secondary" data-carousel-position-center>Centrar</button>
       </div>
     </fieldset>

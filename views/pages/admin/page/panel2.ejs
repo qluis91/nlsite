@@ -163,7 +163,7 @@
       <div class="carousel-preview-card__inner">
         <div class="carousel-preview-card__image">
           <% if (item.media_public_id_resolved) { %>
-            <img src="<%= item.media_public_id_resolved.thumbnail_url || item.media_public_id_resolved.url %>" alt="" class="carousel-preview-card__media" style="--carousel-position-x:<%= item.position_x %>%;--carousel-position-y:<%= item.position_y %>%">
+            <img src="<%= item.media_public_id_resolved.thumbnail_url || item.media_public_id_resolved.url %>" alt="" class="carousel-preview-card__media" style="--carousel-position-x:<%= item.position_x %>%;--carousel-position-y:<%= item.position_y %>%;--carousel-zoom:<%= item.zoom_percent %>">
           <% } else { %>
             <div class="empty-state" style="padding:2rem;text-align:center">Sin imagen</div>
           <% } %>
@@ -316,6 +316,7 @@
     preview_media_title: item.preview_media_public_id_resolved ? (item.preview_media_public_id_resolved.title || '') : '',
     position_x: item.position_x,
     position_y: item.position_y,
+    zoom_percent: item.zoom_percent,
     media_alt: item.media_alt || '',
     preview_media_alt: item.preview_media_alt || '',
     theme_key: item.theme_key || 'graphite',

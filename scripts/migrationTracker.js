@@ -127,6 +127,7 @@ const MIGRATION_REGISTRY = [
   { name: 'migrateSeedTikTok', file: './migrate-seed-tiktok', exportName: 'migrateSeedTikTok', passPool: true },
   { name: 'migrateSocialPostsProviderThumbnail', file: './migrate-social-posts-provider-thumbnail', exportName: 'migrateSocialPostsProviderThumbnail', passPool: true },
   { name: 'migrateCarouselImagePosition', file: './migrate-carousel-image-position', exportName: 'migrateCarouselImagePosition', passPool: true },
+  { name: 'migrateCarouselImageZoom', file: './migrate-carousel-image-zoom', exportName: 'migrateCarouselImageZoom', passPool: true },
   { name: 'migrateCostQuote', file: './migrate-cost-quote', exportName: 'migrate' },
   {
     name: 'migrateCostQuoteVarcharId',

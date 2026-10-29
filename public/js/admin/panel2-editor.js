@@ -42,20 +42,25 @@
       var empty = root.querySelector('[data-carousel-focal-empty]');
       var xInput = root.querySelector('[data-carousel-position-x]');
       var yInput = root.querySelector('[data-carousel-position-y]');
+      var zoomInput = root.querySelector('[data-carousel-zoom]');
       var xOutput = root.querySelector('[data-carousel-position-x-output]');
       var yOutput = root.querySelector('[data-carousel-position-y-output]');
+      var zoomOutput = root.querySelector('[data-carousel-zoom-output]');
       var centerButton = root.querySelector('[data-carousel-position-center]');
-      if (!form || !frame || !image || !xInput || !yInput) return;
+      if (!form || !frame || !image || !xInput || !yInput || !zoomInput) return;
 
       function sync() {
-        var position = focalPosition.normalizePositionPair(xInput.value, yInput.value);
-        xInput.value = String(position.x);
-        yInput.value = String(position.y);
-        xInput.setAttribute('aria-valuenow', String(position.x));
-        yInput.setAttribute('aria-valuenow', String(position.y));
-        if (xOutput) xOutput.textContent = position.x + '%';
-        if (yOutput) yOutput.textContent = position.y + '%';
-        focalPosition.applyPreviewPosition(image, position.x, position.y);
+        var framing = focalPosition.normalizeFraming(xInput.value, yInput.value, zoomInput.value);
+        xInput.value = String(framing.x);
+        yInput.value = String(framing.y);
+        zoomInput.value = String(framing.zoom);
+        xInput.setAttribute('aria-valuenow', String(framing.x));
+        yInput.setAttribute('aria-valuenow', String(framing.y));
+        zoomInput.setAttribute('aria-valuenow', String(framing.zoom));
+        if (xOutput) xOutput.textContent = framing.x + '%';
+        if (yOutput) yOutput.textContent = framing.y + '%';
+        if (zoomOutput) zoomOutput.textContent = framing.zoom + '%';
+        focalPosition.applyPreviewFraming(image, framing.x, framing.y, framing.zoom);
       }
 
       function setPreview(url) {
@@ -74,12 +79,16 @@
 
       xInput.addEventListener('input', sync);
       yInput.addEventListener('input', sync);
+      zoomInput.addEventListener('input', sync);
       image.addEventListener('dragstart', function (event) { event.preventDefault(); });
       if (centerButton) {
         centerButton.addEventListener('click', function () {
-          var centered = focalPosition.resetPosition();
+          var centered = focalPosition.resetFraming
+            ? focalPosition.resetFraming()
+            : { x: 50, y: 50, zoom: 100 };
           xInput.value = String(centered.x);
           yInput.value = String(centered.y);
+          zoomInput.value = String(centered.zoom);
           sync();
           centerButton.focus();
         });
@@ -273,6 +282,7 @@
     el('carousel-preview-alt').value = item.preview_media_alt || '';
     el('carousel-position-x').value = focalPosition ? focalPosition.normalizePosition(item.position_x) : 50;
     el('carousel-position-y').value = focalPosition ? focalPosition.normalizePosition(item.position_y) : 50;
+    el('carousel-zoom-percent').value = focalPosition ? focalPosition.normalizeZoom(item.zoom_percent) : 100;
     var selectors = form.querySelectorAll('[data-media-selector]');
     if (selectors.length >= 1) {
       selectors[0].dispatchEvent(new CustomEvent('media-selector:load', {
