@@ -1,6 +1,6 @@
 /**
- * Persistent Meta (Instagram/Facebook) social-feed thumbnail cache.
- * Downloads signed CDN images once, validates with Sharp, stores WebP under UPLOAD_PUBLIC_ROOT.
+ * Persistent social-feed thumbnail cache (Instagram, Facebook, TikTok).
+ * Downloads provider CDN images once, validates with Sharp, stores WebP under UPLOAD_PUBLIC_ROOT.
  */
 'use strict';
 
@@ -19,7 +19,15 @@ const imageProcessing = require('./imageProcessingService');
 const SOCIAL_THUMBNAIL_SOURCE_MAX_BYTES = 10 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
 const DOWNLOAD_TIMEOUT_MS = 10_000;
-const ALLOWED_PROVIDERS = new Set(['instagram', 'facebook']);
+const ALLOWED_PROVIDERS = new Set(['instagram', 'facebook', 'tiktok']);
+
+/** Exact TikTok cover CDN hosts (must stay tight — do not loosen). */
+const ALLOWED_TIKTOK_THUMBNAIL_ORIGINS = Object.freeze([
+  'p16-sign.tiktokcdn-us.com',
+  'p19-sign.tiktokcdn-us.com',
+  'p16-sign-va.tiktokcdn.com',
+  'p16-sign-sg.tiktokcdn.com',
+]);
 
 const THUMBNAIL_PROFILE = Object.freeze({
   maxWidth: 1200,
@@ -51,6 +59,15 @@ function getHttpFetch() {
   return globalThis.fetch.bind(globalThis);
 }
 
+function assertSecureImageUrlBasics(parsed) {
+  if (parsed.protocol !== 'https:') return false;
+  if (parsed.username || parsed.password) return false;
+  const hostname = parsed.hostname.toLowerCase();
+  if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost')) return false;
+  if (net.isIP(hostname)) return false;
+  return true;
+}
+
 /**
  * Accept only HTTPS Meta image CDN hosts (no credentials, no IPs, no lookalikes).
  * @param {unknown} url
@@ -60,11 +77,8 @@ function isValidMetaImageUrl(url) {
   if (!url || typeof url !== 'string') return false;
   try {
     const parsed = new URL(url);
-    if (parsed.protocol !== 'https:') return false;
-    if (parsed.username || parsed.password) return false;
+    if (!assertSecureImageUrlBasics(parsed)) return false;
     const hostname = parsed.hostname.toLowerCase();
-    if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost')) return false;
-    if (net.isIP(hostname)) return false;
     if (!hostname.endsWith('.cdninstagram.com') && !hostname.endsWith('.fbcdn.net')) {
       return false;
     }
@@ -76,6 +90,42 @@ function isValidMetaImageUrl(url) {
   }
 }
 
+/**
+ * Accept only approved TikTok cover CDN hosts.
+ * @param {unknown} url
+ * @returns {boolean}
+ */
+function isValidTikTokImageUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url);
+    if (!assertSecureImageUrlBasics(parsed)) return false;
+    const hostname = parsed.hostname.toLowerCase();
+    return ALLOWED_TIKTOK_THUMBNAIL_ORIGINS.some(
+      (origin) => hostname === origin || hostname.endsWith(`.${origin}`)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Compatibility alias used by tiktokSyncService / existing tests. */
+function isValidTikTokThumbnail(url) {
+  return isValidTikTokImageUrl(url);
+}
+
+/**
+ * @param {string} provider
+ * @param {unknown} url
+ * @returns {boolean}
+ */
+function isValidProviderImageUrl(provider, url) {
+  const value = String(provider || '').toLowerCase();
+  if (value === 'instagram' || value === 'facebook') return isValidMetaImageUrl(url);
+  if (value === 'tiktok') return isValidTikTokImageUrl(url);
+  return false;
+}
+
 function assertProvider(provider) {
   const value = String(provider || '').toLowerCase();
   if (!ALLOWED_PROVIDERS.has(value)) {
@@ -85,14 +135,18 @@ function assertProvider(provider) {
 }
 
 /**
+ * Provider-aware bounded download with manual redirect revalidation.
+ * @param {string} provider
  * @param {string} url
  * @param {{ maxBytes?: number, timeoutMs?: number, maxRedirects?: number }} [options]
  * @returns {Promise<Buffer>}
  */
-async function downloadMetaImageBytes(url, options = {}) {
+async function downloadProviderImageBytes(provider, url, options = {}) {
+  const safeProvider = assertProvider(provider);
+
   if (_downloadImpl) {
-    if (!isValidMetaImageUrl(url)) {
-      throw Object.assign(new Error('Invalid Meta image URL'), { code: 'INVALID_URL' });
+    if (!isValidProviderImageUrl(safeProvider, url)) {
+      throw Object.assign(new Error('Invalid provider image URL'), { code: 'INVALID_URL' });
     }
     const buffer = await _downloadImpl(url);
     if (!Buffer.isBuffer(buffer)) {
@@ -111,8 +165,8 @@ async function downloadMetaImageBytes(url, options = {}) {
 
   let current = url;
   for (let hop = 0; hop <= maxRedirects; hop += 1) {
-    if (!isValidMetaImageUrl(current)) {
-      throw Object.assign(new Error('Invalid Meta image URL'), { code: 'INVALID_URL' });
+    if (!isValidProviderImageUrl(safeProvider, current)) {
+      throw Object.assign(new Error('Invalid provider image URL'), { code: 'INVALID_URL' });
     }
 
     const controller = new AbortController();
@@ -139,7 +193,7 @@ async function downloadMetaImageBytes(url, options = {}) {
         } catch {
           throw Object.assign(new Error('Redirect Location invalid'), { code: 'BAD_REDIRECT' });
         }
-        if (!isValidMetaImageUrl(nextUrl)) {
+        if (!isValidProviderImageUrl(safeProvider, nextUrl)) {
           throw Object.assign(new Error('Redirect target rejected'), { code: 'REDIRECT_REJECTED' });
         }
         current = nextUrl;
@@ -196,6 +250,15 @@ async function downloadMetaImageBytes(url, options = {}) {
   throw Object.assign(new Error('Too many redirects'), { code: 'REDIRECT_LIMIT' });
 }
 
+/**
+ * Compatibility wrapper for existing Meta (IG/FB) tests.
+ * @param {string} url
+ * @param {{ maxBytes?: number, timeoutMs?: number, maxRedirects?: number }} [options]
+ */
+async function downloadMetaImageBytes(url, options = {}) {
+  return downloadProviderImageBytes('instagram', url, options);
+}
+
 function logCacheFailure(provider, err) {
   console.warn(JSON.stringify({
     ts: new Date().toISOString(),
@@ -240,11 +303,11 @@ function resolveLocalThumbnailPublicUrl(storagePath) {
  */
 async function cacheProviderThumbnail({ provider, sourceUrl }) {
   const safeProvider = assertProvider(provider);
-  if (!isValidMetaImageUrl(sourceUrl)) {
-    throw Object.assign(new Error('Invalid Meta image URL'), { code: 'INVALID_URL' });
+  if (!isValidProviderImageUrl(safeProvider, sourceUrl)) {
+    throw Object.assign(new Error('Invalid provider image URL'), { code: 'INVALID_URL' });
   }
 
-  const inputBuffer = await downloadMetaImageBytes(sourceUrl);
+  const inputBuffer = await downloadProviderImageBytes(safeProvider, sourceUrl);
   await imageProcessing.inspectRasterBuffer(inputBuffer);
   const processed = await imageProcessing.processBuffer(inputBuffer, THUMBNAIL_PROFILE);
 
@@ -280,7 +343,7 @@ async function ensureProviderThumbnailCached({ provider, sourceUrl, existingLoca
     };
   }
 
-  if (!isValidMetaImageUrl(sourceUrl)) {
+  if (!isValidProviderImageUrl(provider, sourceUrl)) {
     return {
       localPath: existing,
       createdAbsolute: null,
@@ -329,7 +392,14 @@ module.exports = {
   DOWNLOAD_TIMEOUT_MS,
   THUMBNAIL_PROFILE,
   UPLOAD_PUBLIC_ROOT,
+  ALLOWED_TIKTOK_THUMBNAIL_ORIGINS,
+  /** @deprecated Prefer ALLOWED_TIKTOK_THUMBNAIL_ORIGINS — kept for tiktokSyncService re-export. */
+  ALLOWED_THUMBNAIL_ORIGINS: ALLOWED_TIKTOK_THUMBNAIL_ORIGINS,
   isValidMetaImageUrl,
+  isValidTikTokImageUrl,
+  isValidTikTokThumbnail,
+  isValidProviderImageUrl,
+  downloadProviderImageBytes,
   downloadMetaImageBytes,
   cacheProviderThumbnail,
   ensureProviderThumbnailCached,

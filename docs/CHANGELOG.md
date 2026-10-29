@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-29 — Persist TikTok social thumbnails locally
+
+### Fixed
+- TikTok Social Feed covers use the same persistent local WebP cache as Instagram/Facebook (`social/tiktok/<uuid>.webp`)
+- TikTok sync downloads/covers outside MySQL transactions; backfills existing imported posts on next sync without duplicates
+
+### Changed
+- `socialProviderThumbnailService` is provider-aware (Meta + approved TikTok CDN hosts); `downloadMetaImageBytes` kept as compatibility wrapper
+
 ## 2026-10-29 — Persist social feed Meta thumbnails locally
 
 ### Fixed

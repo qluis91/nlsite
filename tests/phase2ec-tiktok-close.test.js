@@ -66,16 +66,17 @@ test('migration 34 is idempotent', async () => {
   assert.equal(cnt, 1);
 });
 
-test('MIGRATION_REGISTRY has 34 entries', () => {
-  const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 36);
-});
-
-test('migration 27 checksum still preserved', () => {
-  const fs = require('fs');
-  const buf = fs.readFileSync('scripts/migrate-social-integrations.js');
-  const sha = crypto.createHash('sha256').update(buf).digest('hex');
-  assert.equal(sha, '6154521b99fb5a26a8aee31e6bae5ab151f4e5505f655d52244314ca03fb6575');
+test('MIGRATION_REGISTRY includes social thumbnail cache without a TikTok-only migration', () => {
+  const path = require('path');
+  const { MIGRATION_REGISTRY, computeChecksum } = require('../scripts/migrationTracker');
+  assert.equal(MIGRATION_REGISTRY.length, 42);
+  assert.ok(MIGRATION_REGISTRY.some((e) => e.name === 'migrateSocialProviderThumbnailCache'));
+  assert.ok(!MIGRATION_REGISTRY.some((e) => /tiktok.*thumbnail|thumbnail.*tiktok/i.test(e.name)));
+  // Historical migrate-social-integrations content remains frozen (LF-normalized checksum).
+  assert.equal(
+    computeChecksum(path.resolve('scripts/migrate-social-integrations.js')),
+    '6154521b99fb5a26a8aee31e6bae5ab151f4e5505f655d52244314ca03fb6575'
+  );
 });
 
 // ═══════════════════════════════════════

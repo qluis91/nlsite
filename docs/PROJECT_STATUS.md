@@ -3,7 +3,7 @@
 **Last updated:** 2026-10-29
 **Current phase:** Gallery v2 — thumbnails, branding, admin workflow
 **Next:** CSS variable homogenization or feature expansion
-- [x] **Social Feed Meta thumbnail cache**: Instagram/Facebook provider images persisted as WebP under `UPLOAD_PUBLIC_ROOT/social/...`; public feed prefers local cache over expiring CDN URLs.
+- [x] **Social Feed provider thumbnail cache**: Instagram/Facebook/TikTok covers persisted as WebP under `UPLOAD_PUBLIC_ROOT/social/{provider}/...`; public feed prefers local cache over expiring CDN URLs (no extra migration for TikTok).
 - [x] **Gallery v2 branding runtime**: `config/siteBranding.js` normalizes legacy `SITE_NAME` / CMS `global.site_name` placeholders to `NinjaLabCR` on public + admin locals and JSON-LD Organization/WebSite names.
 - [x] **Gallery v2**: NinjaLabCR branding + site_settings migration; styled admin confirm dialog; Infinite Gallery multi-row atlas flip fix; IMAGE thumbnail X/Y/Zoom framing (512² WebP); automatic gallery item sort order.
 - [x] **Cotización 3D port**: Proven `ninjalab3dcr@f8070b6` admin module ported into NLSite (`AdminCostQuote.mount`, catalog/quote MySQL adapters, PDF/CSS, CSRF header support, `migrateCostQuoteVarcharId`).
