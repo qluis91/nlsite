@@ -33,8 +33,12 @@ const STICKY_KEYS = Object.freeze({
   ],
 });
 
-function ninja(key, type, text) {
-  return { type, title: String(text || ''), id: key };
+function ninja(key, type, title, description) {
+  const alert = { type, title: String(title || ''), id: key };
+  if (description != null && String(description).trim()) {
+    alert.description = String(description).trim().slice(0, 4000);
+  }
+  return alert;
 }
 
 function setAlerts(req, alerts) {
@@ -180,7 +184,7 @@ function respondValidationError(req, res, type, validation) {
     return res.status(422).json(payload);
   }
   storeDraft(req, type, req.body, validation.field ? [validation.field] : []);
-  setAlerts(req, [ninja('qerr', 'error', payload.error)]);
+  setAlerts(req, [ninja('qerr', 'warning', 'Revisá la cotización', payload.error)]);
   let location = REDIRECT[type] || '/cotizar/otros';
   if (type === '3d') {
     const ref = String(req.body.reference_id || '').trim();
@@ -199,7 +203,7 @@ function respondFileError(req, res, type, message, status = 400) {
     return res.status(status).json({ ok: false, error: message, field: 'images' });
   }
   storeDraft(req, type, req.body, ['images']);
-  setAlerts(req, [ninja('qerr', 'error', message)]);
+  setAlerts(req, [ninja('qerr', 'warning', 'No pudimos usar esa imagen', message)]);
   return res.redirect(REDIRECT[type] || '/cotizar/otros');
 }
 
@@ -232,17 +236,18 @@ async function submitQuote(req, res, next, type) {
       files,
     });
 
-    const message = `Recibimos tu solicitud (${created.reference}). Revisaremos la información y te contactaremos para preparar la propuesta.`;
+    const description = `Recibimos tu solicitud ${created.reference}. Revisaremos la información y te contactaremos para preparar la propuesta.`;
     if (wantsJson(req)) {
       return res.status(201).json({
         ok: true,
         reference: created.reference,
-        message,
+        title: 'Cotización enviada correctamente',
+        message: description,
       });
     }
 
     if (req.session?.quote_form_draft) delete req.session.quote_form_draft;
-    setAlerts(req, [ninja('qok', 'success', message)]);
+    setAlerts(req, [ninja('qok', 'success', 'Cotización enviada correctamente', description)]);
     return res.redirect(REDIRECT[type] || '/cotizar/otros');
   } catch (error) {
     if (error.code === 'TOO_MANY_FILES' || error.code === 'BAD_MIME' || error.code === 'BAD_IMAGE') {

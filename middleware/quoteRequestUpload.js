@@ -142,7 +142,12 @@ function quoteUploadErrorHandler(err, req, res, next) {
   const type = quoteTypeFromPath(req);
   const redirectBase = type === '3d' ? '/cotizar/pieza-3d' : '/cotizar/otros';
   if (req.session) {
-    req.session.cms_alerts = [{ type: 'error', title: mapped.error, id: 'qupload' }];
+    req.session.cms_alerts = [{
+      type: 'warning',
+      title: 'No pudimos usar esa imagen',
+      description: mapped.error,
+      id: 'qupload',
+    }];
     req.session.quote_form_draft = {
       type,
       values: pickStickyValues(type, req.body || {}),

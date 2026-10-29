@@ -28,6 +28,24 @@ function setSubmitting(busy) {
   submit.textContent = busy ? 'Enviando…' : SUBMIT_LABEL;
 }
 
+function notifySuccess(title, description) {
+  if (window.NinjaAlerts?.success) {
+    window.NinjaAlerts.success(title, description);
+  }
+}
+
+function notifyWarning(title, description) {
+  if (window.NinjaAlerts?.warning) {
+    window.NinjaAlerts.warning(title, description);
+  }
+}
+
+function notifyError(title, description) {
+  if (window.NinjaAlerts?.error) {
+    window.NinjaAlerts.error(title, description);
+  }
+}
+
 function renderPreviews() {
   if (!previews) return;
   previews.innerHTML = '';
@@ -121,9 +139,10 @@ input?.addEventListener('change', () => {
   renderPreviews();
 
   if (warnings.length) {
-    // Deduplicate identical MIME warnings while preserving order.
     const unique = [...new Set(warnings)];
-    showMessage(unique.join(' '), true);
+    const text = unique.join(' ');
+    showMessage(text, true);
+    notifyWarning('No pudimos usar esa imagen', text);
   }
 });
 
@@ -170,6 +189,13 @@ form?.addEventListener('submit', async (event) => {
             : 'Revisá los datos e intentá nuevamente.'));
       showMessage(errorText, true);
       setSubmitting(false);
+      if (payload?.field === 'images' || response.status === 413 || response.status === 415) {
+        notifyWarning('No pudimos usar esa imagen', errorText);
+      } else if (response.status >= 500) {
+        notifyError('No se pudo enviar la cotización', errorText);
+      } else {
+        notifyWarning('Revisá la cotización', errorText);
+      }
       if (payload?.field) {
         const field = form.querySelector(`[name="${payload.field}"]`);
         field?.focus?.();
@@ -177,15 +203,18 @@ form?.addEventListener('submit', async (event) => {
       return;
     }
 
+    const successTitle = payload.title || 'Cotización enviada correctamente';
+    const successDescription = payload.message
+      || `Recibimos tu solicitud ${payload.reference || ''}. Revisaremos la información y te contactaremos para preparar la propuesta.`;
+
     clearFormKeepAuth();
     setSubmitting(false);
-    showMessage(
-      payload.message
-        || `Recibimos tu solicitud (${payload.reference || ''}). Revisaremos la información y te contactaremos para preparar la propuesta.`,
-      false
-    );
+    showMessage('Solicitud enviada correctamente.', false);
+    notifySuccess(successTitle, successDescription);
   } catch {
+    const networkText = 'Revisá tu conexión e intentá nuevamente.';
     showMessage('No se pudo enviar la cotización. Revisá tu conexión e intentá nuevamente.', true);
     setSubmitting(false);
+    notifyError('No se pudo enviar la cotización', networkText);
   }
 });

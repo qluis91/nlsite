@@ -12,6 +12,17 @@ const cssPath = path.join(__dirname, '../public/css/public-navbar.css');
 const css = fs.readFileSync(cssPath, 'utf8');
 
 describe('public-navbar.css', () => {
+  it('resets list markers on .hero-nav-list without a global ul rule', () => {
+    const listIdx = css.indexOf('.hero-nav-list');
+    assert.ok(listIdx >= 0, 'must define .hero-nav-list');
+    const listBlock = css.slice(listIdx, listIdx + 280);
+    assert.match(listBlock, /list-style:\s*none/);
+    assert.match(listBlock, /margin:\s*0/);
+    assert.match(listBlock, /padding:\s*0/);
+    assert.match(css, /\.hero-nav-item\s*\{[^}]*list-style:\s*none/s);
+    assert.doesNotMatch(css, /^\s*ul\s*\{[^}]*list-style:\s*none/m);
+  });
+
   it('contains a real mobile navbar media query with hamburger rules', () => {
     const mediaIdx = css.indexOf('@media (max-width: 1040px)');
     assert.ok(mediaIdx >= 0, 'must include @media (max-width: 1040px)');
@@ -68,5 +79,22 @@ describe('service/quote pages load shared navbar assets', () => {
     const beforeClear = js.slice(submitIdx, clearCallIdx);
     assert.match(beforeClear, /payload\?\.ok/);
     assert.ok(!beforeClear.includes('form.reset()'));
+    assert.ok(!beforeClear.includes('selected = []'));
+  });
+
+  it('quote-3d.js uses NinjaAlerts on success/error with safe fallback', () => {
+    const js = fs.readFileSync(path.join(__dirname, '../public/js/quote-3d.js'), 'utf8');
+    assert.match(js, /NinjaAlerts\?\.success/);
+    assert.match(js, /NinjaAlerts\?\.warning/);
+    assert.match(js, /NinjaAlerts\?\.error/);
+    assert.match(js, /Cotización enviada correctamente/);
+    assert.match(js, /Solicitud enviada correctamente/);
+    assert.match(js, /Revisá la cotización/);
+    assert.match(js, /No pudimos usar esa imagen/);
+    assert.match(js, /No se pudo enviar la cotización/);
+    // Calls are gated so missing NinjaAlerts does not throw
+    assert.match(js, /if\s*\(\s*window\.NinjaAlerts\?\.success\s*\)/);
+    assert.match(js, /if\s*\(\s*window\.NinjaAlerts\?\.warning\s*\)/);
+    assert.match(js, /if\s*\(\s*window\.NinjaAlerts\?\.error\s*\)/);
   });
 });

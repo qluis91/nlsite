@@ -466,6 +466,10 @@ describe('3d quote submission', () => {
     const json = JSON.parse(r.text);
     assert.equal(json.ok, true);
     assert.ok(json.reference);
+    assert.match(String(json.reference), /^Q-[A-Z0-9]+$/i);
+    assert.equal(json.title, 'Cotización enviada correctamente');
+    assert.match(String(json.message), new RegExp(json.reference));
+    assert.match(String(json.message), /preparar la propuesta/i);
     const [rows] = await pool.query(
       'SELECT * FROM quote_requests WHERE customer_email = ? ORDER BY id DESC LIMIT 1',
       [`${marker}_ajaxok@example.invalid`]
@@ -478,6 +482,32 @@ describe('3d quote submission', () => {
     assert.equal(payload.description, '');
     assert.equal(payload.width, 120);
     assert.equal(payload.height, 40);
+  });
+
+  it('HTML website/other success stores polished Ninja alert title + description', async () => {
+    const jar = { cookie: '' };
+    const page = await req('GET', '/cotizar/sitio-web', null, jar);
+    const token = csrf(page.text);
+    const r = await req('POST', '/cotizar/sitio-web', {
+      _csrf: token,
+      customer_name: 'Web Alert',
+      customer_email: `${marker}_webalert@example.invalid`,
+      customer_phone: '7777',
+      project_type: 'Landing',
+      description: 'Necesito cotización web',
+    }, jar);
+    assert.ok([302, 303].includes(r.status), `status=${r.status}`);
+    const again = await req('GET', r.location || '/cotizar/sitio-web', null, jar);
+    assert.equal(again.status, 200);
+    assert.match(again.text, /Cotización enviada correctamente/);
+    assert.match(again.text, /Recibimos tu solicitud Q-/);
+    assert.match(again.text, /preparar la propuesta/);
+    const [rows] = await pool.query(
+      'SELECT public_id FROM quote_requests WHERE customer_email = ? ORDER BY id DESC LIMIT 1',
+      [`${marker}_webalert@example.invalid`]
+    );
+    assert.equal(rows.length, 1);
+    createdPublicIds.push(rows[0].public_id);
   });
 
   it('preserves sticky text values after HTML validation failure', async () => {
@@ -591,6 +621,23 @@ describe('quote upload size errors', () => {
     const errorBranch = js.slice(submitIdx, clearIdx);
     assert.ok(!errorBranch.includes('form.reset()'));
     assert.ok(!errorBranch.includes('selected = []'));
+    assert.ok(!errorBranch.includes('clearFormKeepAuth()'));
+  });
+
+  it('client JS success path shows NinjaAlerts with returned reference and guards missing API', () => {
+    const js = fs.readFileSync(path.join(__dirname, '../public/js/quote-3d.js'), 'utf8');
+    assert.match(js, /notifySuccess\(successTitle,\s*successDescription\)/);
+    assert.match(js, /payload\.reference/);
+    assert.match(js, /NinjaAlerts\?\.success/);
+    assert.match(js, /if\s*\(\s*window\.NinjaAlerts\?\.success\s*\)/);
+    // Success order: clear form then inline msg then alert
+    const submitIdx = js.indexOf("addEventListener('submit'");
+    const clearIdx = js.indexOf('clearFormKeepAuth()', submitIdx);
+    const inlineIdx = js.indexOf('Solicitud enviada correctamente', clearIdx);
+    const alertIdx = js.indexOf('notifySuccess(', clearIdx);
+    assert.ok(clearIdx > submitIdx);
+    assert.ok(inlineIdx > clearIdx);
+    assert.ok(alertIdx > clearIdx);
   });
 });
 
