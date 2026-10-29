@@ -14,14 +14,14 @@ function renderMain(locals = {}) {
 describe('main layout optional-local regression', () => {
   it('renders without site', async () => {
     const html = await renderMain();
-    assert.match(html, /<title>NinjaLab CR<\/title>/);
-    assert.match(html, /<meta name="description" content="NinjaLab CR">/);
+    assert.match(html, /<title>NinjaLabCR<\/title>/);
+    assert.match(html, /<meta name="description" content="NinjaLabCR">/);
   });
 
   it('renders with an empty site object', async () => {
     const html = await renderMain({ site: {} });
     assert.match(html, /--color-primary: #2563eb/);
-    assert.match(html, /NinjaLab CR/);
+    assert.match(html, /NinjaLabCR/);
   });
 
   it('uses metaDescription when provided', async () => {
@@ -47,7 +47,7 @@ describe('main layout optional-local regression', () => {
 
   it('uses the final metadata fallback when site and metaDescription are absent', async () => {
     const html = await renderMain({ hideFooter: true, usesHeroNavbar: true });
-    assert.match(html, /content="NinjaLab CR"/);
+    assert.match(html, /content="NinjaLabCR"/);
   });
 
   it('does not require robots or canonical metadata', async () => {

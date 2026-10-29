@@ -1,7 +1,11 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 const imageProcessing = require('./imageProcessingService');
+const {
+  normalizeFraming,
+} = require('../public/js/admin/carousel-image-position');
 const {
   IMAGE_MIME_TYPES,
   VIDEO_MIME_TYPES,
@@ -14,7 +18,13 @@ const {
   IMAGE_PROFILES,
   MEDIA_TYPES,
 } = require('../config/galleryOptions');
-const { PUBLIC_IMAGE_SOURCE_MAX_MB } = require('../config/imageUploadPolicy');
+const {
+  PUBLIC_IMAGE_SOURCE_MAX_MB,
+  PUBLIC_IMAGE_WEBP_QUALITY,
+  PUBLIC_IMAGE_MAX_PIXELS,
+} = require('../config/imageUploadPolicy');
+
+const FRAMED_THUMB_SIZE = 512;
 
 function actualSize(file) {
   return Number(file?.size || file?.buffer?.length || 0);
@@ -82,7 +92,101 @@ function resolveSafeGalleryPath(relativePath, expectedRoot) {
   return resolved;
 }
 
-async function processImagePair(file, { poster = false } = {}) {
+function resolveFraming(framing = {}) {
+  return normalizeFraming(
+    framing.thumbnailPositionX ?? framing.x,
+    framing.thumbnailPositionY ?? framing.y,
+    framing.thumbnailZoomPercent ?? framing.zoom
+  );
+}
+
+const EXIF_AXIS_SWAP_ORIENTATIONS = Object.freeze([5, 6, 7, 8]);
+
+/**
+ * Resolve visually auto-oriented width/height for crop math.
+ * Prefers Sharp metadata.autoOrient when present; otherwise swaps axes for
+ * EXIF orientations 5–8. Does not transform pixels.
+ */
+function resolveAutoOrientedDimensions(metadata = {}) {
+  const orientation = Number(metadata.orientation) || 1;
+  const autoOrient = metadata.autoOrient && typeof metadata.autoOrient === 'object'
+    ? metadata.autoOrient
+    : null;
+
+  if (autoOrient) {
+    const width = Number(autoOrient.width) || 0;
+    const height = Number(autoOrient.height) || 0;
+    if (width > 0 && height > 0) {
+      return { width, height, orientation };
+    }
+  }
+
+  const physicalWidth = Number(metadata.width) || 0;
+  const physicalHeight = Number(metadata.height) || 0;
+  const swapsAxes = EXIF_AXIS_SWAP_ORIENTATIONS.includes(orientation);
+  return {
+    width: swapsAxes ? physicalHeight : physicalWidth,
+    height: swapsAxes ? physicalWidth : physicalHeight,
+    orientation,
+  };
+}
+
+/**
+ * Build a 512×512 WebP thumbnail using cover scale + authored X/Y/Zoom.
+ * X/Y are focal percentages (0 left/top → 100 right/bottom). Zoom 100–200.
+ * Crop geometry uses AUTO-ORIENTED dimensions so EXIF phone photos match
+ * the browser preview coordinate system.
+ */
+async function writeFramedThumbnailFromBuffer(inputBuffer, framing = {}) {
+  await imageProcessing.inspectRasterBuffer(inputBuffer);
+  const { x, y, zoom } = resolveFraming(framing);
+  const size = FRAMED_THUMB_SIZE;
+
+  const metadata = await sharp(inputBuffer, { limitInputPixels: PUBLIC_IMAGE_MAX_PIXELS }).metadata();
+  const { width, height } = resolveAutoOrientedDimensions(metadata);
+  if (!width || !height) throw new Error('No se pudo leer el tamaño de la imagen.');
+
+  const coverScale = Math.max(size / width, size / height);
+  const scale = coverScale * (zoom / 100);
+  const resizedW = Math.max(size, Math.round(width * scale));
+  const resizedH = Math.max(size, Math.round(height * scale));
+  const maxLeft = Math.max(0, resizedW - size);
+  const maxTop = Math.max(0, resizedH - size);
+  const left = Math.min(maxLeft, Math.max(0, Math.round(maxLeft * (x / 100))));
+  const top = Math.min(maxTop, Math.max(0, Math.round(maxTop * (y / 100))));
+
+  await fs.promises.mkdir(STORAGE_ROOTS.thumbnails, { recursive: true });
+  const fileName = imageProcessing.uniqueFileName('webp');
+  const filePath = path.join(STORAGE_ROOTS.thumbnails, fileName);
+
+  // autoOrient once — matches browser EXIF decoding; do not also .rotate().
+  await sharp(inputBuffer, { limitInputPixels: PUBLIC_IMAGE_MAX_PIXELS })
+    .autoOrient()
+    .resize(resizedW, resizedH, { fit: 'fill' })
+    .extract({ left, top, width: size, height: size })
+    .webp({ quality: PUBLIC_IMAGE_WEBP_QUALITY })
+    .toFile(filePath);
+
+  return {
+    filePath,
+    fileName,
+    thumbnailPath: publicPath('thumbnails', fileName),
+  };
+}
+
+async function processFramedThumbnailFromFile(file, framing = {}) {
+  validateImageUpload(file, MAX_IMAGE_SIZE);
+  if (!file?.buffer) throw new Error('Debe seleccionar una imagen válida.');
+  return writeFramedThumbnailFromBuffer(file.buffer, framing);
+}
+
+async function processFramedThumbnailFromPublicPath(publicMediaPath, framing = {}) {
+  const absolute = resolveSafeGalleryPath(publicMediaPath, 'images');
+  const inputBuffer = await fs.promises.readFile(absolute);
+  return writeFramedThumbnailFromBuffer(inputBuffer, framing);
+}
+
+async function processImagePair(file, { poster = false, framing = null } = {}) {
   validateImageUpload(file, poster ? MAX_POSTER_SIZE : MAX_IMAGE_SIZE);
   const created = [];
   try {
@@ -93,17 +197,31 @@ async function processImagePair(file, { poster = false } = {}) {
       poster ? IMAGE_PROFILES.poster : IMAGE_PROFILES.display
     );
     created.push(display.filePath);
-    const thumbnail = await imageProcessing.processImage(
-      file,
-      STORAGE_ROOTS.thumbnails,
-      IMAGE_PROFILES.thumbnail
-    );
-    created.push(thumbnail.filePath);
+
+    let thumbnail;
+    if (poster || !framing) {
+      thumbnail = await imageProcessing.processImage(
+        file,
+        STORAGE_ROOTS.thumbnails,
+        IMAGE_PROFILES.thumbnail
+      );
+      created.push(thumbnail.filePath);
+      return {
+        mediaPath: publicPath(displayKind, display.fileName),
+        posterPath: poster ? publicPath(displayKind, display.fileName) : null,
+        thumbnailPath: publicPath('thumbnails', thumbnail.fileName),
+        createdPaths: created,
+      };
+    }
+
+    const framed = await processFramedThumbnailFromFile(file, framing);
+    created.push(framed.filePath);
     return {
       mediaPath: publicPath(displayKind, display.fileName),
-      posterPath: poster ? publicPath(displayKind, display.fileName) : null,
-      thumbnailPath: publicPath('thumbnails', thumbnail.fileName),
+      posterPath: null,
+      thumbnailPath: framed.thumbnailPath,
       createdPaths: created,
+      framing: resolveFraming(framing),
     };
   } catch (error) {
     await deleteAbsolutePaths(created);
@@ -186,10 +304,16 @@ module.exports = {
   validateImageUpload,
   validateVideoUpload,
   resolveSafeGalleryPath,
+  resolveFraming,
+  resolveAutoOrientedDimensions,
+  writeFramedThumbnailFromBuffer,
+  processFramedThumbnailFromFile,
+  processFramedThumbnailFromPublicPath,
   processImagePair,
   saveVideo,
   deleteAbsolutePaths,
   deleteGalleryPaths,
   galleryPathExists,
   assertPublishable,
+  FRAMED_THUMB_SIZE,
 };
