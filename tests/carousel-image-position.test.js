@@ -299,23 +299,23 @@ test('public carousel keeps 16:9 desktop frame, cover crop, zoom layer, Ken Burn
   assert.match(css, /\.project-carousel__content\s*\{[\s\S]*?backdrop-filter:\s*blur\(6px\)/);
   assert.match(
     css,
-    /@media\s*\(\s*min-width:\s*1025px\s*\)[\s\S]*?\.project-carousel__content\s*\{[\s\S]*?height:\s*var\(--preview-height\)/
+    /@media\s*\(\s*min-width:\s*961px\s*\)[\s\S]*?\.project-carousel__content\s*\{[\s\S]*?height:\s*var\(--preview-height\)/
   );
   assert.match(
     css,
-    /@media\s*\(\s*min-width:\s*1025px\s*\)[\s\S]*?\.project-carousel__content\s*\{[\s\S]*?max-height:\s*var\(--preview-height\)/
+    /@media\s*\(\s*min-width:\s*961px\s*\)[\s\S]*?\.project-carousel__content\s*\{[\s\S]*?max-height:\s*var\(--preview-height\)/
   );
   assert.match(
     css,
-    /@media\s*\(\s*min-width:\s*1025px\s*\)[\s\S]*?\.project-carousel__title\s*\{[\s\S]*?-webkit-line-clamp:\s*2/
+    /@media\s*\(\s*min-width:\s*961px\s*\)[\s\S]*?\.project-carousel__title\s*\{[\s\S]*?-webkit-line-clamp:\s*2/
   );
   assert.match(
     css,
-    /@media\s*\(\s*min-width:\s*1025px\s*\)[\s\S]*?\.project-carousel__description\s*\{[\s\S]*?-webkit-line-clamp:\s*2/
+    /@media\s*\(\s*min-width:\s*961px\s*\)[\s\S]*?\.project-carousel__description\s*\{[\s\S]*?-webkit-line-clamp:\s*2/
   );
   assert.match(
     css,
-    /@media\s*\(\s*min-width:\s*1025px\s*\)[\s\S]*?\.project-carousel__cta\s*\{[\s\S]*?min-height:\s*31px/
+    /@media\s*\(\s*min-width:\s*961px\s*\)[\s\S]*?\.project-carousel__cta\s*\{[\s\S]*?min-height:\s*31px/
   );
   const ctaRule = css.match(/\.project-carousel__cta\s*\{[\s\S]*?\}/);
   assert.ok(ctaRule, 'carousel CTA rule must exist');
@@ -328,8 +328,83 @@ test('public carousel keeps 16:9 desktop frame, cover crop, zoom layer, Ken Burn
   assert.doesNotMatch(desktopImageRule[0], /object-fit:\s*contain/);
   assert.match(
     css,
-    /@media\s*\(\s*max-width:\s*768px\s*\)[\s\S]*?\.project-carousel__image\s*\{[\s\S]*?object-fit:\s*contain/
+    /@media\s*\(\s*max-width:\s*960px\s*\)[\s\S]*?\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*?object-fit:\s*contain/
   );
+});
+
+test('responsive project carousel uses vertical composition under 960px', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'home.css'), 'utf8');
+  const responsiveStart = css.indexOf('@media (max-width: 960px)');
+  assert.ok(responsiveStart >= 0, '960px carousel breakpoint must exist');
+  const responsiveBlock = css.slice(responsiveStart, css.indexOf('@media (max-width: 768px)', responsiveStart));
+
+  assert.match(responsiveBlock, /\.project-carousel\s*\{[\s\S]*?aspect-ratio:\s*auto/);
+  assert.match(responsiveBlock, /\.project-carousel\s*\{[\s\S]*?height:\s*auto/);
+  assert.doesNotMatch(responsiveBlock, /height:\s*clamp\(480px/);
+  assert.doesNotMatch(responsiveBlock, /height:\s*clamp\(430px/);
+  assert.doesNotMatch(responsiveBlock, /height:\s*clamp\(500px/);
+
+  assert.match(
+    responsiveBlock,
+    /\.project-carousel__slide\.is-active \.project-carousel__content[\s\S]*?position:\s*relative/
+  );
+  assert.match(
+    responsiveBlock,
+    /\.project-carousel__slide\.is-active \.project-carousel__content[\s\S]*?background:\s*#101413/
+  );
+  assert.match(
+    responsiveBlock,
+    /\.project-carousel__slide\.is-active \.project-carousel__content[\s\S]*?backdrop-filter:\s*none/
+  );
+  assert.match(responsiveBlock, /\.project-carousel__title\s*\{[\s\S]*?-webkit-line-clamp:\s*2/);
+  assert.match(responsiveBlock, /\.project-carousel__description\s*\{[\s\S]*?-webkit-line-clamp:\s*2/);
+  assert.match(responsiveBlock, /font-size:\s*clamp\(1\.4rem/);
+  assert.doesNotMatch(responsiveBlock, /font-size:\s*clamp\(2\.15rem/);
+  assert.doesNotMatch(responsiveBlock, /font-size:\s*clamp\(2rem,\s*10vw/);
+
+  assert.match(
+    responsiveBlock,
+    /\.project-carousel__slide\.is-active \.project-carousel__image-frame[\s\S]*?aspect-ratio:\s*16\s*\/\s*9/
+  );
+  assert.match(
+    responsiveBlock,
+    /\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*?object-fit:\s*contain/
+  );
+  assert.match(
+    responsiveBlock,
+    /\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*?object-position:\s*var\(--carousel-position-x/
+  );
+  assert.match(
+    responsiveBlock,
+    /\.project-carousel__slide\.is-active::after[\s\S]*?display:\s*none/
+  );
+
+  assert.match(responsiveBlock, /\.project-carousel__slide\.is-preview\s*\{/);
+  assert.match(responsiveBlock, /\.is-preview-near\s*\{[\s\S]*?opacity:\s*0\.78/);
+  assert.match(responsiveBlock, /\.is-preview-rear\s*\{[\s\S]*?opacity:\s*0\.68/);
+  assert.match(responsiveBlock, /left:\s*calc\(50%\s*-\s*\(var\(--preview-gap\)\s*\/\s*2\)\)/);
+  assert.match(responsiveBlock, /left:\s*calc\(50%\s*\+\s*\(var\(--preview-gap\)\s*\/\s*2\)\)/);
+  assert.doesNotMatch(responsiveBlock, /left:\s*61%/);
+
+  assert.match(responsiveBlock, /\.project-carousel__controls\s*\{[\s\S]*?bottom:\s*0\.7rem/);
+
+  // Ken Burns stays active in ordinary responsive rules; only reduced-motion disables it.
+  const activeImageRule = responsiveBlock.match(
+    /\.project-carousel__slide\.is-active \.project-carousel__image,\s*\n\s*\.project-carousel:not\(\.is-enhanced\)[\s\S]*?\{([\s\S]*?)\}/
+  ) || responsiveBlock.match(
+    /\.project-carousel__slide\.is-active \.project-carousel__image\s*\{([\s\S]*?)\}/
+  );
+  assert.ok(activeImageRule, 'responsive active image rule must exist');
+  assert.doesNotMatch(activeImageRule[1], /animation\s*:\s*none/);
+  assert.doesNotMatch(activeImageRule[1], /transform\s*:\s*none/);
+  assert.match(
+    css,
+    /@media\s*\(\s*prefers-reduced-motion:\s*reduce\s*\)[\s\S]*?\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*?animation:\s*none\s*!important/
+  );
+
+  // Desktop cover frame remains in the base rule.
+  assert.match(css, /\.project-carousel\s*\{[\s\S]*?aspect-ratio:\s*16\s*\/\s*9/);
+  assert.match(css, /\.project-carousel__image\s*\{[\s\S]*?object-fit:\s*cover/);
 });
 
 test('admin preview helper wiring binds zoom with framing sync', () => {

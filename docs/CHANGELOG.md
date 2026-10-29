@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-28 — Rebuild responsive project carousel layout
+
+### Changed
+- Project carousel `≤960px` uses vertical text → 16:9 image → previews → controls composition
+- Desktop `≥961px` carousel layout preserved (cover, glass content, lower-right previews)
+
 ## 2026-10-28 — Enforce upload memory limits while streaming
 
 ### Fixed
