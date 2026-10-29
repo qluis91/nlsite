@@ -46,12 +46,14 @@ describe('Phase 1H — Página Nosotros contracts', () => {
     const app = read('app.js');
     const heroNavbar = read('views/components/home-navbar.ejs');
     const standardNavbar = read('views/components/navbar.ejs');
+    const publicNavbar = read('services/publicNavbarService.js');
     assert.match(app, /app\.use\('\/nosotros', aboutRoutes\)/);
-    for (const navbar of [heroNavbar, standardNavbar]) {
-      assert.match(navbar, /href="\/nosotros"/);
-      assert.match(navbar, /aria-current="page"/);
-    }
-    assert.match(heroNavbar, /navbarCurrentPath\.startsWith\('\/nosotros'\)/);
+    assert.match(standardNavbar, /href="\/nosotros"/);
+    assert.match(standardNavbar, /aria-current="page"/);
+    assert.match(heroNavbar, /aria-current="page"/);
+    assert.match(heroNavbar, /publicNavbarHelpers/);
+    assert.match(publicNavbar, /url: '\/nosotros'/);
+    assert.match(publicNavbar, /path\.startsWith\('\/nosotros'\)/);
   });
 
   test('admin editor exposes all required sections, media, SEO and separate sticky actions', () => {
@@ -107,8 +109,8 @@ describe('Phase 1H — Página Nosotros contracts', () => {
   test('module, migration, history and concurrency reuse Phase 1C infrastructure', () => {
     assert.equal(registry.MODULE_KEYS.ABOUT_PAGE, 'nosotros.about-content');
     assert.equal(registry.getModule(registry.MODULE_KEYS.ABOUT_PAGE).revisionEntityTypes[0], 'page_section');
-    assert.equal(MIGRATION_REGISTRY.length, 36);
-    assert.equal(MIGRATION_REGISTRY[22].name, 'migrateAboutPageCms');
+    assert.equal(MIGRATION_REGISTRY.length, 44);
+    assert.equal(MIGRATION_REGISTRY[23].name, 'migrateAboutPageCms');
     assert.match(read('services/cmsPublishingService.js'), /CMS_VERSION_CONFLICT/);
     assert.match(read('controllers/adminPublishingController.js'), /restorePageSection/);
     assert.match(read('controllers/adminPublishingController.js'), /sc_nosotros/);

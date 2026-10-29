@@ -1,7 +1,9 @@
 <%
+  const navHelpers = typeof publicNavbarHelpers !== 'undefined' && publicNavbarHelpers
+    ? publicNavbarHelpers
+    : null;
   const cms = typeof cmsData !== 'undefined' ? cmsData : null;
   const isHomepageNavbar = typeof navbarOnHome !== 'undefined' && navbarOnHome;
-  const anchorPrefix = isHomepageNavbar ? '' : '/';
   const navbarQuery = typeof searchQuery !== 'undefined' ? searchQuery : '';
   const isStoreSearch = typeof navbarSearchContext !== 'undefined' && navbarSearchContext === 'store';
   const navbarSearchAction = isStoreSearch ? '/tienda' : '/buscar';
@@ -10,10 +12,23 @@
   const navbarSearchPlaceholder = isStoreSearch ? 'Buscar productos...' : 'Buscar en NinjaLab...';
   const navbarCurrentPath = typeof currentPath !== 'undefined' ? String(currentPath || '') : '';
 
-  const hasCmsNav = cms && cms.navItems && cms.navItems.length;
+  const fallbackNav = (navHelpers && navHelpers.FALLBACK_NAV_TREE) ? navHelpers.FALLBACK_NAV_TREE : [];
+  const rawNav = (cms && Array.isArray(cms.navItems) && cms.navItems.length)
+    ? cms.navItems
+    : fallbackNav;
+  const navTree = rawNav.map(function (item) {
+    const state = navHelpers && typeof navHelpers.resolveNavActiveState === 'function'
+      ? navHelpers.resolveNavActiveState(navbarCurrentPath, item)
+      : {
+          parentActive: false,
+          childActiveUrl: '',
+          hasChildren: Array.isArray(item.children) && item.children.length > 0,
+        };
+    return Object.assign({}, item, state);
+  });
+
   const logoPrimary = (cms && cms.logos && cms.logos.primary) ? cms.logos.primary.url : null;
   const logoLight = (cms && cms.logos && cms.logos.light) ? cms.logos.light.url : null;
-  const logoDark = (cms && cms.logos && cms.logos.dark) ? cms.logos.dark.url : null;
 %>
 <header class="hero-header" data-home-navbar data-hero-animate="navbar"
         <%= (cms && cms.settings) ? 'data-cms-navbar="1"' : '' %>
@@ -79,55 +94,53 @@
     </form>
 
     <ul class="hero-nav-list">
-      <% if (hasCmsNav) { %>
-        <% cms.navItems.forEach(function (item) { %>
-          <li class="hero-nav-item">
-            <a href="<%= item.url %>" class="hero-nav-link <%= item.url === '/nosotros' && navbarCurrentPath.startsWith('/nosotros') ? 'active' : '' %>"
-               <% if (item.url === '/nosotros' && navbarCurrentPath.startsWith('/nosotros')) { %>aria-current="page"<% } %>
-               <% if (item.target === '_blank') { %>target="_blank" rel="noopener noreferrer"<% } %>><%= item.label %></a>
-            <% if (item.url === '/tienda') { %>
-              <div class="hero-dropdown-panel"><div class="hero-dropdown-inner">
-                <a href="/tienda" class="hero-dropdown-link"><strong>Explorar productos</strong><span>Conoce el catálogo de NinjaLab.</span></a>
-                <a href="<%= anchorPrefix %>#como-trabajamos" class="hero-dropdown-link"><strong>Productos personalizados</strong><span>Convierte una idea en una pieza única.</span></a>
-              </div></div>
-            <% } else if (item.url.startsWith('#servicios')) { %>
-              <div class="hero-dropdown-panel"><div class="hero-dropdown-inner">
-                <a href="<%= anchorPrefix %>#como-trabajamos" class="hero-dropdown-link"><strong>Impresión 3D</strong><span>Producción precisa para prototipos y proyectos.</span></a>
-                <a href="/galeria" class="hero-dropdown-link"><strong>Diseño y acabados</strong><span>Explora proyectos, pintura y modelado.</span></a>
-              </div></div>
-            <% } else if (item.url === '/galeria') { %>
-            <% } else if (item.url.startsWith('#nosotros')) { %>
-              <div class="hero-dropdown-panel"><div class="hero-dropdown-inner">
-                <a href="<%= anchorPrefix %>#nosotros" class="hero-dropdown-link"><strong>Sobre NinjaLab</strong><span>Conoce nuestro enfoque y experiencia.</span></a>
-                <a href="<%= anchorPrefix %>#inicio" class="hero-dropdown-link"><strong>Volver al inicio</strong><span>Regresa a la presentación principal.</span></a>
-              </div></div>
-            <% } %>
+      <% navTree.forEach(function (item, idx) {
+        const panelId = 'nav-panel-' + (item.publicId || idx);
+        const hasChildren = item.hasChildren;
+        const parentActive = item.parentActive;
+        const alignEnd = item.label === 'Cotizar' || item.label === 'Nosotros';
+      %>
+        <% if (hasChildren) { %>
+          <li class="hero-nav-item hero-nav-item--dropdown<%= parentActive ? ' is-active-parent' : '' %>" data-nav-dropdown<%= alignEnd ? ' data-dropdown-align="end"' : '' %>>
+            <button
+              class="hero-nav-link hero-nav-trigger<%= parentActive ? ' active' : '' %>"
+              type="button"
+              aria-expanded="false"
+              aria-controls="<%= panelId %>"
+              <% if (parentActive) { %>aria-current="true"<% } %>
+            >
+              <%= item.label %>
+              <svg class="hero-nav-chevron" viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"/></svg>
+            </button>
+            <div id="<%= panelId %>" class="hero-dropdown-panel" aria-label="Opciones de <%= item.label %>">
+              <div class="hero-dropdown-inner">
+                <% item.children.forEach(function (child) {
+                  const childActive = item.childActiveUrl === child.url;
+                %>
+                  <a
+                    href="<%= child.url %>"
+                    class="hero-dropdown-link<%= childActive ? ' active' : '' %>"
+                    <% if (childActive) { %>aria-current="page"<% } %>
+                    <% if (child.target === '_blank') { %>target="_blank" rel="noopener noreferrer"<% } %>
+                  >
+                    <strong><%= child.label %></strong>
+                    <% if (child.description) { %><span><%= child.description %></span><% } %>
+                  </a>
+                <% }); %>
+              </div>
+            </div>
           </li>
-        <% }); %>
-      <% } else { %>
-      <li class="hero-nav-item hero-nav-item--dropdown" data-nav-dropdown>
-        <a href="/tienda" class="hero-nav-link">Tienda <svg class="hero-nav-chevron" viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"/></svg></a>
-        <div id="nav-shop" class="hero-dropdown-panel" aria-label="Opciones de Tienda"><div class="hero-dropdown-inner">
-          <a href="/tienda" class="hero-dropdown-link"><strong>Explorar productos</strong><span>Conoce el catálogo de NinjaLab.</span></a>
-          <a href="<%= anchorPrefix %>#como-trabajamos" class="hero-dropdown-link"><strong>Productos personalizados</strong><span>Convierte una idea en una pieza única.</span></a>
-        </div></div>
-      </li>
-      <li class="hero-nav-item hero-nav-item--dropdown" data-nav-dropdown>
-        <button class="hero-nav-link hero-nav-trigger" type="button" aria-expanded="false" aria-controls="nav-services">Servicios <svg class="hero-nav-chevron" viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"/></svg></button>
-        <div id="nav-services" class="hero-dropdown-panel" aria-label="Opciones de Servicios"><div class="hero-dropdown-inner">
-          <a href="<%= anchorPrefix %>#como-trabajamos" class="hero-dropdown-link"><strong>Impresión 3D</strong><span>Producción precisa para prototipos y proyectos.</span></a>
-          <a href="/galeria" class="hero-dropdown-link"><strong>Diseño y acabados</strong><span>Explora proyectos, pintura y modelado.</span></a>
-        </div></div>
-      </li>
-      <li class="hero-nav-item"><a href="/galeria" class="hero-nav-link">Galería</a></li>
-      <li class="hero-nav-item hero-nav-item--dropdown" data-nav-dropdown data-dropdown-align="end">
-        <a href="/nosotros" class="hero-nav-link <%= navbarCurrentPath.startsWith('/nosotros') ? 'active' : '' %>" <%= navbarCurrentPath.startsWith('/nosotros') ? 'aria-current="page"' : '' %>>Nosotros <svg class="hero-nav-chevron" viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"/></svg></a>
-        <div id="nav-about" class="hero-dropdown-panel" aria-label="Opciones de Nosotros"><div class="hero-dropdown-inner">
-          <a href="<%= anchorPrefix %>#nosotros" class="hero-dropdown-link"><strong>Sobre NinjaLab</strong><span>Conoce nuestro enfoque y experiencia.</span></a>
-          <a href="<%= anchorPrefix %>#inicio" class="hero-dropdown-link"><strong>Volver al inicio</strong><span>Regresa a la presentación principal.</span></a>
-        </div></div>
-      </li>
-      <% } %>
+        <% } else { %>
+          <li class="hero-nav-item">
+            <a
+              href="<%= item.url %>"
+              class="hero-nav-link<%= parentActive ? ' active' : '' %>"
+              <% if (parentActive) { %>aria-current="page"<% } %>
+              <% if (item.target === '_blank') { %>target="_blank" rel="noopener noreferrer"<% } %>
+            ><%= item.label %></a>
+          </li>
+        <% } %>
+      <% }); %>
     </ul>
 
     <div class="hero-nav-account">

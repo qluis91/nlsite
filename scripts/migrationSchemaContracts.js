@@ -347,6 +347,47 @@ const CONTRACTS = {
       social_posts: ['provider_thumbnail_local_path'],
     },
   },
+  migratePublicNavigationV2: {
+    tables: ['navigation_items'],
+    columns: {
+      navigation_items: ['id', 'public_id', 'parent_id', 'label', 'url', 'location', 'sort_order', 'is_visible', 'status'],
+    },
+    seedRows: [
+      { table: 'navigation_items', where: { label: 'Tienda', url: '/tienda', location: 'home' } },
+      { table: 'navigation_items', where: { label: 'Servicios', location: 'home' } },
+      { table: 'navigation_items', where: { label: 'Cotizar', location: 'home' } },
+      { table: 'navigation_items', where: { label: 'Galería', url: '/galeria', location: 'home' } },
+      { table: 'navigation_items', where: { label: 'Nosotros', url: '/nosotros', location: 'home' } },
+    ],
+  },
+  migrateQuoteRequests: {
+    tables: ['quote_requests', 'quote_request_files'],
+    columns: {
+      quote_requests: [
+        'id', 'public_id', 'request_type', 'status', 'user_id',
+        'customer_name', 'customer_email', 'customer_phone',
+        'subject', 'payload_json', 'source_url', 'created_at', 'updated_at',
+      ],
+      quote_request_files: [
+        'id', 'quote_request_id', 'storage_path', 'original_filename',
+        'mime_type', 'file_size', 'sort_order', 'created_at',
+      ],
+    },
+    indexes: {
+      quote_requests: [
+        'uq_quote_requests_public_id',
+        'idx_quote_requests_type',
+        'idx_quote_requests_status',
+        'idx_quote_requests_created',
+        'idx_quote_requests_user',
+      ],
+      quote_request_files: ['idx_quote_request_files_request'],
+    },
+    foreignKeys: [
+      { table: 'quote_requests', column: 'user_id', refTable: 'users', refColumn: 'id', name: 'fk_quote_requests_user' },
+      { table: 'quote_request_files', column: 'quote_request_id', refTable: 'quote_requests', refColumn: 'id', name: 'fk_quote_request_files_request' },
+    ],
+  },
 };
 
 /** Encoding-drift checksum pairs for remaining historical migrations. */

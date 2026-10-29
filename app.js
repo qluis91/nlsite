@@ -82,6 +82,9 @@ const searchRoutes = require('./routes/searchRoutes');
 const storeRoutes = require('./routes/storeRoutes');
 const galleryRoutes = require('./routes/galleryRoutes');
 const aboutRoutes = require('./routes/aboutRoutes');
+const servicesRoutes = require('./routes/servicesRoutes');
+const quoteRequestRoutes = require('./routes/quoteRequestRoutes');
+const adminQuoteRequestRoutes = require('./routes/adminQuoteRequestRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const checkoutRoutes = require('./routes/checkoutRoutes');
 const { router: tilopayRoutes, guestRouter: tilopayGuestRoutes } = require('./routes/tilopayRoutes');
@@ -287,6 +290,7 @@ app.use((req, res, next) => {
   res.locals.safeJsonScript = require('./config/jsonLdHelper').safeJsonScript;
   // EJS templates cannot use Node require(); expose carousel behavior helper for home + admin.
   res.locals.resolveCarouselBehavior = require('./validators/cmsPanelsValidator').resolveCarouselBehavior;
+  res.locals.publicNavbarHelpers = require('./services/publicNavbarService');
   next();
 });
 
@@ -503,6 +507,9 @@ app.use('/admin', isAuthenticated, isAdmin, adminPanelsRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminPublishingRoutes);
 app.use('/admin', isAuthenticated, isAdmin, adminCostQuoteRoutes.pageRouter);
 app.use('/api/admin', adminCostQuoteRoutes.apiRouter);
+// Quote inbox + public multipart quote POSTs: multer-then-CSRF (before global CSRF)
+app.use('/admin', isAuthenticated, isAdmin, adminQuoteRequestRoutes);
+app.use(quoteRequestRoutes);
 
 // Public Cotización 3D routes (no auth required for client confirmation page)
 const { publicQuote, publicConfirm } = require('./controllers/adminCostQuoteController');
@@ -528,6 +535,7 @@ app.use('/buscar', searchRoutes);
 app.use('/tienda', storeRoutes);
 app.use('/galeria', galleryRoutes);
 app.use('/nosotros', aboutRoutes);
+app.use(servicesRoutes);
 app.use('/carrito', cartRoutes);
 app.use('/checkout', checkoutRoutes);
 app.use('/consultar-pedido', guestLookupLimiter, guestOrderRoutes);
@@ -563,6 +571,11 @@ app.get('/sitemap.xml', async (_req, res) => {
       { loc: '/tienda', priority: '0.9' },
       { loc: '/galeria', priority: '0.8' },
       { loc: '/nosotros', priority: '0.8' },
+      { loc: '/soluciones-digitales', priority: '0.85' },
+      { loc: '/fabricacion-3d', priority: '0.85' },
+      { loc: '/cotizar/sitio-web', priority: '0.7' },
+      { loc: '/cotizar/pieza-3d', priority: '0.7' },
+      { loc: '/cotizar/otros', priority: '0.65' },
     ];
 
     // Published products
@@ -613,7 +626,8 @@ app.get('/', async (req, res) => {
     const cms = require('./services/cmsPublishingService');
     const cmsContent = require('./services/cmsContentService');
 
-    const [navItems, heroContent, showcaseContent, servicesContent, socialFeedContent, testimonialsContent, settings] = await Promise.all([
+    const publicNavbar = require('./services/publicNavbarService');
+    const [navFlat, heroContent, showcaseContent, servicesContent, socialFeedContent, testimonialsContent, settings] = await Promise.all([
       cms.getPublishedNavItems('home'),
       cmsContent.getPublishedSectionContent('home', 'hero', null),
       cmsContent.getPublishedSectionContent('home', 'showcase', null),
@@ -626,6 +640,7 @@ app.get('/', async (req, res) => {
         'navbar.accent_color', 'navbar.border_color', 'navbar.opacity', 'navbar.logo_width',
       ]),
     ]);
+    const navItems = publicNavbar.buildNavTree(navFlat);
 
     // Published hero style
     let heroStyle = null;

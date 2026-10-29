@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const homeCss = fs.readFileSync(path.resolve(__dirname, '../public/css/home.css'), 'utf8');
-const navbarJs = fs.readFileSync(path.resolve(__dirname, '../public/js/home/navbar.js'), 'utf8');
+const navbarJs = fs.readFileSync(path.resolve(__dirname, '../public/js/public-navbar.js'), 'utf8');
 
 describe('Navbar compact-state fixed-height correction', () => {
   // ── Measurement code removed ──

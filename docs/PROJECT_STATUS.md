@@ -1,8 +1,11 @@
 # nlSite — Project Status
 
 **Last updated:** 2026-10-29
-**Current phase:** Gallery v2 — thumbnails, branding, admin workflow
-**Next:** CSS variable homogenization or feature expansion
+**Current phase:** Public services + quote requests + unified navbar
+**Next:** Optional quote↔cost_quotes integration; CMS-editable service pages; CSS variable homogenization
+- [x] **Public dual business areas**: `/soluciones-digitales` + `/fabricacion-3d` with shared styling; quote forms website/3D/other; admin inbox `/admin/cotizaciones` on `quote_requests` (not `cost_quotes`).
+- [x] **Unified public navbar**: `home-navbar.ejs` + `parent_id` tree via `publicNavbarService`; Services/Cotizar dropdowns; forward `migratePublicNavigationV2`.
+- [x] **Legacy 3D quote port**: Reference UX from ninjalab3dcr adapted to NLSite CSRF, Sharp WebP uploads, MySQL.
 - [x] **Legacy social thumbnail backfill**: After normal IG/FB sync, repair imported posts missing local WebP (cap 100, Home-first order); not limited by `maxPosts`.
 - [x] **Social thumbnail backfill observability**: Meta CDN allowlist includes `fbsbx.com`; signed-URL 403/404/410 refresh-once; sync returns `thumbnailStats` and admin warns when miniatures fail (no silent success).
 - [x] **Meta operational connection test**: Facebook validates Page token via `/{pageId}/posts`; Instagram validates `/{igUserId}/media`; sync disconnects on Page/media code 190.

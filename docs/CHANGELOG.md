@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10-29 — Public services, quote requests & navbar unification
+
+### Added
+- Canonical public navbar (`home-navbar.ejs`) with CMS `parent_id` tree: Tienda, Servicios▾, Galería, Cotizar▾, Nosotros
+- Service pages `/soluciones-digitales` and `/fabricacion-3d`
+- Public quote flows `/cotizar/sitio-web`, `/cotizar/pieza-3d` (legacy 3D UX port), `/cotizar/otros`
+- Tables `quote_requests` + `quote_request_files` (separate from admin `cost_quotes`)
+- Admin inbox `/admin/cotizaciones` with type/status filters and status updates
+- Forward migrations `migratePublicNavigationV2`, `migrateQuoteRequests`
+- Shared `publicNavbarService`, `public-navbar.css` / `public-navbar.js`
+
+### Changed
+- Home/Gallery/About/Store/Search use the same nav tree builder and fallback structure
+- CMS navbar admin can set `parent_id` (one nesting level)
+- Sitemap includes the new service pages
+
+### Notes
+- Internal `/admin/cotizacion-3d` / `cost_quotes` unchanged
+- Historical migrations untouched; `NinjaLabV2` checkpoint not modified
+
 ## 2026-10-29 — Legacy social thumbnail backfill
 
 ### Fixed

@@ -89,7 +89,7 @@ describe('Mobile hero layout', () => {
   });
 
   test('mobile is-menu-open is independent of scrolled/compact state', async () => {
-    const js = await fetchText('/js/home/navbar.js');
+    const js = await fetchText('/js/public-navbar.js');
     assert.ok(js.includes('is-menu-open'), 'is-menu-open must be handled in JS');
     assert.ok(js.includes('is-scrolled'), 'is-scrolled must be handled in JS');
   });

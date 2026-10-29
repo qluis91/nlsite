@@ -1,0 +1,86 @@
+<%- include('../../components/home-navbar', { navbarOnHome: false }) %>
+<div class="quote-page" data-quote-3d>
+  <section class="quote-hero">
+    <span class="svc-eyebrow" style="color:var(--color-accent,#39ff14)">Cotización a tu medida</span>
+    <h1>Cotización personalizada 3D</h1>
+    <p>Contanos qué querés imprimir: subí hasta 5 imágenes de referencia, agregá las medidas y, si tenés un archivo 3D, pegá el link. Nuestro equipo revisa tu proyecto para preparar una cotización personalizada.</p>
+    <div class="quote-hero__facts">
+      <span>Respuesta personalizada</span>
+      <span>Hasta 5 imágenes</span>
+      <span>Soporta link de archivo 3D</span>
+    </div>
+  </section>
+
+  <div class="quote-layout">
+    <form id="cotizacion-form" class="quote-form" method="POST" action="/cotizar/pieza-3d" enctype="multipart/form-data" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="reference_id" value="<%= referenceId || '' %>">
+      <input type="hidden" name="reference_product" value="<%= referenceName || '' %>">
+
+      <div class="quote-form__header">
+        <h2>Tus datos</h2>
+      </div>
+      <div class="quote-grid">
+        <label class="quote-field">Nombre completo *<input id="cot-name" name="customer_name" type="text" autocomplete="name" required maxlength="150" value="<%= prefill.name || '' %>"></label>
+        <label class="quote-field">Correo electrónico *<input id="cot-email" name="customer_email" type="email" autocomplete="email" required maxlength="180" value="<%= prefill.email || '' %>"></label>
+        <label class="quote-field">Teléfono / WhatsApp *<input id="cot-phone" name="customer_phone" type="tel" autocomplete="tel" required maxlength="80" value="<%= prefill.phone || '' %>"></label>
+      </div>
+
+      <div class="quote-form__header" style="margin-top:1.25rem">
+        <h2>Datos de la pieza</h2>
+        <p>Las medidas son opcionales y se ingresan en milímetros: X ancho, Y profundidad, Z altura.</p>
+      </div>
+
+      <label class="quote-field quote-field--block">Describí tu proyecto *
+        <textarea id="cot-description" name="description" rows="4" required maxlength="5000" placeholder="Contanos qué necesitás imprimir, cantidad, color, acabado, fecha estimada, etc."></textarea>
+      </label>
+
+      <div class="quote-grid">
+        <label class="quote-field">Ancho X (mm)<input id="cot-width" name="width" type="number" min="0" step="0.1" placeholder="Opcional"></label>
+        <label class="quote-field">Profundidad Y (mm)<input id="cot-depth" name="depth" type="number" min="0" step="0.1" placeholder="Opcional"></label>
+        <label class="quote-field">Altura Z (mm)<input id="cot-height" name="height" type="number" min="0" step="0.1" placeholder="Opcional"></label>
+        <label class="quote-field">Cantidad<input id="cot-quantity" name="quantity" type="number" min="1" step="1" value="1"></label>
+        <label class="quote-field">Material preferido
+          <select id="cot-material" name="material">
+            <option value="">Sin preferencia</option>
+            <option value="PLA">PLA</option>
+            <option value="PETG">PETG</option>
+            <option value="ABS">ABS</option>
+            <option value="TPU">TPU</option>
+            <option value="Resina">Resina</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="quote-upload" for="cot-images">
+        <input id="cot-images" name="images" type="file" accept="image/*" multiple>
+        <span>Subir imágenes de referencia (hasta 5)</span>
+        <small>PNG, JPG o WEBP. Se optimizan automáticamente a WebP. Máximo 5 imágenes.</small>
+      </label>
+      <div class="cotizacion-previews" id="cot-previews" hidden></div>
+
+      <label class="quote-field quote-field--block">Link de archivo 3D (opcional)
+        <input id="cot-file-link" name="file_link" type="url" maxlength="1000" placeholder="https://www.thingiverse.com/... o tu enlace de Drive/MakerWorld">
+      </label>
+
+      <p id="cotizacion-ref" class="quote-ref" <%= referenceName ? '' : 'hidden' %>>
+        <% if (referenceName) { %>Pieza de referencia: <%= referenceName %><% } %>
+      </p>
+
+      <button id="cotizacion-submit" class="quote-submit" type="submit">Enviar cotización</button>
+      <p id="cotizacion-msg" class="quote-form-msg" hidden aria-live="polite"></p>
+    </form>
+
+    <aside class="quote-side">
+      <h2>¿Cómo funciona?</h2>
+      <ol>
+        <li>Completá tus datos y describí tu proyecto.</li>
+        <li>Subí imágenes de referencia y/o el link de tu archivo 3D.</li>
+        <li>Te contactamos con una cotización personalizada.</li>
+      </ol>
+      <% if (whatsappUrl) { %>
+        <p style="margin-top:1rem"><a href="<%= whatsappUrl %>" target="_blank" rel="noopener noreferrer">Escribinos por WhatsApp</a></p>
+      <% } %>
+    </aside>
+  </div>
+</div>

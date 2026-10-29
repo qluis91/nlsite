@@ -69,7 +69,7 @@ test('migration 34 is idempotent', async () => {
 test('MIGRATION_REGISTRY includes social thumbnail cache without a TikTok-only migration', () => {
   const path = require('path');
   const { MIGRATION_REGISTRY, computeChecksum } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 42);
+  assert.equal(MIGRATION_REGISTRY.length, 44);
   assert.ok(MIGRATION_REGISTRY.some((e) => e.name === 'migrateSocialProviderThumbnailCache'));
   assert.ok(!MIGRATION_REGISTRY.some((e) => /tiktok.*thumbnail|thumbnail.*tiktok/i.test(e.name)));
   // Historical migrate-social-integrations content remains frozen (LF-normalized checksum).

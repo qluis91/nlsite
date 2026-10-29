@@ -153,6 +153,18 @@ const MIGRATION_REGISTRY = [
     exportName: 'migrateSocialProviderThumbnailCache',
     passPool: true,
   },
+  {
+    name: 'migratePublicNavigationV2',
+    file: './migrate-public-navigation-v2',
+    exportName: 'migratePublicNavigationV2',
+    passPool: true,
+  },
+  {
+    name: 'migrateQuoteRequests',
+    file: './migrate-quote-requests',
+    exportName: 'migrateQuoteRequests',
+    passPool: true,
+  },
 ];
 
 async function ensureMigrationsTable(pool) {

@@ -160,6 +160,15 @@ function validateNavItem(body = {}) {
 
   const isVisible = body.is_visible !== undefined ? validateBooleanField(body.is_visible) : true;
 
+  let parentId = null;
+  if (body.parent_id !== undefined && body.parent_id !== null && String(body.parent_id).trim() !== '') {
+    const rawParent = Number(body.parent_id);
+    if (!Number.isFinite(rawParent) || rawParent <= 0) {
+      return { valid: false, error: 'El padre de navegación no es válido.' };
+    }
+    parentId = rawParent;
+  }
+
   return {
     valid: true,
     value: {
@@ -171,6 +180,7 @@ function validateNavItem(body = {}) {
       sortOrder: sortOrder.value || 0,
       isVisible,
       location: body.location || 'home',
+      parentId,
     },
   };
 }

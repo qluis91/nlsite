@@ -1,5 +1,5 @@
 const cmsContent = require('../services/cmsContentService');
-const publishing = require('../services/cmsPublishingService');
+const publicNavbar = require('../services/publicNavbarService');
 const { DEFAULT_ABOUT_CONTENT } = require('../scripts/migrate-about-page-cms');
 
 function safePublicUrl(value) {
@@ -28,31 +28,6 @@ async function resolveContentMedia(content) {
   return { heroMedia, sections, ogMedia };
 }
 
-async function getNavbarCmsData() {
-  const [navItems, rawSettings] = await Promise.all([
-    publishing.getPublishedNavItems('home'),
-    publishing.getPublishedSettings([
-      'site.logo_primary', 'site.logo_light', 'site.logo_dark',
-      'navbar.bg_color', 'navbar.text_color', 'navbar.accent_color',
-    ]),
-  ]);
-  const settings = Object.fromEntries(
-    Object.entries(rawSettings).map(([key, value]) => [
-      key,
-      value === null || value === undefined || value === 'null' ? '' : value,
-    ])
-  );
-  const logos = {};
-  for (const [name, key] of Object.entries({
-    primary: 'site.logo_primary',
-    light: 'site.logo_light',
-    dark: 'site.logo_dark',
-  })) {
-    logos[name] = await cmsContent.resolveMediaReference(settings[key], null);
-  }
-  return { navItems, settings, logos };
-}
-
 async function showAbout(req, res, next) {
   try {
     const content = await cmsContent.getPublishedSectionContent(
@@ -61,7 +36,7 @@ async function showAbout(req, res, next) {
       DEFAULT_ABOUT_CONTENT
     );
     const resolved = await resolveContentMedia(content);
-    const cmsData = await getNavbarCmsData();
+    const cmsData = await publicNavbar.getNavbarCmsData();
     const ctaUrl = safePublicUrl(content.cta?.url);
     const canonical = safePublicUrl(content.seo?.canonical) || '/nosotros';
 
@@ -80,8 +55,9 @@ async function showAbout(req, res, next) {
       ctaRel: content.cta?.target === '_blank' ? 'noopener noreferrer' : '',
       cmsData,
       usesHeroNavbar: true,
+      currentPath: req.path || '/nosotros',
       pageClass: 'page-about',
-      pageStyles: ['/css/home.css', '/css/about.css'],
+      pageStyles: ['/css/public-navbar.css', '/css/home.css', '/css/about.css'],
       pageModule: '/js/about.js',
     });
   } catch (error) {

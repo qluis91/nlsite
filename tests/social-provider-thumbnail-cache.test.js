@@ -72,10 +72,12 @@ afterEach(async () => {
 });
 
 describe('migration registry', () => {
-  it('registers migrateSocialProviderThumbnailCache at the end', () => {
+  it('keeps migrateQuoteRequests last after thumbnail cache migration', () => {
     const last = tracker.MIGRATION_REGISTRY[tracker.MIGRATION_REGISTRY.length - 1];
-    assert.equal(last.name, 'migrateSocialProviderThumbnailCache');
-    assert.equal(tracker.MIGRATION_REGISTRY.length, 42);
+    assert.equal(last.name, 'migrateQuoteRequests');
+    assert.equal(tracker.MIGRATION_REGISTRY.length, 44);
+    assert.ok(tracker.MIGRATION_REGISTRY.some((e) => e.name === 'migrateSocialProviderThumbnailCache'));
+    assert.ok(tracker.MIGRATION_REGISTRY.some((e) => e.name === 'migratePublicNavigationV2'));
     // TikTok reuses provider_thumbnail_local_path — no extra migration beyond Meta cache
     assert.ok(
       !tracker.MIGRATION_REGISTRY.some((e) => /tiktok.*thumbnail|thumbnail.*tiktok/i.test(e.name))

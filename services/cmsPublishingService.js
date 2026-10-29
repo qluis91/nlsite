@@ -533,9 +533,9 @@ async function getPublishedNavItems(location = 'home') {
   if (cached !== null) return cached;
 
   const [rows] = await pool.query(
-    `SELECT id, public_id, published_data
+    `SELECT id, public_id, parent_id, published_data
        FROM navigation_items
-      WHERE location = ? AND published_data IS NOT NULL`,
+      WHERE location = ? AND published_data IS NOT NULL AND deleted_at IS NULL`,
     [location]
   );
   const published = rows
@@ -543,7 +543,13 @@ async function getPublishedNavItems(location = 'home') {
       const data = typeof row.published_data === 'string'
         ? JSON.parse(row.published_data)
         : row.published_data;
-      return { id: row.id, public_id: row.public_id, ...data };
+      return {
+        id: row.id,
+        public_id: row.public_id,
+        ...data,
+        // Table parent_id is authoritative for dropdown tree (snapshot may lag).
+        parent_id: row.parent_id,
+      };
     })
     .filter((row) => Number(row.is_visible) === 1)
     .sort((a, b) => Number(a.sort_order) - Number(b.sort_order) || Number(a.id) - Number(b.id));
@@ -561,14 +567,34 @@ async function saveNavItem(publicId, data, { actorId = null } = {}) {
     const item = rows[0];
     if (!item) throw new Error('El enlace de navegación no existe.');
 
-    const previous = { label: item.label, url: item.url, target: item.target, link_type: item.link_type, sort_order: item.sort_order, is_visible: item.is_visible };
+    let parentId = Object.prototype.hasOwnProperty.call(data, 'parentId')
+      ? data.parentId
+      : item.parent_id;
+    if (parentId === '' || parentId === undefined) parentId = null;
+    if (parentId != null) parentId = Number(parentId);
+    if (parentId != null && (!Number.isFinite(parentId) || parentId === item.id)) {
+      throw new Error('El padre de navegación no es válido.');
+    }
+    if (parentId != null) {
+      const [[parent]] = await connection.query(
+        `SELECT id FROM navigation_items
+          WHERE id = ? AND location = ? AND deleted_at IS NULL AND parent_id IS NULL`,
+        [parentId, item.location]
+      );
+      if (!parent) throw new Error('El padre de navegación no existe o no puede anidarse.');
+    }
+
+    const previous = {
+      label: item.label, url: item.url, target: item.target, link_type: item.link_type,
+      sort_order: item.sort_order, is_visible: item.is_visible, parent_id: item.parent_id,
+    };
     await connection.query(
       `UPDATE navigation_items
           SET label = ?, url = ?, link_type = ?, target = ?, media_public_id = ?,
-              sort_order = ?, is_visible = ?, status = 'draft', updated_by = ?
+              sort_order = ?, is_visible = ?, parent_id = ?, status = 'draft', updated_by = ?
         WHERE public_id = ?`,
       [data.label, data.url, data.linkType, data.target, data.mediaPublicId || null,
-       data.sortOrder, data.isVisible ? 1 : 0, actorId, publicId]
+       data.sortOrder, data.isVisible ? 1 : 0, parentId, actorId, publicId]
     );
 
     const meta = await actorMeta(actorId);
@@ -596,11 +622,21 @@ async function createNavItem(data, { actorId = null } = {}) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    let parentId = data.parentId == null || data.parentId === '' ? null : Number(data.parentId);
+    if (parentId != null && !Number.isFinite(parentId)) parentId = null;
+    if (parentId != null) {
+      const [[parent]] = await connection.query(
+        `SELECT id FROM navigation_items
+          WHERE id = ? AND location = ? AND deleted_at IS NULL AND parent_id IS NULL`,
+        [parentId, data.location || 'home']
+      );
+      if (!parent) throw new Error('El padre de navegación no existe o no puede anidarse.');
+    }
     const [result] = await connection.query(
       `INSERT INTO navigation_items
-         (public_id, location, label, url, link_type, target, media_public_id, sort_order, is_visible, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)`,
-      [publicId, data.location, data.label, data.url, data.linkType, data.target,
+         (public_id, location, parent_id, label, url, link_type, target, media_public_id, sort_order, is_visible, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)`,
+      [publicId, data.location, parentId, data.label, data.url, data.linkType, data.target,
        data.mediaPublicId || null, data.sortOrder, data.isVisible ? 1 : 0, actorId]
     );
 
@@ -688,6 +724,7 @@ async function publishNavItems({ location = 'home', actorId = null } = {}) {
         media_public_id: item.media_public_id,
         sort_order: item.sort_order,
         is_visible: item.is_visible,
+        parent_id: item.parent_id == null ? null : Number(item.parent_id),
       };
       await connection.query(
         `UPDATE navigation_items

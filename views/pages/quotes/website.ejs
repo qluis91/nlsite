@@ -1,0 +1,68 @@
+<%- include('../../components/home-navbar', { navbarOnHome: false }) %>
+<div class="quote-page">
+  <section class="quote-hero">
+    <span class="svc-eyebrow" style="color:var(--color-accent,#39ff14)">Cotizar</span>
+    <h1>Cotización de sitio web</h1>
+    <p>Contanos sobre tu negocio y el tipo de presencia digital que necesitás. Revisamos la información y te contactamos para preparar una propuesta.</p>
+  </section>
+
+  <div class="quote-layout">
+    <form class="quote-form" method="POST" action="/cotizar/sitio-web" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <h2>Tus datos</h2>
+      <div class="quote-grid">
+        <label class="quote-field">Nombre *<input name="customer_name" type="text" required maxlength="150" autocomplete="name" value="<%= prefill.name || '' %>"></label>
+        <label class="quote-field">Correo electrónico *<input name="customer_email" type="email" required maxlength="180" autocomplete="email" value="<%= prefill.email || '' %>"></label>
+        <label class="quote-field">Teléfono / WhatsApp *<input name="customer_phone" type="tel" required maxlength="80" autocomplete="tel" value="<%= prefill.phone || '' %>"></label>
+        <label class="quote-field">Empresa / marca<input name="company" type="text" maxlength="200"></label>
+      </div>
+
+      <h2 style="margin-top:1.25rem">Proyecto</h2>
+      <div class="quote-grid">
+        <label class="quote-field">Tipo de sitio
+          <select name="website_type">
+            <option value="">Seleccioná una opción</option>
+            <option>Sitio corporativo</option>
+            <option>Landing page</option>
+            <option>Tienda en línea</option>
+            <option>Portafolio</option>
+            <option>Catálogo</option>
+            <option>Rediseño de sitio existente</option>
+            <option>Otro</option>
+          </select>
+        </label>
+        <label class="quote-field">Cantidad aproximada de páginas<input name="page_count" type="number" min="0" max="500" step="1"></label>
+        <label class="quote-field">¿Ya tiene dominio?
+          <select name="has_domain"><option value="unknown">No estoy seguro</option><option value="yes">Sí</option><option value="no">No</option></select>
+        </label>
+        <label class="quote-field">¿Ya tiene hosting?
+          <select name="has_hosting"><option value="unknown">No estoy seguro</option><option value="yes">Sí</option><option value="no">No</option></select>
+        </label>
+        <label class="quote-field">¿Necesita correos empresariales?
+          <select name="business_email"><option value="unknown">No estoy seguro</option><option value="yes">Sí</option><option value="no">No</option></select>
+        </label>
+        <label class="quote-field">¿Necesita tienda en línea?
+          <select name="ecommerce"><option value="unknown">No estoy seguro</option><option value="yes">Sí</option><option value="no">No</option></select>
+        </label>
+        <label class="quote-field">¿Necesita marketing / redes?
+          <select name="marketing"><option value="unknown">No estoy seguro</option><option value="yes">Sí</option><option value="no">No</option></select>
+        </label>
+        <label class="quote-field">Presupuesto aproximado<input name="budget" type="text" maxlength="100"></label>
+        <label class="quote-field">Fecha objetivo<input name="desired_date" type="text" maxlength="80" placeholder="Ej. en 4 semanas"></label>
+        <label class="quote-field quote-field--block">Descripción del proyecto *
+          <textarea name="description" rows="5" required maxlength="5000" placeholder="Contanos qué necesitás, referencias y cualquier detalle importante."></textarea>
+        </label>
+      </div>
+      <button class="quote-submit" type="submit" style="margin-top:1rem">Enviar solicitud</button>
+    </form>
+
+    <aside class="quote-side">
+      <h2>¿Cómo funciona?</h2>
+      <ol>
+        <li>Completá tus datos y describí el proyecto.</li>
+        <li>Revisamos alcance, prioridades y opciones técnicas.</li>
+        <li>Te contactamos para afinar la propuesta.</li>
+      </ol>
+    </aside>
+  </div>
+</div>

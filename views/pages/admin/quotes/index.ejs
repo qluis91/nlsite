@@ -1,0 +1,62 @@
+<div class="page-header">
+  <div>
+    <h1>Solicitudes de cotización</h1>
+    <p>Solicitudes públicas de clientes (separado de la herramienta interna Cotización 3D).</p>
+  </div>
+</div>
+
+<form class="card" method="GET" action="/admin/cotizaciones" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:end;margin-bottom:1rem">
+  <div class="form-group">
+    <label for="type">Tipo</label>
+    <select class="form-control" id="type" name="type">
+      <option value="">Todas</option>
+      <option value="website" <%= filters.type === 'website' ? 'selected' : '' %>>Sitio web</option>
+      <option value="3d" <%= filters.type === '3d' ? 'selected' : '' %>>Pieza 3D</option>
+      <option value="other" <%= filters.type === 'other' ? 'selected' : '' %>>Otros</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="status">Estado</label>
+    <select class="form-control" id="status" name="status">
+      <option value="">Todas</option>
+      <% Object.keys(statusLabels).forEach(function (key) { %>
+        <option value="<%= key %>" <%= filters.status === key ? 'selected' : '' %>><%= statusLabels[key] %></option>
+      <% }); %>
+    </select>
+  </div>
+  <button class="btn btn-outline" type="submit">Filtrar</button>
+</form>
+
+<div class="card">
+  <% if (!items.length) { %>
+    <div class="empty-state"><p>No hay solicitudes con estos filtros.</p></div>
+  <% } else { %>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Cliente</th>
+          <th>Tipo</th>
+          <th>Asunto</th>
+          <th>Estado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% items.forEach(function (item) { %>
+          <tr>
+            <td><%= item.created_at ? new Date(item.created_at).toLocaleString('es-CR') : '' %></td>
+            <td>
+              <strong><%= item.customer_name %></strong><br>
+              <small><%= item.customer_email %></small>
+            </td>
+            <td><%= item.typeLabel %></td>
+            <td><%= item.subject || '—' %></td>
+            <td><span class="badge"><%= item.statusLabel %></span></td>
+            <td><a class="btn btn-sm btn-outline" href="/admin/cotizaciones/<%= item.public_id %>">Ver</a></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

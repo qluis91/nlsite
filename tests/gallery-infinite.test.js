@@ -49,7 +49,7 @@ test('Infinite CSS remains contained and does not touch responsive navigation', 
   assert.match(css, /\.gallery-infinite__canvas \{[\s\S]*position: absolute;[\s\S]*inset: 0;[\s\S]*width: 100%;[\s\S]*height: 100%;/);
   assert.match(css, /touch-action: none/);
   assert.doesNotMatch(css, /html,\s*\nbody\s*\{\s*overflow:\s*hidden/);
-  const navbar = read('public/js/home/navbar.js');
+  const navbar = read('public/js/public-navbar.js');
   assert.doesNotMatch(navbar, /InfiniteMenuRenderer|gallery-infinite/);
 });
 

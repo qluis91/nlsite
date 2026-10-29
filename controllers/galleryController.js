@@ -1,5 +1,6 @@
 const gallery = require('../services/galleryService');
 const validator = require('../validators/galleryValidator');
+const publicNavbar = require('../services/publicNavbarService');
 const { buildGalleryUrl } = require('../utils/galleryUrl');
 const {
   extractVideoId,
@@ -69,17 +70,20 @@ async function showGallery(req, res, next) {
       gallery.listPublishedVideoItems(),
     ]);
     const activeCategory = categories.find((category) => category.slug === filters.category) || null;
+    const cmsData = await publicNavbar.getNavbarCmsData();
     res.render('pages/gallery', {
       title: 'Nuestra galería',
       metaDescription: 'Explora proyectos, productos y procesos creados por NinjaLabCR.',
       robots: filters.category || filters.page > 1 ? 'noindex,follow' : 'index,follow',
       layout: 'layouts/main',
       pageClass: 'page-gallery',
-      pageStyles: ['/css/home.css', '/css/gallery.css'],
+      pageStyles: ['/css/public-navbar.css', '/css/home.css', '/css/gallery.css'],
       pageModule: '/js/gallery.js',
       usesHeroNavbar: true,
       usesPanel2Background: true,
       navbarOnHome: false,
+      cmsData,
+      currentPath: req.path || '/galeria',
       categories,
       activeCategory,
       filters,

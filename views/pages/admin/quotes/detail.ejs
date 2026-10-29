@@ -1,0 +1,71 @@
+<%
+  const payload = item.payload || {};
+%>
+<div class="page-header">
+  <div>
+    <h1>Solicitud <%= item.public_id.slice(0, 8).toUpperCase() %></h1>
+    <p><%= item.typeLabel %> · <%= item.statusLabel %></p>
+  </div>
+  <div class="cms-actions">
+    <a class="btn btn-outline" href="/admin/cotizaciones">Volver</a>
+    <% if (item.request_type === '3d') { %>
+      <a class="btn btn-outline" href="/admin/cotizacion-3d">Abrir herramienta de Cotización 3D</a>
+    <% } %>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1rem">
+  <h2>Cliente</h2>
+  <p><strong><%= item.customer_name %></strong></p>
+  <p><%= item.customer_email %></p>
+  <p><%= item.customer_phone || '—' %></p>
+  <p>Enviado: <%= item.created_at ? new Date(item.created_at).toLocaleString('es-CR') : '' %></p>
+  <% if (item.user_id) { %><p>Usuario vinculado: #<%= item.user_id %></p><% } %>
+  <% if (item.source_url) { %><p>Origen: <code><%= item.source_url %></code></p><% } %>
+</div>
+
+<div class="card" style="margin-bottom:1rem">
+  <h2>Detalles</h2>
+  <p><strong>Asunto:</strong> <%= item.subject || '—' %></p>
+  <% Object.keys(payload).forEach(function (key) {
+    const val = payload[key];
+    if (val === null || val === undefined || val === '') return;
+  %>
+    <p><strong><%= key %>:</strong>
+      <% if (key === 'fileLink' && safeFileLink) { %>
+        <a href="<%= safeFileLink %>" target="_blank" rel="noopener noreferrer"><%= safeFileLink %></a>
+      <% } else { %>
+        <%= val %>
+      <% } %>
+    </p>
+  <% }); %>
+</div>
+
+<% if (item.files && item.files.length) { %>
+  <div class="card" style="margin-bottom:1rem">
+    <h2>Imágenes</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:0.75rem">
+      <% item.files.forEach(function (file) { %>
+        <a href="<%= file.publicUrl %>" target="_blank" rel="noopener noreferrer">
+          <img src="<%= file.publicUrl %>" alt="Referencia" width="140" height="140" style="object-fit:cover;border-radius:8px">
+        </a>
+      <% }); %>
+    </div>
+  </div>
+<% } %>
+
+<div class="card">
+  <h2>Actualizar estado</h2>
+  <form method="POST" action="/admin/cotizaciones/<%= item.public_id %>/status">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="form-group">
+      <label for="status">Estado</label>
+      <select class="form-control" id="status" name="status">
+        <% statusValues.forEach(function (value) { %>
+          <option value="<%= value %>" <%= item.status === value ? 'selected' : '' %>><%= statusLabels[value] %></option>
+        <% }); %>
+      </select>
+    </div>
+    <button class="btn btn-save" type="submit">Guardar estado</button>
+  </form>
+</div>

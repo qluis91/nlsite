@@ -1,0 +1,35 @@
+<%- include('../../components/home-navbar', { navbarOnHome: false }) %>
+<div class="quote-page">
+  <section class="quote-hero">
+    <span class="svc-eyebrow" style="color:var(--color-accent,#39ff14)">Cotizar</span>
+    <h1>Solicitar cotización</h1>
+    <p>¿Tu proyecto no encaja limpio en web o fabricación 3D? Contanos qué necesitás y lo revisamos juntos.</p>
+  </section>
+
+  <div class="quote-layout">
+    <form class="quote-form" method="POST" action="/cotizar/otros" enctype="multipart/form-data" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <h2>Tus datos</h2>
+      <div class="quote-grid">
+        <label class="quote-field">Nombre *<input name="customer_name" type="text" required maxlength="150" autocomplete="name" value="<%= prefill.name || '' %>"></label>
+        <label class="quote-field">Correo electrónico *<input name="customer_email" type="email" required maxlength="180" autocomplete="email" value="<%= prefill.email || '' %>"></label>
+        <label class="quote-field">Teléfono / WhatsApp *<input name="customer_phone" type="tel" required maxlength="80" autocomplete="tel" value="<%= prefill.phone || '' %>"></label>
+        <label class="quote-field">Asunto / tipo de proyecto *<input name="project_type" type="text" required maxlength="200"></label>
+        <label class="quote-field">Presupuesto aproximado<input name="budget" type="text" maxlength="100"></label>
+        <label class="quote-field">Fecha deseada<input name="desired_date" type="text" maxlength="80"></label>
+        <label class="quote-field quote-field--block">Descripción *
+          <textarea name="description" rows="5" required maxlength="5000"></textarea>
+        </label>
+      </div>
+      <label class="quote-upload" for="other-images">
+        <input id="other-images" name="images" type="file" accept="image/*" multiple>
+        <span>Imágenes de referencia (opcional, hasta 5)</span>
+      </label>
+      <button class="quote-submit" type="submit" style="margin-top:1rem">Enviar solicitud</button>
+    </form>
+    <aside class="quote-side">
+      <h2>Tip</h2>
+      <p>Entre más contexto nos des (objetivos, referencias, plazos), más rápida y clara será la respuesta.</p>
+    </aside>
+  </div>
+</div>

@@ -1,4 +1,4 @@
-import { initNavbar } from './home/navbar.js';
+import { initNavbar } from './public-navbar.js';
 import { initAntigravityBackground } from './home/antigravityBackground.js';
 import { initGalleryAnimations } from './gallery/galleryAnimations.mjs';
 import { createGalleryViewer } from './gallery/galleryViewer.mjs';

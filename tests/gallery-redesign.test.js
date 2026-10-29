@@ -16,7 +16,7 @@ test('gallery reuses the homepage navbar and removes only the requested content'
   assert.doesNotMatch(gallery, />Formato<|aria-label="Tipo de medio"/);
 
   const entry = read('public/js/gallery.js');
-  assert.match(entry, /import \{ initNavbar \} from '\.\/home\/navbar\.js'/);
+  assert.match(entry, /import \{ initNavbar \} from '\.\/public-navbar\.js'/);
   assert.match(entry, /const cleanupNavbar = initNavbar\(\)/);
   assert.match(entry, /cleanupNavbar\(\)/);
 });

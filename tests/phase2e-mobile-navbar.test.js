@@ -35,7 +35,7 @@ test('mobile hamburger toggle exists with aria attributes', async () => {
 });
 
 test('navbar.js script is accessible', async () => {
-  const js = await fetchText('/js/home/navbar.js');
+  const js = await fetchText('/js/public-navbar.js');
   assert.ok(js.includes('is-menu-open'), 'navbar.js must toggle is-menu-open');
   assert.ok(js.includes('is-scrolled'), 'navbar.js must toggle is-scrolled');
 });
