@@ -3,6 +3,7 @@
 **Last updated:** 2026-10-29
 **Current phase:** Gallery v2 — thumbnails, branding, admin workflow
 **Next:** CSS variable homogenization or feature expansion
+- [x] **Social thumbnail backfill observability**: Meta CDN allowlist includes `fbsbx.com`; signed-URL 403/404/410 refresh-once; sync returns `thumbnailStats` and admin warns when miniatures fail (no silent success).
 - [x] **Meta operational connection test**: Facebook validates Page token via `/{pageId}/posts`; Instagram validates `/{igUserId}/media`; sync disconnects on Page/media code 190.
 - [x] **Meta OAuth reconnect**: code 190 (incl. HTTP 400) disconnects Instagram/Facebook and requires re-OAuth; test-connection no longer false-succeeds.
 - [x] **Social Feed provider thumbnail cache**: Instagram/Facebook/TikTok covers persisted as WebP under `UPLOAD_PUBLIC_ROOT/social/{provider}/...`; public feed prefers local cache over expiring CDN URLs (no extra migration for TikTok).

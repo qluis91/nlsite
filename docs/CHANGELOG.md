@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-29 — Social thumbnail backfill reliability + observability
+
+### Fixed
+- Meta media host allowlist now accepts apex + subdomains of `cdninstagram.com`, `fbcdn.net`, and `fbsbx.com` (e.g. `lookaside.fbsbx.com`) without lookalike SSRF holes
+- Instagram/Facebook sync no longer reports full success when every local thumbnail cache fails
+- Invalid/expired signed CDN URLs trigger one Graph metadata refresh + one cache retry (403/404/410 only)
+- Instagram carousel walks children until a usable still image is found; VIDEO never sends `media_url` through Sharp
+
+### Changed
+- `ensureProviderThumbnailCached` returns explicit statuses (`cached_new`, `invalid_source`, `download_failed`, …) with safe hostname diagnostics
+- Sync results include `thumbnailStats` / `thumbnailErrors`; admin `Sincronizar ahora` uses a warning alert when miniatures fail
+
 ## 2026-10-29 — Validate operational Meta credentials
 
 ### Fixed

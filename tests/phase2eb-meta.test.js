@@ -869,7 +869,7 @@ test('instagram sync fails fast on expired token', async () => {
 // Carousel handling
 // ═══════════════════════════════════════════════════════════
 
-test('normalizeInstagramMedia handles carousel with first child thumbnail', () => {
+test('normalizeInstagramMedia handles carousel with first child image media_url', () => {
   const result = instagram.normalizeInstagramMedia({
     id: 'car_1', media_type: 'CAROUSEL_ALBUM', caption: 'Carousel',
     media_url: 'https://cdn.ig.com/main.jpg', permalink: 'https://ig.com/p/car/',
@@ -880,7 +880,21 @@ test('normalizeInstagramMedia handles carousel with first child thumbnail', () =
     ]},
     username: 'caruser',
   });
-  assert.equal(result.thumbnailUrl, 'https://cdn.ig.com/c1_thumb.jpg');
+  assert.equal(result.thumbnailUrl, 'https://cdn.ig.com/c1.jpg');
+});
+
+test('normalizeInstagramMedia carousel skips unusable VIDEO child for IMAGE sibling', () => {
+  const result = instagram.normalizeInstagramMedia({
+    id: 'car_2', media_type: 'CAROUSEL_ALBUM', caption: 'Carousel',
+    permalink: 'https://ig.com/p/car2/',
+    timestamp: '2026-01-01T00:00:00Z',
+    children: { data: [
+      { media_type: 'VIDEO', media_url: 'https://video.cdninstagram.com/v/vid.mp4' },
+      { media_type: 'IMAGE', media_url: 'https://scontent.cdninstagram.com/v/c2.jpg' },
+    ]},
+    username: 'caruser',
+  });
+  assert.equal(result.thumbnailUrl, 'https://scontent.cdninstagram.com/v/c2.jpg');
 });
 
 // ═══════════════════════════════════════════════════════════
