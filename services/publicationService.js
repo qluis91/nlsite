@@ -7,6 +7,7 @@
  * transactional publication, cache invalidation, and audit trail.
  */
 const crypto = require('crypto');
+const { isDeepStrictEqual } = require('util');
 const pool = require('../config/db');
 const publishing = require('./cmsPublishingService');
 const repeatable = require('./cmsRepeatableService');
@@ -16,6 +17,30 @@ const { normalizePosition, normalizeZoom } = require('../public/js/admin/carouse
 
 function batchPublicId() {
   return crypto.randomUUID();
+}
+
+function parseSectionJson(value) {
+  if (value == null) return {};
+  if (typeof value === 'object') {
+    return Array.isArray(value) ? value : { ...value };
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return Array.isArray(parsed) ? parsed : { ...parsed };
+  } catch {
+    return {};
+  }
+}
+
+function sectionDraftMatchesPublished(sectionRow) {
+  return isDeepStrictEqual(
+    parseSectionJson(sectionRow.content_json),
+    parseSectionJson(sectionRow.published_content_json)
+  ) && isDeepStrictEqual(
+    parseSectionJson(sectionRow.style_json),
+    parseSectionJson(sectionRow.published_style_json)
+  );
 }
 
 /**
@@ -410,7 +435,13 @@ async function publishPageSectionInTx(connection, pageKey, sectionKey, actorId) 
   );
   if (!before) throw new Error(`Sección ${sectionKey} no encontrada.`);
 
-  if (before.status === 'published' && Number(before.is_enabled) === 1) {
+  // Skip only when already published/enabled AND draft equals published payload.
+  // Never skip solely because status='published' when content/style drifted.
+  if (
+    before.status === 'published'
+    && Number(before.is_enabled) === 1
+    && sectionDraftMatchesPublished(before)
+  ) {
     return { publishedRevId: null, sourceRevId: null, previousSnapshot: null, newSnapshot: null, skipped: true };
   }
 

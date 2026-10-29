@@ -285,6 +285,8 @@ app.use((req, res, next) => {
   res.locals.csrfToken = generateToken(req);
   // Phase 16C: safe JSON serialization for <script type="application/json"> blocks
   res.locals.safeJsonScript = require('./config/jsonLdHelper').safeJsonScript;
+  // EJS templates cannot use Node require(); expose carousel behavior helper for home + admin.
+  res.locals.resolveCarouselBehavior = require('./validators/cmsPanelsValidator').resolveCarouselBehavior;
   next();
 });
 

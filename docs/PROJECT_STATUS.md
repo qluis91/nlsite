@@ -1,6 +1,6 @@
 # nlSite — Project Status
 
-**Last updated:** 2026-10-05
+**Last updated:** 2026-10-29
 **Current phase:** Cotización 3D — proven module port (Oct 2026)
 **Next:** CSS variable homogenization or feature expansion
 - [x] **Cotización 3D port**: Proven `ninjalab3dcr@f8070b6` admin module ported into NLSite (`AdminCostQuote.mount`, catalog/quote MySQL adapters, PDF/CSS, CSRF header support, `migrateCostQuoteVarcharId`).
@@ -313,7 +313,7 @@
 | CodeBurn | Token usage tracking (estimates) | Global install, CLI active |
 
 - Panel 2 and Panel 3 admin editors fully working: create, save, reorder, publish, preview, revision tracking.
-- Panel 2 carousel: main image and preview/secondary image persist independently, preview cards show swapped images, autoplay every 5.5s (pauses on hover/tab-hidden, respects reduced-motion), clickable preview cards promote to active slide.
+- Panel 2 carousel: configurable autoplay + Ken Burns via showcase JSON; Ken Burns always runs (reduced-motion only disables); autoplay pauses on hover and resets on manual nav; responsive ≤960 centers main image; `Publicar carrusel` publishes showcase behavior + carousel items.
 - Panel 2 LogoLoop: images constrained to `clamp(90px, 16vw, 140px)` with `object-fit: contain`, preserving aspect ratio within fixed track height.
 - Auth pages (login, register, admin login, forgot-password) share unified dark theme via `pageClass: 'page-auth'` and `auth.css` — zero white-card or navbar-visible auth pages.
 - All admin views comply with CSP via per-request `nonce`; zero `onclick=` attributes on admin pages; all inline scripts use `nonce="<%= cspNonce %>"`.

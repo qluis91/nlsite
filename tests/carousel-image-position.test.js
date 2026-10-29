@@ -405,24 +405,41 @@ test('responsive project carousel uses vertical composition under 960px', () => 
     /animation:\s*project-carousel-kenburns\s+var\(--carousel-kenburns-duration,\s*32s\)/
   );
   assert.match(
-    css,
-    /@media\s*\(\s*hover:\s*hover\s*\)\s*and\s*\(\s*pointer:\s*fine\s*\)[\s\S]*?\.project-carousel:hover[\s\S]*?animation-play-state:\s*paused/
+    responsiveBlock,
+    /\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*?object-position:\s*50%\s*50%/
+  );
+  assert.match(
+    responsiveBlock,
+    /\.project-carousel__slide\.is-active \.project-carousel__image-frame[\s\S]*?transform-origin:\s*50%\s*50%/
+  );
+  assert.doesNotMatch(
+    responsiveBlock,
+    /\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*?object-position:\s*var\(--carousel-position-x/
   );
   assert.match(
     css,
-    /\.project-carousel\.is-image-motion-paused[\s\S]*?animation-play-state:\s*paused/
+    /\.project-carousel__image\s*\{[\s\S]*?object-position:\s*var\(--carousel-position-x,\s*50%\)\s*var\(--carousel-position-y,\s*50%\)/
   );
+  assert.match(
+    css,
+    /@keyframes\s+project-carousel-kenburns\s*\{[\s\S]*?transform:\s*scale\(var\(--carousel-kenburns-scale/
+  );
+  assert.doesNotMatch(css, /translate3d\(-1\.2%/);
+  assert.doesNotMatch(css, /\.project-carousel:hover[\s\S]{0,180}?animation-play-state:\s*paused/);
+  assert.doesNotMatch(css, /is-image-motion-paused/);
   assert.match(
     css,
     /@media\s*\(\s*prefers-reduced-motion:\s*reduce\s*\)[\s\S]*?\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*?animation:\s*none\s*!important/
   );
 
-  assert.match(projectCarousel, /is-image-motion-paused/);
   assert.match(projectCarousel, /restartActiveKenBurns/);
-  assert.match(projectCarousel, /isMainImageMotionTarget/);
-  assert.match(projectCarousel, /clearImageMotionPause/);
+  assert.match(projectCarousel, /isMainImageInteractionTarget/);
+  assert.match(projectCarousel, /pointerenter',\s*pauseAutoplay/);
+  assert.match(projectCarousel, /pointerleave',\s*resumeAutoplay/);
+  assert.doesNotMatch(projectCarousel, /is-image-motion-paused/);
+  assert.doesNotMatch(projectCarousel, /toggleImageMotionPause/);
+  assert.doesNotMatch(projectCarousel, /clearImageMotionPause/);
   assert.doesNotMatch(home, /Zoom automático/);
-  assert.doesNotMatch(home, /Se pausa al tocar/);
   assert.doesNotMatch(css, /Zoom automático/);
 
   assert.match(css, /\.project-carousel\s*\{[\s\S]*?aspect-ratio:\s*16\s*\/\s*9/);

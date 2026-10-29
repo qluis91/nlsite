@@ -96,6 +96,7 @@ describe('Carousel behavior — admin UI', () => {
       error: null,
       saved: null,
       safeJsonScript,
+      resolveCarouselBehavior,
       activeTab: 'carousel',
     });
   }
@@ -118,6 +119,11 @@ describe('Carousel behavior — admin UI', () => {
     assert.match(carouselPanel, /value="7"/);
     assert.match(carouselPanel, /checked/);
     assert.match(carouselPanel, /Guardar configuración/);
+    assert.match(carouselPanel, /Publicar carrusel/);
+    assert.match(
+      carouselPanel,
+      /Publicar carrusel” aplica tanto los proyectos como esta configuración/
+    );
     assert.match(carouselPanel, /name="active_tab" value="carousel"/);
   });
 
@@ -130,6 +136,24 @@ describe('Carousel behavior — admin UI', () => {
     assert.match(panelsController, /activeTab === 'carousel'/);
     assert.match(panelsController, /carouselAutoplayEnabled/);
     assert.match(panelsController, /validateCarouselBehavior:\s*activeTab === 'carousel'/);
+    assert.match(panelsController, /Object\.assign\(content,\s*validator\.resolveCarouselBehavior\(content\)\)/);
+  });
+
+  it('sliders re-render from resolveCarouselBehavior draft values', async () => {
+    const html = await renderPanel2({
+      heading: 'Panel 2',
+      carouselAutoplayEnabled: true,
+      carouselIntervalSeconds: 8.5,
+      carouselZoomDurationSeconds: 18,
+      carouselZoomIntensityPercent: 11,
+    });
+    const carouselPanel = html.slice(
+      html.indexOf('data-panel="carousel"'),
+      html.indexOf('data-panel="style"')
+    );
+    assert.match(carouselPanel, /name="carouselIntervalSeconds"[\s\S]*?value="8\.5"/);
+    assert.match(carouselPanel, /name="carouselZoomDurationSeconds"[\s\S]*?value="18"/);
+    assert.match(carouselPanel, /name="carouselZoomIntensityPercent"[\s\S]*?value="11"/);
   });
 });
 
@@ -140,7 +164,36 @@ describe('Carousel behavior — public wiring', () => {
     assert.match(home, /data-carousel-interval=/);
     assert.match(home, /data-carousel-zoom-duration=/);
     assert.match(home, /data-carousel-zoom-intensity=/);
-    assert.match(home, /resolveCarouselBehavior/);
+    assert.match(home, /typeof resolveCarouselBehavior === 'function'/);
+    assert.doesNotMatch(home, /require\([^)]*cmsPanelsValidator/);
+  });
+
+  it('home renders published carousel behavior into data attributes', async () => {
+    // Minimal stub of home.ejs Panel 2 locals — avoid full page render deps.
+    const snippet = `
+      <% const panel2Content = content || {};
+         const carouselBehavior = (typeof resolveCarouselBehavior === 'function')
+           ? resolveCarouselBehavior(panel2Content)
+           : { carouselAutoplayEnabled: true, carouselIntervalSeconds: 5.5, carouselZoomDurationSeconds: 32, carouselZoomIntensityPercent: 7 };
+      %>
+      <div
+        data-carousel-autoplay="<%= carouselBehavior.carouselAutoplayEnabled ? 'true' : 'false' %>"
+        data-carousel-interval="<%= Math.round(carouselBehavior.carouselIntervalSeconds * 1000) %>"
+        data-carousel-zoom-duration="<%= carouselBehavior.carouselZoomDurationSeconds %>"
+        data-carousel-zoom-intensity="<%= carouselBehavior.carouselZoomIntensityPercent %>"
+      ></div>`;
+    const html = ejs.render(snippet, {
+      content: {
+        carouselAutoplayEnabled: true,
+        carouselIntervalSeconds: 8.5,
+        carouselZoomDurationSeconds: 15,
+        carouselZoomIntensityPercent: 12,
+      },
+      resolveCarouselBehavior,
+    });
+    assert.match(html, /data-carousel-interval="8500"/);
+    assert.match(html, /data-carousel-zoom-duration="15"/);
+    assert.match(html, /data-carousel-zoom-intensity="12"/);
   });
 
   it('projectCarousel uses configurable autoplay options', () => {
@@ -164,5 +217,20 @@ describe('Carousel behavior — public wiring', () => {
       /animation:\s*project-carousel-kenburns\s+var\(--carousel-kenburns-duration,\s*32s\)/
     );
     assert.match(homeCss, /\.project-carousel__image-frame\s*\{[\s\S]*?--carousel-zoom/);
+    assert.doesNotMatch(homeCss, /translate3d\(-1\.2%/);
+    assert.doesNotMatch(homeCss, /is-image-motion-paused/);
+  });
+
+  it('Ken Burns never pauses on hover or click; autoplay still does', () => {
+    assert.doesNotMatch(projectCarousel, /is-image-motion-paused/);
+    assert.doesNotMatch(projectCarousel, /toggleImageMotionPause/);
+    assert.match(projectCarousel, /pointerenter',\s*pauseAutoplay/);
+    assert.match(projectCarousel, /pointerleave',\s*resumeAutoplay/);
+    assert.match(projectCarousel, /restartActiveKenBurns/);
+    assert.match(projectCarousel, /isMainImageInteractionTarget/);
+    assert.doesNotMatch(
+      homeCss,
+      /\.project-carousel:hover[\s\S]{0,220}?animation-play-state:\s*paused/
+    );
   });
 });

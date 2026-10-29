@@ -275,18 +275,14 @@ const heroVisible = hasCmsHero ? heroContent.isVisible !== false : true;
   const cmsCarouselItems = _previewCms && _previewCms.carouselItems;
   const hasCmsLogoLoop = cmsLogoItems && cmsLogoItems.length;
   const hasCmsCarousel = cmsCarouselItems && cmsCarouselItems.length;
-  const carouselBehavior = (function () {
-    try {
-      return require('../../validators/cmsPanelsValidator').resolveCarouselBehavior(panel2Content);
-    } catch (_) {
-      return {
+  const carouselBehavior = (typeof resolveCarouselBehavior === 'function')
+    ? resolveCarouselBehavior(panel2Content)
+    : {
         carouselAutoplayEnabled: true,
         carouselIntervalSeconds: 5.5,
         carouselZoomDurationSeconds: 32,
         carouselZoomIntensityPercent: 7,
       };
-    }
-  })();
 %>
   <section
     id="proyectos"
