@@ -2,13 +2,17 @@
  * Instagram Sync Service — Phase 2E-B (Close).
  * Imports media from connected Instagram Professional account via Meta Graph API.
  * Uses configurable API version and correct token selection.
+ * Provider thumbnails are persisted locally via socialProviderThumbnailService.
  */
 const crypto = require('node:crypto');
 const pool = require('../config/db');
 const metaOAuth = require('./metaOAuthService');
+const thumbnailCache = require('./socialProviderThumbnailService');
 
 const PROVIDER = 'instagram';
 const MAX_MEDIA_DEFAULT = 25;
+
+const { isValidMetaImageUrl } = thumbnailCache;
 
 // ── Pluggable HTTP mock ──
 
@@ -84,28 +88,20 @@ function normalizeInstagramMedia(item) {
   };
 }
 
-// ── URL validation ──
-
-function isValidMetaImageUrl(url) {
-  if (!url || typeof url !== 'string') return false;
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:') return false;
-    if (parsed.username || parsed.password) return false;
-    const hostname = parsed.hostname.toLowerCase();
-    // Official Meta image CDNs
-    if (!hostname.endsWith('.cdninstagram.com') &&
-        !hostname.endsWith('.fbcdn.net')) return false;
-    // Reject lookalike domains (e.g. fbcdn.net.attacker.com)
-    const suffix = hostname.endsWith('.cdninstagram.com') ? '.cdninstagram.com' : '.fbcdn.net';
-    if (hostname.indexOf(suffix) !== hostname.length - suffix.length) return false;
-    return true;
-  } catch { return false; }
+function expiresAtFromNow() {
+  return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
 }
 
-async function upsertPost(conn, media, intRow) {
-  const requireApproval = intRow.require_approval === 1;
+/**
+ * @param {import('mysql2/promise').PoolConnection} conn
+ * @param {object} media
+ * @param {object} intRow
+ * @param {{ localThumbnailPath?: string }} [options]
+ */
+async function upsertPost(conn, media, intRow, options = {}) {
   const autoPublish = intRow.config_json?.defaultPublished === true;
+  const hasLocalOpt = Object.prototype.hasOwnProperty.call(options, 'localThumbnailPath');
+  const localThumbnailPath = hasLocalOpt ? String(options.localThumbnailPath || '') : null;
 
   const [[existing]] = await conn.query(
     'SELECT id, public_id, is_imported, archived_at FROM social_posts WHERE provider = ? AND provider_external_id = ?',
@@ -115,17 +111,24 @@ async function upsertPost(conn, media, intRow) {
   if (existing) {
     if (existing.archived_at) return { action: 'skipped', reason: 'archived' };
     if (existing.is_imported) {
-      // Backfill/refresh provider thumbnail for existing imported posts
       const thumbnailUrl = isValidMetaImageUrl(media.thumbnailUrl) ? media.thumbnailUrl : '';
-      const expiresAt = thumbnailUrl
-        ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ')
-        : null;
-      await conn.query(
-        `UPDATE social_posts SET provider_synced_at = NOW(),
-          provider_thumbnail_url = ?, provider_thumbnail_expires_at = ?
-         WHERE id = ?`,
-        [thumbnailUrl || '', expiresAt, existing.id]
-      );
+      const expiresAt = thumbnailUrl ? expiresAtFromNow() : null;
+      if (hasLocalOpt) {
+        await conn.query(
+          `UPDATE social_posts SET provider_synced_at = NOW(),
+            provider_thumbnail_url = ?, provider_thumbnail_expires_at = ?,
+            provider_thumbnail_local_path = ?
+           WHERE id = ?`,
+          [thumbnailUrl || '', expiresAt, localThumbnailPath, existing.id]
+        );
+      } else {
+        await conn.query(
+          `UPDATE social_posts SET provider_synced_at = NOW(),
+            provider_thumbnail_url = ?, provider_thumbnail_expires_at = ?
+           WHERE id = ?`,
+          [thumbnailUrl || '', expiresAt, existing.id]
+        );
+      }
       return { action: 'updated', publicId: existing.public_id };
     }
     return { action: 'skipped', reason: 'manual_post' };
@@ -145,9 +148,8 @@ async function upsertPost(conn, media, intRow) {
   const status = autoPublish ? 'published' : 'draft';
 
   const thumbnailUrl = isValidMetaImageUrl(media.thumbnailUrl) ? media.thumbnailUrl : '';
-  const expiresAt = thumbnailUrl
-    ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ')
-    : null;
+  const expiresAt = thumbnailUrl ? expiresAtFromNow() : null;
+  const insertLocalPath = hasLocalOpt ? localThumbnailPath : '';
 
   const publishedContentJson = autoPublish ? JSON.stringify({
     platform: 'instagram',
@@ -163,16 +165,67 @@ async function upsertPost(conn, media, intRow) {
   await conn.query(
     `INSERT INTO social_posts
       (public_id, platform, post_url, title, description, thumbnail_media_ref,
-       provider_thumbnail_url, provider_thumbnail_expires_at,
+       provider_thumbnail_url, provider_thumbnail_expires_at, provider_thumbnail_local_path,
        embed_enabled, display_mode, is_active, is_featured, sort_order, status,
        published_content_json, provider, provider_external_id, provider_synced_at, is_imported)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'external', 1, 0, 0, ?, ?, ?, ?, NOW(), 1)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'external', 1, 0, 0, ?, ?, ?, ?, NOW(), 1)`,
     [publicId, 'instagram', media.permalink, title, description, '',
-     thumbnailUrl, expiresAt,
+     thumbnailUrl, expiresAt, insertLocalPath,
      status, publishedContentJson, PROVIDER, media.externalId]
   );
 
   return { action: 'imported', publicId };
+}
+
+async function prepareAndUpsert(media, intRow) {
+  const [[existing]] = await pool.query(
+    `SELECT id, public_id, is_imported, archived_at, provider_thumbnail_local_path
+       FROM social_posts
+      WHERE provider = ? AND provider_external_id = ?`,
+    [PROVIDER, media.externalId]
+  );
+
+  if (existing?.archived_at) return { action: 'skipped', reason: 'archived' };
+  if (existing && !existing.is_imported) return { action: 'skipped', reason: 'manual_post' };
+
+  const thumbUrl = isValidMetaImageUrl(media.thumbnailUrl) ? media.thumbnailUrl : '';
+  const prepared = await thumbnailCache.ensureProviderThumbnailCached({
+    provider: PROVIDER,
+    sourceUrl: thumbUrl,
+    existingLocalPath: existing?.provider_thumbnail_local_path || '',
+  });
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    // Call through exports so tests can stub persistence failures.
+    const result = await module.exports.upsertPost(conn, media, intRow, {
+      localThumbnailPath: prepared.localPath,
+    });
+    await conn.commit();
+
+    if (result.action === 'skipped' && prepared.createdAbsolute) {
+      const imageProcessing = require('./imageProcessingService');
+      await imageProcessing.deleteProcessedImage(prepared.createdAbsolute);
+    } else if (
+      prepared.createdAbsolute
+      && prepared.replacedPrevious
+      && prepared.replacedPrevious !== prepared.localPath
+    ) {
+      await thumbnailCache.deleteLocalThumbnailSafe(prepared.replacedPrevious);
+    }
+
+    return result;
+  } catch (err) {
+    try { await conn.rollback(); } catch { /* ignore */ }
+    if (prepared.createdAbsolute) {
+      const imageProcessing = require('./imageProcessingService');
+      await imageProcessing.deleteProcessedImage(prepared.createdAbsolute);
+    }
+    throw err;
+  } finally {
+    conn.release();
+  }
 }
 
 // ── Main sync ──
@@ -184,7 +237,6 @@ async function syncInstagram(intRow) {
     throw Object.assign(new Error('Instagram account ID no configurado.'), { code: 'NO_IG_USER_ID' });
   }
 
-  // Validate token before syncing
   const validation = await metaOAuth.validateToken(PROVIDER);
   if (!validation.valid) {
     await metaOAuth.handleConnectionFailure(PROVIDER, validation.category);
@@ -202,27 +254,20 @@ async function syncInstagram(intRow) {
   const maxResults = Math.min(50, Math.max(1, Number(config.maxPosts) || MAX_MEDIA_DEFAULT));
   const items = await fetchInstagramMedia(igUserId, accessToken, maxResults);
 
-  const conn = await pool.getConnection();
-  let imported = 0, skipped = 0, updated = 0;
-  try {
-    await conn.beginTransaction();
-    for (const media of items) {
-      if (!media.externalId) { skipped++; continue; }
-      try {
-        const result = await upsertPost(conn, media, intRow);
-        if (result.action === 'imported') imported++;
-        else if (result.action === 'updated') updated++;
-        else skipped++;
-      } catch {
-        skipped++;
-      }
+  let imported = 0;
+  let skipped = 0;
+  let updated = 0;
+
+  for (const media of items) {
+    if (!media.externalId) { skipped++; continue; }
+    try {
+      const result = await prepareAndUpsert(media, intRow);
+      if (result.action === 'imported') imported++;
+      else if (result.action === 'updated') updated++;
+      else skipped++;
+    } catch {
+      skipped++;
     }
-    await conn.commit();
-  } catch (err) {
-    await conn.rollback();
-    throw err;
-  } finally {
-    conn.release();
   }
 
   return { imported, skipped, updated };
@@ -234,6 +279,7 @@ module.exports = {
   fetchInstagramMedia,
   normalizeInstagramMedia,
   upsertPost,
+  prepareAndUpsert,
   isValidMetaImageUrl,
   setHttpGet,
 };

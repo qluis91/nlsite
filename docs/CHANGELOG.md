@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-29 — Persist social feed Meta thumbnails locally
+
+### Fixed
+- Instagram/Facebook Social Feed cards no longer fall back to `social-feed-fallback.svg` after Meta CDN URLs expire
+- Provider thumbnails are downloaded once (SSRF-safe), optimized to WebP q80, and stored under `UPLOAD_PUBLIC_ROOT/social/{instagram|facebook}/`
+- Public feed priority: CMS media → local provider cache → valid temporary CDN URL → fallback SVG
+- Manual/automatic sync backfills `provider_thumbnail_local_path` for existing imported posts without holding MySQL transactions during HTTP/Sharp work
+
+### Added
+- `services/socialProviderThumbnailService.js`
+- Migration `migrateSocialProviderThumbnailCache` (`provider_thumbnail_local_path`)
+
 ## 2026-10-29 — Normalize site branding to NinjaLabCR
 
 ### Fixed

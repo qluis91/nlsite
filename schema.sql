@@ -608,6 +608,43 @@ CREATE TABLE IF NOT EXISTS home_social_items (
   CONSTRAINT fk_home_social_items_updater FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ── Social Feed posts (curated + provider imports) ──
+CREATE TABLE IF NOT EXISTS social_posts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id VARCHAR(36) NOT NULL,
+  platform VARCHAR(20) NOT NULL DEFAULT 'other',
+  post_url VARCHAR(2048) NOT NULL DEFAULT '',
+  title VARCHAR(300) NOT NULL DEFAULT '',
+  description VARCHAR(500) NOT NULL DEFAULT '',
+  thumbnail_media_ref VARCHAR(255) NOT NULL DEFAULT '',
+  provider_thumbnail_url VARCHAR(2048) NOT NULL DEFAULT '',
+  provider_thumbnail_expires_at TIMESTAMP NULL DEFAULT NULL,
+  provider_thumbnail_local_path VARCHAR(500) NOT NULL DEFAULT '',
+  embed_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  display_mode VARCHAR(20) NOT NULL DEFAULT 'external_link',
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  is_featured TINYINT(1) NOT NULL DEFAULT 0,
+  sort_order INT NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'draft',
+  published_content_json JSON NULL,
+  provider VARCHAR(20) NOT NULL DEFAULT 'manual',
+  provider_external_id VARCHAR(100) NULL,
+  provider_synced_at TIMESTAMP NULL DEFAULT NULL,
+  is_imported TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  published_at TIMESTAMP NULL DEFAULT NULL,
+  created_by INT NULL,
+  updated_by INT NULL,
+  archived_at TIMESTAMP NULL DEFAULT NULL,
+  UNIQUE KEY uk_social_posts_public_id (public_id),
+  UNIQUE KEY uk_social_posts_provider_ext (provider, provider_external_id),
+  INDEX idx_social_posts_platform (platform),
+  INDEX idx_social_posts_status (status),
+  INDEX idx_social_posts_sort (sort_order),
+  INDEX idx_social_posts_featured (is_featured)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── Phase 11D: Publication batches ──
 
 CREATE TABLE IF NOT EXISTS publication_batches (

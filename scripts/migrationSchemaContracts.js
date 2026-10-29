@@ -341,6 +341,12 @@ const CONTRACTS = {
       social_posts: ['provider_thumbnail_url', 'provider_thumbnail_expires_at'],
     },
   },
+  migrateSocialProviderThumbnailCache: {
+    tables: ['social_posts'],
+    columns: {
+      social_posts: ['provider_thumbnail_local_path'],
+    },
+  },
 };
 
 /** Encoding-drift checksum pairs for remaining historical migrations. */

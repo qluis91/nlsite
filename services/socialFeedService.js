@@ -426,7 +426,8 @@ async function getPublicFeed(settings = {}) {
 
   const [rows] = await pool.query(
     `SELECT id, public_id, sort_order, published_at, published_content_json,
-            thumbnail_media_ref, provider_thumbnail_url, provider_thumbnail_expires_at
+            thumbnail_media_ref, provider_thumbnail_url, provider_thumbnail_expires_at,
+            provider_thumbnail_local_path
        FROM social_posts
       WHERE status = 'published' AND is_active = 1 AND archived_at IS NULL
         AND published_content_json IS NOT NULL
@@ -451,6 +452,7 @@ async function getPublicFeed(settings = {}) {
       // Provider thumbnail from social_posts row (not snapshot — refreshed by sync)
       providerThumbnailUrl: h(row.provider_thumbnail_url),
       providerThumbnailExpiresAt: row.provider_thumbnail_expires_at,
+      providerThumbnailLocalPath: h(row.provider_thumbnail_local_path),
       displayMode: snapshot.displayMode === 'embed' ? 'embed' : 'external',
       embedEnabled: snapshot.embedEnabled === true,
       isFeatured: snapshot.isFeatured === true,
@@ -466,14 +468,20 @@ async function getPublicFeed(settings = {}) {
   }
 
   const selected = posts.slice(0, maximumPosts);
+  const thumbnailCache = require('./socialProviderThumbnailService');
   await Promise.all(selected.map(async (post) => {
-    // 1. Local Media Library thumbnail (takes precedence)
+    // 1. Manual CMS Media Library thumbnail (highest priority)
     const media = post.thumbnailMediaRef
       ? await cmsContent.resolveMediaReference(post.thumbnailMediaRef, null)
       : null;
     let thumbnail = media?.thumbnailUrl || media?.url || null;
 
-    // 2. Provider thumbnail (only if not expired and no local media selected)
+    // 2. Locally cached provider WebP (ignores provider_thumbnail_expires_at)
+    if (!thumbnail) {
+      thumbnail = thumbnailCache.resolveLocalThumbnailPublicUrl(post.providerThumbnailLocalPath);
+    }
+
+    // 3. Temporary external provider URL while still valid
     if (!thumbnail) {
       const provUrl = post.providerThumbnailUrl;
       const provExpires = post.providerThumbnailExpiresAt;
@@ -485,7 +493,7 @@ async function getPublicFeed(settings = {}) {
       }
     }
 
-    // 3. Final fallback
+    // 4. Final fallback
     post.thumbnailUrl = thumbnail || '/images/social-feed-fallback.svg';
     post.thumbnailAlt = media?.altText || post.title || `Publicación de ${post.platform}`;
     post.embed = deriveSocialEmbed(post);
