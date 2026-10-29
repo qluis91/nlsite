@@ -283,6 +283,25 @@ test('public home template exposes carousel zoom CSS variable', () => {
   assert.match(home, /project-carousel__image-frame/);
 });
 
+test('public carousel keeps 16:9 desktop frame, cover crop, zoom layer, Ken Burns, and glass text panel', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'home.css'), 'utf8');
+  assert.match(css, /\.project-carousel\s*\{[\s\S]*?aspect-ratio:\s*16\s*\/\s*9/);
+  assert.match(css, /\.project-carousel\s*\{[\s\S]*?max-width:\s*1280px/);
+  assert.match(css, /\.project-carousel__image\s*\{[\s\S]*?object-fit:\s*cover/);
+  assert.match(css, /\.project-carousel__image-frame\s*\{[\s\S]*?--carousel-zoom/);
+  assert.match(css, /@keyframes project-carousel-kenburns/);
+  assert.match(
+    css,
+    /\.project-carousel__slide\.is-active \.project-carousel__image[\s\S]*?animation:\s*project-carousel-kenburns/
+  );
+  assert.match(css, /\.project-carousel__content\s*\{[\s\S]*?background:\s*rgba\(7,\s*10,\s*9,\s*0\.68\)/);
+  assert.match(css, /\.project-carousel__content\s*\{[\s\S]*?backdrop-filter:\s*blur\(10px\)/);
+  assert.doesNotMatch(
+    css,
+    /\.project-carousel__image\s*\{[\s\S]*?object-fit:\s*contain/
+  );
+});
+
 test('admin preview helper wiring binds zoom with framing sync', () => {
   const editor = fs.readFileSync(
     path.join(__dirname, '..', 'public', 'js', 'admin', 'panel2-editor.js'),

@@ -371,7 +371,7 @@ test('panel-two text and carousel use visible scroll-owned animation layers', ()
 test('project carousel hierarchy favors a clearer active slide over softer previews', () => {
   assert.match(css, /--preview-width: clamp\(160px, 13vw, 205px\)/);
   assert.match(css, /--preview-height: clamp\(112px, 11vw, 152px\)/);
-  assert.match(css, /rgba\(0, 0, 0, 0\.30\)/);
+  assert.match(css, /rgba\(0, 0, 0, 0\.16\)/);
   assert.doesNotMatch(css, /rgba\(0, 0, 0, 0\.84\)/);
   assert.match(
     css,

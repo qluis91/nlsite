@@ -2526,7 +2526,11 @@ body.is-social-embed-open {
   --preview-height: clamp(112px, 11vw, 152px);
   --preview-gap: clamp(0.8rem, 1.5vw, 1.4rem);
   position: relative;
-  height: clamp(440px, 48vw, 620px);
+  width: 100%;
+  max-width: 1280px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin-inline: auto;
   overflow: hidden;
   border-radius: clamp(1rem, 2vw, 2rem);
   background: #101413;
@@ -2738,13 +2742,13 @@ body.is-social-embed-open {
   background:
     linear-gradient(
       90deg,
-      rgba(0, 0, 0, 0.30) 0%,
-      rgba(0, 0, 0, 0.14) 40%,
+      rgba(0, 0, 0, 0.16) 0%,
+      rgba(0, 0, 0, 0.08) 36%,
       rgba(0, 0, 0, 0.02) 72%
     ),
     linear-gradient(
       0deg,
-      rgba(0, 0, 0, 0.12),
+      rgba(0, 0, 0, 0.10),
       transparent 48%
     );
 }
@@ -2752,10 +2756,19 @@ body.is-social-embed-open {
 .project-carousel__content {
   position: absolute;
   top: 50%;
-  left: clamp(1.5rem, 4vw, 4rem);
+  left: clamp(1.25rem, 3.2vw, 3.25rem);
   z-index: 3;
-  width: min(38rem, 43%);
+  box-sizing: border-box;
+  width: min(26rem, 36%);
+  max-width: 38%;
+  padding: clamp(1rem, 2vw, 1.5rem);
   color: #fff;
+  background: rgba(7, 10, 9, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   visibility: hidden;
   opacity: 0;
   filter: blur(7px);
@@ -2942,7 +2955,6 @@ body.is-social-embed-open {
 
 @media (max-width: 1024px) {
   .project-carousel {
-    height: clamp(420px, 58vw, 560px);
     --preview-width: clamp(130px, 15vw, 160px);
     --preview-height: clamp(90px, 11vw, 115px);
   }
@@ -2956,7 +2968,8 @@ body.is-social-embed-open {
   }
 
   .project-carousel__content {
-    width: 48%;
+    width: min(22rem, 42%);
+    max-width: 46%;
   }
 }
 
@@ -2989,6 +3002,8 @@ body.is-social-embed-open {
   }
 
   .project-carousel {
+    max-width: none;
+    aspect-ratio: auto;
     height: clamp(480px, 120vw, 620px);
     border-radius: 1.1rem;
   }
@@ -3016,12 +3031,7 @@ body.is-social-embed-open {
 
   .project-carousel__slide.is-active::after,
   .project-carousel:not(.is-enhanced) .project-carousel__slide:nth-child(2)::after {
-    background: linear-gradient(0deg, rgba(0, 0, 0, 0.50) 0%, rgba(0, 0, 0, 0.24) 52%, rgba(0, 0, 0, 0.04) 82%);
-  }
-
-  .project-carousel__image {
-    object-fit: contain;
-    object-position: var(--carousel-position-x, 50%) var(--carousel-position-y, 50%);
+    background: linear-gradient(0deg, rgba(0, 0, 0, 0.36) 0%, rgba(0, 0, 0, 0.16) 52%, rgba(0, 0, 0, 0.04) 82%);
   }
 
   .project-carousel__content {
@@ -3030,6 +3040,7 @@ body.is-social-embed-open {
     bottom: 6.25rem;
     left: 1.2rem;
     width: auto;
+    max-width: none;
     transform: translateY(16px);
   }
 
@@ -3069,6 +3080,7 @@ body.is-social-embed-open {
   }
 
   .project-carousel {
+    aspect-ratio: auto;
     height: clamp(500px, 145vw, 600px);
   }
 
@@ -3188,6 +3200,7 @@ body.is-social-embed-open {
 }
 @media (max-width: 760px) {
   .project-carousel {
+    aspect-ratio: auto;
     height: clamp(430px, 118vw, 540px);
   }
 
@@ -3196,6 +3209,7 @@ body.is-social-embed-open {
     bottom: 5rem;
     left: 1.25rem;
     width: calc(100% - 2.5rem);
+    max-width: none;
     transform: none;
   }
 
