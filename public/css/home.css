@@ -2653,12 +2653,12 @@ body.is-social-embed-open {
 
 .project-carousel__slide.is-preview-near {
   bottom: clamp(1.55rem, 3.3vw, 2.85rem);
-  opacity: 0.94;
+  opacity: 0.78;
 }
 
 .project-carousel__slide.is-preview-rear {
   bottom: clamp(1.35rem, 3vw, 2.55rem);
-  opacity: 0.82;
+  opacity: 0.68;
 }
 
 .project-carousel__slide.is-preview-near .project-carousel__face {
