@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-30 — Explicit tax modes for Cotización 3D
+
+### Added
+- Canonical `export.taxMode` (`included` | `add` | `excluded`) for `/admin/cotizacion-3d`
+- Two mutually exclusive IVA checkboxes; both unchecked = excluded
+- Shared `normalizeTaxMode` / `applyTaxMode` / `resolveTaxMode` helpers (server + PDF parity)
+
+### Changed
+- `computeQuoteTotal` and PDF grand total apply tax after discounts on the full taxable base
+- Legacy `includeIva` migrates in-memory: true→included, false→excluded
+- PDF notes/summary differ per mode; excluded states factura-electrónica IVA note
+- PDF already hides “Total con pago web”, uses `www.ninjalabcr.com`, empty Precio unit. footer
+
+### Notes
+- No DB schema migration (`taxMode` lives in JSON payload)
+- Quote email catalog and service-description defaults unchanged
+- `NinjaLabV2` untouched
+
 ## 2026-10-29 — Public services, quote requests & navbar unification
 
 ### Added

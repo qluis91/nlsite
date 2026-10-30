@@ -343,17 +343,34 @@ function computeQuoteTotal(snapshot) {
 
   const design = num(state.costs && state.costs.designCost);
   const shipping = num((state.export || state).shippingCost);
-  const total = subtotal + design;
-  // includeIva is disclosure only — sale/design/shipping amounts are already final client prices.
-  return roundMoney(Math.max(0, Math.round(total + shipping)));
+  const taxableBase = roundMoney(Math.max(0, Math.round(subtotal + design + shipping)));
+  const taxMode = resolveTaxMode(state.export || state);
+  return applyTaxMode(taxableBase, taxMode).total;
 }
 
-// ── IVA helpers ──
+// ── IVA / taxMode helpers ──
+
+function normalizeTaxMode(value) {
+  return ['included', 'add', 'excluded'].includes(value) ? value : 'excluded';
+}
 
 /**
- * Client-facing amounts are final (IVA already included when flagged).
- * This helper does NOT inflate; kept for API compatibility with callers that
- * previously multiplied by 1.13.
+ * Resolve taxMode from export snapshot.
+ * Legacy: includeIva true → included; false/missing → excluded.
+ */
+function resolveTaxMode(exportOrState) {
+  const exp = (exportOrState && typeof exportOrState === 'object')
+    ? (exportOrState.export || exportOrState)
+    : {};
+  if (exp.taxMode != null && String(exp.taxMode).trim() !== '') {
+    return normalizeTaxMode(exp.taxMode);
+  }
+  return exp.includeIva === true ? 'included' : 'excluded';
+}
+
+/**
+ * Client-facing line amounts are never inflated here.
+ * Kept for API compatibility with callers that previously multiplied by 1.13.
  */
 function withIva(amount, _includeIva) {
   return roundMoney(amount);
@@ -373,6 +390,44 @@ function extractIncludedIva(grossAmount) {
     gross,
     net: gross - iva,
     iva,
+  };
+}
+
+/**
+ * Apply taxMode to a taxable base (post-discount, including design/shipping).
+ * - included: base is final gross; extract embedded IVA; payable = base
+ * - add: base is pre-IVA; payable = base + 13%
+ * - excluded: base is pre-IVA; payable = base (no IVA charged)
+ */
+function applyTaxMode(baseAmount, taxMode) {
+  const base = roundMoney(baseAmount);
+  const mode = normalizeTaxMode(taxMode);
+
+  if (mode === 'add') {
+    const iva = roundMoney(base * IVA_RATE);
+    return {
+      taxMode: mode,
+      base,
+      iva,
+      total: base + iva,
+    };
+  }
+
+  if (mode === 'included') {
+    const split = extractIncludedIva(base);
+    return {
+      taxMode: mode,
+      base: split.net,
+      iva: split.iva,
+      total: split.gross,
+    };
+  }
+
+  return {
+    taxMode: 'excluded',
+    base,
+    iva: 0,
+    total: base,
   };
 }
 
@@ -427,6 +482,9 @@ module.exports = {
   computeProductLineTotal,
   withIva,
   extractIncludedIva,
+  normalizeTaxMode,
+  resolveTaxMode,
+  applyTaxMode,
   computeTilopayPricing,
   formatFeeBreakdown,
   TILOPAY_FEE_PERCENT,

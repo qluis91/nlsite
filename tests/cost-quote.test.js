@@ -302,22 +302,27 @@ describe('computeQuoteTotal', () => {
     assert.equal(calculator.computeQuoteTotal(state), 12700);
   });
 
-  it('IVA flag does not increase final client price', () => {
+  it('included/excluded keep base payable; add applies 13%', () => {
     const base = {
       costs: { hourRate: 300, kgPrice: 20500, profitPercent: 100, designCost: 500 },
       products: [{ name: 'Test', quantity: 1, grams: 100, printHours: 1 }],
     };
-    // sale=4700 + design=500 + shipping=1000 = 6200 regardless of includeIva
-    const off = calculator.computeQuoteTotal({
+    // sale=4700 + design=500 + shipping=1000 = 6200
+    const excluded = calculator.computeQuoteTotal({
       ...base,
-      export: { shippingCost: 1000, includeIva: false },
+      export: { shippingCost: 1000, taxMode: 'excluded' },
     });
-    const on = calculator.computeQuoteTotal({
+    const included = calculator.computeQuoteTotal({
       ...base,
-      export: { shippingCost: 1000, includeIva: true },
+      export: { shippingCost: 1000, taxMode: 'included' },
     });
-    assert.equal(off, 6200);
-    assert.equal(on, 6200);
+    const add = calculator.computeQuoteTotal({
+      ...base,
+      export: { shippingCost: 1000, taxMode: 'add' },
+    });
+    assert.equal(excluded, 6200);
+    assert.equal(included, 6200);
+    assert.equal(add, 7006); // 6200 + round(6200*0.13)=6200+806
   });
 
   it('multi-product complex quote', () => {
@@ -364,10 +369,10 @@ describe('Tilopay fees', () => {
   });
 });
 
-describe('IVA semantics — no double tax', () => {
+describe('taxMode — included / add / excluded', () => {
   const productionRegression = {
     costs: { designCost: 0, hourRate: 300, kgPrice: 20500, profitPercent: 100 },
-    export: { includeIva: true, shippingCost: 0 },
+    export: { taxMode: 'included', shippingCost: 0 },
     products: [
       {
         name: 'rotulo 20x10cm',
@@ -390,105 +395,90 @@ describe('IVA semantics — no double tax', () => {
     ],
   };
 
-  it('production regression: server total is 31800 with IVA on', () => {
+  function loadPdf() {
+    const vm = require('node:vm');
+    const pdfSrc = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    const sandbox = { console };
+    vm.runInNewContext(pdfSrc, sandbox);
+    return sandbox.AdminCostQuotePdf;
+  }
+
+  it('normalizeTaxMode rejects unknown values', () => {
+    assert.equal(calculator.normalizeTaxMode('included'), 'included');
+    assert.equal(calculator.normalizeTaxMode('add'), 'add');
+    assert.equal(calculator.normalizeTaxMode('excluded'), 'excluded');
+    assert.equal(calculator.normalizeTaxMode('nope'), 'excluded');
+    assert.equal(calculator.normalizeTaxMode(null), 'excluded');
+  });
+
+  it('applyTaxMode included: base 10000 → payable 10000, net+iva=10000', () => {
+    const tax = calculator.applyTaxMode(10000, 'included');
+    assert.equal(tax.total, 10000);
+    assert.equal(tax.base, 8850);
+    assert.equal(tax.iva, 1150);
+    assert.equal(tax.base + tax.iva, 10000);
+  });
+
+  it('applyTaxMode add: base 10000 → iva 1300, total 11300', () => {
+    const tax = calculator.applyTaxMode(10000, 'add');
+    assert.equal(tax.iva, 1300);
+    assert.equal(tax.total, 11300);
+  });
+
+  it('applyTaxMode excluded: base 10000 → iva 0, total 10000', () => {
+    const tax = calculator.applyTaxMode(10000, 'excluded');
+    assert.equal(tax.iva, 0);
+    assert.equal(tax.total, 10000);
+  });
+
+  it('legacy includeIva true → included; false → excluded', () => {
+    assert.equal(calculator.resolveTaxMode({ includeIva: true }), 'included');
+    assert.equal(calculator.resolveTaxMode({ includeIva: false }), 'excluded');
+    assert.equal(calculator.resolveTaxMode({}), 'excluded');
+  });
+
+  it('taxMode wins over legacy includeIva', () => {
+    assert.equal(calculator.resolveTaxMode({ taxMode: 'add', includeIva: true }), 'add');
+    assert.equal(calculator.resolveTaxMode({ taxMode: 'excluded', includeIva: true }), 'excluded');
+  });
+
+  it('real case included: TOTAL 31800, net 28142, iva 3658', () => {
     assert.equal(calculator.computeQuoteTotal(productionRegression), 31800);
-    const tax = calculator.extractIncludedIva(31800);
-    assert.equal(tax.net, 28142);
+    const tax = calculator.applyTaxMode(31800, 'included');
+    assert.equal(tax.base, 28142);
     assert.equal(tax.iva, 3658);
-    assert.equal(tax.net + tax.iva, 31800);
+    assert.equal(tax.total, 31800);
   });
 
-  it('production regression: IVA on/off same payable total', () => {
-    const off = calculator.computeQuoteTotal({
+  it('real case add: Subtotal 31800, IVA 4134, TOTAL 35934', () => {
+    const state = {
       ...productionRegression,
-      export: { ...productionRegression.export, includeIva: false },
-    });
-    const on = calculator.computeQuoteTotal(productionRegression);
-    assert.equal(off, 31800);
-    assert.equal(on, 31800);
+      export: { taxMode: 'add', shippingCost: 0 },
+    };
+    assert.equal(calculator.computeQuoteTotal(state), 35934);
+    const tax = calculator.applyTaxMode(31800, 'add');
+    assert.equal(tax.iva, 4134);
+    assert.equal(tax.total, 35934);
   });
 
-  it('manual single price stays 15000 with IVA disclosure', () => {
+  it('real case excluded: TOTAL 31800, no IVA charged', () => {
+    const state = {
+      ...productionRegression,
+      export: { taxMode: 'excluded', shippingCost: 0 },
+    };
+    assert.equal(calculator.computeQuoteTotal(state), 31800);
+    const tax = calculator.applyTaxMode(31800, 'excluded');
+    assert.equal(tax.iva, 0);
+    assert.equal(tax.total, 31800);
+  });
+
+  it('discount before tax: included extracts from 9000', () => {
     const state = {
       costs: { designCost: 0 },
-      export: { includeIva: true, shippingCost: 0 },
-      products: [{
-        name: 'solo',
-        quantity: 1,
-        salePriceTouched: true,
-        salePriceManual: 15000,
-        additionals: [],
-      }],
-    };
-    assert.equal(calculator.computeQuoteTotal(state), 15000);
-    assert.notEqual(calculator.computeQuoteTotal(state), 16950);
-  });
-
-  it('multi quantity 2800 x 6 stays 16800', () => {
-    const state = {
-      costs: { designCost: 0 },
-      export: { includeIva: true, shippingCost: 0 },
-      products: [{
-        name: 'multi',
-        quantity: 6,
-        salePriceTouched: true,
-        salePriceManual: 2800,
-        additionals: [],
-      }],
-    };
-    assert.equal(calculator.computeQuoteTotal(state), 16800);
-  });
-
-  it('shipping is not inflated when IVA included', () => {
-    const state = {
-      costs: { designCost: 0 },
-      export: { includeIva: true, shippingCost: 3000 },
-      products: [{
-        name: 'ship',
-        quantity: 1,
-        salePriceTouched: true,
-        salePriceManual: 10000,
-        additionals: [],
-      }],
-    };
-    assert.equal(calculator.computeQuoteTotal(state), 13000);
-  });
-
-  it('design is not inflated when IVA included', () => {
-    const state = {
-      costs: { designCost: 5000 },
-      export: { includeIva: true, shippingCost: 0 },
-      products: [{
-        name: 'des',
-        quantity: 1,
-        salePriceTouched: true,
-        salePriceManual: 10000,
-        additionals: [],
-      }],
-    };
-    assert.equal(calculator.computeQuoteTotal(state), 15000);
-  });
-
-  it('visible additional remains final price with IVA flag', () => {
-    const state = {
-      costs: { designCost: 0 },
-      export: { includeIva: true, shippingCost: 0 },
-      products: [{
-        name: 'add',
-        quantity: 1,
-        salePriceTouched: true,
-        salePriceManual: 10000,
-        additionals: [{ price: 2000, showOnInvoice: true, description: 'Pintura' }],
-      }],
-    };
-    // Manual sale already includes additionals in final price semantics for touched price
-    assert.equal(calculator.computeQuoteTotal(state), 10000);
-  });
-
-  it('discount applies to final price then tax is extracted', () => {
-    const state = {
-      costs: { designCost: 0 },
-      export: { includeIva: true, shippingCost: 0 },
+      export: { taxMode: 'included', shippingCost: 0 },
       products: [{
         name: 'disc',
         quantity: 1,
@@ -500,77 +490,135 @@ describe('IVA semantics — no double tax', () => {
       }],
     };
     assert.equal(calculator.computeQuoteTotal(state), 9000);
-    const tax = calculator.extractIncludedIva(9000);
-    assert.equal(tax.net + tax.iva, 9000);
+    const tax = calculator.applyTaxMode(9000, 'included');
+    assert.equal(tax.base + tax.iva, 9000);
   });
 
-  it('wholesale payable total unchanged when toggling includeIva', () => {
-    const base = {
-      costs: { hourRate: 300, kgPrice: 20500, profitPercent: 100, designCost: 0 },
-      discounts: { range10_50: 5, range50_100: 10, range100plus: 15 },
-      wholesaleMode: true,
-      products: [{ name: 'Test', quantity: 50, grams: 100, printHours: 1 }],
+  it('discount before tax: add charges 13% on 9000', () => {
+    const state = {
+      costs: { designCost: 0 },
+      export: { taxMode: 'add', shippingCost: 0 },
+      products: [{
+        name: 'disc',
+        quantity: 1,
+        salePriceTouched: true,
+        salePriceManual: 10000,
+        saleDiscountEnabled: true,
+        saleDiscountPercent: 10,
+        additionals: [],
+      }],
     };
-    const off = calculator.computeQuoteTotal({
-      ...base,
-      export: { includeIva: false, shippingCost: 0 },
-    });
-    const on = calculator.computeQuoteTotal({
-      ...base,
-      export: { includeIva: true, shippingCost: 0 },
-    });
-    assert.equal(off, on);
-    assert.equal(off, 211500);
+    assert.equal(calculator.computeQuoteTotal(state), 10170);
   });
 
-  it('PDF computeGrandTotal matches server for production regression', () => {
-    const vm = require('node:vm');
-    const pdfSrc = fs.readFileSync(
-      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
-      'utf8'
+  it('shipping/design participate in taxable base for add mode', () => {
+    const state = {
+      costs: { designCost: 5000 },
+      export: { taxMode: 'add', shippingCost: 3000 },
+      products: [{
+        name: 'ship',
+        quantity: 1,
+        salePriceTouched: true,
+        salePriceManual: 10000,
+        additionals: [],
+      }],
+    };
+    // base 18000 + 13% = 20340
+    assert.equal(calculator.computeQuoteTotal(state), 20340);
+  });
+
+  it('included does not inflate shipping/design', () => {
+    const state = {
+      costs: { designCost: 5000 },
+      export: { taxMode: 'included', shippingCost: 3000 },
+      products: [{
+        name: 'ship',
+        quantity: 1,
+        salePriceTouched: true,
+        salePriceManual: 10000,
+        additionals: [],
+      }],
+    };
+    assert.equal(calculator.computeQuoteTotal(state), 18000);
+  });
+
+  it('server/PDF parity for each taxMode on 31800 base', () => {
+    const pdf = loadPdf();
+    ['included', 'add', 'excluded'].forEach((mode) => {
+      const state = {
+        ...productionRegression,
+        export: { taxMode: mode, shippingCost: 0 },
+      };
+      const result = calculator.computeAll(state);
+      const server = calculator.computeQuoteTotal(state);
+      const grand = pdf.computeGrandTotal({ state, result, taxMode: mode });
+      assert.equal(grand, server, 'parity for ' + mode);
+    });
+    assert.equal(
+      calculator.computeQuoteTotal({ ...productionRegression, export: { taxMode: 'add', shippingCost: 0 } }),
+      35934
     );
-    const sandbox = { console };
-    vm.runInNewContext(pdfSrc, sandbox);
-    const pdf = sandbox.AdminCostQuotePdf;
-    assert.ok(pdf && typeof pdf.computeGrandTotal === 'function');
-
-    const result = calculator.computeAll(productionRegression);
-    const grand = pdf.computeGrandTotal({
-      state: productionRegression,
-      result,
-      includeIva: true,
-    });
-    assert.equal(grand, 31800);
-    assert.equal(grand, calculator.computeQuoteTotal(productionRegression));
-
-    const tax = pdf.extractIncludedIva(grand);
-    assert.equal(tax.net, 28142);
-    assert.equal(tax.iva, 3658);
-
-    // Explicitly reject the old double-IVA artifacts
-    assert.notEqual(grand, 35934);
-    assert.notEqual(pdf.withIva(15000, true), 16950);
-    assert.notEqual(pdf.withIva(2800, true), 3164);
+    assert.equal(
+      calculator.computeQuoteTotal({ ...productionRegression, export: { taxMode: 'included', shippingCost: 0 } }),
+      31800
+    );
   });
 
-  it('checkbox label clarifies included IVA', () => {
+  it('legacy includeIva true still maps PDF/server to included 31800', () => {
+    const pdf = loadPdf();
+    const legacy = {
+      ...productionRegression,
+      export: { includeIva: true, shippingCost: 0 },
+    };
+    assert.equal(calculator.resolveTaxMode(legacy.export), 'included');
+    assert.equal(calculator.computeQuoteTotal(legacy), 31800);
+    const result = calculator.computeAll(legacy);
+    assert.equal(pdf.computeGrandTotal({ state: legacy, result }), 31800);
+  });
+
+  it('Tilopay fee base uses payable total after taxMode', () => {
+    const included = calculator.computeTilopayPricing(31800);
+    const add = calculator.computeTilopayPricing(35934);
+    assert.equal(included.tilopayTotal, 37550);
+    assert.ok(add.tilopayTotal > included.tilopayTotal);
+  });
+
+  it('UI exposes two exclusive tax checkboxes with exact labels', () => {
     const src = fs.readFileSync(
       path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'),
       'utf8'
     );
     assert.match(src, /Precios incluyen IVA \(13%\)/);
-    assert.doesNotMatch(src, />Incluir IVA \(13%\)</);
+    assert.match(src, /Incluir IVA \(13%\) al total/);
+    assert.match(src, /cq-taxIncluded/);
+    assert.match(src, /cq-taxAdd/);
+    assert.match(src, /taxMode:\s*'excluded'/);
+    assert.match(src, /migrateExportTaxMode/);
+    assert.match(src, /taxAddCheck\.checked\s*=\s*false/);
+    assert.match(src, /taxIncludedCheck\.checked\s*=\s*false/);
+    assert.match(src, /Si ninguna opción está marcada, la cotización se considera sin IVA/);
   });
 
-  it('PDF summary uses Subtotal sin IVA / IVA incluido labels', () => {
+  it('PDF notes and summary labels cover all three modes', () => {
     const src = fs.readFileSync(
       path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
       'utf8'
     );
     assert.match(src, /Subtotal sin IVA/);
     assert.match(src, /IVA incluido/);
-    assert.match(src, /extractIncludedIva/);
+    assert.match(src, /agregado al total de la cotizaci/);
+    assert.match(src, /Los precios indicados no incluyen IVA/);
+    assert.match(src, /factura electr/);
+    assert.match(src, /applyTaxMode/);
+    assert.match(src, /normalizeTaxMode/);
     assert.doesNotMatch(src, /base \* \(1 \+ IVA_RATE\)/);
+  });
+
+  it('line prices are not inflated by withIva helper', () => {
+    const pdf = loadPdf();
+    assert.equal(pdf.withIva(15000, true), 15000);
+    assert.equal(pdf.withIva(2800, true), 2800);
+    assert.notEqual(pdf.withIva(15000, true), 16950);
   });
 });
 

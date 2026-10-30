@@ -71,6 +71,7 @@
       paymentTerms: 'Forma de pago: 50% de adelanto y 50% contra entrega.',
       warranty: 'Garantía: 3 meses por defectos de fabricación.',
       extraNotes: '',
+      taxMode: 'excluded',
       includeIva: false,
       quoteEmail: 'lquijano@ninjalab3d.com',
     },
@@ -787,7 +788,7 @@
     if (!isDefaultProduct(p, 0)) return true;
     if (state.globalDiscount && state.globalDiscount.enabled) return true;
     if (num(state.alexPercent) !== DEFAULTS.alexPercent) return true;
-    if (exp.includeIva !== DEFAULTS.export.includeIva) return true;
+    if (normalizeTaxMode(exp.taxMode) !== DEFAULTS.export.taxMode) return true;
     if (num(exp.deliveryDays) !== DEFAULTS.export.deliveryDays) return true;
     if (num(exp.validDays) !== DEFAULTS.export.validDays) return true;
     if (num(exp.shippingCost) !== DEFAULTS.export.shippingCost) return true;
@@ -836,6 +837,19 @@
     return p;
   }
 
+  function normalizeTaxMode(value) {
+    return value === 'included' || value === 'add' || value === 'excluded' ? value : 'excluded';
+  }
+
+  function migrateExportTaxMode(exp) {
+    if (!exp || typeof exp !== 'object') return;
+    if (!exp.taxMode) {
+      exp.taxMode = exp.includeIva === true ? 'included' : 'excluded';
+    }
+    exp.taxMode = normalizeTaxMode(exp.taxMode);
+    exp.includeIva = exp.taxMode === 'included';
+  }
+
   function migrateState(s) {
     if (s.wholesaleMode === undefined) s.wholesaleMode = false;
     if (!s.costs) s.costs = {};
@@ -856,6 +870,7 @@
     if (s.export.description === undefined || s.export.description === null) {
       s.export.description = DEFAULT_SERVICE_DESCRIPTION;
     }
+    migrateExportTaxMode(s.export);
     s.export.quoteEmail = resolveQuoteEmailSelection(s.export.quoteEmail);
     return s;
   }
@@ -1578,13 +1593,20 @@
       '<h4 class="cq-export-block__title">Costos y términos</h4>' +
       '<div class="cq-grid cq-grid--3">' +
       inputHtml('cq-shippingCost', 'Costo de envío (₡)', exp.shippingCost, { min: 0, step: 1 }) +
-      '<label class="cq-field cq-field--input cq-field--check">' +
+      '<div class="cq-field cq-field--input cq-field--check cq-field--tax-mode">' +
       '<span class="cq-field__label">IVA</span>' +
       '<span class="cq-check-row">' +
-      '<input type="checkbox" id="cq-includeIva" data-cq-field="cq-includeIva"' +
-      (exp.includeIva ? ' checked' : '') +
+      '<input type="checkbox" id="cq-taxIncluded" data-cq-field="cq-taxIncluded"' +
+      (exp.taxMode === 'included' ? ' checked' : '') +
       ' />' +
-      '<span>Precios incluyen IVA (13%)</span></span></label>' +
+      '<span>Precios incluyen IVA (13%)</span></span>' +
+      '<span class="cq-check-row">' +
+      '<input type="checkbox" id="cq-taxAdd" data-cq-field="cq-taxAdd"' +
+      (exp.taxMode === 'add' ? ' checked' : '') +
+      ' />' +
+      '<span>Incluir IVA (13%) al total</span></span>' +
+      '<span class="cq-field__hint">Si ninguna opción está marcada, la cotización se considera sin IVA.</span>' +
+      '</div>' +
       inputHtml('cq-paymentTerms', 'Forma de pago', exp.paymentTerms, { type: 'text' }) +
       '</div>' +
       '<div class="cq-grid cq-grid--1">' +
@@ -2250,8 +2272,13 @@
     state.export.extraNotes = g('cq-extraNotes');
     state.export.quoteEmail = resolveQuoteEmailSelection(g('cq-quoteEmail') || state.export.quoteEmail);
     syncCostSelections(state);
-    var ivaEl = $('#cq-includeIva', root);
-    state.export.includeIva = !!(ivaEl && ivaEl.checked);
+    var includedEl = $('#cq-taxIncluded', root);
+    var addEl = $('#cq-taxAdd', root);
+    var taxMode = 'excluded';
+    if (includedEl && includedEl.checked) taxMode = 'included';
+    else if (addEl && addEl.checked) taxMode = 'add';
+    state.export.taxMode = normalizeTaxMode(taxMode);
+    state.export.includeIva = state.export.taxMode === 'included';
     return state;
   }
 
@@ -2454,7 +2481,8 @@
       productTitle: getQuoteDisplayName(state),
       deliveryDays: exp.deliveryDays,
       extraNotes: exp.extraNotes,
-      includeIva: !!exp.includeIva,
+      taxMode: normalizeTaxMode(exp.taxMode),
+      includeIva: normalizeTaxMode(exp.taxMode) === 'included',
       wholesaleMode: !!state.wholesaleMode,
       discountNote: buildDiscountNote(state, result),
       state: state,
@@ -2582,7 +2610,8 @@
       productTitle: getQuoteDisplayName(state),
       deliveryDays: exp.deliveryDays,
       extraNotes: exp.extraNotes,
-      includeIva: !!exp.includeIva,
+      taxMode: normalizeTaxMode(exp.taxMode),
+      includeIva: normalizeTaxMode(exp.taxMode) === 'included',
       wholesaleMode: !!state.wholesaleMode,
       discountNote: buildDiscountNote(state, result),
       state: state,
@@ -3139,12 +3168,24 @@
       });
     }
 
-    var ivaCheck = $('#cq-includeIva', root);
-    if (ivaCheck && !ivaCheck._cqBound) {
-      ivaCheck._cqBound = true;
-      ivaCheck.addEventListener('change', function () {
+    var taxIncludedCheck = $('#cq-taxIncluded', root);
+    var taxAddCheck = $('#cq-taxAdd', root);
+    if (taxIncludedCheck && !taxIncludedCheck._cqBound) {
+      taxIncludedCheck._cqBound = true;
+      taxIncludedCheck.addEventListener('change', function () {
+        if (taxIncludedCheck.checked && taxAddCheck) taxAddCheck.checked = false;
         state = readStateFromDom(root, state);
         saveStateLocal(state);
+        refresh(root, true);
+      });
+    }
+    if (taxAddCheck && !taxAddCheck._cqBound) {
+      taxAddCheck._cqBound = true;
+      taxAddCheck.addEventListener('change', function () {
+        if (taxAddCheck.checked && taxIncludedCheck) taxIncludedCheck.checked = false;
+        state = readStateFromDom(root, state);
+        saveStateLocal(state);
+        refresh(root, true);
       });
     }
 
@@ -3173,7 +3214,8 @@
           productTitle: getQuoteDisplayName(state),
           deliveryDays: exp.deliveryDays,
           extraNotes: exp.extraNotes,
-          includeIva: !!exp.includeIva,
+          taxMode: normalizeTaxMode(exp.taxMode),
+          includeIva: normalizeTaxMode(exp.taxMode) === 'included',
           wholesaleMode: !!state.wholesaleMode,
           discountNote: buildDiscountNote(state, result),
           state: state,

@@ -62,11 +62,28 @@
   }
 
   /**
-   * Sale/design/shipping amounts are already final client prices.
-   * includeIva is disclosure only — never inflate by 1.13.
+   * Line-item amounts are never inflated here — tax is applied only in summary/total.
    */
   function withIva(amount, _includeIva) {
     return roundMoney(amount);
+  }
+
+  function normalizeTaxMode(value) {
+    return value === 'included' || value === 'add' || value === 'excluded' ? value : 'excluded';
+  }
+
+  function resolveTaxMode(exp, data) {
+    if (data && data.taxMode != null && String(data.taxMode).trim() !== '') {
+      return normalizeTaxMode(data.taxMode);
+    }
+    var exportObj = exp || {};
+    if (exportObj.taxMode != null && String(exportObj.taxMode).trim() !== '') {
+      return normalizeTaxMode(exportObj.taxMode);
+    }
+    if (data && data.includeIva != null) {
+      return data.includeIva ? 'included' : 'excluded';
+    }
+    return exportObj.includeIva === true ? 'included' : 'excluded';
   }
 
   /**
@@ -84,6 +101,20 @@
       net: gross - iva,
       iva: iva,
     };
+  }
+
+  function applyTaxMode(baseAmount, taxMode) {
+    var base = roundMoney(baseAmount);
+    var mode = normalizeTaxMode(taxMode);
+    if (mode === 'add') {
+      var ivaAdd = roundMoney(base * IVA_RATE);
+      return { taxMode: mode, base: base, iva: ivaAdd, total: base + ivaAdd };
+    }
+    if (mode === 'included') {
+      var split = extractIncludedIva(base);
+      return { taxMode: mode, base: split.net, iva: split.iva, total: split.gross };
+    }
+    return { taxMode: 'excluded', base: base, iva: 0, total: base };
   }
 
   function fmtMoney(n) {
@@ -418,7 +449,8 @@
     }, 0);
   }
 
-  function buildSummary(items, shipping, includeIva, wholesaleMode, designCost, useGrossDiscountLayout, globalDiscountAmount) {
+  function buildSummary(items, shipping, taxMode, wholesaleMode, designCost, useGrossDiscountLayout, globalDiscountAmount) {
+    var mode = normalizeTaxMode(taxMode);
     var unitPriceSum = sumUnitPrices(items);
     var discountTotal = 0;
     items.forEach(function (it) {
@@ -433,19 +465,15 @@
     var netLines = grossDiscount ? roundMoney(linesTotal - discountTotal) : linesTotal;
     var extraDesign = wholesaleMode ? designAmt : 0;
     var globalDiscAmt = roundMoney(Math.max(0, Number(globalDiscountAmount) || 0));
-    var grandTotal = grossDiscount
+    var enteredSubtotal = grossDiscount
       ? netLines + extraDesign + shippingAmt
       : linesTotal + extraDesign + shippingAmt;
     if (globalDiscAmt > 0) {
-      grandTotal = Math.max(0, roundMoney(grandTotal - globalDiscAmt));
+      enteredSubtotal = Math.max(0, roundMoney(enteredSubtotal - globalDiscAmt));
     }
-    grandTotal = roundMoney(grandTotal);
+    enteredSubtotal = roundMoney(enteredSubtotal);
 
-    var tax = includeIva
-      ? extractIncludedIva(grandTotal)
-      : { gross: grandTotal, net: grandTotal, iva: 0 };
-    var ivaDisplay = includeIva ? fmtMoney(tax.iva) : '\u2014';
-
+    var tax = applyTaxMode(enteredSubtotal, mode);
     var breakdown = [];
     if (!wholesaleMode && designAmt > 0) {
       breakdown.push({ label: '* Dise\u00f1o personalizado', amount: designAmt });
@@ -465,11 +493,15 @@
       breakdown: breakdown,
       shipping: shippingAmt,
       designAmount: designAmt,
-      includeIva: !!includeIva,
-      subtotalExVat: tax.net,
-      ivaIncluded: tax.iva,
-      ivaDisplay: ivaDisplay,
-      grandTotal: grandTotal,
+      taxMode: mode,
+      includeIva: mode === 'included',
+      enteredSubtotal: enteredSubtotal,
+      subtotalBeforeTax: mode === 'included' ? tax.base : enteredSubtotal,
+      subtotalExVat: mode === 'included' ? tax.base : enteredSubtotal,
+      ivaAmount: tax.iva,
+      ivaIncluded: mode === 'included' ? tax.iva : 0,
+      ivaDisplay: tax.iva > 0 ? fmtMoney(tax.iva) : '\u2014',
+      grandTotal: tax.total,
     };
   }
 
@@ -503,10 +535,23 @@
     if (exp.warranty) {
       notes.push({ icon: 'medal', text: exp.warranty });
     }
-    if (!exp.includeIva) {
-      notes.push({ icon: 'check', text: 'Precios no incluyen IVA ni costo de env\u00edo (salvo indicado).' });
+    var taxMode = resolveTaxMode(exp, data);
+    if (taxMode === 'included') {
+      notes.push({
+        icon: 'check',
+        text: 'Precios incluyen IVA (' + Math.round(IVA_RATE * 100) + '%).',
+      });
+    } else if (taxMode === 'add') {
+      notes.push({
+        icon: 'check',
+        text: 'IVA (' + Math.round(IVA_RATE * 100) + '%) agregado al total de la cotizaci\u00f3n.',
+      });
     } else {
-      notes.push({ icon: 'check', text: 'Precios incluyen IVA (' + Math.round(IVA_RATE * 100) + '%).' });
+      notes.push({
+        icon: 'check',
+        text:
+          'Los precios indicados no incluyen IVA. En caso de requerir factura electr\u00f3nica, se agregar\u00e1 el 13% de IVA correspondiente.',
+      });
     }
     if (exp.extraNotes) {
       exp.extraNotes
@@ -619,7 +664,9 @@
   function renderSummaryRows(summary, wholesaleMode, useGrossDiscountLayout) {
     var html = '';
     var grossLayout = wholesaleMode || !!useGrossDiscountLayout;
-    if (summary.includeIva) {
+    var mode = normalizeTaxMode(summary.taxMode);
+
+    function appendDiscountAndBreakdown() {
       if (grossLayout && summary.discountTotal > 0) {
         html +=
           '<div class="summary-row"><strong>' +
@@ -641,6 +688,10 @@
           fmtMoney(row.amount) +
           '</span></div>';
       });
+    }
+
+    if (mode === 'included') {
+      appendDiscountAndBreakdown();
       html +=
         '<div class="summary-row"><strong>Subtotal sin IVA</strong><span>' +
         fmtMoney(summary.subtotalExVat) +
@@ -649,47 +700,31 @@
         '<div class="summary-row"><strong>IVA incluido (' +
         Math.round(IVA_RATE * 100) +
         '%)</strong><span>' +
-        fmtMoney(summary.ivaIncluded) +
+        fmtMoney(summary.ivaAmount) +
         '</span></div>';
       return html;
     }
 
-    if (grossLayout) {
+    if (mode === 'add') {
+      appendDiscountAndBreakdown();
       html +=
         '<div class="summary-row"><strong>Subtotal</strong><span>' +
-        fmtMoney(summary.linesTotal) +
+        fmtMoney(summary.enteredSubtotal) +
         '</span></div>';
-      if (summary.discountTotal > 0) {
-        html +=
-          '<div class="summary-row"><strong>' +
-          (wholesaleMode ? 'Descuento mayorista' : 'Descuento') +
-          '</strong><span class="discount">' +
-          fmtMoneyNeg(summary.discountTotal) +
-          '</span></div>';
-      }
-    } else {
-      if (summary.discountTotal > 0) {
-        html +=
-          '<div class="summary-row"><strong>Descuento</strong><span class="discount">' +
-          fmtMoneyNeg(summary.discountTotal) +
-          '</span></div>';
-      }
       html +=
-        '<div class="summary-row"><strong>Subtotal</strong><span>' +
-        fmtMoney(summary.linesTotal) +
+        '<div class="summary-row"><strong>IVA (' +
+        Math.round(IVA_RATE * 100) +
+        '%)</strong><span>' +
+        fmtMoney(summary.ivaAmount) +
         '</span></div>';
+      return html;
     }
-    summary.breakdown.forEach(function (row) {
-      html +=
-        '<div class="summary-row"><strong>' +
-        escapeHtml(row.label) +
-        '</strong><span>' +
-        fmtMoney(row.amount) +
-        '</span></div>';
-    });
+
+    // excluded — no IVA row
+    appendDiscountAndBreakdown();
     html +=
-      '<div class="summary-row"><strong>IVA</strong><span>' +
-      summary.ivaDisplay +
+      '<div class="summary-row"><strong>Subtotal</strong><span>' +
+      fmtMoney(summary.enteredSubtotal != null ? summary.enteredSubtotal : summary.linesTotal) +
       '</span></div>';
     return html;
   }
@@ -735,7 +770,8 @@
 
   function buildQuoteHtml(data, state, result, logoDataUrl) {
     var exp = state.export || {};
-    var includeIva = !!exp.includeIva;
+    var taxMode = resolveTaxMode(exp, data);
+    var includeIva = taxMode === 'included';
     var wholesaleMode = !!(data.wholesaleMode || state.wholesaleMode);
     var designCost = roundMoney(state.costs.designCost);
     var items = buildLineItems(state, result, includeIva, wholesaleMode);
@@ -749,7 +785,7 @@
     var summary = buildSummary(
       items,
       Number(exp.shippingCost) || 0,
-      includeIva,
+      taxMode,
       wholesaleMode,
       designCost,
       useGrossDiscountLayout,
@@ -1109,7 +1145,8 @@
     var result = data.result;
     if (!state || !result) return 0;
     var exp = state.export || {};
-    var includeIva = data.includeIva != null ? !!data.includeIva : !!exp.includeIva;
+    var taxMode = resolveTaxMode(exp, data);
+    var includeIva = taxMode === 'included';
     var wholesaleMode = !!(data.wholesaleMode || state.wholesaleMode);
     var designCost = roundMoney(state.costs && state.costs.designCost);
     var items = buildLineItems(state, result, includeIva, wholesaleMode);
@@ -1123,7 +1160,7 @@
     var summary = buildSummary(
       items,
       Number(exp.shippingCost) || 0,
-      includeIva,
+      taxMode,
       wholesaleMode,
       designCost,
       useGrossDiscountLayout,
@@ -1139,6 +1176,9 @@
     buildFilename: safeFilename,
     withIva: withIva,
     extractIncludedIva: extractIncludedIva,
+    normalizeTaxMode: normalizeTaxMode,
+    resolveTaxMode: resolveTaxMode,
+    applyTaxMode: applyTaxMode,
     fmtPdfMoney: fmtMoney,
     IVA_RATE: IVA_RATE,
   };
