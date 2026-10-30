@@ -2648,6 +2648,127 @@ describe('Additionals pricingMode + discounts + Alex design profit + Resumen', (
   });
 });
 
+describe('Product discount panel: unit discount + total discount', () => {
+  const baseState = {
+    costs: { hourRate: 0, kgPrice: 0, profitPercent: 0, designCost: 0 },
+    alexPercent: 30,
+    luisPercent: 70,
+    wholesaleMode: false,
+    export: { taxMode: 'excluded', shippingCost: 0 },
+  };
+
+  it('unit pricing qty 6 @ 2800 with 50% → unit disc 1400, total disc 8400', () => {
+    const line = calculator.computeLine(
+      baseState,
+      {
+        name: 'A',
+        quantity: 6,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'unit',
+        salePriceManual: 2800,
+        saleDiscountEnabled: true,
+        saleDiscountPercent: 50,
+        additionals: [],
+      },
+      6,
+      50
+    );
+    assert.equal(line.baseSale, 2800);
+    assert.equal(Math.round(line.baseSale * 0.5), 1400);
+    assert.equal(line.productDiscountAmount, 8400);
+    assert.equal(line.clientTotal, 8400);
+  });
+
+  it('total pricing qty 6 @ 16800 with 50% → same canonical total discount 8400', () => {
+    const line = calculator.computeLine(
+      baseState,
+      {
+        name: 'A',
+        quantity: 6,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'total',
+        salePriceTotalManual: 16800,
+        saleDiscountEnabled: true,
+        saleDiscountPercent: 50,
+        additionals: [],
+      },
+      6,
+      50
+    );
+    assert.equal(line.productPreDiscountTotal, 16800);
+    assert.equal(line.productDiscountAmount, 8400);
+    assert.equal(Math.round(line.baseSale * 0.5), 1400);
+    assert.equal(line.clientTotal, 8400);
+  });
+
+  it('non-even total: productDiscountAmount is canonical (not unit×qty rebuild)', () => {
+    const line = calculator.computeLine(
+      baseState,
+      {
+        name: 'A',
+        quantity: 3,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'total',
+        salePriceTotalManual: 10000,
+        saleDiscountEnabled: true,
+        saleDiscountPercent: 10,
+        additionals: [],
+      },
+      3,
+      10
+    );
+    assert.equal(line.productDiscountAmount, 1000);
+    assert.equal(line.clientTotal, 9000);
+    // Unit display follows baseSale rounding; must not force 1000 via unit×qty identity alone
+    const unitDiscDisplay = Math.round(line.baseSale * 0.1);
+    assert.ok(Number.isFinite(unitDiscDisplay));
+    assert.notEqual(unitDiscDisplay * 3, line.productDiscountAmount);
+  });
+
+  it('quantity 1: unit and total discount match', () => {
+    const line = calculator.computeLine(
+      baseState,
+      {
+        name: 'A',
+        quantity: 1,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'unit',
+        salePriceManual: 2800,
+        saleDiscountEnabled: true,
+        saleDiscountPercent: 50,
+        additionals: [],
+      },
+      1,
+      50
+    );
+    assert.equal(Math.round(line.baseSale * 0.5), 1400);
+    assert.equal(line.productDiscountAmount, 1400);
+  });
+
+  it('UI discount block shows Monto descuento total, not Monto con descuento / uds', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'),
+      'utf8'
+    );
+    const fn = src.slice(
+      src.indexOf('function renderSaleDiscountBlock'),
+      src.indexOf('function renderGlobalDiscountBlock')
+    );
+    assert.match(fn, /Monto descuento \/ uds/);
+    assert.match(fn, /Monto descuento total/);
+    assert.match(fn, /productDiscountAmount/);
+    assert.doesNotMatch(fn, /Monto con descuento \/ uds/);
+  });
+});
+
 describe('Wholesale + total additionals exact pricing', () => {
   function loadPdf() {
     const vm = require('node:vm');

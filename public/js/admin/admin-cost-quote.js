@@ -2610,7 +2610,7 @@
             step: 0.1,
           }) +
           resultHtml('Monto descuento / uds', fmtCrc(discAmount)) +
-          resultHtml('Monto con descuento / uds', fmtCrc(m.saleUnit)) +
+          resultHtml('Monto descuento total', fmtCrc(m.productDiscountAmount || 0)) +
           '</div></div>'
         : '') +
       '</div>'
