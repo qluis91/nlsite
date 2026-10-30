@@ -1776,9 +1776,13 @@ describe('Historical snapshot preservation + profit + legacy description', () =>
     const src = adminSrc();
     assert.match(
       src,
-      /businessRevenue = applyTaxModeLocal\(\s*Math\.max\(0, Math\.round\(subtotalAfterGlobal \+ designCost\)\),\s*taxMode\s*\)\.base/
+      /businessRevenue = applyTaxModeLocal\(\s*Math\.max\(0, Math\.round\(productsSubtotalAfterGlobal \+ designCost\)\),\s*taxMode\s*\)\.base/
     );
-    assert.match(src, /taxableBase = Math\.max\(0, Math\.round\(subtotalAfterGlobal \+ designCost \+ shipping\)\)/);
+    assert.match(
+      src,
+      /taxableBase = Math\.max\(0, Math\.round\(productsSubtotalAfterGlobal \+ designCost \+ shipping\)\)/
+    );
+    assert.match(src, /function allocatePartnerProfit/);
 
     for (const mode of ['excluded', 'add', 'included']) {
       const state = {
@@ -1808,9 +1812,14 @@ describe('Historical snapshot preservation + profit + legacy description', () =>
       const all = calculator.computeAll(state);
       const expectedRev = calculator.computeTaxNeutralRevenue(25000, 5000, mode);
       assert.equal(all.main.businessRevenue, expectedRev, mode + ' businessRevenue');
-      assert.equal(all.main.grossProfit, expectedRev - all.main.productionCost, mode + ' grossProfit');
-      assert.equal(all.main.alexShare, all.main.grossProfit * 0.3, mode + ' alex');
-      assert.equal(all.main.luisShare, all.main.grossProfit * 0.7, mode + ' luis');
+      // sharedProfit excludes design assignment; estimatedTotalGain = shared + design→Alex
+      assert.equal(all.main.sharedProfit, expectedRev - all.main.productionCost, mode + ' sharedProfit');
+      assert.equal(
+        all.main.estimatedTotalGain,
+        all.main.alexShare + all.main.luisShare,
+        mode + ' estimatedTotalGain'
+      );
+      assert.equal(all.main.designAssignedToAlex, 5000, mode + ' design→Alex');
       // Client total still includes shipping
       assert.ok(all.main.grandTotal >= 25000 + 5000 + 3000 || mode === 'included');
     }
@@ -2224,6 +2233,314 @@ describe('Sale price input mode + clean default products', () => {
     );
     assert.match(src, /function resolveProductSalePrice/);
     assert.match(src, /exactClientTotal|m\.clientTotal/);
+  });
+});
+
+describe('Additionals pricingMode + discounts + Alex design profit + Resumen', () => {
+  const adminSrc = () =>
+    fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
+
+  it('normalizeAdditional defaults missing pricingMode to per_product', () => {
+    const a = calculator.normalizeAdditional({ price: 500, description: 'Pintura' });
+    assert.equal(a.pricingMode, 'per_product');
+    const legacy = calculator.normalizeAdditional(500);
+    assert.equal(legacy.pricingMode, 'per_product');
+  });
+
+  it('per_product additional multiplies by qty; total does not', () => {
+    const per = calculator.resolveProductAdditionals(
+      { additionals: [{ price: 500, pricingMode: 'per_product' }] },
+      4
+    );
+    assert.equal(per.totalCost, 2000);
+    const tot = calculator.resolveProductAdditionals(
+      { additionals: [{ price: 500, pricingMode: 'total' }] },
+      4
+    );
+    assert.equal(tot.totalCost, 500);
+  });
+
+  it('mixed additionals sum correctly into production', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      export: { taxMode: 'excluded', shippingCost: 0 },
+      products: [
+        {
+          name: 'A',
+          quantity: 4,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 0,
+          additionals: [
+            { price: 500, pricingMode: 'per_product', showOnInvoice: true },
+            { price: 500, pricingMode: 'total', showOnInvoice: true },
+          ],
+        },
+      ],
+    };
+    const all = calculator.computeAll(state);
+    assert.equal(all.main.production.additionalsCost, 2500);
+    assert.equal(all.products[0].line.suggestedTotal, 2500);
+  });
+
+  it('hidden total additional still counts in production and suggested, not PDF rows', () => {
+    const product = {
+      quantity: 2,
+      grams: 0,
+      printHours: 0,
+      additionals: [{ price: 1000, pricingMode: 'total', showOnInvoice: false, description: 'Hidden' }],
+    };
+    const line = calculator.computeLine(
+      {
+        costs: { hourRate: 0, kgPrice: 0, profitPercent: 0, designCost: 0 },
+        alexPercent: 30,
+        luisPercent: 70,
+      },
+      product,
+      2,
+      0
+    );
+    assert.equal(line.additionalsCostTotal, 1000);
+    assert.equal(line.suggestedTotal, 1000);
+    const pdfSrc = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    assert.match(pdfSrc, /pricingMode === 'total'/);
+    assert.match(pdfSrc, /if \(!extra\.showOnInvoice\) return/);
+  });
+
+  it('product + global discounts apply in canonical order (8100)', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      globalDiscount: { enabled: true, percent: 10 },
+      export: { taxMode: 'excluded', shippingCost: 0 },
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 10000,
+          saleDiscountEnabled: true,
+          saleDiscountPercent: 10,
+          additionals: [],
+        },
+      ],
+    };
+    const all = calculator.computeAll(state);
+    assert.equal(all.products[0].line.clientTotal, 9000);
+    assert.equal(all.main.productsSubtotalBeforeGlobal, 9000);
+    assert.equal(all.main.globalDiscountAmount, 900);
+    assert.equal(all.main.productsSubtotalAfterGlobal, 8100);
+    assert.equal(all.main.grandTotal, 8100);
+  });
+
+  it('global discount does not reduce design or shipping', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 1000,
+        profitPercent: 0,
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      globalDiscount: { enabled: true, percent: 10 },
+      export: { taxMode: 'add', shippingCost: 500 },
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 10000,
+          saleDiscountEnabled: true,
+          saleDiscountPercent: 10,
+          additionals: [],
+        },
+      ],
+    };
+    const all = calculator.computeAll(state);
+    assert.equal(all.main.productsSubtotalAfterGlobal, 8100);
+    assert.equal(all.main.globalDiscountAmount, 900);
+    assert.equal(all.main.displaySubtotal, 10500); // 9000 + 1000 + 500
+    assert.equal(all.main.enteredSubtotal, 9600); // 8100 + 1000 + 500
+    assert.equal(all.main.ivaAmount, 1248);
+    assert.equal(all.main.grandTotal, 10848);
+  });
+
+  it('exact total-mode sale + product discount stays 9000', () => {
+    const line = calculator.computeLine(
+      {
+        costs: { hourRate: 0, kgPrice: 0, profitPercent: 0, designCost: 0 },
+        alexPercent: 30,
+        luisPercent: 70,
+      },
+      {
+        quantity: 3,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'total',
+        salePriceTotalManual: 10000,
+        additionals: [],
+      },
+      3,
+      10
+    );
+    assert.equal(line.clientTotal, 9000);
+  });
+
+  it('all design is assigned to Alex; estimatedTotalGain = alex + luis', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 3000,
+        profitPercent: 0,
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      export: { taxMode: 'excluded', shippingCost: 0 },
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 23000, // revenue 23000; production = design 3000 → shared 20000? 
+          // businessRevenue = 23000+0 wait design is in revenue too via computeTaxNeutralRevenue(products, design)
+          // products after global = 23000, design 3000, businessRevenue = 26000
+          // productionCost = 3000, sharedProfit = 23000
+          // Wait: businessRevenue = productSale + design = 23000 + 3000 = 26000
+          // production includes design 3000, shared = 23000
+          // That doesn't match the example. Example:
+          // sharedProfit = 10000, design = 3000 → alex 6000, luis 7000, total 13000
+          additionals: [],
+        },
+      ],
+    };
+    // Force sharedProfit = 10000 via: businessRevenue - production = 10000
+    // production = design 3000 + 0 = 3000 → need businessRevenue = 13000
+    // computeTaxNeutralRevenue(productSale, design) = productSale + design (excluded)
+    // productSale + 3000 = 13000 → productSale = 10000
+    state.products[0].salePriceManual = 10000;
+    const all = calculator.computeAll(state);
+    // businessRevenue = 10000 + 3000 = 13000; production = 3000; shared = 10000
+    assert.equal(all.main.sharedProfit, 10000);
+    assert.equal(all.main.alexSharedProfit, 3000);
+    assert.equal(all.main.designAssignedToAlex, 3000);
+    assert.equal(all.main.alexShare, 6000);
+    assert.equal(all.main.luisShare, 7000);
+    assert.equal(all.main.estimatedTotalGain, 13000);
+    assert.equal(all.main.estimatedTotalGain, all.main.alexShare + all.main.luisShare);
+  });
+
+  it('multiple product designs sum into Alex assignment', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 3000,
+        profitPercent: 0,
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      export: { taxMode: 'excluded', shippingCost: 0 },
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 5000,
+          costOverrides: {
+            enabled: true,
+            designCost: 3000,
+            profitPercent: 0,
+            electricityCostPerHour: 0,
+            machineWearCostPerHour: 0,
+            hourRate: 0,
+            kgPrice: 0,
+          },
+          additionals: [],
+        },
+        {
+          name: 'B',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 5000,
+          costOverrides: {
+            enabled: true,
+            designCost: 2000,
+            profitPercent: 0,
+            electricityCostPerHour: 0,
+            machineWearCostPerHour: 0,
+            hourRate: 0,
+            kgPrice: 0,
+          },
+          additionals: [],
+        },
+      ],
+    };
+    const all = calculator.computeAll(state);
+    assert.equal(all.main.designCost, 5000);
+    assert.equal(all.main.designAssignedToAlex, 5000);
+  });
+
+  it('Resumen final is client-only; Ganancias shows production + design note', () => {
+    const src = adminSrc();
+    assert.match(src, /TOTAL CLIENTE/);
+    assert.match(src, /Ganancia estimada total/);
+    assert.match(src, /de diseño/);
+    assert.match(src, /designAssignedToAlex/);
+    assert.match(src, /function allocatePartnerProfit/);
+    assert.match(src, /pricingMode/);
+    assert.match(src, /Por producto/);
+    // Resumen must not embed internal profit rows inside the final card body
+    assert.doesNotMatch(
+      src,
+      /cq-stat-card--final[\s\S]{0,800}Costo de producción[\s\S]{0,400}Ganancia estimada/
+    );
+  });
+
+  it('product cards have card separation styles', () => {
+    const css = fs.readFileSync(
+      path.resolve(__dirname, '../public/css/admin-cost-quote.css'),
+      'utf8'
+    );
+    assert.match(css, /\.cq-product-item\s*\{[^}]*border-radius/s);
+    assert.match(css, /\.cq-product-item\s*\{[^}]*padding:\s*16px/s);
   });
 });
 

@@ -371,15 +371,16 @@ body.cq-ninja-page .admin-content {
 
 /* ── Product items ── */
 #admin-cost-quote-app .cq-product-item {
-  padding: 12px 0 0;
-  border-top: 1px solid var(--border-color);
-  margin-top: 10px;
+  padding: 16px;
+  margin-top: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-secondary, #1a1f2b) 78%, transparent);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
 }
 
 #admin-cost-quote-app .cq-product-item:first-of-type {
-  border-top: 0;
   margin-top: 0;
-  padding-top: 0;
 }
 
 #admin-cost-quote-app .cq-product-item__head {
@@ -387,14 +388,26 @@ body.cq-ninja-page .admin-content {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
 }
 
 #admin-cost-quote-app .cq-product-item__title {
   margin: 0;
   color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+#admin-cost-quote-app .cq-stat-row__hint {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
 }
 
 #admin-cost-quote-app .cq-qty-mode-bar {

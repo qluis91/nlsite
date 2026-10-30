@@ -203,15 +203,25 @@
     return 0;
   }
 
+  function normalizeAdditionalPricingMode(value) {
+    return value === 'total' ? 'total' : 'per_product';
+  }
+
   function normalizeAdditional(v) {
     if (v && typeof v === 'object') {
       return {
         price: roundMoney(v.price),
         description: String(v.description || ''),
         showOnInvoice: v.showOnInvoice !== false,
+        pricingMode: normalizeAdditionalPricingMode(v.pricingMode),
       };
     }
-    return { price: roundMoney(v), description: '', showOnInvoice: true };
+    return {
+      price: roundMoney(v),
+      description: '',
+      showOnInvoice: true,
+      pricingMode: 'per_product',
+    };
   }
 
   function getProductAdditionals(p) {
@@ -222,6 +232,37 @@
     return [1, 2, 3].map(function (i) {
       return normalizeAdditional(p['additional' + i]);
     });
+  }
+
+  function resolveProductAdditionals(product, quantity) {
+    var qty = Math.max(0, Number(quantity) || 0);
+    var list = getProductAdditionals(product);
+    var perProductAmount = 0;
+    var oneTimeTotal = 0;
+    var visiblePerProductAmount = 0;
+    var visibleOneTimeTotal = 0;
+    list.forEach(function (a) {
+      var price = roundMoney(a.price);
+      if (a.pricingMode === 'total') {
+        oneTimeTotal += price;
+        if (a.showOnInvoice) visibleOneTimeTotal += price;
+      } else {
+        perProductAmount += price;
+        if (a.showOnInvoice) visiblePerProductAmount += price;
+      }
+    });
+    var perProductTotal = roundMoney(perProductAmount * qty);
+    var visiblePerProductTotal = roundMoney(visiblePerProductAmount * qty);
+    return {
+      perProductAmount: roundMoney(perProductAmount),
+      perProductTotal: perProductTotal,
+      oneTimeTotal: roundMoney(oneTimeTotal),
+      totalCost: roundMoney(perProductTotal + oneTimeTotal),
+      visiblePerProductAmount: roundMoney(visiblePerProductAmount),
+      visiblePerProductTotal: visiblePerProductTotal,
+      visibleOneTimeTotal: roundMoney(visibleOneTimeTotal),
+      visibleTotal: roundMoney(visiblePerProductTotal + visibleOneTimeTotal),
+    };
   }
 
   function sumAdditionalsAmount(p) {
@@ -293,17 +334,21 @@
     return value === 'total' ? 'total' : 'unit';
   }
 
-  function resolveProductSalePrice(product, quantity, suggestedUnitPrice) {
+  function resolveProductSalePrice(product, quantity, suggestedUnitPrice, suggestedProductTotal) {
     var p = product || {};
     var qty = Math.max(0, Number(quantity) || 0);
     var suggestedUnit = roundMoney(suggestedUnitPrice);
     var inputMode = normalizeSalePriceInputMode(p.salePriceInputMode);
     if (!p.salePriceTouched) {
+      var productTotal =
+        suggestedProductTotal != null
+          ? roundMoney(suggestedProductTotal)
+          : roundMoney(suggestedUnit * qty);
       return {
         inputMode: inputMode,
         manual: false,
-        unitPrice: suggestedUnit,
-        productTotal: roundMoney(suggestedUnit * qty),
+        unitPrice: qty > 0 ? productTotal / qty : suggestedUnit,
+        productTotal: productTotal,
       };
     }
     if (inputMode === 'total') {
@@ -327,15 +372,16 @@
   function getGrossUnitBeforeDiscount(state, product) {
     var p = product || getLegacyProduct(state);
     var c = resolveProductCostParams(state, p);
-    var additionals = sumAdditionalsAmount(p);
+    var qty = Math.max(1, Number(p.quantity) || 1);
+    var adds = resolveProductAdditionals(p, qty);
     var materialCost = ((Number(p.grams) || 0) / 1000) * (Number(c.kgPrice) || 0);
     var timeCost = (Number(p.printHours) || 0) * (Number(c.hourRate) || 0);
-    var productionCost = materialCost + timeCost;
-    var suggestedFull = roundMoney(
-      productionCost * (1 + (Number(c.profitPercent) || 0) / 100) + additionals
+    var manufacturingSuggestedUnit = roundMoney(
+      (materialCost + timeCost) * (1 + (Number(c.profitPercent) || 0) / 100)
     );
-    var qty = Math.max(1, Number(p.quantity) || 1);
-    var sale = resolveProductSalePrice(p, qty, suggestedFull);
+    var suggestedTotal = roundMoney(manufacturingSuggestedUnit * qty + adds.totalCost);
+    var suggestedUnit = roundMoney(manufacturingSuggestedUnit + adds.perProductAmount);
+    var sale = resolveProductSalePrice(p, qty, suggestedUnit, suggestedTotal);
     return sale.unitPrice;
   }
 
@@ -445,15 +491,17 @@
       return items;
     }
 
-    var visiblePerUnit = sumVisibleAdditionalsAmount(p);
+    var adds = resolveProductAdditionals(p, qty);
+    var visibleTotal = adds.visibleTotal;
     var baseSale = Number(m.baseSale != null ? m.baseSale : m.suggestedPrice) || 0;
     var baseSaleTotal =
       m.baseSaleTotal != null ? roundMoney(m.baseSaleTotal) : roundMoney(baseSale * qty);
-    var regularUnit = baseSale - visiblePerUnit;
+    var visibleUnitShare = qty > 0 ? visibleTotal / qty : 0;
+    var regularUnit = baseSale - visibleUnitShare;
     var manualPct = Math.max(0, Math.min(100, Number(m.discountPercent) || 0));
     var useGrossLayout = manualPct > 0;
     var exactClientTotal = m.clientTotal != null ? roundMoney(m.clientTotal) : roundMoney(m.saleUnit * qty);
-    var exactProductLineTotal = roundMoney(exactClientTotal - visiblePerUnit * qty);
+    var exactProductLineTotal = roundMoney(exactClientTotal - visibleTotal);
     var bundleDiscTotal = useGrossLayout
       ? roundMoney(baseSaleTotal * (manualPct / 100))
       : 0;
@@ -478,7 +526,7 @@
       var tierDiscountPerUnit = tierPct2 > 0 ? roundMoney(regularUnit * (tierPct2 / 100)) : 0;
       var netUnit = regularUnit - tierDiscountPerUnit;
       if (!tierPct2) {
-        netUnit = (m.saleUnit || 0) - visiblePerUnit;
+        netUnit = qty > 0 ? exactProductLineTotal / qty : 0;
         tierDiscountPerUnit = 0;
       }
       var lineTotal = tierPct2
@@ -498,18 +546,19 @@
 
     getProductAdditionals(p).forEach(function (extra, idx) {
       if (!extra.showOnInvoice) return;
-      var perUnit = roundMoney(extra.price);
-      if (perUnit <= 0) return;
-      var q = qty;
+      var price = roundMoney(extra.price);
+      if (price <= 0) return;
+      var isTotalMode = extra.pricingMode === 'total';
+      var q = isTotalMode ? 1 : qty;
       var label = String(extra.description || '').trim() || 'Servicio adicional ' + (idx + 1);
       items.push({
         service: label,
         bullets: [],
         text: String(extra.description || '').trim() || 'Servicio complementario',
         qty: q,
-        unitPrice: withIva(perUnit, includeIva),
+        unitPrice: withIva(price, includeIva),
         discountPerUnit: 0,
-        total: withIva(perUnit * q, includeIva),
+        total: withIva(price * q, includeIva),
       });
     });
 

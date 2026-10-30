@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-30 — Additionals modes, discounts, profit & Resumen
+
+### Added
+- Additional `pricingMode`: `per_product` (× qty) or `total` (once); UI “Tipo” selector
+- Canonical `resolveProductAdditionals` + `allocatePartnerProfit` (all design → Alex)
+- Product-card visual separation (border, radius, padding, spacing)
+
+### Changed
+- Suggested/production totals respect additional scope (no ×qty for `total` mode)
+- Product discount → then global on product subtotal only → design + shipping → taxMode
+- Ganancias: production cost, estimated total gain, Alex (incl. design), Luis
+- Resumen final: client-only Subtotal / Descuento general / IVA / TOTAL CLIENTE
+
+### Notes
+- No schema migration (`pricingMode` in payload JSON)
+- Historical additionals without mode default to `per_product`
+
 ## 2026-10-30 — Total sale pricing + clean quote defaults
 
 ### Added

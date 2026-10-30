@@ -390,20 +390,24 @@
     return value === 'total' ? 'total' : 'unit';
   }
 
-  function resolveProductSalePrice(product, quantity, suggestedUnitPrice) {
+  function resolveProductSalePrice(product, quantity, suggestedUnitPrice, suggestedProductTotal) {
     var p = product || {};
     var qty = Math.max(0, num(quantity, 0));
     var suggestedUnit = Math.round(num(suggestedUnitPrice));
     var inputMode = normalizeSalePriceInputMode(p.salePriceInputMode);
     var manual = !!p.salePriceTouched;
     if (!manual) {
-      var autoTotal = Math.round(suggestedUnit * qty);
+      var autoTotal =
+        suggestedProductTotal != null
+          ? Math.round(num(suggestedProductTotal))
+          : Math.round(suggestedUnit * qty);
+      var autoUnit = qty > 0 ? autoTotal / qty : suggestedUnit;
       return {
         inputMode: inputMode,
         manual: false,
-        unitPrice: suggestedUnit,
+        unitPrice: autoUnit,
         productTotal: autoTotal,
-        enteredUnit: suggestedUnit,
+        enteredUnit: autoUnit,
         enteredTotal: autoTotal,
       };
     }
@@ -819,11 +823,15 @@
   }
 
   function defaultAdditional() {
-    return { price: 0, description: '', showOnInvoice: true };
+    return { price: 0, description: '', showOnInvoice: true, pricingMode: 'per_product' };
   }
 
   function isEmptyAdditional(a) {
     return !num(a.price) && !String(a.description || '').trim();
+  }
+
+  function normalizeAdditionalPricingMode(value) {
+    return value === 'total' ? 'total' : 'per_product';
   }
 
   function normalizeAdditional(v) {
@@ -832,9 +840,41 @@
         price: num(v.price),
         description: String(v.description || ''),
         showOnInvoice: v.showOnInvoice !== false,
+        pricingMode: normalizeAdditionalPricingMode(v.pricingMode),
       };
     }
-    return { price: num(v), description: '', showOnInvoice: true };
+    return { price: num(v), description: '', showOnInvoice: true, pricingMode: 'per_product' };
+  }
+
+  function resolveProductAdditionals(product, quantity) {
+    var qty = Math.max(0, num(quantity, 0));
+    var list = getProductAdditionals(product);
+    var perProductAmount = 0;
+    var oneTimeTotal = 0;
+    var visiblePerProductAmount = 0;
+    var visibleOneTimeTotal = 0;
+    list.forEach(function (a) {
+      var price = Math.round(num(a.price));
+      if (a.pricingMode === 'total') {
+        oneTimeTotal += price;
+        if (a.showOnInvoice) visibleOneTimeTotal += price;
+      } else {
+        perProductAmount += price;
+        if (a.showOnInvoice) visiblePerProductAmount += price;
+      }
+    });
+    var perProductTotal = Math.round(perProductAmount * qty);
+    var visiblePerProductTotal = Math.round(visiblePerProductAmount * qty);
+    return {
+      perProductAmount: Math.round(perProductAmount),
+      perProductTotal: perProductTotal,
+      oneTimeTotal: Math.round(oneTimeTotal),
+      totalCost: Math.round(perProductTotal + oneTimeTotal),
+      visiblePerProductAmount: Math.round(visiblePerProductAmount),
+      visiblePerProductTotal: visiblePerProductTotal,
+      visibleOneTimeTotal: Math.round(visibleOneTimeTotal),
+      visibleTotal: Math.round(visiblePerProductTotal + visibleOneTimeTotal),
+    };
   }
 
   function getProductAdditionals(p) {
@@ -1335,8 +1375,10 @@
     var qty = Math.max(1, num(product.quantity, 1));
     var main = computeLine(state, product, qty, 0);
     if (!product.salePriceTouched) {
-      product.salePriceManual = Math.round(main.suggestedPrice);
-      product.salePriceTotalManual = Math.round(main.suggestedPrice) * qty;
+      product.salePriceTotalManual = Math.round(
+        main.suggestedTotal != null ? main.suggestedTotal : main.suggestedPrice * qty
+      );
+      product.salePriceManual = qty > 0 ? product.salePriceTotalManual / qty : Math.round(main.suggestedPrice);
       if (product.salePriceInputMode !== 'total') product.salePriceInputMode = 'unit';
     }
     return main;
@@ -1404,31 +1446,35 @@
     var electricityCost = num(p.printHours) * num(resolved.electricityCostPerHour);
     var machineWearCost = num(p.printHours) * num(resolved.machineWearCostPerHour);
     var timeCost = electricityCost + machineWearCost;
-    var additionalsCost = sumAdditionals(p);
+    var adds = resolveProductAdditionals(p, qty);
     var markupBase = materialCost + timeCost;
-    var unitCost = markupBase + additionalsCost;
-    var totalCost = unitCost * qty;
-    var suggestedPrice = Math.round(
-      markupBase * (1 + num(resolved.profitPercent) / 100) + additionalsCost
+    var manufacturingSuggestedUnit = Math.round(
+      markupBase * (1 + num(resolved.profitPercent) / 100)
     );
-    var sale = resolveProductSalePrice(p, qty, suggestedPrice);
+    var suggestedTotal = Math.round(manufacturingSuggestedUnit * qty + adds.totalCost);
+    var suggestedUnitRounded = Math.round(manufacturingSuggestedUnit + adds.perProductAmount);
+    var sale = resolveProductSalePrice(p, qty, suggestedUnitRounded, suggestedTotal);
     var priced = applyDiscountToSalePrice(sale, qty, discountPercent);
     var saleUnit = priced.saleUnit;
     var baseSale = priced.baseSale;
     var clientTotal = priced.clientTotal;
     var discount = priced.discountPercent;
+    var productPreDiscountTotal = priced.baseSaleTotal;
+    var productDiscountAmount = Math.round(productPreDiscountTotal - clientTotal);
     var designCost = num(resolved.designCost);
     var materialCostTotal = materialCost * qty;
     var electricityCostTotal = electricityCost * qty;
     var machineWearCostTotal = machineWearCost * qty;
-    var additionalsCostTotal = additionalsCost * qty;
+    var additionalsCostTotal = adds.totalCost;
     var productionCost =
       materialCostTotal +
       electricityCostTotal +
       machineWearCostTotal +
       additionalsCostTotal +
       designCost;
-    var netTotal = clientTotal - unitCost * qty;
+    var unitCost = markupBase + adds.perProductAmount;
+    var totalCost = unitCost * qty + adds.oneTimeTotal;
+    var netTotal = clientTotal - (productionCost - designCost);
     var netUnit = qty > 0 ? netTotal / qty : 0;
     var alexPct = num(state.alexPercent, DEFAULTS.alexPercent);
     var luisPct = num(state.luisPercent, DEFAULTS.luisPercent);
@@ -1439,7 +1485,8 @@
       electricityCost: electricityCost,
       machineWearCost: machineWearCost,
       timeCost: timeCost,
-      additionalsCost: additionalsCost,
+      additionalsCost: adds.perProductAmount,
+      additionals: adds,
       designCost: designCost,
       materialCostTotal: materialCostTotal,
       electricityCostTotal: electricityCostTotal,
@@ -1448,13 +1495,16 @@
       productionCost: productionCost,
       unitCost: unitCost,
       totalCost: totalCost,
-      suggestedPrice: suggestedPrice,
-      suggestedTotal: suggestedPrice * qty,
+      suggestedPrice: suggestedUnitRounded,
+      suggestedTotal: suggestedTotal,
       saleUnit: saleUnit,
       baseSale: baseSale,
       baseSaleTotal: priced.baseSaleTotal,
       salePriceInputMode: sale.inputMode,
       discountPercent: discount,
+      productPreDiscountTotal: productPreDiscountTotal,
+      productDiscountAmount: productDiscountAmount,
+      productPostDiscountTotal: clientTotal,
       netUnit: netUnit,
       netTotal: netTotal,
       alexUnitShare: netUnit * (alexPct / 100),
@@ -1462,6 +1512,22 @@
       alexShare: netTotal * (alexPct / 100),
       luisShare: netTotal * (luisPct / 100),
       clientTotal: clientTotal,
+    };
+  }
+
+  function allocatePartnerProfit(sharedProfit, designCost, alexPercent, luisPercent) {
+    var alexPct = num(alexPercent, DEFAULTS.alexPercent);
+    var luisPct = num(luisPercent, 100 - alexPct);
+    var alexSharedProfit = sharedProfit * (alexPct / 100);
+    var luisShare = sharedProfit * (luisPct / 100);
+    var alexShare = alexSharedProfit + num(designCost);
+    return {
+      sharedProfit: sharedProfit,
+      alexSharedProfit: alexSharedProfit,
+      alexShare: alexShare,
+      luisShare: luisShare,
+      estimatedTotalGain: alexShare + luisShare,
+      designAssignedToAlex: num(designCost),
     };
   }
 
@@ -1496,18 +1562,23 @@
   function aggregateMain(state, productResults) {
     var production = buildProductionTotals(productResults);
     var designCost = production.designCost;
-    var subtotalGross = productResults.reduce(function (s, pr) {
+    var productsSubtotalBeforeGlobal = productResults.reduce(function (s, pr) {
       return s + num(pr.line.clientTotal);
     }, 0);
+    var subtotalGross = productsSubtotalBeforeGlobal;
     var suggestedTotal = productResults.reduce(function (s, pr) {
-      return s + pr.line.suggestedPrice * pr.line.quantity;
+      return s + num(pr.line.suggestedTotal != null ? pr.line.suggestedTotal : pr.line.suggestedPrice * pr.line.quantity);
+    }, 0);
+    var productDiscountAmount = productResults.reduce(function (s, pr) {
+      return s + num(pr.line.productDiscountAmount);
     }, 0);
     var globalDisc =
       !state.wholesaleMode && state.globalDiscount && state.globalDiscount.enabled
         ? Math.max(0, Math.min(100, num(state.globalDiscount.percent)))
         : 0;
-    var globalDiscAmount = Math.round(subtotalGross * (globalDisc / 100));
-    var subtotalAfterGlobal = subtotalGross - globalDiscAmount;
+    var globalDiscAmount = Math.round(productsSubtotalBeforeGlobal * (globalDisc / 100));
+    var productsSubtotalAfterGlobal = productsSubtotalBeforeGlobal - globalDiscAmount;
+    var subtotalAfterGlobal = productsSubtotalAfterGlobal;
     var totalQty = productResults.reduce(function (s, pr) {
       return s + pr.line.quantity;
     }, 0);
@@ -1516,19 +1587,17 @@
       taxMode = 'included';
     }
     var shipping = num((state.export || {}).shippingCost);
-    // Client payable includes shipping (+ IVA per taxMode).
-    var taxableBase = Math.max(0, Math.round(subtotalAfterGlobal + designCost + shipping));
+    var displaySubtotal = Math.max(0, Math.round(productsSubtotalBeforeGlobal + designCost + shipping));
+    var taxableBase = Math.max(0, Math.round(productsSubtotalAfterGlobal + designCost + shipping));
     var taxSummary = applyTaxModeLocal(taxableBase, taxMode);
-    // Manufacturing profit excludes shipping (and IVA) — mirror server computeTaxNeutralRevenue.
     var businessRevenue = applyTaxModeLocal(
-      Math.max(0, Math.round(subtotalAfterGlobal + designCost)),
+      Math.max(0, Math.round(productsSubtotalAfterGlobal + designCost)),
       taxMode
     ).base;
-    var grossProfit = businessRevenue - production.productionCost;
+    var sharedProfit = businessRevenue - production.productionCost;
     var alexPct = num(state.alexPercent, DEFAULTS.alexPercent);
     var luisPct = num(state.luisPercent, DEFAULTS.luisPercent);
-    var alexShare = grossProfit * (alexPct / 100);
-    var luisShare = grossProfit * (luisPct / 100);
+    var profit = allocatePartnerProfit(sharedProfit, designCost, alexPct, luisPct);
     return {
       quantity: totalQty,
       productCount: productResults.length,
@@ -1539,8 +1608,12 @@
       saleTotal: subtotalAfterGlobal,
       baseSale: productResults.length === 1 ? productResults[0].line.baseSale : subtotalGross,
       subtotalGross: subtotalGross,
+      productsSubtotalBeforeGlobal: productsSubtotalBeforeGlobal,
+      productsSubtotalAfterGlobal: productsSubtotalAfterGlobal,
+      productDiscountAmount: productDiscountAmount,
       discountPercent: globalDisc,
       globalDiscountAmount: globalDiscAmount,
+      displaySubtotal: displaySubtotal,
       clientTotal: taxSummary.total,
       designCost: designCost,
       shippingCost: shipping,
@@ -1552,13 +1625,17 @@
       production: production,
       productionCost: production.productionCost,
       businessRevenue: businessRevenue,
-      grossProfit: grossProfit,
-      netTotal: grossProfit,
-      netUnit: totalQty > 0 ? grossProfit / totalQty : 0,
-      alexUnitShare: totalQty > 0 ? alexShare / totalQty : 0,
-      luisUnitShare: totalQty > 0 ? luisShare / totalQty : 0,
-      alexShare: alexShare,
-      luisShare: luisShare,
+      sharedProfit: profit.sharedProfit,
+      grossProfit: profit.estimatedTotalGain,
+      estimatedTotalGain: profit.estimatedTotalGain,
+      netTotal: profit.estimatedTotalGain,
+      netUnit: totalQty > 0 ? profit.estimatedTotalGain / totalQty : 0,
+      alexSharedProfit: profit.alexSharedProfit,
+      alexUnitShare: totalQty > 0 ? profit.alexShare / totalQty : 0,
+      luisUnitShare: totalQty > 0 ? profit.luisShare / totalQty : 0,
+      alexShare: profit.alexShare,
+      luisShare: profit.luisShare,
+      designAssignedToAlex: profit.designAssignedToAlex,
       materialCost: production.materialCost,
       electricityCost: production.electricityCost,
       machineWearCost: production.machineWearCost,
@@ -1602,21 +1679,23 @@
     var designCost = production.designCost;
     var taxMode = normalizeTaxMode((state.export || {}).taxMode);
     var businessRevenue = applyTaxModeLocal(subtotal + designCost, taxMode).base;
-    var grossProfit = businessRevenue - production.productionCost;
+    var sharedProfit = businessRevenue - production.productionCost;
     var alexPct = num(state.alexPercent, DEFAULTS.alexPercent);
     var luisPct = num(state.luisPercent, DEFAULTS.luisPercent);
+    var profit = allocatePartnerProfit(sharedProfit, designCost, alexPct, luisPct);
     return {
       clientTotal: subtotal + designCost,
       quantity: qty,
       saleUnit: qty > 0 ? Math.round(subtotal / qty) : subtotal,
       baseSale: subtotal,
       suggestedPrice: subtotal,
-      netTotal: grossProfit,
-      netUnit: qty > 0 ? grossProfit / qty : 0,
-      alexUnitShare: qty > 0 ? (grossProfit * (alexPct / 100)) / qty : 0,
-      luisUnitShare: qty > 0 ? (grossProfit * (luisPct / 100)) / qty : 0,
-      alexShare: grossProfit * (alexPct / 100),
-      luisShare: grossProfit * (luisPct / 100),
+      netTotal: profit.estimatedTotalGain,
+      netUnit: qty > 0 ? profit.estimatedTotalGain / qty : 0,
+      alexUnitShare: qty > 0 ? profit.alexShare / qty : 0,
+      luisUnitShare: qty > 0 ? profit.luisShare / qty : 0,
+      alexShare: profit.alexShare,
+      luisShare: profit.luisShare,
+      estimatedTotalGain: profit.estimatedTotalGain,
       designCost: designCost,
       productionCost: production.productionCost,
     };
@@ -1891,6 +1970,20 @@
             placeholder: 'Ej. Pintura especial',
           }) +
           inputHtml(prefix + '-price', 'Precio (₡)', a.price, { min: 0, step: 1 }) +
+          '<label class="cq-field cq-field--input">' +
+          '<span class="cq-field__label">Tipo</span>' +
+          '<select id="' +
+          prefix +
+          '-pricing" class="cq-select" data-cq-field="' +
+          prefix +
+          '-pricing">' +
+          '<option value="per_product"' +
+          (a.pricingMode !== 'total' ? ' selected' : '') +
+          '>Por producto</option>' +
+          '<option value="total"' +
+          (a.pricingMode === 'total' ? ' selected' : '') +
+          '>Total</option>' +
+          '</select></label>' +
           '<label class="cq-field cq-field--input cq-field--check cq-additional-invoice">' +
           '<span class="cq-field__label">Factura</span>' +
           '<span class="cq-check-row">' +
@@ -2673,8 +2766,8 @@
       productIdx +
       '">' +
       '<div class="cq-product-item__head">' +
-      '<h4 class="cq-product-item__title">Producto' +
-      (canRemove || productIdx > 0 ? ' ' + (productIdx + 1) : '') +
+      '<h4 class="cq-product-item__title">PRODUCTO ' +
+      (productIdx + 1) +
       '</h4>' +
       (canRemove
         ? '<button type="button" class="btn btn--ghost btn--sm cq-btn-danger" data-cq-remove-product="' +
@@ -2757,14 +2850,28 @@
 
   function renderGananciasCard(m) {
     if (isRestrictedPartner()) return '';
+    var designNote =
+      num(m.designAssignedToAlex || m.designCost) > 0
+        ? '<div class="cq-stat-row__hint">Incluye ' +
+          escapeHtml(fmtCrc(m.designAssignedToAlex || m.designCost)) +
+          ' de diseño</div>'
+        : '';
     return (
       '<section class="cq-stat-card cq-stat-card--gain">' +
       '<div class="cq-stat-card__head"><h3 class="cq-stat-card__title">Ganancias</h3></div>' +
       '<div class="cq-stat-rows">' +
-      '<div class="cq-stat-row cq-stat-row--alex"><span>Ganancia Alex</span><strong>' +
-      escapeHtml(fmtCrc(m.alexShare)) +
+      '<div class="cq-stat-row"><span>Costo de producción</span><strong>' +
+      escapeHtml(fmtCrc(m.productionCost || 0)) +
+      '</strong></div>' +
+      '<div class="cq-stat-row"><span>Ganancia estimada total</span><strong>' +
+      escapeHtml(fmtCrc(m.estimatedTotalGain != null ? m.estimatedTotalGain : m.grossProfit)) +
       '</strong></div>' +
       '<div class="cq-stat-divider"></div>' +
+      '<div class="cq-stat-row cq-stat-row--alex"><span>Ganancia Alex</span><strong>' +
+      escapeHtml(fmtCrc(m.alexShare)) +
+      '</strong>' +
+      designNote +
+      '</div>' +
       '<div class="cq-stat-row cq-stat-row--luis"><span>Ganancia Luis</span><strong>' +
       escapeHtml(fmtCrc(m.luisShare)) +
       '</strong></div></div></section>'
@@ -2773,32 +2880,30 @@
 
   function renderResumenFinalTaxRows(m) {
     var mode = normalizeTaxMode(m.taxMode);
-    var html = '';
-    if (mode === 'included') {
+    var displaySub =
+      m.displaySubtotal != null ? m.displaySubtotal : m.enteredSubtotal;
+    var html =
+      '<div class="cq-stat-row"><span>Subtotal</span><strong>' +
+      escapeHtml(fmtCrc(displaySub)) +
+      '</strong></div>';
+    if (num(m.globalDiscountAmount) > 0) {
       html +=
-        '<div class="cq-stat-row"><span>Subtotal sin IVA</span><strong>' +
-        escapeHtml(fmtCrc(m.subtotalBeforeTax)) +
+        '<div class="cq-stat-row"><span>Descuento general</span><strong>-' +
+        escapeHtml(fmtCrc(m.globalDiscountAmount)) +
         '</strong></div>';
+    }
+    if (mode === 'included') {
       html +=
         '<div class="cq-stat-row"><span>IVA incluido (13%)</span><strong>' +
         escapeHtml(fmtCrc(m.ivaAmount)) +
         '</strong></div>';
     } else if (mode === 'add') {
       html +=
-        '<div class="cq-stat-row"><span>Subtotal</span><strong>' +
-        escapeHtml(fmtCrc(m.enteredSubtotal)) +
-        '</strong></div>';
-      html +=
         '<div class="cq-stat-row"><span>IVA (13%)</span><strong>' +
         escapeHtml(fmtCrc(m.ivaAmount)) +
         '</strong></div>';
     } else {
-      html +=
-        '<div class="cq-stat-row"><span>Subtotal</span><strong>' +
-        escapeHtml(fmtCrc(m.enteredSubtotal)) +
-        '</strong></div>';
-      html +=
-        '<p class="cq-stat-hint">Precios no incluyen IVA</p>';
+      html += '<p class="cq-stat-hint">Precios no incluyen IVA</p>';
     }
     return html;
   }
@@ -2814,18 +2919,9 @@
       '<div class="cq-stat-rows">' +
       renderResumenFinalTaxRows(m) +
       '</div>' +
-      '<div class="cq-stat-total"><span>TOTAL</span><strong>' +
+      '<div class="cq-stat-total"><span>TOTAL CLIENTE</span><strong>' +
       escapeHtml(fmtCrc(m.grandTotal != null ? m.grandTotal : m.clientTotal)) +
       '</strong></div>' +
-      (isRestrictedPartner()
-        ? ''
-        : '<div class="cq-stat-rows cq-stat-rows--internal">' +
-          '<div class="cq-stat-row"><span>Costo de producción</span><strong>' +
-          escapeHtml(fmtCrc(m.productionCost || 0)) +
-          '</strong></div>' +
-          '<div class="cq-stat-row"><span>Ganancia estimada</span><strong>' +
-          escapeHtml(fmtCrc(m.grossProfit != null ? m.grossProfit : m.netTotal)) +
-          '</strong></div></div>') +
       renderGlobalDiscountBlock(state, m) +
       '</section></div>'
     );
@@ -2999,6 +3095,7 @@
           price: num(g(prefix + '-price')),
           description: g(prefix + '-desc'),
           showOnInvoice: !!(invoiceEl && invoiceEl.checked),
+          pricingMode: normalizeAdditionalPricingMode(g(prefix + '-pricing')),
         });
       });
     });
@@ -3824,7 +3921,7 @@
         if (!Array.isArray(state.products[productIdx].additionals)) {
           state.products[productIdx].additionals = [];
         }
-        state.products[productIdx].additionals.push({ price: 0, description: '', showOnInvoice: true });
+        state.products[productIdx].additionals.push(defaultAdditional());
         refresh(root, true);
       });
     });
