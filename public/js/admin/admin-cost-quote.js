@@ -1422,7 +1422,7 @@
       '<input type="checkbox" id="cq-includeIva" data-cq-field="cq-includeIva"' +
       (exp.includeIva ? ' checked' : '') +
       ' />' +
-      '<span>Incluir IVA (13%)</span></span></label>' +
+      '<span>Precios incluyen IVA (13%)</span></span></label>' +
       inputHtml('cq-paymentTerms', 'Forma de pago', exp.paymentTerms, { type: 'text' }) +
       '</div>' +
       '<div class="cq-grid cq-grid--1">' +

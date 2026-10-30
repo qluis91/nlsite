@@ -342,19 +342,38 @@ function computeQuoteTotal(snapshot) {
   }
 
   const design = num(state.costs && state.costs.designCost);
-  let shipping = num((state.export || state).shippingCost);
-  let total = subtotal + design;
-  if ((state.export || state).includeIva) {
-    total = Math.round(total * (1 + IVA_RATE));
-    shipping = Math.round(shipping * (1 + IVA_RATE));
-  }
+  const shipping = num((state.export || state).shippingCost);
+  const total = subtotal + design;
+  // includeIva is disclosure only — sale/design/shipping amounts are already final client prices.
   return roundMoney(Math.max(0, Math.round(total + shipping)));
 }
 
 // ── IVA helpers ──
 
-function withIva(amount, includeIva) {
-  return includeIva ? roundMoney(amount * (1 + IVA_RATE)) : roundMoney(amount);
+/**
+ * Client-facing amounts are final (IVA already included when flagged).
+ * This helper does NOT inflate; kept for API compatibility with callers that
+ * previously multiplied by 1.13.
+ */
+function withIva(amount, _includeIva) {
+  return roundMoney(amount);
+}
+
+/**
+ * Split a gross (IVA-included) amount into net + embedded IVA.
+ * Guarantees net + iva === gross after rounding.
+ */
+function extractIncludedIva(grossAmount) {
+  const gross = roundMoney(grossAmount);
+  if (gross <= 0) {
+    return { gross: 0, net: 0, iva: 0 };
+  }
+  const iva = roundMoney(gross - gross / (1 + IVA_RATE));
+  return {
+    gross,
+    net: gross - iva,
+    iva,
+  };
 }
 
 // ── Tilopay fees ──
@@ -407,6 +426,7 @@ module.exports = {
   computeQuoteTotal,
   computeProductLineTotal,
   withIva,
+  extractIncludedIva,
   computeTilopayPricing,
   formatFeeBreakdown,
   TILOPAY_FEE_PERCENT,

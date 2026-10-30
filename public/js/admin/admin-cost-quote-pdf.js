@@ -66,9 +66,29 @@
     return Math.round(Number(n) || 0);
   }
 
-  function withIva(amount, includeIva) {
-    var base = roundMoney(amount);
-    return includeIva ? roundMoney(base * (1 + IVA_RATE)) : base;
+  /**
+   * Sale/design/shipping amounts are already final client prices.
+   * includeIva is disclosure only — never inflate by 1.13.
+   */
+  function withIva(amount, _includeIva) {
+    return roundMoney(amount);
+  }
+
+  /**
+   * Split a gross (IVA-included) amount into net + embedded IVA.
+   * Guarantees net + iva === gross after rounding.
+   */
+  function extractIncludedIva(grossAmount) {
+    var gross = roundMoney(grossAmount);
+    if (gross <= 0) {
+      return { gross: 0, net: 0, iva: 0 };
+    }
+    var iva = roundMoney(gross - gross / (1 + IVA_RATE));
+    return {
+      gross: gross,
+      net: gross - iva,
+      iva: iva,
+    };
   }
 
   function fmtMoney(n) {
@@ -409,26 +429,27 @@
     items.forEach(function (it) {
       discountTotal += it.discountPerUnit * it.qty;
     });
-    var shippingAmt = withIva(shipping, includeIva);
+    var shippingAmt = roundMoney(shipping);
     var linesTotal = items.reduce(function (s, it) {
       return s + it.total;
     }, 0);
-    var designAmt = wholesaleMode && designCost > 0 ? withIva(designCost, includeIva) : 0;
+    var designAmt = wholesaleMode && designCost > 0 ? roundMoney(designCost) : 0;
     var grossDiscount = wholesaleMode || !!useGrossDiscountLayout;
     var netLines = grossDiscount ? roundMoney(linesTotal - discountTotal) : linesTotal;
     var extraDesign = wholesaleMode ? designAmt : 0;
-    var globalDiscAmt = withIva(Math.max(0, Number(globalDiscountAmount) || 0), includeIva);
+    var globalDiscAmt = roundMoney(Math.max(0, Number(globalDiscountAmount) || 0));
     var grandTotal = grossDiscount
       ? netLines + extraDesign + shippingAmt
       : linesTotal + extraDesign + shippingAmt;
     if (globalDiscAmt > 0) {
       grandTotal = Math.max(0, roundMoney(grandTotal - globalDiscAmt));
     }
-    var ivaDisplay = '—';
-    if (includeIva) {
-      var ivaPart = roundMoney(grandTotal - grandTotal / (1 + IVA_RATE));
-      ivaDisplay = fmtMoney(ivaPart);
-    }
+    grandTotal = roundMoney(grandTotal);
+
+    var tax = includeIva
+      ? extractIncludedIva(grandTotal)
+      : { gross: grandTotal, net: grandTotal, iva: 0 };
+    var ivaDisplay = includeIva ? fmtMoney(tax.iva) : '\u2014';
 
     var breakdown = [];
     if (!wholesaleMode && designAmt > 0) {
@@ -449,6 +470,9 @@
       breakdown: breakdown,
       shipping: shippingAmt,
       designAmount: designAmt,
+      includeIva: !!includeIva,
+      subtotalExVat: tax.net,
+      ivaIncluded: tax.iva,
       ivaDisplay: ivaDisplay,
       grandTotal: grandTotal,
     };
@@ -611,6 +635,41 @@
   function renderSummaryRows(summary, wholesaleMode, useGrossDiscountLayout) {
     var html = '';
     var grossLayout = wholesaleMode || !!useGrossDiscountLayout;
+    if (summary.includeIva) {
+      if (grossLayout && summary.discountTotal > 0) {
+        html +=
+          '<div class="summary-row"><strong>' +
+          (wholesaleMode ? 'Descuento mayorista' : 'Descuento') +
+          '</strong><span class="discount">' +
+          fmtMoneyNeg(summary.discountTotal) +
+          '</span></div>';
+      } else if (!grossLayout && summary.discountTotal > 0) {
+        html +=
+          '<div class="summary-row"><strong>Descuento</strong><span class="discount">' +
+          fmtMoneyNeg(summary.discountTotal) +
+          '</span></div>';
+      }
+      summary.breakdown.forEach(function (row) {
+        html +=
+          '<div class="summary-row"><strong>' +
+          escapeHtml(row.label) +
+          '</strong><span>' +
+          fmtMoney(row.amount) +
+          '</span></div>';
+      });
+      html +=
+        '<div class="summary-row"><strong>Subtotal sin IVA</strong><span>' +
+        fmtMoney(summary.subtotalExVat) +
+        '</span></div>';
+      html +=
+        '<div class="summary-row"><strong>IVA incluido (' +
+        Math.round(IVA_RATE * 100) +
+        '%)</strong><span>' +
+        fmtMoney(summary.ivaIncluded) +
+        '</span></div>';
+      return html;
+    }
+
     if (grossLayout) {
       html +=
         '<div class="summary-row"><strong>Subtotal</strong><span>' +
@@ -1095,6 +1154,7 @@
     computeGrandTotal: computeGrandTotal,
     buildFilename: safeFilename,
     withIva: withIva,
+    extractIncludedIva: extractIncludedIva,
     fmtPdfMoney: fmtMoney,
     IVA_RATE: IVA_RATE,
   };
