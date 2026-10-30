@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-30 — Quote snapshot preservation + profit parity
+
+### Fixed
+- Historical `cost_quotes.payload` printer/material snapshots no longer re-sync against today's catalog on load/refresh
+- Catalog rates apply only on explicit printer/material selection (or new/unsaved quotes)
+- Admin frontend manufacturing profit excludes shipping (matches server `computeTaxNeutralRevenue`)
+- Legacy `export.description` → first `product.description` when the property was missing (explicit `''` stays blank)
+
+### Notes
+- No schema migration; no sale-price UX / product-default changes in this patch
+
 ## 2026-10-30 — Per-product costing for Cotización 3D
 
 ### Added

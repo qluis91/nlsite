@@ -1620,6 +1620,329 @@ describe('Per-product costing + printer electricity/wear', () => {
   });
 });
 
+// ───────────────────────────────────────────────────────
+// Snapshot preservation / profit parity / legacy description
+// ───────────────────────────────────────────────────────
+describe('Historical snapshot preservation + profit + legacy description', () => {
+  const adminSrc = () =>
+    fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
+
+  it('syncCostSelections defaults to preserve for saved quotes and catalog for new', () => {
+    const src = adminSrc();
+    assert.match(src, /mode = currentSavedQuoteId \? 'preserve' : 'catalog'/);
+    assert.match(src, /syncCostSelections\(state, \{ mode: 'preserve' \}\)/);
+    assert.match(src, /function applyCatalogSnapshotIfSelectionChanged/);
+    assert.match(src, /applyCatalogSnapshotIfSelectionChanged\(state\.costs, prevCosts, 'both'\)/);
+    assert.match(
+      src,
+      /applyCatalogSnapshotIfSelectionChanged\(prod\.costOverrides, prevOv, 'both'\)/
+    );
+    // readStateFromDom must not blanket re-sync catalog after quoteEmail
+    assert.match(
+      src,
+      /quoteEmail = resolveQuoteEmailSelection[\s\S]{0,280}applyCatalogSnapshotIfSelectionChanged\(state\.costs/
+    );
+  });
+
+  it('deleted catalog items keep snapshot selector labels', () => {
+    const src = adminSrc();
+    assert.match(src, /guardado en esta cotización/);
+    assert.ok(
+      (src.match(/guardado en esta cotización/g) || []).length >= 4,
+      'base + override printer/material ghost options'
+    );
+  });
+
+  it('shipping is excluded from manufacturing profit (excluded mode)', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      export: { taxMode: 'excluded', shippingCost: 3000 },
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 25000,
+          additionals: [],
+        },
+        {
+          name: 'B',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 5000,
+          additionals: [],
+        },
+      ],
+    };
+    // Force production cost via calculator path: zero print/material → production = design 0
+    // Override by injecting known production through manual sale only.
+    // Set design via costs so production.designCost = 0*products... wait design from costs once per product
+    state.costs.designCost = 0;
+    // Manufacture: products 30000, shipping 3000, cost 10000 via additionals
+    state.products[0].additionals = [{ price: 10000, showOnInvoice: true }];
+    // With profit 0 and sale manual, productionCost includes additionals
+    const all = calculator.computeAll(state);
+    assert.equal(all.main.grandTotal, 33000); // client includes shipping
+    assert.equal(all.main.businessRevenue, 30000); // no shipping
+    assert.equal(all.main.grossProfit, 20000); // 30000 - 10000
+    assert.equal(all.main.alexShare, 6000);
+    assert.equal(all.main.luisShare, 14000);
+  });
+
+  it('shipping + add IVA: client taxed on shipping, profit is tax-neutral products+design', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      export: { taxMode: 'add', shippingCost: 3000 },
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 30000,
+          additionals: [],
+        },
+      ],
+    };
+    const all = calculator.computeAll(state);
+    assert.equal(all.main.enteredSubtotal, 33000);
+    assert.equal(all.main.grandTotal, Math.round(33000 * 1.13));
+    assert.equal(all.main.businessRevenue, 30000);
+    assert.equal(all.main.grossProfit, 30000);
+  });
+
+  it('shipping + included IVA: profit does not treat shipping net as revenue', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      export: { taxMode: 'included', shippingCost: 3000 },
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 30000,
+          additionals: [],
+        },
+      ],
+    };
+    const all = calculator.computeAll(state);
+    assert.equal(all.main.grandTotal, 33000);
+    // Tax-neutral from products+design only (30000), not from 33000
+    const expectedRevenue = calculator.computeTaxNeutralRevenue(30000, 0, 'included');
+    assert.equal(all.main.businessRevenue, expectedRevenue);
+    assert.equal(all.main.businessRevenue, calculator.extractIncludedIva(30000).net);
+    assert.notEqual(
+      all.main.businessRevenue,
+      calculator.extractIncludedIva(33000).net,
+      'must not strip IVA from shipping-inclusive base for profit'
+    );
+  });
+
+  it('frontend/server profit parity helpers match for all tax modes with shipping', () => {
+    const src = adminSrc();
+    assert.match(
+      src,
+      /businessRevenue = applyTaxModeLocal\(\s*Math\.max\(0, Math\.round\(subtotalAfterGlobal \+ designCost\)\),\s*taxMode\s*\)\.base/
+    );
+    assert.match(src, /taxableBase = Math\.max\(0, Math\.round\(subtotalAfterGlobal \+ designCost \+ shipping\)\)/);
+
+    for (const mode of ['excluded', 'add', 'included']) {
+      const state = {
+        costs: {
+          electricityCostPerHour: 0,
+          machineWearCostPerHour: 0,
+          hourRate: 0,
+          kgPrice: 0,
+          designCost: 5000,
+          profitPercent: 0,
+        },
+        alexPercent: 30,
+        luisPercent: 70,
+        export: { taxMode: mode, shippingCost: 3000 },
+        products: [
+          {
+            name: 'A',
+            quantity: 1,
+            grams: 0,
+            printHours: 0,
+            salePriceTouched: true,
+            salePriceManual: 25000,
+            additionals: [{ price: 10000, showOnInvoice: true }],
+          },
+        ],
+      };
+      const all = calculator.computeAll(state);
+      const expectedRev = calculator.computeTaxNeutralRevenue(25000, 5000, mode);
+      assert.equal(all.main.businessRevenue, expectedRev, mode + ' businessRevenue');
+      assert.equal(all.main.grossProfit, expectedRev - all.main.productionCost, mode + ' grossProfit');
+      assert.equal(all.main.alexShare, all.main.grossProfit * 0.3, mode + ' alex');
+      assert.equal(all.main.luisShare, all.main.grossProfit * 0.7, mode + ' luis');
+      // Client total still includes shipping
+      assert.ok(all.main.grandTotal >= 25000 + 5000 + 3000 || mode === 'included');
+    }
+  });
+
+  it('resolveLegacyProductDescription: missing first inherits export.description', () => {
+    assert.equal(
+      calculator.resolveLegacyProductDescription({
+        descriptionPropertyPresent: false,
+        descriptionValue: undefined,
+        legacyExportDescription: 'Texto histórico',
+        isFirstProduct: true,
+      }),
+      'Texto histórico'
+    );
+  });
+
+  it('resolveLegacyProductDescription: explicit empty stays blank', () => {
+    assert.equal(
+      calculator.resolveLegacyProductDescription({
+        descriptionPropertyPresent: true,
+        descriptionValue: '',
+        legacyExportDescription: 'Legacy text',
+        isFirstProduct: true,
+      }),
+      ''
+    );
+  });
+
+  it('resolveLegacyProductDescription: second product does not inherit', () => {
+    assert.equal(
+      calculator.resolveLegacyProductDescription({
+        descriptionPropertyPresent: false,
+        descriptionValue: undefined,
+        legacyExportDescription: 'Legacy',
+        isFirstProduct: false,
+      }),
+      ''
+    );
+  });
+
+  it('frontend migrateState captures description ownership before defaults', () => {
+    const src = adminSrc();
+    assert.match(src, /Object\.prototype\.hasOwnProperty\.call\(p, 'description'\)/);
+    assert.match(src, /descriptionPresentFlags/);
+    assert.match(src, /resolveLegacyProductDescription/);
+    // Must not gate legacy copy on === undefined after migrateProduct defaulted to ''
+    assert.doesNotMatch(
+      src,
+      /first\.description === undefined \|\|\s*first\.description === null/
+    );
+  });
+
+  it('server calculator still preserves 31800 IVA + design-once regressions', () => {
+    const productionRegression = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      products: [
+        {
+          name: 'rotulo 20x10cm',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 15000,
+          additionals: [],
+        },
+        {
+          name: 'rotulo 8.5x5.5cm',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 2800,
+          additionals: [],
+        },
+      ],
+    };
+    assert.equal(
+      calculator.computeQuoteTotal({
+        ...productionRegression,
+        export: { taxMode: 'included', shippingCost: 0 },
+      }),
+      31800
+    );
+    assert.equal(
+      calculator.computeQuoteTotal({
+        ...productionRegression,
+        export: { taxMode: 'add', shippingCost: 0 },
+      }),
+      35934
+    );
+    assert.equal(
+      calculator.computeQuoteTotal({
+        ...productionRegression,
+        export: { taxMode: 'excluded', shippingCost: 0 },
+      }),
+      31800
+    );
+
+    const designOnce = calculator.computeAll({
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 5000,
+        profitPercent: 0,
+      },
+      export: { taxMode: 'excluded', shippingCost: 0 },
+      products: [
+        {
+          name: 'A',
+          quantity: 20,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 1000,
+          additionals: [],
+        },
+      ],
+    });
+    assert.equal(designOnce.main.designCost, 5000);
+  });
+});
+
 const pool = require('../config/db');
 const { after } = require('node:test');
 after(async () => {

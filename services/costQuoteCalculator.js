@@ -280,6 +280,26 @@ function computeTaxNeutralRevenue(productSaleTotal, designTotal, taxMode) {
   return tax.base;
 }
 
+/**
+ * Resolve product description for in-memory legacy migration.
+ * Missing property on first product may inherit export.description.
+ * Explicit '' must remain blank.
+ */
+function resolveLegacyProductDescription(opts) {
+  const o = opts || {};
+  if (o.descriptionPropertyPresent) {
+    return o.descriptionValue == null ? '' : String(o.descriptionValue);
+  }
+  if (
+    o.isFirstProduct &&
+    o.legacyExportDescription != null &&
+    String(o.legacyExportDescription).trim() !== ''
+  ) {
+    return String(o.legacyExportDescription);
+  }
+  return '';
+}
+
 function aggregateMain(state, productResults) {
   const production = buildProductionTotals(productResults);
   const designCost = production.designCost;
@@ -636,6 +656,7 @@ module.exports = {
   computeProductLineTotal,
   buildProductionTotals,
   computeTaxNeutralRevenue,
+  resolveLegacyProductDescription,
   withIva,
   extractIncludedIva,
   normalizeTaxMode,

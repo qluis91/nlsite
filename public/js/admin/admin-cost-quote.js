@@ -970,6 +970,21 @@
     exp.includeIva = exp.taxMode === 'included';
   }
 
+  function resolveLegacyProductDescription(opts) {
+    var o = opts || {};
+    if (o.descriptionPropertyPresent) {
+      return o.descriptionValue == null ? '' : String(o.descriptionValue);
+    }
+    if (
+      o.isFirstProduct &&
+      o.legacyExportDescription != null &&
+      String(o.legacyExportDescription).trim() !== ''
+    ) {
+      return String(o.legacyExportDescription);
+    }
+    return '';
+  }
+
   function migrateState(s) {
     if (s.wholesaleMode === undefined) s.wholesaleMode = false;
     if (!s.costs) s.costs = {};
@@ -984,6 +999,18 @@
         }
       });
     }
+
+    // Capture description ownership BEFORE migrateProduct introduces defaults.
+    var legacyDesc = s.export && s.export.description;
+    var rawProducts = Array.isArray(s.products) && s.products.length
+      ? s.products
+      : s.product
+        ? [s.product]
+        : [];
+    var descriptionPresentFlags = rawProducts.map(function (p) {
+      return !!(p && Object.prototype.hasOwnProperty.call(p, 'description'));
+    });
+
     ensureProducts(s);
     if (!s.costs) s.costs = deepClone(DEFAULTS.costs);
     s.costs = mergeDeep(deepClone(DEFAULTS.costs), s.costs);
@@ -999,22 +1026,16 @@
     if (s.export.clientPhone === undefined) s.export.clientPhone = '';
     migrateExportTaxMode(s.export);
     s.export.quoteEmail = resolveQuoteEmailSelection(s.export.quoteEmail);
-    // Legacy global description → first product only (in-memory).
-    var legacyDesc = s.export.description;
+
     if (s.products && s.products.length) {
-      var first = s.products[0];
-      if (
-        first &&
-        (first.description === undefined || first.description === null) &&
-        legacyDesc != null &&
-        String(legacyDesc).trim() !== ''
-      ) {
-        first.description = String(legacyDesc);
-      }
       s.products.forEach(function (prod, idx) {
-        if (prod.description === undefined || prod.description === null) {
-          prod.description = idx === 0 && legacyDesc != null ? String(legacyDesc) : '';
-        }
+        var present = descriptionPresentFlags[idx] === true;
+        prod.description = resolveLegacyProductDescription({
+          descriptionPropertyPresent: present,
+          descriptionValue: present ? prod.description : undefined,
+          legacyExportDescription: legacyDesc,
+          isFirstProduct: idx === 0,
+        });
       });
     }
     return s;
@@ -1089,29 +1110,73 @@
     target.kgPrice = num(material.kgPrice);
   }
 
-  function syncCostSelections(st) {
+  /**
+   * Sync catalog IDs into quote state.
+   * mode:
+   *   'catalog'  — copy today's catalog rates/names into state (new/unsaved quotes)
+   *   'preserve' — keep snapshot rates/names; only fill missing IDs for UI
+   * Default: preserve when a saved quote is loaded; catalog otherwise.
+   */
+  function syncCostSelections(st, opts) {
+    opts = opts || {};
     if (!catalog.printers.length && !catalog.materials.length) return st;
+    var mode = opts.mode;
+    if (!mode) {
+      mode = currentSavedQuoteId ? 'preserve' : 'catalog';
+    }
+    var applyCatalog = mode === 'catalog';
     var c = st.costs;
     var printer = resolvePrinterSelection(c);
     var material = resolveMaterialSelection(c, printer);
-    if (printer) applyPrinterSnapshot(c, printer);
-    if (material) applyMaterialSnapshot(c, material);
+    if (printer) {
+      if (applyCatalog) {
+        applyPrinterSnapshot(c, printer);
+      } else if (!c.printerId) {
+        c.printerId = printer.id;
+      }
+    }
+    if (material) {
+      if (applyCatalog) {
+        applyMaterialSnapshot(c, material);
+      } else if (!c.materialId) {
+        c.materialId = material.id;
+      }
+    }
     (st.products || []).forEach(function (prod) {
       if (!prod.costOverrides || !prod.costOverrides.enabled) return;
       var ov = prod.costOverrides;
       var pPrinter = getPrinterById(ov.printerId) || null;
-      if (pPrinter) applyPrinterSnapshot(ov, pPrinter);
-      var pMaterial = getMaterialById(ov.materialId) || null;
-      if (pMaterial) applyMaterialSnapshot(ov, pMaterial);
-      else if (pPrinter) {
-        var filtered = materialsForPrinter(pPrinter);
-        var match = filtered.find(function (m) {
-          return m.id === ov.materialId;
-        });
-        if (match) applyMaterialSnapshot(ov, match);
+      if (pPrinter) {
+        if (applyCatalog) applyPrinterSnapshot(ov, pPrinter);
       }
+      var pMaterial = getMaterialById(ov.materialId) || null;
+      if (!pMaterial && pPrinter) {
+        var filtered = materialsForPrinter(pPrinter);
+        pMaterial =
+          filtered.find(function (m) {
+            return m.id === ov.materialId;
+          }) || null;
+      }
+      if (pMaterial && applyCatalog) applyMaterialSnapshot(ov, pMaterial);
     });
     return st;
+  }
+
+  function applyCatalogSnapshotIfSelectionChanged(target, prevTarget, kind) {
+    if (!target) return;
+    prevTarget = prevTarget || {};
+    if (kind === 'printer' || kind === 'both') {
+      if (String(target.printerId || '') !== String(prevTarget.printerId || '')) {
+        var printer = getPrinterById(target.printerId);
+        if (printer) applyPrinterSnapshot(target, printer);
+      }
+    }
+    if (kind === 'material' || kind === 'both') {
+      if (String(target.materialId || '') !== String(prevTarget.materialId || '')) {
+        var material = getMaterialById(target.materialId);
+        if (material) applyMaterialSnapshot(target, material);
+      }
+    }
   }
 
   function getEffectiveCosts(st) {
@@ -1298,9 +1363,14 @@
       taxMode = 'included';
     }
     var shipping = num((state.export || {}).shippingCost);
+    // Client payable includes shipping (+ IVA per taxMode).
     var taxableBase = Math.max(0, Math.round(subtotalAfterGlobal + designCost + shipping));
     var taxSummary = applyTaxModeLocal(taxableBase, taxMode);
-    var businessRevenue = taxSummary.base;
+    // Manufacturing profit excludes shipping (and IVA) — mirror server computeTaxNeutralRevenue.
+    var businessRevenue = applyTaxModeLocal(
+      Math.max(0, Math.round(subtotalAfterGlobal + designCost)),
+      taxMode
+    ).base;
     var grossProfit = businessRevenue - production.productionCost;
     var alexPct = num(state.alexPercent, DEFAULTS.alexPercent);
     var luisPct = num(state.luisPercent, DEFAULTS.luisPercent);
@@ -2614,6 +2684,7 @@
   function readStateFromDom(root, prev) {
     var state = deepClone(prev);
     if (activePanel !== 'quote') return state;
+    var prevCosts = (prev && prev.costs) || {};
     var g = function (id) {
       var el = $('#' + id, root);
       return el ? el.value : '';
@@ -2680,6 +2751,8 @@
         prod.description = descEl.value;
       }
       if (!prod.costOverrides) prod.costOverrides = emptyCostOverrides();
+      var prevProduct = (prev.products && prev.products[productIdx]) || {};
+      var prevOv = prevProduct.costOverrides || {};
       var overrideEl = $('#cq-overrideEnabled-' + productIdx, root);
       var overrideOn = !!(overrideEl && overrideEl.checked);
       if (overrideOn) {
@@ -2697,10 +2770,8 @@
             g('cq-overrideProfit-' + productIdx),
             prod.costOverrides.profitPercent
           );
-          var ovPrinter = getPrinterById(prod.costOverrides.printerId);
-          if (ovPrinter) applyPrinterSnapshot(prod.costOverrides, ovPrinter);
-          var ovMaterial = getMaterialById(prod.costOverrides.materialId);
-          if (ovMaterial) applyMaterialSnapshot(prod.costOverrides, ovMaterial);
+          // Catalog rates apply only when the user changes the selection.
+          applyCatalogSnapshotIfSelectionChanged(prod.costOverrides, prevOv, 'both');
         }
       } else {
         prod.costOverrides.enabled = false;
@@ -2732,7 +2803,9 @@
     state.export.warranty = g('cq-warranty');
     state.export.extraNotes = g('cq-extraNotes');
     state.export.quoteEmail = resolveQuoteEmailSelection(g('cq-quoteEmail') || state.export.quoteEmail);
-    syncCostSelections(state);
+    // Explicit printer/material changes copy today's catalog into the snapshot.
+    // Do NOT blanket re-sync catalog rates (would destroy historical quotes).
+    applyCatalogSnapshotIfSelectionChanged(state.costs, prevCosts, 'both');
     var includedEl = $('#cq-taxIncluded', root);
     var addEl = $('#cq-taxAdd', root);
     var taxMode = 'excluded';
@@ -2791,7 +2864,8 @@
           state.export.clientEmail = workflowMeta.clientEmail;
         }
         pdfReadyInSession = false;
-        syncCostSelections(state);
+        // Preserve payload snapshot costs — do not overwrite with today's catalog.
+        syncCostSelections(state, { mode: 'preserve' });
         refresh(root, true);
         showHistoryMsg(root, 'Cotización cargada.');
       })
