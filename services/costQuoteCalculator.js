@@ -1,6 +1,6 @@
 /**
- * Cost-quote calculation functions — legacy parity v2.
- * Every formula, rounding, and conditional mirrors nllegacy admin-cost-quote.js computeLine/computeAll/computeQuoteTotal.
+ * Cost-quote calculation functions — per-product costing + taxMode.
+ * Product parameters resolve via costOverrides.enabled ? override : state.costs.
  */
 
 const IVA_RATE = 0.13;
@@ -20,12 +20,6 @@ function fmtCrc(n) {
 
 // ── Additionals helpers ──
 
-/**
- * Normalize an additional from legacy formats:
- *   { price, description, showOnInvoice }
- *   or legacy "additional1"/"additional2"/"additional3"
- *   or flat number
- */
 function normalizeAdditional(v) {
   if (v && typeof v === 'object') {
     return {
@@ -42,7 +36,6 @@ function getProductAdditionals(p) {
   if (Array.isArray(p.additionals) && p.additionals.length) {
     return p.additionals.map(normalizeAdditional);
   }
-  // Legacy backward compatibility: additional1/2/3 flat fields
   return [1, 2, 3].map(i => normalizeAdditional(p['additional' + i]));
 }
 
@@ -89,34 +82,126 @@ function getTierDiscountPercent(state, qty, wholesaleMode) {
   return 0;
 }
 
-// ── Core computeLine (matches legacy exactly) ──
+// ── Product cost parameter resolver ──
 
-function getEffectiveCosts(state) {
+function emptyCostOverrides() {
   return {
-    hourRate: num(state.costs && state.costs.hourRate, 300),
-    kgPrice: num(state.costs && state.costs.kgPrice, 20500),
-    profitPercent: num(state.costs && state.costs.profitPercent, 100),
-    designCost: num(state.costs && state.costs.designCost),
+    enabled: false,
+    printerId: '',
+    printerName: '',
+    electricityCostPerHour: 0,
+    machineWearCostPerHour: 0,
+    hourRate: 0,
+    materialId: '',
+    materialName: '',
+    kgPrice: 0,
+    designCost: 0,
+    profitPercent: 100,
+  };
+}
+
+/**
+ * Normalize a raw costs / override blob into a canonical param shape.
+ * Legacy hourRate-only → electricity=0, wear=hourRate.
+ * hourRate always = electricity + wear.
+ */
+function normalizeCostParams(raw, source) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const hasElec = r.electricityCostPerHour != null;
+  const hasWear = r.machineWearCostPerHour != null;
+  let electricityCostPerHour = num(r.electricityCostPerHour);
+  let machineWearCostPerHour = num(r.machineWearCostPerHour);
+  let hourRate = num(r.hourRate, 300);
+
+  if (!hasElec && !hasWear) {
+    electricityCostPerHour = 0;
+    machineWearCostPerHour = hourRate;
+  } else {
+    hourRate = electricityCostPerHour + machineWearCostPerHour;
+  }
+
+  return {
+    source: source === 'override' ? 'override' : 'base',
+    printerId: String(r.printerId || ''),
+    printerName: String(r.printerName || ''),
+    electricityCostPerHour,
+    machineWearCostPerHour,
+    hourRate,
+    materialId: String(r.materialId || ''),
+    materialName: String(r.materialName || ''),
+    kgPrice: num(r.kgPrice, 20500),
+    designCost: num(r.designCost),
+    profitPercent: num(r.profitPercent, 100),
+  };
+}
+
+/**
+ * Canonical product parameter resolver.
+ * Override ON → product.costOverrides; else → state.costs.
+ */
+function resolveProductCostParams(state, product) {
+  const overrides = product && product.costOverrides;
+  if (overrides && overrides.enabled === true) {
+    return normalizeCostParams(overrides, 'override');
+  }
+  return normalizeCostParams((state && state.costs) || {}, 'base');
+}
+
+/** @deprecated Prefer resolveProductCostParams — kept for callers expecting global costs. */
+function getEffectiveCosts(state) {
+  const c = normalizeCostParams((state && state.costs) || {}, 'base');
+  return {
+    hourRate: c.hourRate,
+    kgPrice: c.kgPrice,
+    profitPercent: c.profitPercent,
+    designCost: c.designCost,
+    electricityCostPerHour: c.electricityCostPerHour,
+    machineWearCostPerHour: c.machineWearCostPerHour,
+    printerId: c.printerId,
+    materialId: c.materialId,
   };
 }
 
 /**
  * Legacy computeLine(state, product, quantity, discountPercent)
+ * grams/printHours are always per-unit (qtyInputMode normalized before call).
+ * Design is charged once per product (not × quantity).
  */
 function computeLine(state, product, quantity, discountPercent) {
-  const c = getEffectiveCosts(state);
   const p = product || {};
+  const resolved = resolveProductCostParams(state, p);
   const qty = Math.max(0, num(quantity, 0));
-  const materialCost = (num(p.grams) / 1000) * num(c.kgPrice);
-  const timeCost = num(p.printHours) * num(c.hourRate);
+
+  const materialCost = (num(p.grams) / 1000) * num(resolved.kgPrice);
+  const electricityCost = num(p.printHours) * num(resolved.electricityCostPerHour);
+  const machineWearCost = num(p.printHours) * num(resolved.machineWearCostPerHour);
+  const timeCost = electricityCost + machineWearCost;
   const additionalsCost = sumAdditionals(p);
-  const productionCost = materialCost + timeCost;
-  const unitCost = productionCost + additionalsCost;
+
+  // Suggested sale formula (unchanged philosophy): markup on material+time, then + additionals.
+  const markupBase = materialCost + timeCost;
+  const unitCost = markupBase + additionalsCost;
   const totalCost = unitCost * qty;
-  const suggestedPrice = Math.round(productionCost * (1 + num(c.profitPercent) / 100) + additionalsCost);
+  const suggestedPrice = Math.round(
+    markupBase * (1 + num(resolved.profitPercent) / 100) + additionalsCost
+  );
   const baseSale = p.salePriceTouched ? num(p.salePriceManual) : suggestedPrice;
   const discount = Math.max(0, Math.min(100, num(discountPercent)));
   const saleUnit = baseSale * (1 - discount / 100);
+
+  const designCost = num(resolved.designCost); // once per product
+  const materialCostTotal = materialCost * qty;
+  const electricityCostTotal = electricityCost * qty;
+  const machineWearCostTotal = machineWearCost * qty;
+  const additionalsCostTotal = additionalsCost * qty;
+  const productionCost =
+    materialCostTotal +
+    electricityCostTotal +
+    machineWearCostTotal +
+    additionalsCostTotal +
+    designCost;
+
+  // Per-unit margin excludes design (design is a one-shot charge).
   const netUnit = saleUnit - unitCost;
   const netTotal = netUnit * qty;
   const alexPct = num(state.alexPercent, 30);
@@ -124,8 +209,18 @@ function computeLine(state, product, quantity, discountPercent) {
 
   return {
     quantity: qty,
+    resolvedParams: resolved,
     materialCost,
+    electricityCost,
+    machineWearCost,
     timeCost,
+    additionalsCost,
+    designCost,
+    materialCostTotal,
+    electricityCostTotal,
+    machineWearCostTotal,
+    additionalsCostTotal,
+    productionCost,
     unitCost,
     totalCost,
     suggestedPrice,
@@ -139,16 +234,55 @@ function computeLine(state, product, quantity, discountPercent) {
     luisUnitShare: netUnit * (luisPct / 100),
     alexShare: netTotal * (alexPct / 100),
     luisShare: netTotal * (luisPct / 100),
-    designCost: 0,
     clientTotal: saleUnit * qty,
   };
 }
 
-// ── Aggregate functions ──
+function sumProductDesignCosts(productResults) {
+  return productResults.reduce((s, pr) => s + num(pr.line && pr.line.designCost), 0);
+}
+
+function buildProductionTotals(productResults) {
+  const totals = {
+    materialCost: 0,
+    electricityCost: 0,
+    machineWearCost: 0,
+    additionalsCost: 0,
+    designCost: 0,
+    productionCost: 0,
+  };
+  productResults.forEach((pr) => {
+    const l = pr.line || {};
+    totals.materialCost += num(l.materialCostTotal);
+    totals.electricityCost += num(l.electricityCostTotal);
+    totals.machineWearCost += num(l.machineWearCostTotal);
+    totals.additionalsCost += num(l.additionalsCostTotal);
+    totals.designCost += num(l.designCost);
+    totals.productionCost += num(l.productionCost);
+  });
+  return {
+    materialCost: roundMoney(totals.materialCost),
+    electricityCost: roundMoney(totals.electricityCost),
+    machineWearCost: roundMoney(totals.machineWearCost),
+    additionalsCost: roundMoney(totals.additionalsCost),
+    designCost: roundMoney(totals.designCost),
+    productionCost: roundMoney(totals.productionCost),
+  };
+}
+
+/**
+ * Tax-neutral business revenue for profit (excludes shipping + IVA).
+ */
+function computeTaxNeutralRevenue(productSaleTotal, designTotal, taxMode) {
+  const entered = roundMoney(Math.max(0, productSaleTotal + designTotal));
+  const tax = applyTaxMode(entered, taxMode);
+  // included → net (embedded IVA removed); add/excluded → entered base
+  return tax.base;
+}
 
 function aggregateMain(state, productResults) {
-  const c = getEffectiveCosts(state);
-  const designCost = num(c.designCost);
+  const production = buildProductionTotals(productResults);
+  const designCost = production.designCost;
   const subtotalGross = productResults.reduce((s, pr) => s + pr.line.saleUnit * pr.line.quantity, 0);
   const suggestedTotal = productResults.reduce((s, pr) => s + pr.line.suggestedPrice * pr.line.quantity, 0);
   const globalDisc =
@@ -158,10 +292,19 @@ function aggregateMain(state, productResults) {
   const globalDiscAmount = Math.round(subtotalGross * (globalDisc / 100));
   const subtotalAfterGlobal = subtotalGross - globalDiscAmount;
   const totalQty = productResults.reduce((s, pr) => s + pr.line.quantity, 0);
-  const netTotalBeforeGlobal = productResults.reduce((s, pr) => s + pr.line.netTotal, 0);
-  const netAfterGlobal = netTotalBeforeGlobal - Math.round(netTotalBeforeGlobal * (globalDisc / 100));
+
+  const taxMode = resolveTaxMode(state.export || state);
+  const shipping = num((state.export || {}).shippingCost);
+  const taxableBase = roundMoney(Math.max(0, subtotalAfterGlobal + designCost + shipping));
+  const taxSummary = applyTaxMode(taxableBase, taxMode);
+
+  const businessRevenue = computeTaxNeutralRevenue(subtotalAfterGlobal, designCost, taxMode);
+  const grossProfit = businessRevenue - production.productionCost;
   const alexPct = num(state.alexPercent, 30);
   const luisPct = num(state.luisPercent, 70);
+  const alexShare = grossProfit * (alexPct / 100);
+  const luisShare = grossProfit * (luisPct / 100);
+
   return {
     quantity: totalQty,
     productCount: productResults.length,
@@ -174,31 +317,49 @@ function aggregateMain(state, productResults) {
     subtotalGross,
     discountPercent: globalDisc,
     globalDiscountAmount: globalDiscAmount,
-    clientTotal: subtotalAfterGlobal + designCost,
+    clientTotal: taxSummary.total,
     designCost,
-    netTotal: netAfterGlobal,
-    netUnit: totalQty > 0 ? netAfterGlobal / totalQty : 0,
-    alexUnitShare: totalQty > 0 ? (netAfterGlobal * (alexPct / 100)) / totalQty : 0,
-    luisUnitShare: totalQty > 0 ? (netAfterGlobal * (luisPct / 100)) / totalQty : 0,
-    alexShare: netAfterGlobal * (alexPct / 100) + designCost,
-    luisShare: netAfterGlobal * (luisPct / 100),
-    materialCost: productResults.reduce((s, pr) => s + pr.line.materialCost, 0),
-    timeCost: productResults.reduce((s, pr) => s + pr.line.timeCost, 0),
+    shippingCost: shipping,
+    taxMode: taxSummary.taxMode,
+    enteredSubtotal: taxableBase,
+    subtotalBeforeTax: taxSummary.taxMode === 'included' ? taxSummary.base : taxableBase,
+    ivaAmount: taxSummary.iva,
+    grandTotal: taxSummary.total,
+    production,
+    productionCost: production.productionCost,
+    businessRevenue,
+    grossProfit,
+    netTotal: grossProfit,
+    netUnit: totalQty > 0 ? grossProfit / totalQty : 0,
+    alexUnitShare: totalQty > 0 ? alexShare / totalQty : 0,
+    luisUnitShare: totalQty > 0 ? luisShare / totalQty : 0,
+    alexShare,
+    luisShare,
+    materialCost: production.materialCost,
+    electricityCost: production.electricityCost,
+    machineWearCost: production.machineWearCost,
+    additionalsCost: production.additionalsCost,
+    timeCost: production.electricityCost + production.machineWearCost,
     unitCost: productResults.reduce((s, pr) => s + pr.line.unitCost, 0),
     totalCost: productResults.reduce((s, pr) => s + pr.line.totalCost, 0),
   };
 }
 
 function aggregateScenarioLine(state, productResults, discountPct) {
-  let subtotal = 0, totalCost = 0, qty = 0, netTotal = 0;
+  let subtotal = 0;
+  let qty = 0;
+  const lines = [];
   productResults.forEach(pr => {
     const l = computeLine(state, pr.product, pr.product.quantity, discountPct);
+    lines.push({ product: pr.product, line: l });
     subtotal += l.saleUnit * l.quantity;
-    totalCost += l.totalCost;
-    netTotal += l.netTotal;
     qty += l.quantity;
   });
-  const designCost = num(getEffectiveCosts(state).designCost);
+  const production = buildProductionTotals(lines);
+  const designCost = production.designCost;
+  const taxMode = resolveTaxMode(state.export || state);
+  const businessRevenue = computeTaxNeutralRevenue(subtotal, designCost, taxMode);
+  const grossProfit = businessRevenue - production.productionCost;
   const alexPct = num(state.alexPercent, 30);
   const luisPct = num(state.luisPercent, 70);
   return {
@@ -207,28 +368,42 @@ function aggregateScenarioLine(state, productResults, discountPct) {
     saleUnit: qty > 0 ? Math.round(subtotal / qty) : subtotal,
     baseSale: subtotal,
     suggestedPrice: subtotal,
-    netTotal,
-    netUnit: qty > 0 ? netTotal / qty : 0,
-    alexUnitShare: qty > 0 ? (netTotal * (alexPct / 100)) / qty : 0,
-    luisUnitShare: qty > 0 ? (netTotal * (luisPct / 100)) / qty : 0,
-    alexShare: netTotal * (alexPct / 100),
-    luisShare: netTotal * (luisPct / 100),
+    netTotal: grossProfit,
+    netUnit: qty > 0 ? grossProfit / qty : 0,
+    alexUnitShare: qty > 0 ? (grossProfit * (alexPct / 100)) / qty : 0,
+    luisUnitShare: qty > 0 ? (grossProfit * (luisPct / 100)) / qty : 0,
+    alexShare: grossProfit * (alexPct / 100),
+    luisShare: grossProfit * (luisPct / 100),
     designCost,
+    productionCost: production.productionCost,
   };
 }
 
-// ── computeAll — main entry point (matches legacy exactly) ──
-
 function syncSalePriceFromSuggested(state, product) {
   if (!product.salePriceTouched) {
-    product.salePriceManual = Math.round(
-      (num(product.grams) / 1000) * num(state.costs && state.costs.kgPrice, 20500) *
-        (1 + num(state.costs && state.costs.profitPercent, 100) / 100) +
-      num(product.printHours) * num(state.costs && state.costs.hourRate, 300) *
-        (1 + num(state.costs && state.costs.profitPercent, 100) / 100) +
-      sumAdditionals(product)
-    );
+    const line = computeLine(state, product, 1, 0);
+    product.salePriceManual = Math.round(line.suggestedPrice);
   }
+}
+
+function emptyMain() {
+  return {
+    quantity: 0, productCount: 0, suggestedPrice: 0, suggestedTotal: 0,
+    suggestedUnitAvg: 0, saleUnit: 0, saleTotal: 0, baseSale: 0,
+    subtotalGross: 0, discountPercent: 0, globalDiscountAmount: 0,
+    clientTotal: 0, designCost: 0, shippingCost: 0,
+    taxMode: 'excluded', enteredSubtotal: 0, subtotalBeforeTax: 0,
+    ivaAmount: 0, grandTotal: 0,
+    production: {
+      materialCost: 0, electricityCost: 0, machineWearCost: 0,
+      additionalsCost: 0, designCost: 0, productionCost: 0,
+    },
+    productionCost: 0, businessRevenue: 0, grossProfit: 0,
+    netTotal: 0, netUnit: 0,
+    alexUnitShare: 0, luisUnitShare: 0, alexShare: 0, luisShare: 0,
+    materialCost: 0, electricityCost: 0, machineWearCost: 0,
+    additionalsCost: 0, timeCost: 0, unitCost: 0, totalCost: 0,
+  };
 }
 
 function computeAll(state) {
@@ -236,18 +411,7 @@ function computeAll(state) {
     ? state.products
     : (state.product ? [state.product] : []);
   if (!products.length) {
-    return {
-      products: [],
-      main: {
-        quantity: 0, productCount: 0, suggestedPrice: 0, suggestedTotal: 0,
-        suggestedUnitAvg: 0, saleUnit: 0, saleTotal: 0, baseSale: 0,
-        subtotalGross: 0, discountPercent: 0, globalDiscountAmount: 0,
-        clientTotal: 0, designCost: 0, netTotal: 0, netUnit: 0,
-        alexUnitShare: 0, luisUnitShare: 0, alexShare: 0, luisShare: 0,
-        materialCost: 0, timeCost: 0, unitCost: 0, totalCost: 0,
-      },
-      scenarios: [],
-    };
+    return { products: [], main: emptyMain(), scenarios: [] };
   }
 
   const d = state.discounts || {};
@@ -267,7 +431,7 @@ function computeAll(state) {
       syncSalePriceFromSuggested(state, prod);
     }
     const line = computeLine(state, prod, qty, disc);
-    return { product: prod, line };
+    return { product: prod, line, resolvedParams: line.resolvedParams };
   });
 
   const main = aggregateMain(state, productResults);
@@ -292,18 +456,18 @@ function formatRangeLabel(range, key) {
   return range.min + ' a ' + range.max + ' uds';
 }
 
-// ── computeQuoteTotal (matches legacy costQuoteWorkflow exactly) ──
-
 function computeProductLineTotal(state, p) {
-  const c = state.costs || {};
   const qty = Math.max(1, num(p.quantity, 1));
-  const materialCost = (num(p.grams) / 1000) * num(c.kgPrice, 20500);
-  const timeCost = num(p.printHours) * num(c.hourRate, 300);
+  const resolved = resolveProductCostParams(state, p);
+  const materialCost = (num(p.grams) / 1000) * num(resolved.kgPrice);
+  const timeCost =
+    num(p.printHours) * num(resolved.electricityCostPerHour) +
+    num(p.printHours) * num(resolved.machineWearCostPerHour);
   const additionals = sumAdditionals(p);
-  const productionCost = materialCost + timeCost;
+  const markupBase = materialCost + timeCost;
   let unitSale = p.salePriceTouched
     ? num(p.salePriceManual)
-    : Math.round(productionCost * (1 + num(c.profitPercent, 100) / 100) + additionals);
+    : Math.round(markupBase * (1 + num(resolved.profitPercent) / 100) + additionals);
   if (!state.wholesaleMode && p.saleDiscountEnabled) {
     const disc = Math.max(0, Math.min(100, num(p.saleDiscountPercent)));
     unitSale = Math.round(unitSale * (1 - disc / 100));
@@ -318,17 +482,24 @@ function computeQuoteTotal(snapshot) {
     : (state.product ? [state.product] : []);
   const totalQty = products.reduce((sum, p) => sum + Math.max(1, num(p.quantity, 1)), 0);
   let subtotal = 0;
+  let designTotal = 0;
+
   products.forEach(p => {
+    const resolved = resolveProductCostParams(state, p);
+    designTotal += num(resolved.designCost);
+
     let lineTotal = computeProductLineTotal(state, p);
     if (state.wholesaleMode) {
       const qty = Math.max(1, num(p.quantity, 1));
-      const materialCost = (num(p.grams) / 1000) * num(state.costs && state.costs.kgPrice, 20500);
-      const timeCost = num(p.printHours) * num(state.costs && state.costs.hourRate, 300);
+      const materialCost = (num(p.grams) / 1000) * num(resolved.kgPrice);
+      const timeCost =
+        num(p.printHours) * num(resolved.electricityCostPerHour) +
+        num(p.printHours) * num(resolved.machineWearCostPerHour);
       const additionals = sumAdditionals(p);
-      const productionCost = materialCost + timeCost;
+      const markupBase = materialCost + timeCost;
       let unitSale = p.salePriceTouched
         ? num(p.salePriceManual)
-        : Math.round(productionCost * (1 + num(state.costs && state.costs.profitPercent, 100) / 100) + additionals);
+        : Math.round(markupBase * (1 + num(resolved.profitPercent) / 100) + additionals);
       const tierDisc = getTierDiscountPercent(state, totalQty, true);
       unitSale = Math.round(unitSale * (1 - tierDisc / 100));
       lineTotal = unitSale * qty;
@@ -341,9 +512,8 @@ function computeQuoteTotal(snapshot) {
     subtotal = Math.round(subtotal * (1 - globalDisc / 100));
   }
 
-  const design = num(state.costs && state.costs.designCost);
   const shipping = num((state.export || state).shippingCost);
-  const taxableBase = roundMoney(Math.max(0, Math.round(subtotal + design + shipping)));
+  const taxableBase = roundMoney(Math.max(0, Math.round(subtotal + designTotal + shipping)));
   const taxMode = resolveTaxMode(state.export || state);
   return applyTaxMode(taxableBase, taxMode).total;
 }
@@ -354,10 +524,6 @@ function normalizeTaxMode(value) {
   return ['included', 'add', 'excluded'].includes(value) ? value : 'excluded';
 }
 
-/**
- * Resolve taxMode from export snapshot.
- * Legacy: includeIva true → included; false/missing → excluded.
- */
 function resolveTaxMode(exportOrState) {
   const exp = (exportOrState && typeof exportOrState === 'object')
     ? (exportOrState.export || exportOrState)
@@ -368,18 +534,10 @@ function resolveTaxMode(exportOrState) {
   return exp.includeIva === true ? 'included' : 'excluded';
 }
 
-/**
- * Client-facing line amounts are never inflated here.
- * Kept for API compatibility with callers that previously multiplied by 1.13.
- */
 function withIva(amount, _includeIva) {
   return roundMoney(amount);
 }
 
-/**
- * Split a gross (IVA-included) amount into net + embedded IVA.
- * Guarantees net + iva === gross after rounding.
- */
 function extractIncludedIva(grossAmount) {
   const gross = roundMoney(grossAmount);
   if (gross <= 0) {
@@ -393,12 +551,6 @@ function extractIncludedIva(grossAmount) {
   };
 }
 
-/**
- * Apply taxMode to a taxable base (post-discount, including design/shipping).
- * - included: base is final gross; extract embedded IVA; payable = base
- * - add: base is pre-IVA; payable = base + 13%
- * - excluded: base is pre-IVA; payable = base (no IVA charged)
- */
 function applyTaxMode(baseAmount, taxMode) {
   const base = roundMoney(baseAmount);
   const mode = normalizeTaxMode(taxMode);
@@ -460,8 +612,6 @@ function formatFeeBreakdown(pricing) {
   return `${p.percentLabel} + ₡${p.fixedFee.toLocaleString('es-CR')}`;
 }
 
-// ── Exports ──
-
 module.exports = {
   IVA_RATE,
   num,
@@ -474,12 +624,18 @@ module.exports = {
   sumHiddenAdditionals,
   getDiscountRanges,
   getTierDiscountPercent,
+  emptyCostOverrides,
+  normalizeCostParams,
+  resolveProductCostParams,
+  getEffectiveCosts,
   computeLine,
   aggregateMain,
   aggregateScenarioLine,
   computeAll,
   computeQuoteTotal,
   computeProductLineTotal,
+  buildProductionTotals,
+  computeTaxNeutralRevenue,
   withIva,
   extractIncludedIva,
   normalizeTaxMode,

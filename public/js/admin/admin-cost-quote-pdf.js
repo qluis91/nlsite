@@ -248,9 +248,50 @@
     );
   }
 
+  function normalizeCostParams(raw, source) {
+    var r = raw && typeof raw === 'object' ? raw : {};
+    var hasElec = r.electricityCostPerHour != null;
+    var hasWear = r.machineWearCostPerHour != null;
+    var electricityCostPerHour = Number(r.electricityCostPerHour) || 0;
+    var machineWearCostPerHour = Number(r.machineWearCostPerHour) || 0;
+    var hourRate = Number(r.hourRate);
+    if (!Number.isFinite(hourRate)) hourRate = 300;
+    if (!hasElec && !hasWear) {
+      electricityCostPerHour = 0;
+      machineWearCostPerHour = hourRate;
+    } else {
+      hourRate = electricityCostPerHour + machineWearCostPerHour;
+    }
+    var kg = Number(r.kgPrice);
+    if (!Number.isFinite(kg)) kg = 20500;
+    var profit = Number(r.profitPercent);
+    if (!Number.isFinite(profit)) profit = 100;
+    return {
+      source: source === 'override' ? 'override' : 'base',
+      printerId: String(r.printerId || ''),
+      printerName: String(r.printerName || ''),
+      electricityCostPerHour: electricityCostPerHour,
+      machineWearCostPerHour: machineWearCostPerHour,
+      hourRate: hourRate,
+      materialId: String(r.materialId || ''),
+      materialName: String(r.materialName || ''),
+      kgPrice: kg,
+      designCost: Number(r.designCost) || 0,
+      profitPercent: profit,
+    };
+  }
+
+  function resolveProductCostParams(state, product) {
+    var overrides = product && product.costOverrides;
+    if (overrides && overrides.enabled === true) {
+      return normalizeCostParams(overrides, 'override');
+    }
+    return normalizeCostParams((state && state.costs) || {}, 'base');
+  }
+
   function getGrossUnitBeforeDiscount(state, product) {
     var p = product || getLegacyProduct(state);
-    var c = state.costs;
+    var c = resolveProductCostParams(state, p);
     var additionals = sumAdditionalsAmount(p);
     var materialCost = ((Number(p.grams) || 0) / 1000) * (Number(c.kgPrice) || 0);
     var timeCost = (Number(p.printHours) || 0) * (Number(c.hourRate) || 0);
@@ -289,7 +330,8 @@
     var pct = Math.max(0, Math.min(100, Number(discountPct) || 0));
     var discountPerUnit = roundMoney(grossPerUnit * (pct / 100));
     var netPerUnit = roundMoney(grossPerUnit - discountPerUnit);
-    var design = roundMoney(state.costs.designCost);
+    var resolved = resolveProductCostParams(state, product);
+    var design = roundMoney(resolved.designCost);
     var qty = Math.max(0, Math.round(Number(quantity) || 0));
     return {
       qty: qty,
@@ -298,6 +340,28 @@
       design: withIva(design, includeIva),
       total: withIva(netPerUnit * qty + design, includeIva),
     };
+  }
+
+  function productDescriptionBullets(state, product) {
+    var bullets = parseBullets(product && product.description);
+    var resolved = resolveProductCostParams(state, product);
+    var materialName = String(resolved.materialName || '').trim();
+    if (materialName) {
+      bullets = bullets.concat(['Material: ' + materialName]);
+    }
+    return bullets;
+  }
+
+  function sumResolvedDesignCosts(state, result) {
+    var productLines = (result && result.products) || [];
+    if (!productLines.length) {
+      return roundMoney(resolveProductCostParams(state, getLegacyProduct(state)).designCost);
+    }
+    return roundMoney(
+      productLines.reduce(function (sum, pr) {
+        return sum + resolveProductCostParams(state, pr.product).designCost;
+      }, 0)
+    );
   }
 
   function buildLineItemsForProduct(state, product, line, includeIva, wholesaleMode, bullets) {
@@ -401,12 +465,12 @@
 
   function buildLineItems(state, result, includeIva, wholesaleMode) {
     var items = [];
-    var bullets = parseBullets(state.export && state.export.description);
     var productLines = (result && result.products) || [];
     if (!productLines.length) {
       productLines = [{ product: getLegacyProduct(state), line: result.main }];
     }
-    productLines.forEach(function (pr, idx) {
+    productLines.forEach(function (pr) {
+      var bullets = productDescriptionBullets(state, pr.product);
       items = items.concat(
         buildLineItemsForProduct(
           state,
@@ -414,16 +478,19 @@
           pr.line,
           includeIva,
           wholesaleMode,
-          idx === 0 ? bullets : []
+          bullets
         )
       );
     });
 
     if (!wholesaleMode) {
-      var design = roundMoney((state.costs && state.costs.designCost) || 0);
-      if (design > 0) {
+      productLines.forEach(function (pr) {
+        var resolved = resolveProductCostParams(state, pr.product);
+        var design = roundMoney(resolved.designCost);
+        if (design <= 0) return;
+        var pname = String((pr.product && pr.product.name) || '').trim() || 'Producto';
         items.push({
-          service: 'Dise\u00f1o personalizado',
+          service: 'Dise\u00f1o personalizado \u2014 ' + pname,
           bullets: [],
           text: 'Dise\u00f1o de modelo y adaptaci\u00f3n para impresi\u00f3n',
           qty: 1,
@@ -431,7 +498,7 @@
           discountPerUnit: 0,
           total: withIva(design, includeIva),
         });
-      }
+      });
     }
 
     return items;
@@ -773,7 +840,7 @@
     var taxMode = resolveTaxMode(exp, data);
     var includeIva = taxMode === 'included';
     var wholesaleMode = !!(data.wholesaleMode || state.wholesaleMode);
-    var designCost = roundMoney(state.costs.designCost);
+    var designCost = sumResolvedDesignCosts(state, result);
     var items = buildLineItems(state, result, includeIva, wholesaleMode);
     var hasProductDiscount =
       (result.products || []).some(function (pr) {
@@ -1148,7 +1215,7 @@
     var taxMode = resolveTaxMode(exp, data);
     var includeIva = taxMode === 'included';
     var wholesaleMode = !!(data.wholesaleMode || state.wholesaleMode);
-    var designCost = roundMoney(state.costs && state.costs.designCost);
+    var designCost = sumResolvedDesignCosts(state, result);
     var items = buildLineItems(state, result, includeIva, wholesaleMode);
     var hasProductDiscount =
       (result.products || []).some(function (pr) {
@@ -1179,6 +1246,7 @@
     normalizeTaxMode: normalizeTaxMode,
     resolveTaxMode: resolveTaxMode,
     applyTaxMode: applyTaxMode,
+    resolveProductCostParams: resolveProductCostParams,
     fmtPdfMoney: fmtMoney,
     IVA_RATE: IVA_RATE,
   };

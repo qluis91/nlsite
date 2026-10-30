@@ -344,8 +344,8 @@ describe('computeQuoteTotal', () => {
     //   adds=1000, suggested=round(12650*2+1000)=26300
     //   total = 26300*1 = 26300
     // subtotal = 19760 + 26300 = 46060
-    // + design(2000) + shipping(1500) = 49560
-    assert.equal(total, 49560);
+    // + design once per product (2000×2=4000) + shipping(1500) = 51560
+    assert.equal(total, 51560);
   });
 });
 
@@ -802,7 +802,28 @@ describe('Catalog store shapes', () => {
   it('normalizePrinter/material/additional return source shapes', () => {
     assert.deepEqual(
       catalogStore.normalizePrinter({ id: '1', name: 'X', hourRate: 300.4 }),
-      { id: '1', name: 'X', hourRate: 300 }
+      {
+        id: '1',
+        name: 'X',
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 300,
+        hourRate: 300,
+      }
+    );
+    assert.deepEqual(
+      catalogStore.normalizePrinter({
+        id: '2',
+        name: 'Y',
+        electricityCostPerHour: 35.4,
+        machineWearCostPerHour: 165.2,
+      }),
+      {
+        id: '2',
+        name: 'Y',
+        electricityCostPerHour: 35,
+        machineWearCostPerHour: 165,
+        hourRate: 200,
+      }
     );
     assert.deepEqual(
       catalogStore.normalizeMaterial({ id: '2', name: 'PLA', kgPrice: 20500.4 }),
@@ -853,11 +874,14 @@ describe('Catalog store shapes', () => {
 });
 
 describe('Quotation email catalog + default description UX', () => {
-  it('registers migrateCostQuoteEmails last in tracker', () => {
+  it('registers migrateCostQuotePrinterCosts last in tracker', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../scripts/migrationTracker.js'), 'utf8');
     assert.match(src, /migrateCostQuoteEmails/);
-    const idxEmails = src.lastIndexOf('migrateCostQuoteEmails');
+    assert.match(src, /migrateCostQuotePrinterCosts/);
+    const idxPrinter = src.lastIndexOf('migrateCostQuotePrinterCosts');
+    const idxEmails = src.lastIndexOf("name: 'migrateCostQuoteEmails'");
     const idxQuotes = src.lastIndexOf('migrateQuoteRequests');
+    assert.ok(idxPrinter > idxEmails);
     assert.ok(idxEmails > idxQuotes);
   });
 
@@ -880,11 +904,13 @@ describe('Quotation email catalog + default description UX', () => {
     assert.match(src, /setDefaultEmail/);
   });
 
-  it('frontend uses catalog emails and default service description', () => {
+  it('frontend uses catalog emails and per-product default description', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
     assert.match(src, /DEFAULT_SERVICE_DESCRIPTION/);
     assert.match(src, /Impresión 3D de alta calidad\\n/);
-    assert.match(src, /Agregá o modificá los servicios incluidos/);
+    assert.match(src, /Descripción del producto/);
+    assert.match(src, /cq-productDescription-/);
+    assert.doesNotMatch(src, /Descripción del servicio/);
     assert.match(src, /buildQuoteEmailOptions/);
     assert.match(src, /guardado en esta cotización/);
     assert.match(src, /Correos de cotización/);
@@ -1261,6 +1287,336 @@ describe('Cost quote varchar-id migration', () => {
     };
     await migrateCostQuoteVarcharId(fakePool);
     assert.equal(alterCount, 0);
+  });
+});
+
+describe('Per-product costing + printer electricity/wear', () => {
+  it('resolveProductCostParams inherits base when override off', () => {
+    const state = {
+      costs: {
+        printerId: 'a',
+        printerName: 'Printer A',
+        materialId: 'pla',
+        materialName: 'PLA',
+        electricityCostPerHour: 35,
+        machineWearCostPerHour: 165,
+        hourRate: 200,
+        kgPrice: 20000,
+        designCost: 5000,
+        profitPercent: 100,
+      },
+      products: [{ name: 'A', costOverrides: { enabled: false } }],
+    };
+    const r = calculator.resolveProductCostParams(state, state.products[0]);
+    assert.equal(r.source, 'base');
+    assert.equal(r.printerName, 'Printer A');
+    assert.equal(r.materialName, 'PLA');
+    assert.equal(r.designCost, 5000);
+    assert.equal(r.profitPercent, 100);
+    assert.equal(r.hourRate, 200);
+  });
+
+  it('override product uses custom params; base sibling stays base', () => {
+    const state = {
+      costs: {
+        printerName: 'Printer A',
+        materialName: 'PLA',
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 300,
+        hourRate: 300,
+        kgPrice: 20500,
+        designCost: 5000,
+        profitPercent: 100,
+      },
+      products: [
+        { name: 'A', costOverrides: { enabled: false } },
+        {
+          name: 'B',
+          costOverrides: {
+            enabled: true,
+            printerName: 'Printer B',
+            materialName: 'PETG',
+            electricityCostPerHour: 40,
+            machineWearCostPerHour: 160,
+            hourRate: 200,
+            kgPrice: 22000,
+            designCost: 8000,
+            profitPercent: 70,
+          },
+        },
+      ],
+    };
+    const a = calculator.resolveProductCostParams(state, state.products[0]);
+    const b = calculator.resolveProductCostParams(state, state.products[1]);
+    assert.equal(a.materialName, 'PLA');
+    assert.equal(a.designCost, 5000);
+    assert.equal(b.source, 'override');
+    assert.equal(b.materialName, 'PETG');
+    assert.equal(b.designCost, 8000);
+    assert.equal(b.profitPercent, 70);
+    state.costs.materialName = 'TPU';
+    assert.equal(calculator.resolveProductCostParams(state, state.products[0]).materialName, 'TPU');
+    assert.equal(calculator.resolveProductCostParams(state, state.products[1]).materialName, 'PETG');
+  });
+
+  it('design is charged once per product regardless of qty', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 300,
+        hourRate: 300,
+        kgPrice: 20500,
+        designCost: 5000,
+        profitPercent: 100,
+      },
+      export: { taxMode: 'excluded', shippingCost: 0 },
+      products: [{
+        name: 'Bulk',
+        quantity: 20,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceManual: 1000,
+        additionals: [],
+        costOverrides: { enabled: false },
+      }],
+    };
+    const line = calculator.computeLine(state, state.products[0], 20, 0);
+    assert.equal(line.designCost, 5000);
+    assert.equal(line.productionCost, 5000);
+    assert.equal(calculator.computeQuoteTotal(state), 1000 * 20 + 5000);
+  });
+
+  it('multiple products accumulate per-product design', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 300,
+        hourRate: 300,
+        kgPrice: 20500,
+        designCost: 5000,
+        profitPercent: 100,
+      },
+      export: { taxMode: 'excluded', shippingCost: 0 },
+      products: [
+        {
+          name: 'A', quantity: 1, grams: 0, printHours: 0,
+          salePriceTouched: true, salePriceManual: 1000, additionals: [],
+          costOverrides: { enabled: false },
+        },
+        {
+          name: 'B', quantity: 1, grams: 0, printHours: 0,
+          salePriceTouched: true, salePriceManual: 1000, additionals: [],
+          costOverrides: {
+            enabled: true, designCost: 8000, profitPercent: 100,
+            electricityCostPerHour: 0, machineWearCostPerHour: 300, hourRate: 300, kgPrice: 20500,
+          },
+        },
+        {
+          name: 'C', quantity: 1, grams: 0, printHours: 0,
+          salePriceTouched: true, salePriceManual: 1000, additionals: [],
+          costOverrides: { enabled: false },
+        },
+      ],
+    };
+    const all = calculator.computeAll(state);
+    assert.equal(all.main.designCost, 18000);
+    assert.equal(calculator.computeQuoteTotal(state), 3000 + 18000);
+  });
+
+  it('printer electricity+wear split matches hourRate invariant', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 35,
+        machineWearCostPerHour: 165,
+        hourRate: 200,
+        kgPrice: 20000,
+        designCost: 0,
+        profitPercent: 100,
+      },
+      products: [{
+        name: 'P', quantity: 1, grams: 0, printHours: 10,
+        salePriceTouched: true, salePriceManual: 5000, additionals: [],
+      }],
+    };
+    const line = calculator.computeLine(state, state.products[0], 1, 0);
+    assert.equal(line.electricityCost, 350);
+    assert.equal(line.machineWearCost, 1650);
+    assert.equal(line.timeCost, 2000);
+    assert.equal(line.timeCost, 10 * 200);
+  });
+
+  it('material cost uses grams/1000 * kgPrice', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 20000,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      products: [{ name: 'M', quantity: 1, grams: 250, printHours: 0, additionals: [] }],
+    };
+    const line = calculator.computeLine(state, state.products[0], 1, 0);
+    assert.equal(line.materialCost, 5000);
+  });
+
+  it('hidden additionals still count in production cost', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      products: [{
+        name: 'H',
+        quantity: 2,
+        grams: 0,
+        printHours: 0,
+        additionals: [{ price: 1000, showOnInvoice: false, description: 'hidden' }],
+        salePriceTouched: true,
+        salePriceManual: 5000,
+      }],
+    };
+    const line = calculator.computeLine(state, state.products[0], 2, 0);
+    assert.equal(line.additionalsCost, 1000);
+    assert.equal(line.additionalsCostTotal, 2000);
+    assert.equal(line.productionCost, 2000);
+  });
+
+  it('legacy hourRate-only costs migrate to electricity=0 wear=hourRate', () => {
+    const r = calculator.normalizeCostParams({ hourRate: 300, kgPrice: 20500 }, 'base');
+    assert.equal(r.electricityCostPerHour, 0);
+    assert.equal(r.machineWearCostPerHour, 300);
+    assert.equal(r.hourRate, 300);
+  });
+
+  it('Costos generales components sum to productionCost', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 35,
+        machineWearCostPerHour: 165,
+        hourRate: 200,
+        kgPrice: 20000,
+        designCost: 5000,
+        profitPercent: 100,
+      },
+      export: { taxMode: 'excluded', shippingCost: 0 },
+      products: [{
+        name: 'A',
+        quantity: 2,
+        grams: 100,
+        printHours: 1,
+        additionals: [{ price: 500, showOnInvoice: true }],
+        salePriceTouched: true,
+        salePriceManual: 10000,
+      }],
+    };
+    const all = calculator.computeAll(state);
+    const p = all.main.production;
+    assert.equal(
+      p.materialCost + p.electricityCost + p.machineWearCost + p.additionalsCost + p.designCost,
+      p.productionCost
+    );
+  });
+
+  it('IVA is not treated as profit for add and included modes', () => {
+    const baseState = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      products: [
+        {
+          name: 'rotulo 20x10cm',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 15000,
+          additionals: [],
+        },
+        {
+          name: 'rotulo 8.5x5.5cm',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 2800,
+          additionals: [],
+        },
+      ],
+    };
+    const add = calculator.computeAll({
+      ...baseState,
+      export: { taxMode: 'add', shippingCost: 0 },
+      alexPercent: 30,
+      luisPercent: 70,
+    });
+    assert.equal(add.main.grandTotal, 35934);
+    assert.equal(add.main.businessRevenue, 31800);
+    assert.equal(add.main.grossProfit, 31800);
+
+    const included = calculator.computeAll({
+      ...baseState,
+      export: { taxMode: 'included', shippingCost: 0 },
+      alexPercent: 30,
+      luisPercent: 70,
+    });
+    assert.equal(included.main.grandTotal, 31800);
+    assert.equal(included.main.businessRevenue, 28142);
+    assert.equal(included.main.grossProfit, 28142);
+  });
+
+  it('printer cost migration is registered and additive', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../scripts/migrate-cost-quote-printer-costs.js'),
+      'utf8'
+    );
+    assert.match(src, /electricity_cost_per_hour/);
+    assert.match(src, /machine_wear_cost_per_hour/);
+    assert.match(src, /machine_wear_cost_per_hour = unit_cost/);
+    assert.doesNotMatch(src, /migrate-cost-quote\.js/);
+    const tracker = fs.readFileSync(
+      path.resolve(__dirname, '../scripts/migrationTracker.js'),
+      'utf8'
+    );
+    assert.match(tracker, /migrateCostQuotePrinterCosts/);
+    const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
+    assert.equal(MIGRATION_REGISTRY[MIGRATION_REGISTRY.length - 1].name, 'migrateCostQuotePrinterCosts');
+  });
+
+  it('UI exposes Cambiar parámetros and Costos generales', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'),
+      'utf8'
+    );
+    assert.match(src, /Cambiar parámetros/);
+    assert.match(src, /Costos generales/);
+    assert.match(src, /Desgaste de impresoras/);
+    assert.match(src, /Resumen final/);
+    assert.match(src, /resolveProductCostParams/);
+    assert.match(src, /cq-catalog-printer-electricity/);
+    assert.doesNotMatch(src, /Costo Unitario/);
+  });
+
+  it('PDF appends Material line from resolved params per product', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    assert.match(src, /Material: /);
+    assert.match(src, /productDescriptionBullets/);
+    assert.match(src, /resolveProductCostParams/);
+    assert.match(src, /Dise\\u00f1o personalizado \\u2014/);
   });
 });
 

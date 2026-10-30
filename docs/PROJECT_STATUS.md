@@ -3,6 +3,7 @@
 **Last updated:** 2026-10-30
 **Current phase:** Public services + quote requests + unified navbar
 **Next:** Optional quote↔cost_quotes integration; CMS-editable service pages; CSS variable homogenization
+- [x] **Cotización 3D per-product costing**: base vs `costOverrides`; product descriptions + PDF material line; printer electricity/wear; Costos generales; tax-aware Resumen final; `migrateCostQuotePrinterCosts`.
 - [x] **Cotización 3D taxMode**: `included` | `add` | `excluded` via two exclusive checkboxes; payable `total_crc`/PDF/email/WhatsApp/Tilopay-base aligned; legacy `includeIva` in-memory map; no schema migration.
 - [x] **Public dual business areas**: `/soluciones-digitales` + `/fabricacion-3d` with shared styling; quote forms website/3D/other; admin inbox `/admin/cotizaciones` on `quote_requests` (not `cost_quotes`).
 - [x] **Unified public navbar**: `home-navbar.ejs` + `parent_id` tree via `publicNavbarService`; Services/Cotizar dropdowns; forward `migratePublicNavigationV2`.

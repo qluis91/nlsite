@@ -171,6 +171,12 @@ const MIGRATION_REGISTRY = [
     exportName: 'migrateCostQuoteEmails',
     passPool: true,
   },
+  {
+    name: 'migrateCostQuotePrinterCosts',
+    file: './migrate-cost-quote-printer-costs',
+    exportName: 'migrateCostQuotePrinterCosts',
+    passPool: true,
+  },
 ];
 
 async function ensureMigrationsTable(pool) {

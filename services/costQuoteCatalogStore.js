@@ -15,10 +15,21 @@ const FALLBACK_EMAILS = [
 
 const DEFAULT_CATALOG = {
   additionals: [],
-  printers: [{ id: 'printer-default', name: 'Impresora principal', hourRate: 300 }],
+  printers: [{
+    id: 'printer-default',
+    name: 'Impresora principal',
+    electricityCostPerHour: 0,
+    machineWearCostPerHour: 300,
+    hourRate: 300,
+  }],
   materials: [{ id: 'material-default', name: 'PLA estándar', kgPrice: 20500 }],
   emails: FALLBACK_EMAILS.map((e) => ({ ...e })),
 };
+
+function combinePrinterHourRate(electricity, wear) {
+  return Math.max(0, Math.round(Number(electricity) || 0)) +
+    Math.max(0, Math.round(Number(wear) || 0));
+}
 
 function newId(prefix) {
   return prefix + '-' + crypto.randomBytes(6).toString('hex');
@@ -33,10 +44,47 @@ function normalizeAdditional(item) {
 }
 
 function normalizePrinter(item) {
+  const raw = item || {};
+  const hasSplit =
+    raw.electricityCostPerHour != null ||
+    raw.machineWearCostPerHour != null ||
+    raw.electricity_cost_per_hour != null ||
+    raw.machine_wear_cost_per_hour != null;
+  let electricityCostPerHour = Math.max(
+    0,
+    Math.round(
+      Number(
+        raw.electricityCostPerHour != null
+          ? raw.electricityCostPerHour
+          : raw.electricity_cost_per_hour
+      ) || 0
+    )
+  );
+  let machineWearCostPerHour = Math.max(
+    0,
+    Math.round(
+      Number(
+        raw.machineWearCostPerHour != null
+          ? raw.machineWearCostPerHour
+          : raw.machine_wear_cost_per_hour
+      ) || 0
+    )
+  );
+  const legacyHour = Math.max(
+    0,
+    Math.round(Number(raw.hourRate != null ? raw.hourRate : raw.unit_cost) || 0)
+  );
+  if (!hasSplit && legacyHour > 0 && electricityCostPerHour === 0 && machineWearCostPerHour === 0) {
+    electricityCostPerHour = 0;
+    machineWearCostPerHour = legacyHour;
+  }
+  const hourRate = combinePrinterHourRate(electricityCostPerHour, machineWearCostPerHour);
   return {
-    id: String(item.id || newId('printer')),
-    name: String(item.name || '').trim() || 'Impresora',
-    hourRate: Math.max(0, Math.round(Number(item.hourRate != null ? item.hourRate : item.unit_cost) || 0)),
+    id: String(raw.id || newId('printer')),
+    name: String(raw.name || '').trim() || 'Impresora',
+    electricityCostPerHour,
+    machineWearCostPerHour,
+    hourRate,
   };
 }
 
@@ -65,7 +113,13 @@ function normalizeEmail(item) {
 }
 
 function rowToPrinter(r) {
-  return normalizePrinter({ id: r.id, name: r.name, hourRate: r.unit_cost });
+  return normalizePrinter({
+    id: r.id,
+    name: r.name,
+    electricityCostPerHour: r.electricity_cost_per_hour,
+    machineWearCostPerHour: r.machine_wear_cost_per_hour,
+    hourRate: r.unit_cost,
+  });
 }
 
 function rowToMaterial(r) {
@@ -200,6 +254,11 @@ async function upsertPrinter(body) {
   const item = normalizePrinter(body || {});
   if (!item.name) return { ok: false, error: 'Indicá el nombre de la impresora.' };
   const editId = String(body.id || '').trim();
+  // Server-authoritative total: never trust client hourRate alone.
+  const hourRate = combinePrinterHourRate(
+    item.electricityCostPerHour,
+    item.machineWearCostPerHour
+  );
 
   if (editId) {
     const existing = await findById(editId);
@@ -208,18 +267,28 @@ async function upsertPrinter(body) {
     }
     await pool.query(
       `UPDATE cost_quote_catalog
-          SET name = ?, unit_cost = ?
+          SET name = ?,
+              unit_cost = ?,
+              electricity_cost_per_hour = ?,
+              machine_wear_cost_per_hour = ?
         WHERE id = ? AND catalog_type = 'printer'`,
-      [item.name, item.hourRate, editId]
+      [
+        item.name,
+        hourRate,
+        item.electricityCostPerHour,
+        item.machineWearCostPerHour,
+        editId,
+      ]
     );
     const catalog = await getCatalog();
     return { ok: true, catalog, item: catalog.printers.find((p) => p.id === String(editId)) };
   }
 
   const [result] = await pool.query(
-    `INSERT INTO cost_quote_catalog (catalog_type, name, unit_cost, sort_order)
-     VALUES ('printer', ?, ?, 0)`,
-    [item.name, item.hourRate]
+    `INSERT INTO cost_quote_catalog
+       (catalog_type, name, unit_cost, electricity_cost_per_hour, machine_wear_cost_per_hour, sort_order)
+     VALUES ('printer', ?, ?, ?, ?, 0)`,
+    [item.name, hourRate, item.electricityCostPerHour, item.machineWearCostPerHour]
   );
   const catalog = await getCatalog();
   return { ok: true, catalog, item: catalog.printers.find((p) => p.id === String(result.insertId)) };
@@ -465,6 +534,7 @@ module.exports = {
   normalizePrinter,
   normalizeMaterial,
   normalizeEmail,
+  combinePrinterHourRate,
   rowToEmail,
   validateEmailAddress,
 };

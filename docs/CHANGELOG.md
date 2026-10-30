@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-30 — Per-product costing for Cotización 3D
+
+### Added
+- Per-product `costOverrides` (printer/material/design/profit) with base inheritance when unchecked
+- Per-product `description` (default multiline service text); PDF appends `Material: …` from resolved params
+- Printer catalog electricity + machine-wear costs; `unit_cost` = sum (server-authoritative)
+- Forward migration `migrateCostQuotePrinterCosts`
+- Admin **Costos generales** aggregate (material, electricidad, desgaste, adicionales, diseño)
+- Tax-aware **Resumen final** aligned with PDF/`taxMode`
+
+### Changed
+- Design charged once per product (not × qty); multi-product quotes sum each product’s design
+- Profit uses tax-neutral revenue (IVA excluded from Alex/Luis split)
+- Global “Descripción del servicio” removed from Exportar y Cliente
+
+### Notes
+- No product SQL tables — overrides/descriptions live in `cost_quotes.payload` JSON
+- Historical `migrate-cost-quote*.js` untouched; `NinjaLabV2` untouched
+
 ## 2026-10-30 — Explicit tax modes for Cotización 3D
 
 ### Added

@@ -388,6 +388,15 @@ const CONTRACTS = {
       { table: 'quote_request_files', column: 'quote_request_id', refTable: 'quote_requests', refColumn: 'id', name: 'fk_quote_request_files_request' },
     ],
   },
+  migrateCostQuotePrinterCosts: {
+    tables: ['cost_quote_catalog'],
+    columns: {
+      cost_quote_catalog: [
+        'electricity_cost_per_hour',
+        'machine_wear_cost_per_hour',
+      ],
+    },
+  },
 };
 
 /** Encoding-drift checksum pairs for remaining historical migrations. */

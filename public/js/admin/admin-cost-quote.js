@@ -16,12 +16,30 @@
     'Logo personalizado\n' +
     'Color a elegir';
 
+  function emptyCostOverrides() {
+    return {
+      enabled: false,
+      printerId: '',
+      printerName: '',
+      electricityCostPerHour: 0,
+      machineWearCostPerHour: 0,
+      hourRate: 0,
+      materialId: '',
+      materialName: '',
+      kgPrice: 0,
+      designCost: 0,
+      profitPercent: 100,
+    };
+  }
+
   var DEFAULT_PRODUCT = {
     name: 'Copa Mundial',
     quantity: 2,
     grams: 385,
     printHours: 14.5,
     qtyInputMode: 'unit',
+    description: DEFAULT_SERVICE_DESCRIPTION,
+    costOverrides: emptyCostOverrides(),
     additionals: [],
     salePriceManual: 0,
     salePriceTouched: false,
@@ -31,12 +49,16 @@
 
   var DEFAULTS = {
     costs: {
-      hourRate: 300,
-      designCost: 0,
-      kgPrice: 20500,
-      profitPercent: 100,
       printerId: '',
+      printerName: '',
+      electricityCostPerHour: 0,
+      machineWearCostPerHour: 300,
+      hourRate: 300,
       materialId: '',
+      materialName: '',
+      kgPrice: 20500,
+      designCost: 0,
+      profitPercent: 100,
     },
     discounts: {
       range10_50: 5,
@@ -64,7 +86,7 @@
       clientEmail: '',
       clientPhone: '',
       orderTitle: '',
-      description: DEFAULT_SERVICE_DESCRIPTION,
+      description: '',
       deliveryDays: 5,
       validDays: 15,
       shippingCost: 0,
@@ -253,8 +275,18 @@
     }
   }
 
+  function printerHourRate(printer) {
+    if (!printer) return 0;
+    if (printer.electricityCostPerHour != null || printer.machineWearCostPerHour != null) {
+      return num(printer.electricityCostPerHour) + num(printer.machineWearCostPerHour);
+    }
+    return num(printer.hourRate);
+  }
+
   function printerOptionLabel(printer) {
-    return isRestrictedPartner() ? printer.name : printer.name + ' — ' + fmtCrc(printer.hourRate) + '/h';
+    return isRestrictedPartner()
+      ? printer.name
+      : printer.name + ' — ' + fmtCrc(printerHourRate(printer)) + '/h';
   }
 
   function materialOptionLabel(material) {
@@ -396,7 +428,13 @@
   function defaultCatalog() {
     return {
       additionals: [],
-      printers: [{ id: 'printer-default', name: 'Impresora principal', hourRate: 300 }],
+      printers: [{
+        id: 'printer-default',
+        name: 'Impresora principal',
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 300,
+        hourRate: 300,
+      }],
       materials: [{ id: 'material-default', name: 'PLA estándar', kgPrice: 20500 }],
       emails: FALLBACK_QUOTE_EMAILS.slice(),
     };
@@ -465,9 +503,26 @@
   function upsertPrinterLocal(body) {
     var editId = String((body && body.id) || '').trim();
     var name = String((body && body.name) || '').trim();
-    var hourRate = Math.max(0, Math.round(num(body && body.hourRate)));
+    var electricity = Math.max(0, Math.round(num(body && body.electricityCostPerHour)));
+    var wear = Math.max(
+      0,
+      Math.round(
+        num(
+          body && body.machineWearCostPerHour != null
+            ? body.machineWearCostPerHour
+            : body && body.hourRate
+        )
+      )
+    );
+    var hourRate = electricity + wear;
     if (!name) return { ok: false, error: 'Indicá el nombre de la impresora.' };
-    var item = { id: editId || newLocalId('printer'), name: name, hourRate: hourRate };
+    var item = {
+      id: editId || newLocalId('printer'),
+      name: name,
+      electricityCostPerHour: electricity,
+      machineWearCostPerHour: wear,
+      hourRate: hourRate,
+    };
     var next = deepClone(catalog);
     if (editId) {
       var idx = next.printers.findIndex(function (p) {
@@ -751,7 +806,6 @@
     state.globalDiscount = deepClone(DEFAULTS.globalDiscount);
     if (opts.resetExport) {
       state.export = deepClone(DEFAULTS.export);
-      state.export.description = DEFAULT_SERVICE_DESCRIPTION;
       state.export.quoteEmail = getDefaultCatalogEmail();
     }
     currentSavedQuoteId = '';
@@ -779,8 +833,10 @@
     if (String(exp.clientPhone || '').trim()) return true;
     if (String(exp.orderTitle || '').trim()) return true;
     if (
-      String(exp.description || '').trim() &&
-      String(exp.description) !== DEFAULT_SERVICE_DESCRIPTION
+      state.products.some(function (prod) {
+        var d = String(prod.description || '');
+        return d.trim() && d !== DEFAULT_SERVICE_DESCRIPTION;
+      })
     ) {
       return true;
     }
@@ -834,7 +890,71 @@
     if (getProductQty(p) <= 1) p.qtyInputMode = 'unit';
     if (p.saleDiscountEnabled === undefined) p.saleDiscountEnabled = false;
     if (p.saleDiscountPercent === undefined) p.saleDiscountPercent = 0;
+    if (!p.costOverrides || typeof p.costOverrides !== 'object') {
+      p.costOverrides = emptyCostOverrides();
+    } else {
+      p.costOverrides = mergeDeep(emptyCostOverrides(), p.costOverrides);
+      p.costOverrides.enabled = !!p.costOverrides.enabled;
+    }
+    if (p.description === undefined) {
+      p.description = '';
+    }
     return p;
+  }
+
+  function normalizeCostParams(raw, source) {
+    var r = raw && typeof raw === 'object' ? raw : {};
+    var hasElec = r.electricityCostPerHour != null;
+    var hasWear = r.machineWearCostPerHour != null;
+    var electricityCostPerHour = num(r.electricityCostPerHour);
+    var machineWearCostPerHour = num(r.machineWearCostPerHour);
+    var hourRate = num(r.hourRate, 300);
+    if (!hasElec && !hasWear) {
+      electricityCostPerHour = 0;
+      machineWearCostPerHour = hourRate;
+    } else {
+      hourRate = electricityCostPerHour + machineWearCostPerHour;
+    }
+    return {
+      source: source === 'override' ? 'override' : 'base',
+      printerId: String(r.printerId || ''),
+      printerName: String(r.printerName || ''),
+      electricityCostPerHour: electricityCostPerHour,
+      machineWearCostPerHour: machineWearCostPerHour,
+      hourRate: hourRate,
+      materialId: String(r.materialId || ''),
+      materialName: String(r.materialName || ''),
+      kgPrice: num(r.kgPrice, 20500),
+      designCost: num(r.designCost),
+      profitPercent: num(r.profitPercent, 100),
+    };
+  }
+
+  function resolveProductCostParams(st, product) {
+    var overrides = product && product.costOverrides;
+    if (overrides && overrides.enabled === true) {
+      return normalizeCostParams(overrides, 'override');
+    }
+    return normalizeCostParams((st && st.costs) || {}, 'base');
+  }
+
+  function cloneResolvedIntoOverrides(st, product) {
+    var resolved = resolveProductCostParams(st, Object.assign({}, product, {
+      costOverrides: Object.assign({}, product.costOverrides || {}, { enabled: false }),
+    }));
+    product.costOverrides = {
+      enabled: true,
+      printerId: resolved.printerId,
+      printerName: resolved.printerName,
+      electricityCostPerHour: resolved.electricityCostPerHour,
+      machineWearCostPerHour: resolved.machineWearCostPerHour,
+      hourRate: resolved.hourRate,
+      materialId: resolved.materialId,
+      materialName: resolved.materialName,
+      kgPrice: resolved.kgPrice,
+      designCost: resolved.designCost,
+      profitPercent: resolved.profitPercent,
+    };
   }
 
   function normalizeTaxMode(value) {
@@ -865,13 +985,38 @@
       });
     }
     ensureProducts(s);
+    if (!s.costs) s.costs = deepClone(DEFAULTS.costs);
+    s.costs = mergeDeep(deepClone(DEFAULTS.costs), s.costs);
+    if (s.costs.electricityCostPerHour == null && s.costs.machineWearCostPerHour == null) {
+      s.costs.electricityCostPerHour = 0;
+      s.costs.machineWearCostPerHour = num(s.costs.hourRate, 300);
+      s.costs.hourRate = num(s.costs.electricityCostPerHour) + num(s.costs.machineWearCostPerHour);
+    } else {
+      s.costs.hourRate =
+        num(s.costs.electricityCostPerHour) + num(s.costs.machineWearCostPerHour);
+    }
     if (!s.export) s.export = deepClone(DEFAULTS.export);
     if (s.export.clientPhone === undefined) s.export.clientPhone = '';
-    if (s.export.description === undefined || s.export.description === null) {
-      s.export.description = DEFAULT_SERVICE_DESCRIPTION;
-    }
     migrateExportTaxMode(s.export);
     s.export.quoteEmail = resolveQuoteEmailSelection(s.export.quoteEmail);
+    // Legacy global description → first product only (in-memory).
+    var legacyDesc = s.export.description;
+    if (s.products && s.products.length) {
+      var first = s.products[0];
+      if (
+        first &&
+        (first.description === undefined || first.description === null) &&
+        legacyDesc != null &&
+        String(legacyDesc).trim() !== ''
+      ) {
+        first.description = String(legacyDesc);
+      }
+      s.products.forEach(function (prod, idx) {
+        if (prod.description === undefined || prod.description === null) {
+          prod.description = idx === 0 && legacyDesc != null ? String(legacyDesc) : '';
+        }
+      });
+    }
     return s;
   }
 
@@ -919,34 +1064,67 @@
     return 0;
   }
 
+  function applyPrinterSnapshot(target, printer) {
+    if (!printer || !target) return;
+    target.printerId = printer.id;
+    target.printerName = printer.name || target.printerName || '';
+    target.electricityCostPerHour = num(
+      printer.electricityCostPerHour != null
+        ? printer.electricityCostPerHour
+        : 0
+    );
+    target.machineWearCostPerHour = num(
+      printer.machineWearCostPerHour != null
+        ? printer.machineWearCostPerHour
+        : printer.hourRate
+    );
+    target.hourRate =
+      num(target.electricityCostPerHour) + num(target.machineWearCostPerHour);
+  }
+
+  function applyMaterialSnapshot(target, material) {
+    if (!material || !target) return;
+    target.materialId = material.id;
+    target.materialName = material.name || target.materialName || '';
+    target.kgPrice = num(material.kgPrice);
+  }
+
   function syncCostSelections(st) {
     if (!catalog.printers.length && !catalog.materials.length) return st;
     var c = st.costs;
     var printer = resolvePrinterSelection(c);
     var material = resolveMaterialSelection(c, printer);
-    if (printer) {
-      c.printerId = printer.id;
-      c.hourRate = num(printer.hourRate);
-    }
-    if (material) {
-      c.materialId = material.id;
-      c.kgPrice = num(material.kgPrice);
-    }
+    if (printer) applyPrinterSnapshot(c, printer);
+    if (material) applyMaterialSnapshot(c, material);
+    (st.products || []).forEach(function (prod) {
+      if (!prod.costOverrides || !prod.costOverrides.enabled) return;
+      var ov = prod.costOverrides;
+      var pPrinter = getPrinterById(ov.printerId) || null;
+      if (pPrinter) applyPrinterSnapshot(ov, pPrinter);
+      var pMaterial = getMaterialById(ov.materialId) || null;
+      if (pMaterial) applyMaterialSnapshot(ov, pMaterial);
+      else if (pPrinter) {
+        var filtered = materialsForPrinter(pPrinter);
+        var match = filtered.find(function (m) {
+          return m.id === ov.materialId;
+        });
+        if (match) applyMaterialSnapshot(ov, match);
+      }
+    });
     return st;
   }
 
   function getEffectiveCosts(st) {
-    var c = st.costs || {};
-    var printer = resolvePrinterSelection(c);
-    var material = resolveMaterialSelection(c, printer);
-    return {
-      hourRate: printer ? num(printer.hourRate) : num(c.hourRate, 300),
-      kgPrice: material ? num(material.kgPrice) : num(c.kgPrice, 20500),
-      designCost: num(c.designCost),
-      profitPercent: num(c.profitPercent),
-      printerId: printer ? printer.id : c.printerId,
-      materialId: material ? material.id : c.materialId,
-    };
+    return resolveProductCostParams(st, { costOverrides: { enabled: false } });
+  }
+
+  function getMaterialById(id) {
+    if (!id) return null;
+    return (
+      catalog.materials.find(function (m) {
+        return String(m.id) === String(id);
+      }) || null
+    );
   }
 
   function saveStateLocal(state) {
@@ -1006,29 +1184,52 @@
   }
 
   function computeLine(state, product, quantity, discountPercent) {
-    var c = getEffectiveCosts(state);
     var p = product;
+    var resolved = resolveProductCostParams(state, p);
     var qty = Math.max(0, num(quantity, 0));
-    var materialCost = (num(p.grams) / 1000) * num(c.kgPrice);
-    var timeCost = num(p.printHours) * num(c.hourRate);
+    var materialCost = (num(p.grams) / 1000) * num(resolved.kgPrice);
+    var electricityCost = num(p.printHours) * num(resolved.electricityCostPerHour);
+    var machineWearCost = num(p.printHours) * num(resolved.machineWearCostPerHour);
+    var timeCost = electricityCost + machineWearCost;
     var additionalsCost = sumAdditionals(p);
-    var productionCost = materialCost + timeCost;
-    var unitCost = productionCost + additionalsCost;
+    var markupBase = materialCost + timeCost;
+    var unitCost = markupBase + additionalsCost;
     var totalCost = unitCost * qty;
     var suggestedPrice = Math.round(
-      productionCost * (1 + num(c.profitPercent) / 100) + additionalsCost
+      markupBase * (1 + num(resolved.profitPercent) / 100) + additionalsCost
     );
     var baseSale = p.salePriceTouched ? num(p.salePriceManual) : suggestedPrice;
     var discount = Math.max(0, Math.min(100, num(discountPercent)));
     var saleUnit = baseSale * (1 - discount / 100);
+    var designCost = num(resolved.designCost);
+    var materialCostTotal = materialCost * qty;
+    var electricityCostTotal = electricityCost * qty;
+    var machineWearCostTotal = machineWearCost * qty;
+    var additionalsCostTotal = additionalsCost * qty;
+    var productionCost =
+      materialCostTotal +
+      electricityCostTotal +
+      machineWearCostTotal +
+      additionalsCostTotal +
+      designCost;
     var netUnit = saleUnit - unitCost;
     var netTotal = netUnit * qty;
     var alexPct = num(state.alexPercent, DEFAULTS.alexPercent);
     var luisPct = num(state.luisPercent, DEFAULTS.luisPercent);
     return {
       quantity: qty,
+      resolvedParams: resolved,
       materialCost: materialCost,
+      electricityCost: electricityCost,
+      machineWearCost: machineWearCost,
       timeCost: timeCost,
+      additionalsCost: additionalsCost,
+      designCost: designCost,
+      materialCostTotal: materialCostTotal,
+      electricityCostTotal: electricityCostTotal,
+      machineWearCostTotal: machineWearCostTotal,
+      additionalsCostTotal: additionalsCostTotal,
+      productionCost: productionCost,
       unitCost: unitCost,
       totalCost: totalCost,
       suggestedPrice: suggestedPrice,
@@ -1042,14 +1243,41 @@
       luisUnitShare: netUnit * (luisPct / 100),
       alexShare: netTotal * (alexPct / 100),
       luisShare: netTotal * (luisPct / 100),
-      designCost: 0,
       clientTotal: saleUnit * qty,
     };
   }
 
+  function buildProductionTotals(productResults) {
+    var totals = {
+      materialCost: 0,
+      electricityCost: 0,
+      machineWearCost: 0,
+      additionalsCost: 0,
+      designCost: 0,
+      productionCost: 0,
+    };
+    productResults.forEach(function (pr) {
+      var l = pr.line || {};
+      totals.materialCost += num(l.materialCostTotal);
+      totals.electricityCost += num(l.electricityCostTotal);
+      totals.machineWearCost += num(l.machineWearCostTotal);
+      totals.additionalsCost += num(l.additionalsCostTotal);
+      totals.designCost += num(l.designCost);
+      totals.productionCost += num(l.productionCost);
+    });
+    return {
+      materialCost: Math.round(totals.materialCost),
+      electricityCost: Math.round(totals.electricityCost),
+      machineWearCost: Math.round(totals.machineWearCost),
+      additionalsCost: Math.round(totals.additionalsCost),
+      designCost: Math.round(totals.designCost),
+      productionCost: Math.round(totals.productionCost),
+    };
+  }
+
   function aggregateMain(state, productResults) {
-    var c = getEffectiveCosts(state);
-    var designCost = num(c.designCost);
+    var production = buildProductionTotals(productResults);
+    var designCost = production.designCost;
     var subtotalGross = productResults.reduce(function (s, pr) {
       return s + pr.line.saleUnit * pr.line.quantity;
     }, 0);
@@ -1065,12 +1293,19 @@
     var totalQty = productResults.reduce(function (s, pr) {
       return s + pr.line.quantity;
     }, 0);
-    var netTotalBeforeGlobal = productResults.reduce(function (s, pr) {
-      return s + pr.line.netTotal;
-    }, 0);
-    var netAfterGlobal = netTotalBeforeGlobal - Math.round(netTotalBeforeGlobal * (globalDisc / 100));
+    var taxMode = normalizeTaxMode((state.export || {}).taxMode);
+    if (!(state.export || {}).taxMode && (state.export || {}).includeIva === true) {
+      taxMode = 'included';
+    }
+    var shipping = num((state.export || {}).shippingCost);
+    var taxableBase = Math.max(0, Math.round(subtotalAfterGlobal + designCost + shipping));
+    var taxSummary = applyTaxModeLocal(taxableBase, taxMode);
+    var businessRevenue = taxSummary.base;
+    var grossProfit = businessRevenue - production.productionCost;
     var alexPct = num(state.alexPercent, DEFAULTS.alexPercent);
     var luisPct = num(state.luisPercent, DEFAULTS.luisPercent);
+    var alexShare = grossProfit * (alexPct / 100);
+    var luisShare = grossProfit * (luisPct / 100);
     return {
       quantity: totalQty,
       productCount: productResults.length,
@@ -1083,20 +1318,29 @@
       subtotalGross: subtotalGross,
       discountPercent: globalDisc,
       globalDiscountAmount: globalDiscAmount,
-      clientTotal: subtotalAfterGlobal + designCost,
+      clientTotal: taxSummary.total,
       designCost: designCost,
-      netTotal: netAfterGlobal,
-      netUnit: totalQty > 0 ? netAfterGlobal / totalQty : 0,
-      alexUnitShare: totalQty > 0 ? (netAfterGlobal * (alexPct / 100)) / totalQty : 0,
-      luisUnitShare: totalQty > 0 ? (netAfterGlobal * (luisPct / 100)) / totalQty : 0,
-      alexShare: netAfterGlobal * (alexPct / 100) + designCost,
-      luisShare: netAfterGlobal * (luisPct / 100),
-      materialCost: productResults.reduce(function (s, pr) {
-        return s + pr.line.materialCost;
-      }, 0),
-      timeCost: productResults.reduce(function (s, pr) {
-        return s + pr.line.timeCost;
-      }, 0),
+      shippingCost: shipping,
+      taxMode: taxSummary.taxMode,
+      enteredSubtotal: taxableBase,
+      subtotalBeforeTax: taxSummary.taxMode === 'included' ? taxSummary.base : taxableBase,
+      ivaAmount: taxSummary.iva,
+      grandTotal: taxSummary.total,
+      production: production,
+      productionCost: production.productionCost,
+      businessRevenue: businessRevenue,
+      grossProfit: grossProfit,
+      netTotal: grossProfit,
+      netUnit: totalQty > 0 ? grossProfit / totalQty : 0,
+      alexUnitShare: totalQty > 0 ? alexShare / totalQty : 0,
+      luisUnitShare: totalQty > 0 ? luisShare / totalQty : 0,
+      alexShare: alexShare,
+      luisShare: luisShare,
+      materialCost: production.materialCost,
+      electricityCost: production.electricityCost,
+      machineWearCost: production.machineWearCost,
+      additionalsCost: production.additionalsCost,
+      timeCost: production.electricityCost + production.machineWearCost,
       unitCost: productResults.reduce(function (s, pr) {
         return s + pr.line.unitCost;
       }, 0),
@@ -1106,19 +1350,36 @@
     };
   }
 
+  function applyTaxModeLocal(baseAmount, taxMode) {
+    var base = Math.round(num(baseAmount));
+    var mode = normalizeTaxMode(taxMode);
+    if (mode === 'add') {
+      var iva = Math.round(base * 0.13);
+      return { taxMode: mode, base: base, iva: iva, total: base + iva };
+    }
+    if (mode === 'included') {
+      if (base <= 0) return { taxMode: mode, base: 0, iva: 0, total: 0 };
+      var ivaInc = Math.round(base - base / 1.13);
+      return { taxMode: mode, base: base - ivaInc, iva: ivaInc, total: base };
+    }
+    return { taxMode: 'excluded', base: base, iva: 0, total: base };
+  }
+
   function aggregateScenarioLine(state, productResults, discountPct) {
     var subtotal = 0;
-    var totalCost = 0;
     var qty = 0;
-    var netTotal = 0;
+    var lines = [];
     productResults.forEach(function (pr) {
       var l = computeLine(state, pr.product, pr.product.quantity, discountPct);
+      lines.push({ product: pr.product, line: l });
       subtotal += l.saleUnit * l.quantity;
-      totalCost += l.totalCost;
-      netTotal += l.netTotal;
       qty += l.quantity;
     });
-    var designCost = num(getEffectiveCosts(state).designCost);
+    var production = buildProductionTotals(lines);
+    var designCost = production.designCost;
+    var taxMode = normalizeTaxMode((state.export || {}).taxMode);
+    var businessRevenue = applyTaxModeLocal(subtotal + designCost, taxMode).base;
+    var grossProfit = businessRevenue - production.productionCost;
     var alexPct = num(state.alexPercent, DEFAULTS.alexPercent);
     var luisPct = num(state.luisPercent, DEFAULTS.luisPercent);
     return {
@@ -1127,13 +1388,14 @@
       saleUnit: qty > 0 ? Math.round(subtotal / qty) : subtotal,
       baseSale: subtotal,
       suggestedPrice: subtotal,
-      netTotal: netTotal,
-      netUnit: qty > 0 ? netTotal / qty : 0,
-      alexUnitShare: qty > 0 ? (netTotal * (alexPct / 100)) / qty : 0,
-      luisUnitShare: qty > 0 ? (netTotal * (luisPct / 100)) / qty : 0,
-      alexShare: netTotal * (alexPct / 100),
-      luisShare: netTotal * (luisPct / 100),
+      netTotal: grossProfit,
+      netUnit: qty > 0 ? grossProfit / qty : 0,
+      alexUnitShare: qty > 0 ? (grossProfit * (alexPct / 100)) / qty : 0,
+      luisUnitShare: qty > 0 ? (grossProfit * (luisPct / 100)) / qty : 0,
+      alexShare: grossProfit * (alexPct / 100),
+      luisShare: grossProfit * (luisPct / 100),
       designCost: designCost,
+      productionCost: production.productionCost,
     };
   }
 
@@ -1287,31 +1549,61 @@
     var printerOptions = catalog.printers.map(function (p) {
       return { value: p.id, label: printerOptionLabel(p) };
     });
+    if (
+      c.printerId &&
+      !printerOptions.some(function (o) {
+        return String(o.value) === String(c.printerId);
+      })
+    ) {
+      printerOptions.unshift({
+        value: c.printerId,
+        label: (c.printerName || 'Impresora') + ' (guardado en esta cotización)',
+      });
+    }
     var printer = getPrinterById(c.printerId) || resolvePrinterSelection(c);
     var materialOptions = materialsForPrinter(printer).map(function (m) {
       return { value: m.id, label: materialOptionLabel(m) };
     });
     var materialId = resolveMaterialSelection(c, printer);
     var selectedMaterialId = materialId ? materialId.id : c.materialId;
+    if (
+      c.materialId &&
+      !materialOptions.some(function (o) {
+        return String(o.value) === String(c.materialId);
+      })
+    ) {
+      materialOptions.unshift({
+        value: c.materialId,
+        label: (c.materialName || 'Material') + ' (guardado en esta cotización)',
+      });
+      selectedMaterialId = c.materialId;
+    }
+    var internalFields = isRestrictedPartner()
+      ? ''
+      : inputHtml('cq-designCost', 'Diseño', c.designCost, { min: 0, step: 1, compact: true }) +
+        inputHtml('cq-profitPercent', 'Ganancia %', c.profitPercent, {
+          min: 0,
+          step: 1,
+          compact: true,
+        }) +
+        inputHtml('cq-alexPercent', 'Ganancia Alex %', alexPct, {
+          min: 0,
+          max: 100,
+          step: 0.1,
+          compact: true,
+        }) +
+        '<div class="cq-field cq-field--compact cq-luis-auto">' +
+        '<span class="cq-field__label">Ganancia Luis %</span>' +
+        '<div class="cq-readonly-value">' +
+        luisPct.toFixed(1) +
+        '% <span class="cq-auto-badge">(auto)</span></div></div>';
     return (
       '<section class="cq-card cq-params-card" aria-label="Parámetros base">' +
       '<h3 class="cq-card__title">Parámetros Base</h3>' +
       '<div class="cq-grid cq-grid--2">' +
       selectHtml('cq-printerId', 'Impresora', c.printerId, printerOptions, { compact: true }) +
       selectHtml('cq-materialId', 'Material', selectedMaterialId, materialOptions, { compact: true }) +
-      inputHtml('cq-designCost', 'Diseño', c.designCost, { min: 0, step: 1, compact: true }) +
-      inputHtml('cq-profitPercent', 'Ganancia %', c.profitPercent, { min: 0, step: 1, compact: true }) +
-      inputHtml('cq-alexPercent', 'Ganancia Alex %', alexPct, {
-        min: 0,
-        max: 100,
-        step: 0.1,
-        compact: true,
-      }) +
-      '<div class="cq-field cq-field--compact cq-luis-auto">' +
-      '<span class="cq-field__label">Ganancia Luis %</span>' +
-      '<div class="cq-readonly-value">' +
-      luisPct.toFixed(1) +
-      '% <span class="cq-auto-badge">(auto)</span></div></div>' +
+      internalFields +
       '</div></section>'
     );
   }
@@ -1578,11 +1870,7 @@
         resolveQuoteEmailSelection(exp.quoteEmail),
         buildQuoteEmailOptions(exp.quoteEmail)
       ) +
-      '<label class="cq-field cq-field--input">' +
-      '<span class="cq-field__label">Descripción del servicio</span>' +
-      '<textarea id="cq-description" data-cq-field="cq-description" rows="3" placeholder="Agregá o modificá los servicios incluidos...">' +
-      escapeHtml(exp.description != null ? exp.description : DEFAULT_SERVICE_DESCRIPTION) +
-      '</textarea></label></div></div>' +
+      '</div></div>' +
       '<div class="cq-export-block">' +
       '<h4 class="cq-export-block__title">Vigencia y entrega</h4>' +
       '<div class="cq-grid cq-grid--2">' +
@@ -1691,7 +1979,17 @@
             kind === 'additional'
               ? fmtCrc(item.price)
               : kind === 'printer'
-                ? fmtCrc(item.hourRate) + ' / h'
+                ? 'Electricidad: ' +
+                  fmtCrc(item.electricityCostPerHour || 0) +
+                  '/h · Desgaste: ' +
+                  fmtCrc(
+                    item.machineWearCostPerHour != null
+                      ? item.machineWearCostPerHour
+                      : item.hourRate
+                  ) +
+                  '/h · Total: ' +
+                  fmtCrc(printerHourRate(item)) +
+                  '/h'
                 : fmtCrc(item.kgPrice) + ' / kg';
           return (
             '<li class="cq-catalog-list__item">' +
@@ -1750,16 +2048,28 @@
     return (
       '<section class="cq-card cq-catalog-panel">' +
       '<h3 class="cq-card__title">Impresoras</h3>' +
-      '<p class="cq-muted">El precio por hora se usa en costos base al elegir la impresora.</p>' +
+      '<p class="cq-muted">Electricidad + desgaste definen el costo total por hora (calculado en servidor).</p>' +
       '<div class="cq-catalog-form">' +
       '<input type="hidden" id="cq-catalog-printer-id" value="" />' +
       '<div class="cq-grid cq-grid--2">' +
-      inputHtml('cq-catalog-printer-name', 'Nombre', '', {
+      inputHtml('cq-catalog-printer-name', 'Nombre *', '', {
         type: 'text',
-        placeholder: 'Ej. Bambu X1',
+        placeholder: 'Ej. Bambu A1',
         noCommit: true,
       }) +
-      inputHtml('cq-catalog-printer-rate', 'Precio / hora (₡)', 300, { min: 0, step: 1, noCommit: true }) +
+      inputHtml('cq-catalog-printer-electricity', 'Electricidad / hora *', 0, {
+        min: 0,
+        step: 1,
+        noCommit: true,
+      }) +
+      inputHtml('cq-catalog-printer-wear', 'Desgaste de máquina / hora *', 300, {
+        min: 0,
+        step: 1,
+        noCommit: true,
+      }) +
+      '<div class="cq-field cq-field--input">' +
+      '<span class="cq-field__label">Total / hora</span>' +
+      '<div class="cq-readonly-value" id="cq-catalog-printer-total">₡300</div></div>' +
       '</div>' +
       '<div class="cq-catalog-form__actions">' +
       '<button type="button" class="btn btn--primary btn--sm" id="cq-catalog-printer-save">Guardar</button>' +
@@ -1994,7 +2304,81 @@
     );
   }
 
-  function renderCostBreakdownPanel() { return ""; }
+  function renderCostBreakdownPanel() { return ''; }
+
+  function renderProductOverridePanel(p, productIdx) {
+    if (isRestrictedPartner()) return '';
+    var ov = p.costOverrides || emptyCostOverrides();
+    var enabled = !!ov.enabled;
+    var checkbox =
+      '<label class="cq-field cq-field--check cq-product-override-toggle">' +
+      '<span class="cq-check-row">' +
+      '<input type="checkbox" id="cq-overrideEnabled-' +
+      productIdx +
+      '" data-cq-override-enabled="' +
+      productIdx +
+      '"' +
+      (enabled ? ' checked' : '') +
+      ' />' +
+      '<span>Cambiar parámetros</span></span></label>';
+    if (!enabled) return checkbox;
+
+    var printerOptions = catalog.printers.map(function (pr) {
+      return { value: pr.id, label: printerOptionLabel(pr) };
+    });
+    var printer =
+      getPrinterById(ov.printerId) ||
+      resolvePrinterSelection(ov) ||
+      resolvePrinterSelection(state.costs);
+    if (
+      ov.printerId &&
+      !printerOptions.some(function (o) {
+        return String(o.value) === String(ov.printerId);
+      })
+    ) {
+      printerOptions.unshift({
+        value: ov.printerId,
+        label: (ov.printerName || 'Impresora') + ' (guardado en esta cotización)',
+      });
+    }
+    var materialOptions = materialsForPrinter(printer).map(function (m) {
+      return { value: m.id, label: materialOptionLabel(m) };
+    });
+    if (
+      ov.materialId &&
+      !materialOptions.some(function (o) {
+        return String(o.value) === String(ov.materialId);
+      })
+    ) {
+      materialOptions.unshift({
+        value: ov.materialId,
+        label: (ov.materialName || 'Material') + ' (guardado en esta cotización)',
+      });
+    }
+    return (
+      checkbox +
+      '<div class="cq-product-override-panel glass-effect">' +
+      '<h5 class="cq-product-override-panel__title">Parámetros personalizados para este producto</h5>' +
+      '<div class="cq-grid cq-grid--2">' +
+      selectHtml('cq-overridePrinter-' + productIdx, 'Impresora', ov.printerId, printerOptions, {
+        compact: true,
+      }) +
+      selectHtml('cq-overrideMaterial-' + productIdx, 'Material', ov.materialId, materialOptions, {
+        compact: true,
+      }) +
+      inputHtml('cq-overrideDesign-' + productIdx, 'Costo de diseño', ov.designCost, {
+        min: 0,
+        step: 1,
+        compact: true,
+      }) +
+      inputHtml('cq-overrideProfit-' + productIdx, 'Ganancia %', ov.profitPercent, {
+        min: 0,
+        step: 1,
+        compact: true,
+      }) +
+      '</div></div>'
+    );
+  }
 
   function renderProductCard(pr, productIdx, wholesaleOn) {
     var p = pr.product;
@@ -2003,6 +2387,7 @@
     var additionals = getProductAdditionals(p);
     var canRemove = ensureProducts(state).length > 1;
     var qty = getProductQty(p);
+    var descVal = p.description != null ? p.description : '';
     return (
       '<article class="cq-product-item" data-cq-product-index="' +
       productIdx +
@@ -2033,6 +2418,16 @@
         step: 0.1,
       }) +
       '</div>' +
+      '<label class="cq-field cq-field--input cq-field--wide">' +
+      '<span class="cq-field__label">Descripción del producto</span>' +
+      '<textarea id="cq-productDescription-' +
+      productIdx +
+      '" data-cq-field="cq-productDescription-' +
+      productIdx +
+      '" rows="3">' +
+      escapeHtml(descVal) +
+      '</textarea></label>' +
+      renderProductOverridePanel(p, productIdx) +
       (additionals.length
         ? '<div class="cq-additionals">' + renderAdditionalFields(p, productIdx) + '</div>'
         : '') +
@@ -2059,67 +2454,105 @@
     );
   }
 
-  function renderQuoteSummary(state, result) {
-    var m = result.main;
-    var multi = result.products.length > 1;
-    var first = result.products[0] || { product: {}, line: {} };
-    var line = first.line || {};
-    var breakdownOpen = !!costBreakdownOpenByProduct[0];
+  function renderCostosGenerales(m) {
+    if (isRestrictedPartner()) return '';
+    var prod = m.production || {};
     return (
-      '<div class="cq-summary-grid" aria-label="Resumen de cotización">' +
       '<section class="cq-stat-card cq-stat-card--cost">' +
-      '<div class="cq-stat-card__head">' +
-      '<h3 class="cq-stat-card__title">Costo Unitario</h3>' +
-      '<button type="button" class="cq-icon-btn' +
-      (breakdownOpen ? ' is-active' : '') +
-      '" data-cq-toggle-cost-breakdown="0" title="' +
-      (breakdownOpen ? 'Ocultar desglose de costos' : 'Ver desglose de costos') +
-      '" aria-label="' +
-      (breakdownOpen ? 'Ocultar desglose de costos' : 'Ver desglose de costos') +
-      '">' +
-      eyeIconSvg(breakdownOpen) +
-      '</button></div>' +
-      (breakdownOpen
-        ? '<div class="cq-stat-rows">' +
-          '<div class="cq-stat-row"><span>Material</span><strong>' +
-          escapeHtml(fmtCrc(line.materialCost || 0)) +
-          '</strong></div>' +
-          '<div class="cq-stat-row"><span>Tiempo</span><strong>' +
-          escapeHtml(fmtCrc(line.timeCost || 0)) +
-          '</strong></div>' +
-          '<div class="cq-stat-row"><span>Adicionales</span><strong>' +
-          escapeHtml(fmtCrc(sumAdditionals(first.product || {}))) +
-          '</strong></div></div>'
-        : '<p class="cq-stat-hint">Desglose oculto</p>') +
-      '<div class="cq-stat-total">' +
-      '<span>TOTAL</span><strong>' +
-      escapeHtml(fmtCrc(line.unitCost || 0)) +
-      '</strong></div></section>' +
+      '<div class="cq-stat-card__head"><h3 class="cq-stat-card__title">Costos generales</h3></div>' +
+      '<div class="cq-stat-rows">' +
+      '<div class="cq-stat-row"><span>Material</span><strong>' +
+      escapeHtml(fmtCrc(prod.materialCost || 0)) +
+      '</strong></div>' +
+      '<div class="cq-stat-row"><span>Electricidad</span><strong>' +
+      escapeHtml(fmtCrc(prod.electricityCost || 0)) +
+      '</strong></div>' +
+      '<div class="cq-stat-row"><span>Desgaste de impresoras</span><strong>' +
+      escapeHtml(fmtCrc(prod.machineWearCost || 0)) +
+      '</strong></div>' +
+      '<div class="cq-stat-row"><span>Adicionales</span><strong>' +
+      escapeHtml(fmtCrc(prod.additionalsCost || 0)) +
+      '</strong></div>' +
+      '<div class="cq-stat-row"><span>Diseño</span><strong>' +
+      escapeHtml(fmtCrc(prod.designCost || 0)) +
+      '</strong></div></div>' +
+      '<div class="cq-stat-total"><span>Costo de producción</span><strong>' +
+      escapeHtml(fmtCrc(prod.productionCost || m.productionCost || 0)) +
+      '</strong></div></section>'
+    );
+  }
+
+  function renderGananciasCard(m) {
+    if (isRestrictedPartner()) return '';
+    return (
       '<section class="cq-stat-card cq-stat-card--gain">' +
       '<div class="cq-stat-card__head"><h3 class="cq-stat-card__title">Ganancias</h3></div>' +
       '<div class="cq-stat-rows">' +
-      '<div class="cq-stat-row cq-stat-row--alex"><span>Ganancia Alex (+ diseño)</span><strong>' +
+      '<div class="cq-stat-row cq-stat-row--alex"><span>Ganancia Alex</span><strong>' +
       escapeHtml(fmtCrc(m.alexShare)) +
       '</strong></div>' +
       '<div class="cq-stat-divider"></div>' +
       '<div class="cq-stat-row cq-stat-row--luis"><span>Ganancia Luis</span><strong>' +
       escapeHtml(fmtCrc(m.luisShare)) +
-      '</strong></div></div></section>' +
+      '</strong></div></div></section>'
+    );
+  }
+
+  function renderResumenFinalTaxRows(m) {
+    var mode = normalizeTaxMode(m.taxMode);
+    var html = '';
+    if (mode === 'included') {
+      html +=
+        '<div class="cq-stat-row"><span>Subtotal sin IVA</span><strong>' +
+        escapeHtml(fmtCrc(m.subtotalBeforeTax)) +
+        '</strong></div>';
+      html +=
+        '<div class="cq-stat-row"><span>IVA incluido (13%)</span><strong>' +
+        escapeHtml(fmtCrc(m.ivaAmount)) +
+        '</strong></div>';
+    } else if (mode === 'add') {
+      html +=
+        '<div class="cq-stat-row"><span>Subtotal</span><strong>' +
+        escapeHtml(fmtCrc(m.enteredSubtotal)) +
+        '</strong></div>';
+      html +=
+        '<div class="cq-stat-row"><span>IVA (13%)</span><strong>' +
+        escapeHtml(fmtCrc(m.ivaAmount)) +
+        '</strong></div>';
+    } else {
+      html +=
+        '<div class="cq-stat-row"><span>Subtotal</span><strong>' +
+        escapeHtml(fmtCrc(m.enteredSubtotal)) +
+        '</strong></div>';
+      html +=
+        '<p class="cq-stat-hint">Precios no incluyen IVA</p>';
+    }
+    return html;
+  }
+
+  function renderQuoteSummary(state, result) {
+    var m = result.main;
+    return (
+      '<div class="cq-summary-grid" aria-label="Resumen de cotización">' +
+      renderCostosGenerales(m) +
+      renderGananciasCard(m) +
       '<section class="cq-stat-card cq-stat-card--final">' +
-      '<div class="cq-stat-card__head"><h3 class="cq-stat-card__title">Resumen Final</h3></div>' +
-      '<div class="cq-stat-hero">' +
-      '<span>' +
-      (multi ? 'Precio sugerido total' : 'Precio sugerido/unidad') +
-      '</span><strong>' +
-      escapeHtml(fmtCrc(multi ? m.suggestedTotal : m.suggestedPrice)) +
-      '</strong></div>' +
+      '<div class="cq-stat-card__head"><h3 class="cq-stat-card__title">Resumen final</h3></div>' +
       '<div class="cq-stat-rows">' +
-      '<div class="cq-stat-row"><span>Net Gain/unit</span><strong>' +
-      escapeHtml(fmtCrc(m.netUnit)) +
+      renderResumenFinalTaxRows(m) +
+      '</div>' +
+      '<div class="cq-stat-total"><span>TOTAL</span><strong>' +
+      escapeHtml(fmtCrc(m.grandTotal != null ? m.grandTotal : m.clientTotal)) +
       '</strong></div>' +
-      '<div class="cq-stat-row"><span>Net Gain Total</span><strong>' +
-      escapeHtml(fmtCrc(m.netTotal)) +
-      '</strong></div></div>' +
+      (isRestrictedPartner()
+        ? ''
+        : '<div class="cq-stat-rows cq-stat-rows--internal">' +
+          '<div class="cq-stat-row"><span>Costo de producción</span><strong>' +
+          escapeHtml(fmtCrc(m.productionCost || 0)) +
+          '</strong></div>' +
+          '<div class="cq-stat-row"><span>Ganancia estimada</span><strong>' +
+          escapeHtml(fmtCrc(m.grossProfit != null ? m.grossProfit : m.netTotal)) +
+          '</strong></div></div>') +
       renderGlobalDiscountBlock(state, m) +
       '</section></div>'
     );
@@ -2187,13 +2620,12 @@
     };
     state.costs.printerId = g('cq-printerId') || state.costs.printerId;
     state.costs.materialId = g('cq-materialId') || state.costs.materialId;
-    state.costs.designCost = num(g('cq-designCost'), state.costs.designCost);
-    state.costs.profitPercent = num(g('cq-profitPercent'), state.costs.profitPercent);
-    var eff = getEffectiveCosts(state);
-    state.costs.hourRate = eff.hourRate;
-    state.costs.kgPrice = eff.kgPrice;
-    state.costs.printerId = eff.printerId || state.costs.printerId;
-    state.costs.materialId = eff.materialId || state.costs.materialId;
+    if ($('#cq-designCost', root)) {
+      state.costs.designCost = num(g('cq-designCost'), state.costs.designCost);
+    }
+    if ($('#cq-profitPercent', root)) {
+      state.costs.profitPercent = num(g('cq-profitPercent'), state.costs.profitPercent);
+    }
     if (!state.discountRanges) state.discountRanges = deepClone(DEFAULTS.discountRanges);
     ['range10_50', 'range50_100', 'range100plus'].forEach(function (key) {
       var discEl = $('#cq-discount-' + key, root);
@@ -2243,6 +2675,36 @@
         0,
         Math.min(100, num(g('cq-saleDiscountPercent-' + productIdx), prod.saleDiscountPercent))
       );
+      var descEl = $('#cq-productDescription-' + productIdx, root);
+      if (descEl) {
+        prod.description = descEl.value;
+      }
+      if (!prod.costOverrides) prod.costOverrides = emptyCostOverrides();
+      var overrideEl = $('#cq-overrideEnabled-' + productIdx, root);
+      var overrideOn = !!(overrideEl && overrideEl.checked);
+      if (overrideOn) {
+        prod.costOverrides.enabled = true;
+        if ($('#cq-overridePrinter-' + productIdx, root)) {
+          prod.costOverrides.printerId =
+            g('cq-overridePrinter-' + productIdx) || prod.costOverrides.printerId;
+          prod.costOverrides.materialId =
+            g('cq-overrideMaterial-' + productIdx) || prod.costOverrides.materialId;
+          prod.costOverrides.designCost = num(
+            g('cq-overrideDesign-' + productIdx),
+            prod.costOverrides.designCost
+          );
+          prod.costOverrides.profitPercent = num(
+            g('cq-overrideProfit-' + productIdx),
+            prod.costOverrides.profitPercent
+          );
+          var ovPrinter = getPrinterById(prod.costOverrides.printerId);
+          if (ovPrinter) applyPrinterSnapshot(prod.costOverrides, ovPrinter);
+          var ovMaterial = getMaterialById(prod.costOverrides.materialId);
+          if (ovMaterial) applyMaterialSnapshot(prod.costOverrides, ovMaterial);
+        }
+      } else {
+        prod.costOverrides.enabled = false;
+      }
       prod.additionals = [];
       block.querySelectorAll('[data-cq-additional-index]').forEach(function (addBlock) {
         var parts = String(addBlock.getAttribute('data-cq-additional-index') || '').split('-');
@@ -2263,7 +2725,6 @@
     state.export.clientEmail = g('cq-clientEmail');
     state.export.clientPhone = g('cq-clientPhone');
     state.export.orderTitle = g('cq-orderTitle');
-    state.export.description = g('cq-description');
     state.export.deliveryDays = num(g('cq-deliveryDays'), state.export.deliveryDays);
     state.export.validDays = num(g('cq-validDays'), state.export.validDays);
     state.export.shippingCost = num(g('cq-shippingCost'), state.export.shippingCost);
@@ -2795,11 +3256,15 @@
     } else if (kind === 'printer') {
       var pid = document.getElementById('cq-catalog-printer-id');
       var pname = document.getElementById('cq-catalog-printer-name');
-      var prate = document.getElementById('cq-catalog-printer-rate');
+      var pele = document.getElementById('cq-catalog-printer-electricity');
+      var pwear = document.getElementById('cq-catalog-printer-wear');
+      var ptotal = document.getElementById('cq-catalog-printer-total');
       var pcancel = document.getElementById('cq-catalog-printer-cancel');
       if (pid) pid.value = '';
       if (pname) pname.value = '';
-      if (prate) prate.value = '300';
+      if (pele) pele.value = '0';
+      if (pwear) pwear.value = '300';
+      if (ptotal) ptotal.textContent = fmtCrc(300);
       if (pcancel) pcancel.hidden = true;
     } else if (kind === 'material') {
       var mid = document.getElementById('cq-catalog-material-id');
@@ -3013,6 +3478,37 @@
         var prod = state.products[productIdx];
         if (getProductQty(prod) <= 1) return;
         prod.qtyInputMode = prod.qtyInputMode === 'total' ? 'unit' : 'total';
+        refresh(root, true);
+      });
+    });
+
+    root.querySelectorAll('[data-cq-override-enabled]').forEach(function (el) {
+      if (el._cqBound) return;
+      el._cqBound = true;
+      el.addEventListener('change', function () {
+        var productIdx = parseInt(el.getAttribute('data-cq-override-enabled'), 10);
+        if (!Number.isFinite(productIdx)) return;
+        state = readStateFromDom(root, state);
+        ensureProducts(state);
+        var prod = state.products[productIdx];
+        if (!prod) return;
+        if (!prod.costOverrides) prod.costOverrides = emptyCostOverrides();
+        if (el.checked) {
+          var hadValues =
+            prod.costOverrides.printerId ||
+            prod.costOverrides.materialId ||
+            num(prod.costOverrides.designCost) > 0 ||
+            num(prod.costOverrides.hourRate) > 0;
+          if (!prod.costOverrides.enabled && !hadValues) {
+            cloneResolvedIntoOverrides(state, prod);
+          } else {
+            prod.costOverrides.enabled = true;
+            if (!hadValues) cloneResolvedIntoOverrides(state, prod);
+          }
+        } else {
+          prod.costOverrides.enabled = false;
+        }
+        saveStateLocal(state);
         refresh(root, true);
       });
     });
@@ -3350,11 +3846,22 @@
           if (!printer) return;
           var pid = $('#cq-catalog-printer-id', root);
           var pname = $('#cq-catalog-printer-name', root);
-          var prate = $('#cq-catalog-printer-rate', root);
+          var peleEdit = $('#cq-catalog-printer-electricity', root);
+          var pwearEdit = $('#cq-catalog-printer-wear', root);
           var pcancel = $('#cq-catalog-printer-cancel', root);
           if (pid) pid.value = printer.id;
           if (pname) pname.value = printer.name;
-          if (prate) prate.value = printer.hourRate;
+          if (peleEdit) {
+            peleEdit.value =
+              printer.electricityCostPerHour != null ? printer.electricityCostPerHour : 0;
+          }
+          if (pwearEdit) {
+            pwearEdit.value =
+              printer.machineWearCostPerHour != null
+                ? printer.machineWearCostPerHour
+                : printer.hourRate || 0;
+          }
+          updatePrinterTotalDisplay(root);
           if (pcancel) pcancel.hidden = false;
         } else if (kind === 'material') {
           var material = catalog.materials.find(function (m) {
@@ -3547,20 +4054,41 @@
     }
   }
 
+  function updatePrinterTotalDisplay(root) {
+    var pele = $('#cq-catalog-printer-electricity', root);
+    var pwear = $('#cq-catalog-printer-wear', root);
+    var ptotal = $('#cq-catalog-printer-total', root);
+    if (!ptotal) return;
+    var total = Math.max(0, Math.round(num(pele && pele.value))) +
+      Math.max(0, Math.round(num(pwear && pwear.value)));
+    ptotal.textContent = fmtCrc(total);
+  }
+
   function bindPrinterCatalog(root) {
     var saveBtn = $('#cq-catalog-printer-save', root);
     var cancelBtn = $('#cq-catalog-printer-cancel', root);
+    var pele = $('#cq-catalog-printer-electricity', root);
+    var pwear = $('#cq-catalog-printer-wear', root);
+    [pele, pwear].forEach(function (el) {
+      if (!el || el._cqBoundTotal) return;
+      el._cqBoundTotal = true;
+      el.addEventListener('input', function () {
+        updatePrinterTotalDisplay(root);
+      });
+    });
     if (saveBtn && !saveBtn._cqBound) {
       saveBtn._cqBound = true;
       saveBtn.addEventListener('click', function () {
         var idEl = $('#cq-catalog-printer-id', root);
         var nameEl = $('#cq-catalog-printer-name', root);
-        var rateEl = $('#cq-catalog-printer-rate', root);
+        var eleEl = $('#cq-catalog-printer-electricity', root);
+        var wearEl = $('#cq-catalog-printer-wear', root);
         saveBtn.disabled = true;
         var body = {
           id: idEl ? idEl.value : '',
           name: nameEl ? nameEl.value : '',
-          hourRate: rateEl ? rateEl.value : 0,
+          electricityCostPerHour: eleEl ? eleEl.value : 0,
+          machineWearCostPerHour: wearEl ? wearEl.value : 0,
         };
         saveCatalogViaApi('/api/admin/cost-quote-catalog/printers', body, upsertPrinterLocal)
           .then(function (result) {

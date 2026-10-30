@@ -280,5 +280,5 @@ test('Testimonials capability still registered', () => {
 
 test('MIGRATION_REGISTRY count unchanged (29)', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 44);
+  assert.equal(MIGRATION_REGISTRY.length, 46);
 });

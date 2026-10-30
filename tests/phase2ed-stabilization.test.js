@@ -359,7 +359,7 @@ test('redactTokens masks API keys and tokens', () => {
 
 test('MIGRATION_REGISTRY has 34 entries in correct order', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 44);
+  assert.equal(MIGRATION_REGISTRY.length, 46);
   // Check last few are our social integrations migrations
   const names = MIGRATION_REGISTRY.map(e => e.name);
   assert.ok(names.includes('migrateSocialIntegrations'));
