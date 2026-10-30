@@ -559,56 +559,85 @@
 
     var adds = resolveProductAdditionals(p, qty);
     var visibleTotal = adds.visibleTotal;
-    var baseSale = Number(m.baseSale != null ? m.baseSale : m.suggestedPrice) || 0;
-    var baseSaleTotal =
-      m.baseSaleTotal != null ? roundMoney(m.baseSaleTotal) : roundMoney(baseSale * qty);
-    var visibleUnitShare = qty > 0 ? visibleTotal / qty : 0;
-    var regularUnit = baseSale - visibleUnitShare;
+    var productPreDiscountTotal =
+      m.productPreDiscountTotal != null
+        ? roundMoney(m.productPreDiscountTotal)
+        : m.baseSaleTotal != null
+          ? roundMoney(m.baseSaleTotal)
+          : roundMoney((Number(m.baseSale != null ? m.baseSale : m.suggestedPrice) || 0) * qty);
+    var productDiscountAmount =
+      m.productDiscountAmount != null
+        ? roundMoney(m.productDiscountAmount)
+        : 0;
     var manualPct = Math.max(0, Math.min(100, Number(m.discountPercent) || 0));
-    var useGrossLayout = manualPct > 0;
-    var exactClientTotal = m.clientTotal != null ? roundMoney(m.clientTotal) : roundMoney(m.saleUnit * qty);
-    var exactProductLineTotal = roundMoney(exactClientTotal - visibleTotal);
-    var bundleDiscTotal = useGrossLayout
-      ? roundMoney(baseSaleTotal * (manualPct / 100))
-      : 0;
-    var bundleDiscPerUnit = useGrossLayout
-      ? qty > 0
-        ? bundleDiscTotal / qty
-        : 0
-      : 0;
+    var useGrossLayout = manualPct > 0 || productDiscountAmount > 0;
+    var exactClientTotal =
+      m.clientTotal != null
+        ? roundMoney(m.clientTotal)
+        : roundMoney(productPreDiscountTotal - productDiscountAmount);
 
     if (useGrossLayout) {
-      items.push({
-        service: p.name || 'Impresi\u00f3n 3D',
-        bullets: bullets.length ? bullets : ['Impresi\u00f3n 3D de alta calidad'],
-        text: '',
-        qty: qty,
-        unitPrice: withIva(regularUnit, includeIva),
-        discountPerUnit: withIva(bundleDiscPerUnit, includeIva),
-        total: withIva(exactProductLineTotal, includeIva),
-      });
-    } else {
-      var tierPct2 = getTierDiscountPercent(state, qty, false);
-      var tierDiscountPerUnit = tierPct2 > 0 ? roundMoney(regularUnit * (tierPct2 / 100)) : 0;
-      var netUnit = regularUnit - tierDiscountPerUnit;
-      if (!tierPct2) {
-        netUnit = qty > 0 ? exactProductLineTotal / qty : 0;
-        tierDiscountPerUnit = 0;
+      // GROSS rows + allocated discounts. Summary subtracts discount once.
+      // Do NOT put already-net clientTotal into row.total (that double-discounts).
+      var targetDisc = productDiscountAmount;
+      if (targetDisc <= 0 && manualPct > 0) {
+        targetDisc = roundMoney(productPreDiscountTotal * (manualPct / 100));
       }
-      var lineTotal = tierPct2
-        ? roundMoney(netUnit * qty)
-        : exactProductLineTotal;
+      var allocatedDisc = 0;
+      var visibleAddRows = [];
+      getProductAdditionals(p).forEach(function (extra, idx) {
+        if (!extra.showOnInvoice) return;
+        var price = roundMoney(extra.price);
+        if (price <= 0) return;
+        var isTotalMode = extra.pricingMode === 'total';
+        var addQty = isTotalMode ? 1 : qty;
+        var addGross = price * addQty;
+        var addDisc = manualPct > 0 ? roundMoney(addGross * (manualPct / 100)) : 0;
+        allocatedDisc += addDisc;
+        var label = String(extra.description || '').trim() || 'Servicio adicional ' + (idx + 1);
+        visibleAddRows.push({
+          service: label,
+          bullets: [],
+          text: String(extra.description || '').trim() || 'Servicio complementario',
+          qty: addQty,
+          unitPrice: withIva(price, includeIva),
+          discountPerUnit: withIva(addQty > 0 ? addDisc / addQty : 0, includeIva),
+          discountAmount: addDisc,
+          total: withIva(addGross, includeIva),
+        });
+      });
 
+      var productGross = roundMoney(productPreDiscountTotal - visibleTotal);
+      var productDisc = Math.max(0, roundMoney(targetDisc - allocatedDisc));
       items.push({
         service: p.name || 'Impresi\u00f3n 3D',
         bullets: bullets.length ? bullets : ['Impresi\u00f3n 3D de alta calidad'],
         text: '',
         qty: qty,
-        unitPrice: withIva(regularUnit, includeIva),
-        discountPerUnit: withIva(tierDiscountPerUnit, includeIva),
-        total: withIva(lineTotal, includeIva),
+        unitPrice: withIva(qty > 0 ? productGross / qty : 0, includeIva),
+        discountPerUnit: withIva(qty > 0 ? productDisc / qty : 0, includeIva),
+        discountAmount: productDisc,
+        total: withIva(productGross, includeIva),
       });
+      visibleAddRows.forEach(function (row) {
+        items.push(row);
+      });
+      return items;
     }
+
+    // No product discount: emit net product portion + gross visible additionals
+    // (linesTotal already equals client product total; summary does not re-subtract).
+    var exactProductLineTotal = roundMoney(exactClientTotal - visibleTotal);
+    var regularUnit = qty > 0 ? exactProductLineTotal / qty : 0;
+    items.push({
+      service: p.name || 'Impresi\u00f3n 3D',
+      bullets: bullets.length ? bullets : ['Impresi\u00f3n 3D de alta calidad'],
+      text: '',
+      qty: qty,
+      unitPrice: withIva(regularUnit, includeIva),
+      discountPerUnit: 0,
+      total: withIva(exactProductLineTotal, includeIva),
+    });
 
     getProductAdditionals(p).forEach(function (extra, idx) {
       if (!extra.showOnInvoice) return;

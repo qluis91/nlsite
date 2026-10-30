@@ -3663,6 +3663,272 @@ describe('Wholesale quote-level tier (multi-product)', () => {
   });
 });
 
+describe('PDF non-wholesale product discount reconciliation', () => {
+  function loadPdf() {
+    const vm = require('node:vm');
+    const pdfSrc = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    const sandbox = { console };
+    vm.runInNewContext(pdfSrc, sandbox);
+    return sandbox.AdminCostQuotePdf;
+  }
+
+  function baseState(overrides) {
+    return {
+      wholesaleMode: false,
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      globalDiscount: { enabled: false, percent: 0 },
+      export: { taxMode: 'excluded', shippingCost: 0 },
+      ...overrides,
+    };
+  }
+
+  function assertParity(state, expected, label) {
+    const pdf = loadPdf();
+    const result = calculator.computeAll(state);
+    const server = calculator.computeQuoteTotal(state);
+    const grand = pdf.computeGrandTotal({ state, result, wholesaleMode: false });
+    assert.equal(result.main.grandTotal, server, label + ' admin/server');
+    assert.equal(grand, server, label + ' PDF/server');
+    if (expected != null) {
+      assert.equal(server, expected, label + ' expected total');
+      assert.equal(grand, expected, label + ' PDF expected');
+    }
+    return { result, server, grand };
+  }
+
+  it('PDF source uses gross rows + discountAmount for product discounts', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    const start = src.indexOf('if (useGrossLayout) {');
+    const end = src.indexOf('// No product discount:', start);
+    assert.ok(start >= 0 && end > start);
+    const block = src.slice(start, end);
+    assert.match(block, /productPreDiscountTotal/);
+    assert.match(block, /var productGross = roundMoney\(productPreDiscountTotal - visibleTotal\)/);
+    assert.match(block, /discountAmount: productDisc/);
+    assert.match(block, /total: withIva\(productGross/);
+    assert.doesNotMatch(block, /exactClientTotal/);
+    assert.doesNotMatch(block, /exactProductLineTotal/);
+  });
+
+  it('no additional + 50% discount → Admin/server/PDF = 3000', () => {
+    const state = baseState({
+      products: [
+        {
+          name: 'A',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1000,
+          saleDiscountEnabled: true,
+          saleDiscountPercent: 50,
+          additionals: [],
+        },
+      ],
+    });
+    const { result } = assertParity(state, 3000, 'no-additional 50%');
+    assert.equal(result.products[0].line.productPreDiscountTotal, 6000);
+    assert.equal(result.products[0].line.productDiscountAmount, 3000);
+  });
+
+  it('per_product additional + 50% → 6000 (gross 12000, disc 6000)', () => {
+    const state = baseState({
+      products: [
+        {
+          name: 'A',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1000,
+          saleDiscountEnabled: true,
+          saleDiscountPercent: 50,
+          additionals: [{ price: 1000, pricingMode: 'per_product', showOnInvoice: true }],
+        },
+      ],
+    });
+    const { result } = assertParity(state, 6000, 'per_product + 50%');
+    assert.equal(result.products[0].line.productPreDiscountTotal, 12000);
+    assert.equal(result.products[0].line.productDiscountAmount, 6000);
+    assert.equal(result.products[0].line.productPostDiscountTotal, 6000);
+  });
+
+  it('total additional + 50% → 3500', () => {
+    const state = baseState({
+      products: [
+        {
+          name: 'A',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1000,
+          saleDiscountEnabled: true,
+          saleDiscountPercent: 50,
+          additionals: [{ price: 1000, pricingMode: 'total', showOnInvoice: true }],
+        },
+      ],
+    });
+    assertParity(state, 3500, 'total additional + 50%');
+  });
+
+  it('hidden per_product additional + 50% → 6000, no visible add row contract', () => {
+    const state = baseState({
+      products: [
+        {
+          name: 'A',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1000,
+          saleDiscountEnabled: true,
+          saleDiscountPercent: 50,
+          additionals: [{ price: 1000, pricingMode: 'per_product', showOnInvoice: false }],
+        },
+      ],
+    });
+    const { result } = assertParity(state, 6000, 'hidden + 50%');
+    assert.equal(result.products[0].line.additionals.visibleTotal, 0);
+    assert.equal(result.products[0].line.productPreDiscountTotal, 12000);
+  });
+
+  it('non-divisible exact total + additional + 10% → 9900', () => {
+    const state = baseState({
+      products: [
+        {
+          name: 'A',
+          quantity: 3,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'total',
+          salePriceTotalManual: 10000,
+          saleDiscountEnabled: true,
+          saleDiscountPercent: 10,
+          additionals: [{ price: 1000, pricingMode: 'total', showOnInvoice: true }],
+        },
+      ],
+    });
+    assertParity(state, 9900, 'non-divisible 9900');
+  });
+
+  it('product 50% then global 10% → 5400', () => {
+    const state = baseState({
+      globalDiscount: { enabled: true, percent: 10 },
+      products: [
+        {
+          name: 'A',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1000,
+          saleDiscountEnabled: true,
+          saleDiscountPercent: 50,
+          additionals: [{ price: 1000, pricingMode: 'per_product', showOnInvoice: true }],
+        },
+      ],
+    });
+    // 12000 → product 50% → 6000 → global 10% → 5400
+    assertParity(state, 5400, 'product+global');
+  });
+
+  it('multi-product: discounted A + plain B PDF parity', () => {
+    const state = baseState({
+      products: [
+        {
+          name: 'A',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1000,
+          saleDiscountEnabled: true,
+          saleDiscountPercent: 50,
+          additionals: [{ price: 1000, pricingMode: 'per_product', showOnInvoice: true }],
+        },
+        {
+          name: 'B',
+          quantity: 2,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 500,
+          additionals: [],
+        },
+      ],
+    });
+    // A net 6000 + B 1000 = 7000
+    assertParity(state, 7000, 'multi-product');
+  });
+
+  it('wholesale regression still green with composed additionals', () => {
+    const state = {
+      wholesaleMode: true,
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      discounts: { range10_50: 10, range50_100: 10, range100plus: 15 },
+      discountRanges: {
+        range10_50: { min: 1, max: 50 },
+        range50_100: { min: 50, max: 100 },
+        range100plus: { min: 100, max: null },
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      export: { taxMode: 'excluded', shippingCost: 0 },
+      products: [
+        {
+          name: 'A',
+          quantity: 20,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1000,
+          additionals: [{ price: 5000, pricingMode: 'total', showOnInvoice: true }],
+        },
+      ],
+    };
+    // gross 25000, 10% → 22500
+    const pdf = loadPdf();
+    const result = calculator.computeAll(state);
+    const server = calculator.computeQuoteTotal(state);
+    const grand = pdf.computeGrandTotal({ state, result, wholesaleMode: true });
+    assert.equal(server, 22500);
+    assert.equal(result.main.grandTotal, server);
+    assert.equal(grand, server);
+  });
+});
+
 const pool = require('../config/db');
 const { after } = require('node:test');
 after(async () => {

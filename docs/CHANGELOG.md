@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-30 — PDF product-discount row reconciliation
+
+### Fixed
+- Non-wholesale PDF uses GROSS product/additional rows + allocated `discountAmount` (no double-discount with `clientTotal`)
+
+### Notes
+- Same remainder allocation pattern as wholesale PDF rows
+- No schema migration
+
 ## 2026-10-30 — Additionals compose into product sale totals
 
 ### Fixed
