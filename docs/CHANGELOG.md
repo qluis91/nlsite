@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-30 — Additionals compose into product sale totals
+
+### Fixed
+- Manual unit/total sale price is BASE product sale; additionals always add on top (exactly once)
+- Automatic suggested pricing still includes additionals once (no double charge)
+- Product discount / wholesale / PDF use the composed pre-discount product total
+
+### Notes
+- `Frecuente` catalog picker unchanged (fills Descripción + Precio)
+- No schema migration
+
 ## 2026-10-30 — Quotation name from order title
 
 ### Fixed

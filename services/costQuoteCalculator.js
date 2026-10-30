@@ -271,35 +271,61 @@ function resolveProductSalePrice(product, quantity, suggestedUnitPrice, suggeste
 }
 
 /**
- * Apply discount to resolved sale pricing.
- * Total-mode discounts the exact product total; unit-mode keeps prior unit semantics.
+ * Compose BASE product sale + additionals exactly once into the client sale total.
+ * Manual salePrice* fields remain BASE only; additionals are surcharges on top.
+ */
+function composeProductSaleWithAdditionals(baseSale, adds, quantity) {
+  const qty = Math.max(0, num(quantity, 0));
+  const additionalsTotal = roundMoney(adds && adds.totalCost);
+  const baseProductSaleTotal = roundMoney(baseSale.productTotal);
+  const baseProductSaleUnit = baseSale.unitPrice;
+  const productTotal = roundMoney(baseProductSaleTotal + additionalsTotal);
+  return {
+    ...baseSale,
+    baseProductSaleUnit,
+    baseProductSaleTotal,
+    additionalsTotal,
+    productTotal,
+    unitPrice: qty > 0 ? productTotal / qty : baseProductSaleUnit,
+  };
+}
+
+/**
+ * Apply discount to resolved (composed) sale pricing.
+ * Exact productTotal is authoritative when additionals or manual total mode are present.
  */
 function applyDiscountToSalePrice(sale, quantity, discountPercent) {
   const qty = Math.max(0, num(quantity, 0));
   const discount = Math.max(0, Math.min(100, num(discountPercent)));
+  const baseSaleTotal = roundMoney(sale.productTotal);
+  const baseSaleUnit = qty > 0 ? baseSaleTotal / qty : roundMoney(sale.unitPrice);
   if (discount <= 0) {
     return {
-      baseSale: sale.unitPrice,
-      baseSaleTotal: sale.productTotal,
-      saleUnit: sale.unitPrice,
-      clientTotal: sale.productTotal,
+      baseSale: baseSaleUnit,
+      baseSaleTotal,
+      saleUnit: baseSaleUnit,
+      clientTotal: baseSaleTotal,
       discountPercent: 0,
     };
   }
-  if (sale.inputMode === 'total' && sale.manual) {
-    const clientTotal = roundMoney(sale.productTotal * (1 - discount / 100));
+  const useExactTotal =
+    (sale.inputMode === 'total' && sale.manual) || num(sale.additionalsTotal) > 0;
+  if (useExactTotal) {
+    const clientTotal = roundMoney(baseSaleTotal * (1 - discount / 100));
     return {
-      baseSale: sale.unitPrice,
-      baseSaleTotal: sale.productTotal,
+      baseSale: baseSaleUnit,
+      baseSaleTotal,
       saleUnit: qty > 0 ? clientTotal / qty : 0,
       clientTotal,
       discountPercent: discount,
     };
   }
-  const saleUnit = sale.unitPrice * (1 - discount / 100);
+  const unitBase =
+    sale.baseProductSaleUnit != null ? sale.baseProductSaleUnit : sale.unitPrice;
+  const saleUnit = unitBase * (1 - discount / 100);
   return {
-    baseSale: sale.unitPrice,
-    baseSaleTotal: sale.productTotal,
+    baseSale: unitBase,
+    baseSaleTotal,
     saleUnit,
     clientTotal: saleUnit * qty,
     discountPercent: discount,
@@ -324,31 +350,43 @@ function buildSuggestedSaleInputs(state, product, quantity) {
   const manufacturingSuggestedUnit = Math.round(
     markupBase * (1 + num(resolved.profitPercent) / 100)
   );
-  const suggestedTotal = roundMoney(manufacturingSuggestedUnit * qty + adds.totalCost);
+  const manufacturingSuggestedTotal = roundMoney(manufacturingSuggestedUnit * qty);
+  const suggestedTotal = roundMoney(manufacturingSuggestedTotal + adds.totalCost);
   const suggestedUnit = Math.round(manufacturingSuggestedUnit + adds.perProductAmount);
-  return { qty, resolved, adds, suggestedUnit, suggestedTotal };
+  return {
+    qty,
+    resolved,
+    adds,
+    manufacturingSuggestedUnit,
+    manufacturingSuggestedTotal,
+    suggestedUnit,
+    suggestedTotal,
+  };
 }
 
 function resolveWholesaleProductPricing(state, product, quantity, tierDiscount) {
-  const { qty, adds, suggestedUnit, suggestedTotal } = buildSuggestedSaleInputs(
-    state,
+  const built = buildSuggestedSaleInputs(state, product, quantity);
+  const { qty, adds, manufacturingSuggestedUnit, manufacturingSuggestedTotal } = built;
+  const baseSale = resolveProductSalePrice(
     product,
-    quantity
+    qty,
+    manufacturingSuggestedUnit,
+    manufacturingSuggestedTotal
   );
-  const sale = resolveProductSalePrice(product, qty, suggestedUnit, suggestedTotal);
+  const sale = composeProductSaleWithAdditionals(baseSale, adds, qty);
   const tierDisc = Math.max(0, Math.min(100, num(tierDiscount)));
   const grossTotal = roundMoney(sale.productTotal);
   const useLegacyUnitRound =
     sale.manual &&
     sale.inputMode === 'unit' &&
-    adds.oneTimeTotal === 0 &&
+    adds.totalCost === 0 &&
     tierDisc > 0;
 
   let discountAmount = 0;
   let netTotal = grossTotal;
   if (tierDisc > 0) {
     if (useLegacyUnitRound) {
-      const unitSale = roundMoney(sale.unitPrice * (1 - tierDisc / 100));
+      const unitSale = roundMoney(sale.baseProductSaleUnit * (1 - tierDisc / 100));
       netTotal = unitSale * qty;
       discountAmount = roundMoney(grossTotal - netTotal);
     } else {
@@ -385,19 +423,23 @@ function computeLine(state, product, quantity, discountPercent) {
   const timeCost = electricityCost + machineWearCost;
   const adds = resolveProductAdditionals(p, qty);
 
-  // Markup on material+time only; additionals added after (respecting scope).
+  // Markup on material+time only; additionals composed once after base sale.
   const markupBase = materialCost + timeCost;
   const manufacturingSuggestedUnit = Math.round(
     markupBase * (1 + num(resolved.profitPercent) / 100)
   );
-  const suggestedTotal = roundMoney(
-    manufacturingSuggestedUnit * qty + adds.totalCost
-  );
-  const suggestedPrice = qty > 0 ? suggestedTotal / qty : manufacturingSuggestedUnit;
+  const manufacturingSuggestedTotal = roundMoney(manufacturingSuggestedUnit * qty);
+  const suggestedTotal = roundMoney(manufacturingSuggestedTotal + adds.totalCost);
   // Display/legacy unit: manufacturing + per-product adds (one-time shown via total).
   const suggestedUnitRounded = Math.round(manufacturingSuggestedUnit + adds.perProductAmount);
 
-  const sale = resolveProductSalePrice(p, qty, suggestedUnitRounded, suggestedTotal);
+  const baseProductSale = resolveProductSalePrice(
+    p,
+    qty,
+    manufacturingSuggestedUnit,
+    manufacturingSuggestedTotal
+  );
+  const sale = composeProductSaleWithAdditionals(baseProductSale, adds, qty);
   const priced = applyDiscountToSalePrice(sale, qty, discountPercent);
   const saleUnit = priced.saleUnit;
   const baseSale = priced.baseSale;
@@ -446,6 +488,11 @@ function computeLine(state, product, quantity, discountPercent) {
     totalCost,
     suggestedPrice: suggestedUnitRounded,
     suggestedTotal,
+    manufacturingSuggestedUnit,
+    manufacturingSuggestedTotal,
+    baseProductSaleUnit: sale.baseProductSaleUnit,
+    baseProductSaleTotal: sale.baseProductSaleTotal,
+    additionalsTotal: sale.additionalsTotal,
     saleUnit,
     baseSale,
     baseSaleTotal: priced.baseSaleTotal,
@@ -781,19 +828,17 @@ function computeProductLineTotal(state, p) {
   const manufacturingSuggestedUnit = Math.round(
     markupBase * (1 + num(resolved.profitPercent) / 100)
   );
-  const suggestedTotal = roundMoney(manufacturingSuggestedUnit * qty + adds.totalCost);
-  const suggestedUnit = Math.round(manufacturingSuggestedUnit + adds.perProductAmount);
-  const sale = resolveProductSalePrice(p, qty, suggestedUnit, suggestedTotal);
+  const manufacturingSuggestedTotal = roundMoney(manufacturingSuggestedUnit * qty);
+  const baseSale = resolveProductSalePrice(
+    p,
+    qty,
+    manufacturingSuggestedUnit,
+    manufacturingSuggestedTotal
+  );
+  const sale = composeProductSaleWithAdditionals(baseSale, adds, qty);
   let disc = 0;
   if (!state.wholesaleMode && p.saleDiscountEnabled) {
     disc = Math.max(0, Math.min(100, num(p.saleDiscountPercent)));
-  }
-  // Preserve prior unit-mode rounding when discounting unit prices.
-  if (sale.inputMode === 'unit' && sale.manual && disc > 0) {
-    return roundMoney(sale.unitPrice * (1 - disc / 100)) * qty;
-  }
-  if (!sale.manual && disc > 0) {
-    return applyDiscountToSalePrice(sale, qty, disc).clientTotal;
   }
   return applyDiscountToSalePrice(sale, qty, disc).clientTotal;
 }
@@ -948,6 +993,7 @@ module.exports = {
   getEffectiveCosts,
   computeLine,
   resolveProductSalePrice,
+  composeProductSaleWithAdditionals,
   normalizeSalePriceInputMode,
   applyDiscountToSalePrice,
   aggregateMain,

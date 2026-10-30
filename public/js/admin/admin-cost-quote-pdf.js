@@ -369,6 +369,21 @@
     };
   }
 
+  function composeProductSaleWithAdditionals(baseSale, adds, quantity) {
+    var qty = Math.max(0, Number(quantity) || 0);
+    var additionalsTotal = roundMoney(adds && adds.totalCost);
+    var baseProductSaleTotal = roundMoney(baseSale.productTotal);
+    var baseProductSaleUnit = baseSale.unitPrice;
+    var productTotal = roundMoney(baseProductSaleTotal + additionalsTotal);
+    return Object.assign({}, baseSale, {
+      baseProductSaleUnit: baseProductSaleUnit,
+      baseProductSaleTotal: baseProductSaleTotal,
+      additionalsTotal: additionalsTotal,
+      productTotal: productTotal,
+      unitPrice: qty > 0 ? productTotal / qty : baseProductSaleUnit,
+    });
+  }
+
   function getGrossUnitBeforeDiscount(state, product) {
     var p = product || getLegacyProduct(state);
     var c = resolveProductCostParams(state, p);
@@ -379,9 +394,14 @@
     var manufacturingSuggestedUnit = roundMoney(
       (materialCost + timeCost) * (1 + (Number(c.profitPercent) || 0) / 100)
     );
-    var suggestedTotal = roundMoney(manufacturingSuggestedUnit * qty + adds.totalCost);
-    var suggestedUnit = roundMoney(manufacturingSuggestedUnit + adds.perProductAmount);
-    var sale = resolveProductSalePrice(p, qty, suggestedUnit, suggestedTotal);
+    var manufacturingSuggestedTotal = roundMoney(manufacturingSuggestedUnit * qty);
+    var baseSale = resolveProductSalePrice(
+      p,
+      qty,
+      manufacturingSuggestedUnit,
+      manufacturingSuggestedTotal
+    );
+    var sale = composeProductSaleWithAdditionals(baseSale, adds, qty);
     return sale.unitPrice;
   }
 
@@ -466,20 +486,25 @@
       var manufacturingSuggestedUnitW = roundMoney(
         (materialCostW + timeCostW) * (1 + (Number(cW.profitPercent) || 0) / 100)
       );
-      var suggestedTotalW = roundMoney(manufacturingSuggestedUnitW * qty + addsW.totalCost);
-      var suggestedUnitW = roundMoney(manufacturingSuggestedUnitW + addsW.perProductAmount);
-      var saleW = resolveProductSalePrice(p, qty, suggestedUnitW, suggestedTotalW);
+      var manufacturingSuggestedTotalW = roundMoney(manufacturingSuggestedUnitW * qty);
+      var baseSaleW = resolveProductSalePrice(
+        p,
+        qty,
+        manufacturingSuggestedUnitW,
+        manufacturingSuggestedTotalW
+      );
+      var saleW = composeProductSaleWithAdditionals(baseSaleW, addsW, qty);
       var tierPct = Number(wholesaleTierPct) || 0;
       var grossTotalW = roundMoney(saleW.productTotal);
       var useLegacyUnitRoundW =
         saleW.manual &&
         saleW.inputMode === 'unit' &&
-        addsW.oneTimeTotal === 0 &&
+        addsW.totalCost === 0 &&
         tierPct > 0;
       var netTotalW = grossTotalW;
       if (tierPct > 0) {
         if (useLegacyUnitRoundW) {
-          netTotalW = roundMoney(saleW.unitPrice * (1 - tierPct / 100)) * qty;
+          netTotalW = roundMoney(saleW.baseProductSaleUnit * (1 - tierPct / 100)) * qty;
         } else {
           netTotalW = roundMoney(grossTotalW * (1 - tierPct / 100));
         }

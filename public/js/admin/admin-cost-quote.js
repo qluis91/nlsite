@@ -446,32 +446,53 @@
     };
   }
 
+  function composeProductSaleWithAdditionals(baseSale, adds, quantity) {
+    var qty = Math.max(0, num(quantity, 0));
+    var additionalsTotal = Math.round(num(adds && adds.totalCost));
+    var baseProductSaleTotal = Math.round(num(baseSale.productTotal));
+    var baseProductSaleUnit = baseSale.unitPrice;
+    var productTotal = Math.round(baseProductSaleTotal + additionalsTotal);
+    return Object.assign({}, baseSale, {
+      baseProductSaleUnit: baseProductSaleUnit,
+      baseProductSaleTotal: baseProductSaleTotal,
+      additionalsTotal: additionalsTotal,
+      productTotal: productTotal,
+      unitPrice: qty > 0 ? productTotal / qty : baseProductSaleUnit,
+    });
+  }
+
   function applyDiscountToSalePrice(sale, quantity, discountPercent) {
     var qty = Math.max(0, num(quantity, 0));
     var discount = Math.max(0, Math.min(100, num(discountPercent)));
+    var baseSaleTotal = Math.round(num(sale.productTotal));
+    var baseSaleUnit = qty > 0 ? baseSaleTotal / qty : Math.round(num(sale.unitPrice));
     if (discount <= 0) {
       return {
-        baseSale: sale.unitPrice,
-        baseSaleTotal: sale.productTotal,
-        saleUnit: sale.unitPrice,
-        clientTotal: sale.productTotal,
+        baseSale: baseSaleUnit,
+        baseSaleTotal: baseSaleTotal,
+        saleUnit: baseSaleUnit,
+        clientTotal: baseSaleTotal,
         discountPercent: 0,
       };
     }
-    if (sale.inputMode === 'total' && sale.manual) {
-      var clientTotal = Math.round(sale.productTotal * (1 - discount / 100));
+    var useExactTotal =
+      (sale.inputMode === 'total' && sale.manual) || num(sale.additionalsTotal) > 0;
+    if (useExactTotal) {
+      var clientTotalExact = Math.round(baseSaleTotal * (1 - discount / 100));
       return {
-        baseSale: sale.unitPrice,
-        baseSaleTotal: sale.productTotal,
-        saleUnit: qty > 0 ? clientTotal / qty : 0,
-        clientTotal: clientTotal,
+        baseSale: baseSaleUnit,
+        baseSaleTotal: baseSaleTotal,
+        saleUnit: qty > 0 ? clientTotalExact / qty : 0,
+        clientTotal: clientTotalExact,
         discountPercent: discount,
       };
     }
-    var saleUnit = sale.unitPrice * (1 - discount / 100);
+    var unitBase =
+      sale.baseProductSaleUnit != null ? sale.baseProductSaleUnit : sale.unitPrice;
+    var saleUnit = unitBase * (1 - discount / 100);
     return {
-      baseSale: sale.unitPrice,
-      baseSaleTotal: sale.productTotal,
+      baseSale: unitBase,
+      baseSaleTotal: baseSaleTotal,
       saleUnit: saleUnit,
       clientTotal: saleUnit * qty,
       discountPercent: discount,
@@ -491,12 +512,15 @@
     var manufacturingSuggestedUnit = Math.round(
       markupBase * (1 + num(resolved.profitPercent) / 100)
     );
-    var suggestedTotal = Math.round(manufacturingSuggestedUnit * qty + adds.totalCost);
+    var manufacturingSuggestedTotal = Math.round(manufacturingSuggestedUnit * qty);
+    var suggestedTotal = Math.round(manufacturingSuggestedTotal + adds.totalCost);
     var suggestedUnit = Math.round(manufacturingSuggestedUnit + adds.perProductAmount);
     return {
       qty: qty,
       resolved: resolved,
       adds: adds,
+      manufacturingSuggestedUnit: manufacturingSuggestedUnit,
+      manufacturingSuggestedTotal: manufacturingSuggestedTotal,
       suggestedUnit: suggestedUnit,
       suggestedTotal: suggestedTotal,
     };
@@ -506,16 +530,22 @@
     var built = buildSuggestedSaleInputs(state, product, quantity);
     var qty = built.qty;
     var adds = built.adds;
-    var sale = resolveProductSalePrice(product, qty, built.suggestedUnit, built.suggestedTotal);
+    var baseSale = resolveProductSalePrice(
+      product,
+      qty,
+      built.manufacturingSuggestedUnit,
+      built.manufacturingSuggestedTotal
+    );
+    var sale = composeProductSaleWithAdditionals(baseSale, adds, qty);
     var tierDisc = Math.max(0, Math.min(100, num(tierDiscount)));
     var grossTotal = Math.round(sale.productTotal);
     var useLegacyUnitRound =
-      sale.manual && sale.inputMode === 'unit' && adds.oneTimeTotal === 0 && tierDisc > 0;
+      sale.manual && sale.inputMode === 'unit' && adds.totalCost === 0 && tierDisc > 0;
     var discountAmount = 0;
     var netTotal = grossTotal;
     if (tierDisc > 0) {
       if (useLegacyUnitRound) {
-        var unitSale = Math.round(sale.unitPrice * (1 - tierDisc / 100));
+        var unitSale = Math.round(sale.baseProductSaleUnit * (1 - tierDisc / 100));
         netTotal = unitSale * qty;
         discountAmount = Math.round(grossTotal - netTotal);
       } else {
@@ -1519,9 +1549,16 @@
     var manufacturingSuggestedUnit = Math.round(
       markupBase * (1 + num(resolved.profitPercent) / 100)
     );
-    var suggestedTotal = Math.round(manufacturingSuggestedUnit * qty + adds.totalCost);
+    var manufacturingSuggestedTotal = Math.round(manufacturingSuggestedUnit * qty);
+    var suggestedTotal = Math.round(manufacturingSuggestedTotal + adds.totalCost);
     var suggestedUnitRounded = Math.round(manufacturingSuggestedUnit + adds.perProductAmount);
-    var sale = resolveProductSalePrice(p, qty, suggestedUnitRounded, suggestedTotal);
+    var baseProductSale = resolveProductSalePrice(
+      p,
+      qty,
+      manufacturingSuggestedUnit,
+      manufacturingSuggestedTotal
+    );
+    var sale = composeProductSaleWithAdditionals(baseProductSale, adds, qty);
     var priced = applyDiscountToSalePrice(sale, qty, discountPercent);
     var saleUnit = priced.saleUnit;
     var baseSale = priced.baseSale;
@@ -1565,6 +1602,11 @@
       totalCost: totalCost,
       suggestedPrice: suggestedUnitRounded,
       suggestedTotal: suggestedTotal,
+      manufacturingSuggestedUnit: manufacturingSuggestedUnit,
+      manufacturingSuggestedTotal: manufacturingSuggestedTotal,
+      baseProductSaleUnit: sale.baseProductSaleUnit,
+      baseProductSaleTotal: sale.baseProductSaleTotal,
+      additionalsTotal: sale.additionalsTotal,
       saleUnit: saleUnit,
       baseSale: baseSale,
       baseSaleTotal: priced.baseSaleTotal,
@@ -2776,20 +2818,32 @@
 
   function renderSalePriceFields(p, m, productIdx) {
     var qty = getProductQty(p);
-    var sale = resolveProductSalePrice(p, qty, m.suggestedPrice);
-    var displayTotal = Math.round(num(m.clientTotal, sale.productTotal));
-    var displayUnit = qty > 0 ? num(m.saleUnit, sale.unitPrice) : sale.unitPrice;
+    var manufacturingUnit = Math.round(
+      num(m.manufacturingSuggestedUnit, m.suggestedPrice)
+    );
+    var manufacturingTotal = Math.round(
+      num(m.manufacturingSuggestedTotal, manufacturingUnit * qty)
+    );
+    // Manual fields are BASE product sale; composition with additionals happens in computeLine.
+    var baseSale = resolveProductSalePrice(p, qty, manufacturingUnit, manufacturingTotal);
+    var displayTotal = Math.round(
+      num(m.clientTotal, num(m.productPreDiscountTotal, baseSale.productTotal))
+    );
+    var displayUnit = qty > 0 ? num(m.saleUnit, baseSale.unitPrice) : baseSale.unitPrice;
     var editTotal = isTotalQtyInputMode(p);
     var suggestedUnit = Math.round(m.suggestedPrice);
-    var suggestedTotal = suggestedUnit * qty;
-    var editableUnit = p.salePriceTouched ? sale.unitPrice : suggestedUnit;
-    var editableTotal = p.salePriceTouched ? Math.round(sale.productTotal) : suggestedTotal;
-    // Prefer exact stored total when total-mode is authoritative.
+    var suggestedTotal =
+      m.suggestedTotal != null ? Math.round(num(m.suggestedTotal)) : Math.round(suggestedUnit * qty);
+    var editableUnit = p.salePriceTouched ? baseSale.unitPrice : suggestedUnit;
+    var editableTotal = p.salePriceTouched
+      ? Math.round(baseSale.productTotal)
+      : suggestedTotal;
+    // Prefer exact stored BASE total when total-mode is authoritative.
     if (p.salePriceTouched && normalizeSalePriceInputMode(p.salePriceInputMode) === 'total') {
-      editableTotal = Math.round(num(p.salePriceTotalManual, sale.productTotal));
+      editableTotal = Math.round(num(p.salePriceTotalManual, baseSale.productTotal));
       editableUnit = qty > 0 ? editableTotal / qty : 0;
     } else if (p.salePriceTouched) {
-      editableUnit = Math.round(num(p.salePriceManual, sale.unitPrice));
+      editableUnit = Math.round(num(p.salePriceManual, baseSale.unitPrice));
       editableTotal = Math.round(editableUnit * qty);
     }
 

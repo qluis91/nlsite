@@ -1792,18 +1792,17 @@ describe('Historical snapshot preservation + profit + legacy description', () =>
       ],
     };
     // Force production cost via calculator path: zero print/material → production = design 0
-    // Override by injecting known production through manual sale only.
-    // Set design via costs so production.designCost = 0*products... wait design from costs once per product
+    // Manual BASE sale + additional surcharge (additionals always compose into client sale).
     state.costs.designCost = 0;
-    // Manufacture: products 30000, shipping 3000, cost 10000 via additionals
+    // A: base 25000 + add 10000 = 35000; B: 5000 → products 40000; shipping 3000
     state.products[0].additionals = [{ price: 10000, showOnInvoice: true }];
-    // With profit 0 and sale manual, productionCost includes additionals
     const all = calculator.computeAll(state);
-    assert.equal(all.main.grandTotal, 33000); // client includes shipping
-    assert.equal(all.main.businessRevenue, 30000); // no shipping
-    assert.equal(all.main.grossProfit, 20000); // 30000 - 10000
-    assert.equal(all.main.alexShare, 6000);
-    assert.equal(all.main.luisShare, 14000);
+    assert.equal(all.products[0].line.productPreDiscountTotal, 35000);
+    assert.equal(all.main.grandTotal, 43000); // client includes shipping
+    assert.equal(all.main.businessRevenue, 40000); // no shipping
+    assert.equal(all.main.grossProfit, 30000); // 40000 - 10000 production
+    assert.equal(all.main.alexShare, 9000);
+    assert.equal(all.main.luisShare, 21000);
   });
 
   it('shipping + add IVA: client taxed on shipping, profit is tax-neutral products+design', () => {
@@ -1914,7 +1913,9 @@ describe('Historical snapshot preservation + profit + legacy description', () =>
         ],
       };
       const all = calculator.computeAll(state);
-      const expectedRev = calculator.computeTaxNeutralRevenue(25000, 5000, mode);
+      // Manual base 25000 + additional 10000 = 35000 product sale before design/shipping
+      assert.equal(all.products[0].line.productPreDiscountTotal, 35000, mode + ' pre-discount');
+      const expectedRev = calculator.computeTaxNeutralRevenue(35000, 5000, mode);
       assert.equal(all.main.businessRevenue, expectedRev, mode + ' businessRevenue');
       // sharedProfit excludes design assignment; estimatedTotalGain = shared + design→Alex
       assert.equal(all.main.sharedProfit, expectedRev - all.main.productionCost, mode + ' sharedProfit');
@@ -1925,7 +1926,7 @@ describe('Historical snapshot preservation + profit + legacy description', () =>
       );
       assert.equal(all.main.designAssignedToAlex, 5000, mode + ' design→Alex');
       // Client total still includes shipping
-      assert.ok(all.main.grandTotal >= 25000 + 5000 + 3000 || mode === 'included');
+      assert.ok(all.main.grandTotal >= 35000 + 5000 + 3000 || mode === 'included');
     }
   });
 
@@ -2645,6 +2646,342 @@ describe('Additionals pricingMode + discounts + Alex design profit + Resumen', (
     );
     assert.match(css, /\.cq-product-item\s*\{[^}]*border-radius/s);
     assert.match(css, /\.cq-product-item\s*\{[^}]*padding:\s*16px/s);
+  });
+});
+
+describe('Manual sale + additionals composition', () => {
+  const baseState = {
+    costs: { hourRate: 0, kgPrice: 0, profitPercent: 0, designCost: 0 },
+    alexPercent: 30,
+    luisPercent: 70,
+    wholesaleMode: false,
+    export: { taxMode: 'excluded', shippingCost: 0 },
+  };
+
+  it('manual unit + per_product: 6×1000 + 1000×6 = 12000', () => {
+    const line = calculator.computeLine(
+      baseState,
+      {
+        name: 'A',
+        quantity: 6,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'unit',
+        salePriceManual: 1000,
+        additionals: [{ price: 1000, pricingMode: 'per_product', showOnInvoice: true }],
+      },
+      6,
+      0
+    );
+    assert.equal(line.baseProductSaleTotal, 6000);
+    assert.equal(line.additionalsTotal, 6000);
+    assert.equal(line.productPreDiscountTotal, 12000);
+    assert.equal(line.clientTotal, 12000);
+  });
+
+  it('manual unit + total additional: 6×1000 + 1000 = 7000', () => {
+    const line = calculator.computeLine(
+      baseState,
+      {
+        name: 'A',
+        quantity: 6,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'unit',
+        salePriceManual: 1000,
+        additionals: [{ price: 1000, pricingMode: 'total', showOnInvoice: true }],
+      },
+      6,
+      0
+    );
+    assert.equal(line.baseProductSaleTotal, 6000);
+    assert.equal(line.additionalsTotal, 1000);
+    assert.equal(line.productPreDiscountTotal, 7000);
+    assert.equal(line.clientTotal, 7000);
+  });
+
+  it('manual exact total + per_product / total additionals', () => {
+    const per = calculator.computeLine(
+      baseState,
+      {
+        name: 'A',
+        quantity: 6,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'total',
+        salePriceTotalManual: 6000,
+        additionals: [{ price: 1000, pricingMode: 'per_product', showOnInvoice: true }],
+      },
+      6,
+      0
+    );
+    assert.equal(per.baseProductSaleTotal, 6000);
+    assert.equal(per.productPreDiscountTotal, 12000);
+
+    const once = calculator.computeLine(
+      baseState,
+      {
+        name: 'A',
+        quantity: 6,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'total',
+        salePriceTotalManual: 6000,
+        additionals: [{ price: 1000, pricingMode: 'total', showOnInvoice: true }],
+      },
+      6,
+      0
+    );
+    assert.equal(once.productPreDiscountTotal, 7000);
+  });
+
+  it('mixed additionals: 6000 + 1800 + 1000 = 8800', () => {
+    const line = calculator.computeLine(
+      baseState,
+      {
+        name: 'A',
+        quantity: 6,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'unit',
+        salePriceManual: 1000,
+        additionals: [
+          { price: 300, pricingMode: 'per_product', showOnInvoice: true },
+          { price: 1000, pricingMode: 'total', showOnInvoice: true },
+        ],
+      },
+      6,
+      0
+    );
+    assert.equal(line.additionalsTotal, 2800);
+    assert.equal(line.productPreDiscountTotal, 8800);
+  });
+
+  it('automatic suggested includes additionals exactly once (no double charge)', () => {
+    const line = calculator.computeLine(
+      {
+        ...baseState,
+        costs: { hourRate: 100, kgPrice: 0, profitPercent: 0, designCost: 0 },
+      },
+      {
+        name: 'A',
+        quantity: 2,
+        grams: 0,
+        printHours: 1,
+        salePriceTouched: false,
+        additionals: [
+          { price: 500, pricingMode: 'per_product', showOnInvoice: true },
+          { price: 1000, pricingMode: 'total', showOnInvoice: true },
+        ],
+      },
+      2,
+      0
+    );
+    // manufacturing = 100×1 = 100/unit → 200; adds = 500×2 + 1000 = 2000; total 2200
+    assert.equal(line.manufacturingSuggestedTotal, 200);
+    assert.equal(line.additionalsTotal, 2000);
+    assert.equal(line.suggestedTotal, 2200);
+    assert.equal(line.productPreDiscountTotal, 2200);
+    assert.equal(line.clientTotal, 2200);
+  });
+
+  it('product discount 50% applies once to base+additionals (12000 → 6000)', () => {
+    const line = calculator.computeLine(
+      baseState,
+      {
+        name: 'A',
+        quantity: 6,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'unit',
+        salePriceManual: 1000,
+        saleDiscountEnabled: true,
+        saleDiscountPercent: 50,
+        additionals: [{ price: 1000, pricingMode: 'per_product', showOnInvoice: true }],
+      },
+      6,
+      50
+    );
+    assert.equal(line.productPreDiscountTotal, 12000);
+    assert.equal(line.productDiscountAmount, 6000);
+    assert.equal(line.productPostDiscountTotal, 6000);
+    assert.equal(line.clientTotal, 6000);
+  });
+
+  it('non-divisible base total + total additional stays exact after discount', () => {
+    const line = calculator.computeLine(
+      baseState,
+      {
+        name: 'A',
+        quantity: 3,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'total',
+        salePriceTotalManual: 10000,
+        saleDiscountEnabled: true,
+        saleDiscountPercent: 10,
+        additionals: [{ price: 1000, pricingMode: 'total', showOnInvoice: true }],
+      },
+      3,
+      10
+    );
+    assert.equal(line.productPreDiscountTotal, 11000);
+    assert.equal(line.clientTotal, 9900);
+  });
+
+  it('hidden total additional still composes into sale; PDF row contract uses showOnInvoice', () => {
+    const line = calculator.computeLine(
+      baseState,
+      {
+        name: 'A',
+        quantity: 6,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'unit',
+        salePriceManual: 1000,
+        additionals: [{ price: 1000, pricingMode: 'total', showOnInvoice: false }],
+      },
+      6,
+      0
+    );
+    assert.equal(line.productPreDiscountTotal, 7000);
+    assert.equal(line.productionCost, 1000);
+    assert.equal(line.additionals.visibleTotal, 0);
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    assert.match(src, /composeProductSaleWithAdditionals/);
+    assert.match(src, /if \(!extra\.showOnInvoice\) return/);
+  });
+
+  it('removing additional returns to base total without mutating stored manual unit', () => {
+    const withAdd = {
+      name: 'A',
+      quantity: 6,
+      grams: 0,
+      printHours: 0,
+      salePriceTouched: true,
+      salePriceInputMode: 'unit',
+      salePriceManual: 1000,
+      additionals: [{ price: 1000, pricingMode: 'per_product', showOnInvoice: true }],
+    };
+    assert.equal(calculator.computeLine(baseState, withAdd, 6, 0).clientTotal, 12000);
+    const cleared = { ...withAdd, additionals: [] };
+    const line = calculator.computeLine(baseState, cleared, 6, 0);
+    assert.equal(cleared.salePriceManual, 1000);
+    assert.equal(line.baseProductSaleTotal, 6000);
+    assert.equal(line.clientTotal, 6000);
+  });
+
+  it('Frecuente catalog selector still fills description/price (source)', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'),
+      'utf8'
+    );
+    assert.match(src, /Frecuente/);
+    assert.match(src, /data-cq-additional-pick/);
+    assert.match(src, /cq-additional-.*-desc/);
+    assert.match(src, /cq-additional-.*-price/);
+    assert.match(src, /composeProductSaleWithAdditionals/);
+  });
+
+  it('Admin/server/PDF parity for manual+additional compositions', () => {
+    const vm = require('node:vm');
+    const pdfSrc = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    const sandbox = { console };
+    vm.runInNewContext(pdfSrc, sandbox);
+    const pdf = sandbox.AdminCostQuotePdf;
+    const cases = [
+      {
+        name: 'unit+per_product',
+        products: [
+          {
+            name: 'A',
+            quantity: 6,
+            grams: 0,
+            printHours: 0,
+            salePriceTouched: true,
+            salePriceInputMode: 'unit',
+            salePriceManual: 1000,
+            additionals: [{ price: 1000, pricingMode: 'per_product', showOnInvoice: true }],
+          },
+        ],
+        expected: 12000,
+      },
+      {
+        name: 'unit+total',
+        products: [
+          {
+            name: 'A',
+            quantity: 6,
+            grams: 0,
+            printHours: 0,
+            salePriceTouched: true,
+            salePriceInputMode: 'unit',
+            salePriceManual: 1000,
+            additionals: [{ price: 1000, pricingMode: 'total', showOnInvoice: true }],
+          },
+        ],
+        expected: 7000,
+      },
+      {
+        name: 'wholesale unit+total',
+        wholesaleMode: true,
+        products: [
+          {
+            name: 'A',
+            quantity: 20,
+            grams: 0,
+            printHours: 0,
+            salePriceTouched: true,
+            salePriceInputMode: 'unit',
+            salePriceManual: 1000,
+            additionals: [{ price: 5000, pricingMode: 'total', showOnInvoice: true }],
+          },
+        ],
+        // gross 20000+5000=25000; discounts min range from wholesaleBase-like defaults may apply
+      },
+    ];
+
+    cases.forEach((c) => {
+      const state = {
+        ...baseState,
+        wholesaleMode: !!c.wholesaleMode,
+        discounts: c.wholesaleMode
+          ? { range10_50: 10, range50_100: 10, range100plus: 15 }
+          : {},
+        discountRanges: c.wholesaleMode
+          ? {
+              range10_50: { min: 1, max: 50 },
+              range50_100: { min: 50, max: 100 },
+              range100plus: { min: 100, max: null },
+            }
+          : {},
+        products: c.products,
+      };
+      const result = calculator.computeAll(state);
+      const server = calculator.computeQuoteTotal(state);
+      const grand = pdf.computeGrandTotal({
+        state,
+        result,
+        wholesaleMode: !!c.wholesaleMode,
+      });
+      assert.equal(result.main.grandTotal, server, c.name + ' admin/server');
+      assert.equal(grand, server, c.name + ' PDF/server');
+      if (c.expected != null) assert.equal(server, c.expected, c.name + ' total');
+    });
   });
 });
 
