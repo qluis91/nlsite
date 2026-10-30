@@ -578,12 +578,12 @@
 
     if (useGrossLayout) {
       // GROSS rows + allocated discounts. Summary subtracts discount once.
-      // Do NOT put already-net clientTotal into row.total (that double-discounts).
+      // Cap each visible-additional discount so sum(row discounts) === productDiscountAmount.
       var targetDisc = productDiscountAmount;
       if (targetDisc <= 0 && manualPct > 0) {
         targetDisc = roundMoney(productPreDiscountTotal * (manualPct / 100));
       }
-      var allocatedDisc = 0;
+      var remainingDisc = Math.max(0, roundMoney(targetDisc));
       var visibleAddRows = [];
       getProductAdditionals(p).forEach(function (extra, idx) {
         if (!extra.showOnInvoice) return;
@@ -592,8 +592,9 @@
         var isTotalMode = extra.pricingMode === 'total';
         var addQty = isTotalMode ? 1 : qty;
         var addGross = price * addQty;
-        var addDisc = manualPct > 0 ? roundMoney(addGross * (manualPct / 100)) : 0;
-        allocatedDisc += addDisc;
+        var proposedDisc = manualPct > 0 ? roundMoney(addGross * (manualPct / 100)) : 0;
+        var addDisc = Math.min(proposedDisc, remainingDisc);
+        remainingDisc = Math.max(0, roundMoney(remainingDisc - addDisc));
         var label = String(extra.description || '').trim() || 'Servicio adicional ' + (idx + 1);
         visibleAddRows.push({
           service: label,
@@ -608,7 +609,8 @@
       });
 
       var productGross = roundMoney(productPreDiscountTotal - visibleTotal);
-      var productDisc = Math.max(0, roundMoney(targetDisc - allocatedDisc));
+      // Remainder of canonical discount always lands on the product row (incl. hidden adds).
+      var productDisc = remainingDisc;
       items.push({
         service: p.name || 'Impresi\u00f3n 3D',
         bullets: bullets.length ? bullets : ['Impresi\u00f3n 3D de alta calidad'],
@@ -1456,6 +1458,7 @@
     generate: generateCostQuotePdf,
     generateBlob: generateCostQuotePdfBlob,
     computeGrandTotal: computeGrandTotal,
+    buildLineItems: buildLineItems,
     buildFilename: safeFilename,
     withIva: withIva,
     extractIncludedIva: extractIncludedIva,

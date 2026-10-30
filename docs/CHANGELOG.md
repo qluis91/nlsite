@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-30 — Cap PDF discount allocation to canonical total
+
+### Fixed
+- Non-wholesale PDF visible-additional discounts are capped by remaining `productDiscountAmount` (no over-allocation from independent row rounding)
+
+### Notes
+- Product-row remainder still absorbs under-allocation so row discounts sum exactly to canonical total
+
 ## 2026-10-30 — PDF product-discount row reconciliation
 
 ### Fixed

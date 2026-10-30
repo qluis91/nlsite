@@ -3721,8 +3721,93 @@ describe('PDF non-wholesale product discount reconciliation', () => {
     assert.match(block, /var productGross = roundMoney\(productPreDiscountTotal - visibleTotal\)/);
     assert.match(block, /discountAmount: productDisc/);
     assert.match(block, /total: withIva\(productGross/);
+    assert.match(block, /Math\.min\(proposedDisc, remainingDisc\)/);
     assert.doesNotMatch(block, /exactClientTotal/);
     assert.doesNotMatch(block, /exactProductLineTotal/);
+  });
+
+  function sumRowDiscounts(items) {
+    return items.reduce((s, it) => {
+      if (it.discountAmount != null) return s + (Number(it.discountAmount) || 0);
+      return s + (Number(it.discountPerUnit) || 0) * (Number(it.qty) || 0);
+    }, 0);
+  }
+
+  function sumRowTotals(items) {
+    return items.reduce((s, it) => s + (Number(it.total) || 0), 0);
+  }
+
+  it('over-allocation regression: 1+101+101+101 @ 50% → disc 152 not 153', () => {
+    const state = baseState({
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1,
+          saleDiscountEnabled: true,
+          saleDiscountPercent: 50,
+          additionals: [
+            { price: 101, pricingMode: 'total', showOnInvoice: true },
+            { price: 101, pricingMode: 'total', showOnInvoice: true },
+            { price: 101, pricingMode: 'total', showOnInvoice: true },
+          ],
+        },
+      ],
+    });
+    const pdf = loadPdf();
+    const result = calculator.computeAll(state);
+    const line = result.products[0].line;
+    assert.equal(line.productPreDiscountTotal, 304);
+    assert.equal(line.productDiscountAmount, 152);
+    assert.equal(line.clientTotal, 152);
+    // Naive independent rounding would be 51+51+51=153
+    assert.notEqual(51 + 51 + 51, line.productDiscountAmount);
+
+    const items = pdf.buildLineItems(state, result, false, false);
+    const productItems = items.filter((it) => !String(it.service || '').startsWith('Dise'));
+    assert.equal(sumRowTotals(productItems), 304);
+    assert.equal(sumRowDiscounts(productItems), 152);
+    assertParity(state, 152, 'over-allocation cap');
+  });
+
+  it('under-allocation remainder: product row absorbs leftover to match canonical', () => {
+    // gross 13, 33% → round(4.29)=4; each add round(1*0.33)=0 → product remainder 4
+    const state = baseState({
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 10,
+          saleDiscountEnabled: true,
+          saleDiscountPercent: 33,
+          additionals: [
+            { price: 1, pricingMode: 'total', showOnInvoice: true },
+            { price: 1, pricingMode: 'total', showOnInvoice: true },
+            { price: 1, pricingMode: 'total', showOnInvoice: true },
+          ],
+        },
+      ],
+    });
+    const pdf = loadPdf();
+    const result = calculator.computeAll(state);
+    const line = result.products[0].line;
+    assert.equal(line.productPreDiscountTotal, 13);
+    assert.equal(line.productDiscountAmount, 4);
+    const items = pdf.buildLineItems(state, result, false, false);
+    const productItems = items.filter((it) => !String(it.service || '').startsWith('Dise'));
+    assert.equal(sumRowDiscounts(productItems), line.productDiscountAmount);
+    const productRow = productItems.find((it) => it.service === 'A' || it.service === 'Impresión 3D');
+    assert.ok(productRow);
+    assert.equal(productRow.discountAmount, 4);
+    assertParity(state, 9, 'under-allocation remainder');
   });
 
   it('no additional + 50% discount → Admin/server/PDF = 3000', () => {
