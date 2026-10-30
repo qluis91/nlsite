@@ -307,6 +307,69 @@ function applyDiscountToSalePrice(sale, quantity, discountPercent) {
 }
 
 /**
+ * Canonical wholesale product pricing.
+ * Exact productTotal is authoritative (safe with pricingMode=total additionals).
+ * Legacy unit-round path only when manual unit pricing and no one-time additionals.
+ */
+function buildSuggestedSaleInputs(state, product, quantity) {
+  const p = product || {};
+  const qty = Math.max(0, num(quantity, 0));
+  const resolved = resolveProductCostParams(state, p);
+  const materialCost = (num(p.grams) / 1000) * num(resolved.kgPrice);
+  const timeCost =
+    num(p.printHours) * num(resolved.electricityCostPerHour) +
+    num(p.printHours) * num(resolved.machineWearCostPerHour);
+  const adds = resolveProductAdditionals(p, qty);
+  const markupBase = materialCost + timeCost;
+  const manufacturingSuggestedUnit = Math.round(
+    markupBase * (1 + num(resolved.profitPercent) / 100)
+  );
+  const suggestedTotal = roundMoney(manufacturingSuggestedUnit * qty + adds.totalCost);
+  const suggestedUnit = Math.round(manufacturingSuggestedUnit + adds.perProductAmount);
+  return { qty, resolved, adds, suggestedUnit, suggestedTotal };
+}
+
+function resolveWholesaleProductPricing(state, product, quantity, tierDiscount) {
+  const { qty, adds, suggestedUnit, suggestedTotal } = buildSuggestedSaleInputs(
+    state,
+    product,
+    quantity
+  );
+  const sale = resolveProductSalePrice(product, qty, suggestedUnit, suggestedTotal);
+  const tierDisc = Math.max(0, Math.min(100, num(tierDiscount)));
+  const grossTotal = roundMoney(sale.productTotal);
+  const useLegacyUnitRound =
+    sale.manual &&
+    sale.inputMode === 'unit' &&
+    adds.oneTimeTotal === 0 &&
+    tierDisc > 0;
+
+  let discountAmount = 0;
+  let netTotal = grossTotal;
+  if (tierDisc > 0) {
+    if (useLegacyUnitRound) {
+      const unitSale = roundMoney(sale.unitPrice * (1 - tierDisc / 100));
+      netTotal = unitSale * qty;
+      discountAmount = roundMoney(grossTotal - netTotal);
+    } else {
+      netTotal = roundMoney(grossTotal * (1 - tierDisc / 100));
+      discountAmount = roundMoney(grossTotal - netTotal);
+    }
+  }
+
+  return {
+    sale,
+    adds,
+    grossTotal,
+    discountAmount,
+    netTotal,
+    tierDiscount: tierDisc,
+    grossUnitDisplay: qty > 0 ? grossTotal / qty : 0,
+    netUnitDisplay: qty > 0 ? netTotal / qty : 0,
+  };
+}
+
+/**
  * Legacy computeLine(state, product, quantity, discountPercent)
  * grams/printHours are always per-unit (qtyInputMode normalized before call).
  * Design is charged once per product (not × quantity).
@@ -661,15 +724,26 @@ function computeAll(state) {
   const productResults = products.map(prod => {
     const qty = Math.max(1, num(prod.quantity, 1));
     let disc = 0;
-    if (state.wholesaleMode) {
-      disc = wholesaleTier;
-    } else if (prod.saleDiscountEnabled) {
+    if (!state.wholesaleMode && prod.saleDiscountEnabled) {
       disc = Math.max(0, Math.min(100, num(prod.saleDiscountPercent)));
     }
     if (!prod.salePriceTouched) {
       syncSalePriceFromSuggested(state, prod);
     }
-    const line = computeLine(state, prod, qty, disc);
+    // Wholesale: compute production/suggested without product disc, then apply exact wholesale pricing.
+    const line = computeLine(state, prod, qty, state.wholesaleMode ? 0 : disc);
+    if (state.wholesaleMode) {
+      const wp = resolveWholesaleProductPricing(state, prod, qty, wholesaleTier);
+      line.baseSale = wp.grossUnitDisplay;
+      line.baseSaleTotal = wp.grossTotal;
+      line.saleUnit = wp.netUnitDisplay;
+      line.clientTotal = wp.netTotal;
+      line.discountPercent = wp.tierDiscount;
+      line.productPreDiscountTotal = wp.grossTotal;
+      line.productDiscountAmount = wp.discountAmount;
+      line.productPostDiscountTotal = wp.netTotal;
+      line.salePriceInputMode = wp.sale.inputMode;
+    }
     return { product: prod, line, resolvedParams: line.resolvedParams };
   });
 
@@ -740,25 +814,8 @@ function computeQuoteTotal(snapshot) {
     let lineTotal = computeProductLineTotal(state, p);
     if (state.wholesaleMode) {
       const qty = Math.max(1, num(p.quantity, 1));
-      const materialCost = (num(p.grams) / 1000) * num(resolved.kgPrice);
-      const timeCost =
-        num(p.printHours) * num(resolved.electricityCostPerHour) +
-        num(p.printHours) * num(resolved.machineWearCostPerHour);
-      const adds = resolveProductAdditionals(p, qty);
-      const markupBase = materialCost + timeCost;
-      const manufacturingSuggestedUnit = Math.round(
-        markupBase * (1 + num(resolved.profitPercent) / 100)
-      );
-      const suggestedTotal = roundMoney(manufacturingSuggestedUnit * qty + adds.totalCost);
-      const suggestedUnit = Math.round(manufacturingSuggestedUnit + adds.perProductAmount);
-      const sale = resolveProductSalePrice(p, qty, suggestedUnit, suggestedTotal);
       const tierDisc = getTierDiscountPercent(state, totalQty, true);
-      if (sale.inputMode === 'total' && sale.manual) {
-        lineTotal = applyDiscountToSalePrice(sale, qty, tierDisc).clientTotal;
-      } else {
-        const unitSale = roundMoney(sale.unitPrice * (1 - tierDisc / 100));
-        lineTotal = unitSale * qty;
-      }
+      lineTotal = resolveWholesaleProductPricing(state, p, qty, tierDisc).netTotal;
     }
     subtotal += lineTotal;
   });
@@ -877,6 +934,8 @@ module.exports = {
   normalizeAdditionalPricingMode,
   getProductAdditionals,
   resolveProductAdditionals,
+  resolveWholesaleProductPricing,
+  buildSuggestedSaleInputs,
   sumAdditionals,
   sumVisibleAdditionals,
   sumHiddenAdditionals,

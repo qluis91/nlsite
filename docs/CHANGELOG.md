@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-30 — Wholesale + total additionals exact pricing
+
+### Fixed
+- Wholesale PDF no longer multiplies `pricingMode=total` additionals by product qty
+- Wholesale server totals use exact `productTotal` before tier discount (no rounded-unit × qty round-trip)
+- Canonical `resolveWholesaleProductPricing` shared by server, admin UI, and PDF
+
+### Notes
+- Normal (non-wholesale) quote flow unchanged
+- No schema migration
+
 ## 2026-10-30 — Additionals modes, discounts, profit & Resumen
 
 ### Added

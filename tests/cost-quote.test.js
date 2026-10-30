@@ -2544,6 +2544,256 @@ describe('Additionals pricingMode + discounts + Alex design profit + Resumen', (
   });
 });
 
+describe('Wholesale + total additionals exact pricing', () => {
+  function loadPdf() {
+    const vm = require('node:vm');
+    const pdfSrc = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    const sandbox = { console };
+    vm.runInNewContext(pdfSrc, sandbox);
+    return sandbox.AdminCostQuotePdf;
+  }
+
+  function wholesaleBase(overrides) {
+    return {
+      wholesaleMode: true,
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      discounts: { range10_50: 10, range50_100: 10, range100plus: 15 },
+      discountRanges: {
+        range10_50: { min: 1, max: 50 },
+        range50_100: { min: 50, max: 100 },
+        range100plus: { min: 100, max: null },
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      export: { taxMode: 'excluded', shippingCost: 0 },
+      ...overrides,
+    };
+  }
+
+  it('wholesale total additional is not multiplied by qty', () => {
+    const state = wholesaleBase({
+      discounts: { range10_50: 0, range50_100: 0, range100plus: 0 },
+      products: [
+        {
+          name: 'A',
+          quantity: 20,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: false,
+          additionals: [{ price: 5000, pricingMode: 'total', showOnInvoice: true }],
+        },
+      ],
+    });
+    const wp = calculator.resolveWholesaleProductPricing(state, state.products[0], 20, 0);
+    assert.equal(wp.grossTotal, 5000);
+    assert.equal(wp.netTotal, 5000);
+    assert.equal(calculator.computeQuoteTotal(state), 5000);
+    assert.notEqual(calculator.computeQuoteTotal(state), 100000);
+  });
+
+  it('wholesale total additional with 10% discount → 4500', () => {
+    const state = wholesaleBase({
+      products: [
+        {
+          name: 'A',
+          quantity: 20,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: false,
+          additionals: [{ price: 5000, pricingMode: 'total', showOnInvoice: true }],
+        },
+      ],
+    });
+    const wp = calculator.resolveWholesaleProductPricing(state, state.products[0], 20, 10);
+    assert.equal(wp.grossTotal, 5000);
+    assert.equal(wp.netTotal, 4500);
+    assert.equal(calculator.computeQuoteTotal(state), 4500);
+  });
+
+  it('wholesale per_product additional: 500×20 → 10000, 10% → 9000', () => {
+    const state = wholesaleBase({
+      products: [
+        {
+          name: 'A',
+          quantity: 20,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: false,
+          additionals: [{ price: 500, pricingMode: 'per_product', showOnInvoice: true }],
+        },
+      ],
+    });
+    const wp = calculator.resolveWholesaleProductPricing(state, state.products[0], 20, 10);
+    assert.equal(wp.grossTotal, 10000);
+    assert.equal(wp.netTotal, 9000);
+  });
+
+  it('wholesale mixed additionals: 2000+500 → 2500, 10% → 2250', () => {
+    const state = wholesaleBase({
+      products: [
+        {
+          name: 'A',
+          quantity: 4,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: false,
+          additionals: [
+            { price: 500, pricingMode: 'per_product', showOnInvoice: true },
+            { price: 500, pricingMode: 'total', showOnInvoice: true },
+          ],
+        },
+      ],
+    });
+    const wp = calculator.resolveWholesaleProductPricing(state, state.products[0], 4, 10);
+    assert.equal(wp.adds.totalCost, 2500);
+    assert.equal(wp.grossTotal, 2500);
+    assert.equal(wp.netTotal, 2250);
+  });
+
+  it('wholesale non-divisible exact total stays 9000 after 10%', () => {
+    const state = wholesaleBase({
+      products: [
+        {
+          name: 'A',
+          quantity: 3,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'total',
+          salePriceTotalManual: 10000,
+          additionals: [],
+        },
+      ],
+    });
+    const wp = calculator.resolveWholesaleProductPricing(state, state.products[0], 3, 10);
+    assert.equal(wp.netTotal, 9000);
+    assert.equal(calculator.computeQuoteTotal(state), 9000);
+  });
+
+  it('PDF wholesale rows: total additional qty=1; per_product qty=product qty', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    assert.match(src, /if \(wholesaleMode\)/);
+    assert.match(src, /resolveProductAdditionals\(p, qty\)/);
+    assert.match(src, /pricingMode === 'total'/);
+    assert.match(src, /addQty = isTotalMode \? 1 : qty/);
+  });
+
+  it('server/PDF wholesale parity for total/per_product/mixed/hidden/manual', () => {
+    const pdf = loadPdf();
+    const cases = [
+      {
+        name: 'total only',
+        products: [
+          {
+            name: 'A',
+            quantity: 20,
+            grams: 0,
+            printHours: 0,
+            salePriceTouched: false,
+            additionals: [{ price: 5000, pricingMode: 'total', showOnInvoice: true }],
+          },
+        ],
+      },
+      {
+        name: 'per_product only',
+        products: [
+          {
+            name: 'A',
+            quantity: 20,
+            grams: 0,
+            printHours: 0,
+            salePriceTouched: false,
+            additionals: [{ price: 500, pricingMode: 'per_product', showOnInvoice: true }],
+          },
+        ],
+      },
+      {
+        name: 'mixed',
+        products: [
+          {
+            name: 'A',
+            quantity: 4,
+            grams: 0,
+            printHours: 0,
+            salePriceTouched: false,
+            additionals: [
+              { price: 500, pricingMode: 'per_product', showOnInvoice: true },
+              { price: 500, pricingMode: 'total', showOnInvoice: true },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'hidden total',
+        products: [
+          {
+            name: 'A',
+            quantity: 20,
+            grams: 0,
+            printHours: 0,
+            salePriceTouched: false,
+            additionals: [{ price: 5000, pricingMode: 'total', showOnInvoice: false }],
+          },
+        ],
+      },
+      {
+        name: 'manual unit',
+        products: [
+          {
+            name: 'A',
+            quantity: 20,
+            grams: 0,
+            printHours: 0,
+            salePriceTouched: true,
+            salePriceInputMode: 'unit',
+            salePriceManual: 1000,
+            additionals: [{ price: 5000, pricingMode: 'total', showOnInvoice: true }],
+          },
+        ],
+      },
+      {
+        name: 'manual total',
+        products: [
+          {
+            name: 'A',
+            quantity: 3,
+            grams: 0,
+            printHours: 0,
+            salePriceTouched: true,
+            salePriceInputMode: 'total',
+            salePriceTotalManual: 10000,
+            additionals: [{ price: 1000, pricingMode: 'total', showOnInvoice: true }],
+          },
+        ],
+      },
+    ];
+
+    cases.forEach((c) => {
+      const state = wholesaleBase({ products: c.products });
+      // Manual total case: salePriceTotalManual already includes intent; additional is separate
+      // in production but manual sale is authoritative for client price.
+      const result = calculator.computeAll(state);
+      const server = calculator.computeQuoteTotal(state);
+      const grand = pdf.computeGrandTotal({ state, result, wholesaleMode: true });
+      assert.equal(grand, server, 'wholesale PDF/server parity: ' + c.name);
+      assert.equal(result.main.grandTotal, server, 'wholesale admin/server parity: ' + c.name);
+    });
+  });
+});
+
 const pool = require('../config/db');
 const { after } = require('node:test');
 after(async () => {

@@ -467,6 +467,63 @@
     };
   }
 
+  function buildSuggestedSaleInputs(state, product, quantity) {
+    var p = product || {};
+    var qty = Math.max(0, num(quantity, 0));
+    var resolved = resolveProductCostParams(state, p);
+    var materialCost = (num(p.grams) / 1000) * num(resolved.kgPrice);
+    var timeCost =
+      num(p.printHours) * num(resolved.electricityCostPerHour) +
+      num(p.printHours) * num(resolved.machineWearCostPerHour);
+    var adds = resolveProductAdditionals(p, qty);
+    var markupBase = materialCost + timeCost;
+    var manufacturingSuggestedUnit = Math.round(
+      markupBase * (1 + num(resolved.profitPercent) / 100)
+    );
+    var suggestedTotal = Math.round(manufacturingSuggestedUnit * qty + adds.totalCost);
+    var suggestedUnit = Math.round(manufacturingSuggestedUnit + adds.perProductAmount);
+    return {
+      qty: qty,
+      resolved: resolved,
+      adds: adds,
+      suggestedUnit: suggestedUnit,
+      suggestedTotal: suggestedTotal,
+    };
+  }
+
+  function resolveWholesaleProductPricing(state, product, quantity, tierDiscount) {
+    var built = buildSuggestedSaleInputs(state, product, quantity);
+    var qty = built.qty;
+    var adds = built.adds;
+    var sale = resolveProductSalePrice(product, qty, built.suggestedUnit, built.suggestedTotal);
+    var tierDisc = Math.max(0, Math.min(100, num(tierDiscount)));
+    var grossTotal = Math.round(sale.productTotal);
+    var useLegacyUnitRound =
+      sale.manual && sale.inputMode === 'unit' && adds.oneTimeTotal === 0 && tierDisc > 0;
+    var discountAmount = 0;
+    var netTotal = grossTotal;
+    if (tierDisc > 0) {
+      if (useLegacyUnitRound) {
+        var unitSale = Math.round(sale.unitPrice * (1 - tierDisc / 100));
+        netTotal = unitSale * qty;
+        discountAmount = Math.round(grossTotal - netTotal);
+      } else {
+        netTotal = Math.round(grossTotal * (1 - tierDisc / 100));
+        discountAmount = Math.round(grossTotal - netTotal);
+      }
+    }
+    return {
+      sale: sale,
+      adds: adds,
+      grossTotal: grossTotal,
+      discountAmount: discountAmount,
+      netTotal: netTotal,
+      tierDiscount: tierDisc,
+      grossUnitDisplay: qty > 0 ? grossTotal / qty : 0,
+      netUnitDisplay: qty > 0 ? netTotal / qty : 0,
+    };
+  }
+
   function fmtQuoteDate(ts) {
     return new Date(Number(ts) || Date.now()).toLocaleString('es-CR', {
       dateStyle: 'short',
@@ -1712,15 +1769,25 @@
     var productResults = state.products.map(function (prod) {
       var qty = Math.max(1, num(prod.quantity, 1));
       var disc = 0;
-      if (state.wholesaleMode) {
-        disc = wholesaleTier;
-      } else if (prod.saleDiscountEnabled) {
+      if (!state.wholesaleMode && prod.saleDiscountEnabled) {
         disc = Math.max(0, Math.min(100, num(prod.saleDiscountPercent)));
       }
       if (!prod.salePriceTouched) {
         syncSalePriceFromSuggested(state, prod);
       }
-      var line = computeLine(state, prod, qty, disc);
+      var line = computeLine(state, prod, qty, state.wholesaleMode ? 0 : disc);
+      if (state.wholesaleMode) {
+        var wp = resolveWholesaleProductPricing(state, prod, qty, wholesaleTier);
+        line.baseSale = wp.grossUnitDisplay;
+        line.baseSaleTotal = wp.grossTotal;
+        line.saleUnit = wp.netUnitDisplay;
+        line.clientTotal = wp.netTotal;
+        line.discountPercent = wp.tierDiscount;
+        line.productPreDiscountTotal = wp.grossTotal;
+        line.productDiscountAmount = wp.discountAmount;
+        line.productPostDiscountTotal = wp.netTotal;
+        line.salePriceInputMode = wp.sale.inputMode;
+      }
       return { product: prod, line: line };
     });
     var main = aggregateMain(state, productResults);

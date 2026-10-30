@@ -449,43 +449,72 @@
     bullets = bullets || [];
 
     if (wholesaleMode) {
-      var visibleAdds = sumVisibleAdditionalsAmount(p);
-      var productGrossFull = getGrossUnitBeforeDiscount(state, p);
-      var productGross = productGrossFull - visibleAdds;
+      // buildSummary(wholesale) expects GROSS line totals and subtracts discountPerUnit×qty.
+      var addsW = resolveProductAdditionals(p, qty);
+      var cW = resolveProductCostParams(state, p);
+      var materialCostW = ((Number(p.grams) || 0) / 1000) * (Number(cW.kgPrice) || 0);
+      var timeCostW = (Number(p.printHours) || 0) * (Number(cW.hourRate) || 0);
+      var manufacturingSuggestedUnitW = roundMoney(
+        (materialCostW + timeCostW) * (1 + (Number(cW.profitPercent) || 0) / 100)
+      );
+      var suggestedTotalW = roundMoney(manufacturingSuggestedUnitW * qty + addsW.totalCost);
+      var suggestedUnitW = roundMoney(manufacturingSuggestedUnitW + addsW.perProductAmount);
+      var saleW = resolveProductSalePrice(p, qty, suggestedUnitW, suggestedTotalW);
       var tierPct = getTierDiscountPercent(state, qty, true);
-      var productDiscount = roundMoney(productGross * (tierPct / 100));
-      var wholesaleLineTotal =
-        normalizeSalePriceInputMode(p.salePriceInputMode) === 'total' && p.salePriceTouched
-          ? roundMoney(
-              (resolveProductSalePrice(p, qty, productGrossFull).productTotal - visibleAdds * qty) *
-                (1 - tierPct / 100)
-            )
-          : roundMoney((productGross - productDiscount) * qty);
+      var grossTotalW = roundMoney(saleW.productTotal);
+      var useLegacyUnitRoundW =
+        saleW.manual &&
+        saleW.inputMode === 'unit' &&
+        addsW.oneTimeTotal === 0 &&
+        tierPct > 0;
+      var netTotalW = grossTotalW;
+      if (tierPct > 0) {
+        if (useLegacyUnitRoundW) {
+          netTotalW = roundMoney(saleW.unitPrice * (1 - tierPct / 100)) * qty;
+        } else {
+          netTotalW = roundMoney(grossTotalW * (1 - tierPct / 100));
+        }
+      }
+      var targetDiscW = roundMoney(grossTotalW - netTotalW);
+
+      var visibleGrossW = addsW.visibleTotal;
+      var visibleAddRows = [];
+      var allocatedDiscW = 0;
+      getProductAdditionals(p).forEach(function (extra, idx) {
+        if (!extra.showOnInvoice) return;
+        var price = roundMoney(extra.price);
+        if (price <= 0) return;
+        var isTotalMode = extra.pricingMode === 'total';
+        var addQty = isTotalMode ? 1 : qty;
+        var addGross = price * addQty;
+        var addDisc = tierPct > 0 ? roundMoney(addGross * (tierPct / 100)) : 0;
+        allocatedDiscW += addDisc;
+        var label = String(extra.description || '').trim() || 'Servicio adicional ' + (idx + 1);
+        visibleAddRows.push({
+          service: label,
+          bullets: [],
+          text: String(extra.description || '').trim() || 'Servicio complementario',
+          qty: addQty,
+          unitPrice: withIva(price, includeIva),
+          discountPerUnit: withIva(addQty > 0 ? addDisc / addQty : 0, includeIva),
+          total: withIva(addGross, includeIva),
+        });
+      });
+
+      var productGrossW = roundMoney(grossTotalW - visibleGrossW);
+      // Remainder discount so product + adds discounts == canonical target.
+      var productDiscW = Math.max(0, roundMoney(targetDiscW - allocatedDiscW));
       items.push({
         service: p.name || 'Impresi\u00f3n 3D',
         bullets: bullets.length ? bullets : ['Impresi\u00f3n 3D de alta calidad'],
         text: '',
         qty: qty,
-        unitPrice: withIva(productGross, includeIva),
-        discountPerUnit: withIva(productDiscount, includeIva),
-        total: withIva(wholesaleLineTotal, includeIva),
+        unitPrice: withIva(qty > 0 ? productGrossW / qty : 0, includeIva),
+        discountPerUnit: withIva(qty > 0 ? productDiscW / qty : 0, includeIva),
+        total: withIva(productGrossW, includeIva),
       });
-
-      getProductAdditionals(p).forEach(function (extra, idx) {
-        if (!extra.showOnInvoice) return;
-        var perUnit = roundMoney(extra.price);
-        if (perUnit <= 0) return;
-        var addDiscount = roundMoney(perUnit * (tierPct / 100));
-        var label = String(extra.description || '').trim() || 'Servicio adicional ' + (idx + 1);
-        items.push({
-          service: label,
-          bullets: [],
-          text: String(extra.description || '').trim() || 'Servicio complementario',
-          qty: qty,
-          unitPrice: withIva(perUnit, includeIva),
-          discountPerUnit: withIva(addDiscount, includeIva),
-          total: withIva(perUnit * qty, includeIva),
-        });
+      visibleAddRows.forEach(function (row) {
+        items.push(row);
       });
 
       return items;
