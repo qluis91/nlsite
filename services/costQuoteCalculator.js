@@ -623,7 +623,8 @@ function aggregateMain(state, productResults) {
   const totalQty = productResults.reduce((s, pr) => s + pr.line.quantity, 0);
 
   const taxMode = resolveTaxMode(state.export || state);
-  const shipping = num((state.export || {}).shippingCost);
+  const shippingResolved = resolveQuoteShipping(state.export || {});
+  const shipping = shippingResolved.amount;
   // Client-facing display subtotal BEFORE global discount.
   const displaySubtotal = roundMoney(productsSubtotalBeforeGlobal + designCost + shipping);
   const taxableBase = roundMoney(Math.max(0, productsSubtotalAfterGlobal + designCost + shipping));
@@ -658,6 +659,8 @@ function aggregateMain(state, productResults) {
     clientTotal: taxSummary.total,
     designCost,
     shippingCost: shipping,
+    shippingMode: shippingResolved.mode,
+    shipping: shippingResolved,
     taxMode: taxSummary.taxMode,
     enteredSubtotal: taxableBase,
     subtotalBeforeTax: taxSummary.taxMode === 'included' ? taxSummary.base : taxableBase,
@@ -870,10 +873,89 @@ function computeQuoteTotal(snapshot) {
     subtotal = Math.round(subtotal * (1 - globalDisc / 100));
   }
 
-  const shipping = num((state.export || state).shippingCost);
+  const shipping = resolveQuoteShipping(state.export || state).amount;
   const taxableBase = roundMoney(Math.max(0, Math.round(subtotal + designTotal + shipping)));
   const taxMode = resolveTaxMode(state.export || state);
   return applyTaxMode(taxableBase, taxMode).total;
+}
+
+// ── Quote shipping mode helpers ──
+
+const SHIPPING_MODES = Object.freeze([
+  'priced',
+  'pending_quote',
+  'free',
+  'local_pickup',
+  'not_applicable',
+]);
+
+const SHIPPING_MODE_UI_LABELS = Object.freeze({
+  priced: 'Con costo',
+  pending_quote: 'Por cotizar',
+  free: 'Gratis',
+  local_pickup: 'Retiro en local',
+  not_applicable: 'No aplica',
+});
+
+const SHIPPING_MODE_CLIENT_LABELS = Object.freeze({
+  priced: 'Envío',
+  pending_quote: 'Costo de envío no incluido',
+  free: 'Envío: Gratis',
+  local_pickup: 'Retiro en local — sin costo de envío',
+  not_applicable: '',
+});
+
+/**
+ * Normalize shippingMode. Missing mode migrates from shippingCost:
+ * cost > 0 → priced; otherwise → pending_quote (never free).
+ */
+function normalizeShippingMode(value, shippingCost) {
+  const raw = value != null ? String(value).trim() : '';
+  if (SHIPPING_MODES.includes(raw)) return raw;
+  return num(shippingCost) > 0 ? 'priced' : 'pending_quote';
+}
+
+/**
+ * Canonical quote shipping semantics for Admin / calculator / PDF / future invoice adapters.
+ * Only mode === 'priced' yields a monetary amount included in totals.
+ */
+function resolveQuoteShipping(exportData) {
+  const exp = exportData && typeof exportData === 'object' ? exportData : {};
+  const rawCost = Math.max(0, roundMoney(exp.shippingCost));
+  const mode = normalizeShippingMode(exp.shippingMode, rawCost);
+  const amount = mode === 'priced' ? rawCost : 0;
+  const includedInTotal = mode === 'priced';
+  let displayText = null;
+  let showInPdf = true;
+  if (mode === 'priced') {
+    displayText = null;
+  } else if (mode === 'pending_quote') {
+    displayText = SHIPPING_MODE_CLIENT_LABELS.pending_quote;
+  } else if (mode === 'free') {
+    displayText = SHIPPING_MODE_CLIENT_LABELS.free;
+  } else if (mode === 'local_pickup') {
+    displayText = SHIPPING_MODE_CLIENT_LABELS.local_pickup;
+  } else {
+    showInPdf = false;
+    displayText = null;
+  }
+  return {
+    mode,
+    amount,
+    includedInTotal,
+    showInPdf,
+    uiLabel: SHIPPING_MODE_UI_LABELS[mode] || SHIPPING_MODE_UI_LABELS.pending_quote,
+    displayLabel: SHIPPING_MODE_CLIENT_LABELS[mode] || '',
+    displayText,
+  };
+}
+
+function applyShippingModeToExport(exportData) {
+  const exp = exportData && typeof exportData === 'object' ? exportData : {};
+  const resolved = resolveQuoteShipping(exp);
+  exp.shippingMode = resolved.mode;
+  exp.shippingCost = resolved.amount;
+  return exp;
 }
 
 // ── IVA / taxMode helpers ──
@@ -1006,6 +1088,12 @@ module.exports = {
   resolveLegacyProductDescription,
   withIva,
   extractIncludedIva,
+  SHIPPING_MODES,
+  SHIPPING_MODE_UI_LABELS,
+  SHIPPING_MODE_CLIENT_LABELS,
+  normalizeShippingMode,
+  resolveQuoteShipping,
+  applyShippingModeToExport,
   normalizeTaxMode,
   resolveTaxMode,
   applyTaxMode,

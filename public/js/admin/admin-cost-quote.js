@@ -91,6 +91,7 @@
       description: '',
       deliveryDays: 5,
       validDays: 15,
+      shippingMode: 'pending_quote',
       shippingCost: 0,
       paymentTerms: 'Forma de pago: 50% de adelanto y 50% contra entrega.',
       warranty: 'Garantía: 3 meses por defectos de fabricación.',
@@ -1087,6 +1088,11 @@
     if (normalizeTaxMode(exp.taxMode) !== DEFAULTS.export.taxMode) return true;
     if (num(exp.deliveryDays) !== DEFAULTS.export.deliveryDays) return true;
     if (num(exp.validDays) !== DEFAULTS.export.validDays) return true;
+    if (
+      normalizeShippingMode(exp.shippingMode, exp.shippingCost) !== DEFAULTS.export.shippingMode
+    ) {
+      return true;
+    }
     if (num(exp.shippingCost) !== DEFAULTS.export.shippingCost) return true;
     if (String(exp.paymentTerms || '') !== DEFAULTS.export.paymentTerms) return true;
     if (String(exp.warranty || '') !== DEFAULTS.export.warranty) return true;
@@ -1205,6 +1211,72 @@
     return value === 'included' || value === 'add' || value === 'excluded' ? value : 'excluded';
   }
 
+  var SHIPPING_MODES = [
+    'priced',
+    'pending_quote',
+    'free',
+    'local_pickup',
+    'not_applicable',
+  ];
+
+  var SHIPPING_MODE_UI_LABELS = {
+    priced: 'Con costo',
+    pending_quote: 'Por cotizar',
+    free: 'Gratis',
+    local_pickup: 'Retiro en local',
+    not_applicable: 'No aplica',
+  };
+
+  var SHIPPING_MODE_CLIENT_LABELS = {
+    priced: 'Envío',
+    pending_quote: 'Costo de envío no incluido',
+    free: 'Envío: Gratis',
+    local_pickup: 'Retiro en local — sin costo de envío',
+    not_applicable: '',
+  };
+
+  function normalizeShippingMode(value, shippingCost) {
+    var raw = value != null ? String(value).trim() : '';
+    if (SHIPPING_MODES.indexOf(raw) !== -1) return raw;
+    return num(shippingCost) > 0 ? 'priced' : 'pending_quote';
+  }
+
+  function resolveQuoteShipping(exportData) {
+    var exp = exportData && typeof exportData === 'object' ? exportData : {};
+    var rawCost = Math.max(0, Math.round(num(exp.shippingCost)));
+    var mode = normalizeShippingMode(exp.shippingMode, rawCost);
+    var amount = mode === 'priced' ? rawCost : 0;
+    var displayText = null;
+    var showInPdf = true;
+    if (mode === 'pending_quote') {
+      displayText = SHIPPING_MODE_CLIENT_LABELS.pending_quote;
+    } else if (mode === 'free') {
+      displayText = SHIPPING_MODE_CLIENT_LABELS.free;
+    } else if (mode === 'local_pickup') {
+      displayText = SHIPPING_MODE_CLIENT_LABELS.local_pickup;
+    } else if (mode === 'not_applicable') {
+      showInPdf = false;
+      displayText = null;
+    }
+    return {
+      mode: mode,
+      amount: amount,
+      includedInTotal: mode === 'priced',
+      showInPdf: showInPdf,
+      uiLabel: SHIPPING_MODE_UI_LABELS[mode] || SHIPPING_MODE_UI_LABELS.pending_quote,
+      displayLabel: SHIPPING_MODE_CLIENT_LABELS[mode] || '',
+      displayText: displayText,
+    };
+  }
+
+  function applyShippingModeToExport(exp) {
+    if (!exp || typeof exp !== 'object') return exp;
+    var resolved = resolveQuoteShipping(exp);
+    exp.shippingMode = resolved.mode;
+    exp.shippingCost = resolved.amount;
+    return exp;
+  }
+
   function migrateExportTaxMode(exp) {
     if (!exp || typeof exp !== 'object') return;
     if (!exp.taxMode) {
@@ -1269,6 +1341,7 @@
     if (!s.export) s.export = deepClone(DEFAULTS.export);
     if (s.export.clientPhone === undefined) s.export.clientPhone = '';
     migrateExportTaxMode(s.export);
+    applyShippingModeToExport(s.export);
     s.export.quoteEmail = resolveQuoteEmailSelection(s.export.quoteEmail);
 
     if (s.products && s.products.length) {
@@ -1696,7 +1769,8 @@
     if (!(state.export || {}).taxMode && (state.export || {}).includeIva === true) {
       taxMode = 'included';
     }
-    var shipping = num((state.export || {}).shippingCost);
+    var shippingResolved = resolveQuoteShipping(state.export || {});
+    var shipping = shippingResolved.amount;
     var displaySubtotal = Math.max(0, Math.round(productsSubtotalBeforeGlobal + designCost + shipping));
     var taxableBase = Math.max(0, Math.round(productsSubtotalAfterGlobal + designCost + shipping));
     var taxSummary = applyTaxModeLocal(taxableBase, taxMode);
@@ -1727,6 +1801,8 @@
       clientTotal: taxSummary.total,
       designCost: designCost,
       shippingCost: shipping,
+      shippingMode: shippingResolved.mode,
+      shipping: shippingResolved,
       taxMode: taxSummary.taxMode,
       enteredSubtotal: taxableBase,
       subtotalBeforeTax: taxSummary.taxMode === 'included' ? taxSummary.base : taxableBase,
@@ -2274,6 +2350,15 @@
   }
 
   function renderPdfExportSection(exp) {
+    var shippingResolved = resolveQuoteShipping(exp);
+    var shippingCostField =
+      shippingResolved.mode === 'priced'
+        ? inputHtml('cq-shippingCost', 'Costo de envío (₡)', Math.max(0, num(exp.shippingCost)), {
+            min: 0,
+            step: 1,
+          }) +
+          '<p class="cq-field__hint cq-shipping-hint">Solo en «Con costo» se suma al total. Usá un monto &gt; 0.</p>'
+        : '';
     return (
       '<section class="cq-card cq-export-card" aria-labelledby="cq-pdf-title">' +
       '<h3 class="cq-card__title" id="cq-pdf-title">Exportar y Cliente</h3>' +
@@ -2316,7 +2401,15 @@
       '<div class="cq-export-block">' +
       '<h4 class="cq-export-block__title">Costos y términos</h4>' +
       '<div class="cq-grid cq-grid--3">' +
-      inputHtml('cq-shippingCost', 'Costo de envío (₡)', exp.shippingCost, { min: 0, step: 1 }) +
+      selectHtml(
+        'cq-shippingMode',
+        'Estado del envío',
+        shippingResolved.mode,
+        SHIPPING_MODES.map(function (mode) {
+          return { value: mode, label: SHIPPING_MODE_UI_LABELS[mode] };
+        })
+      ) +
+      shippingCostField +
       '<div class="cq-field cq-field--input cq-field--check cq-field--tax-mode">' +
       '<span class="cq-field__label">IVA</span>' +
       '<span class="cq-check-row">' +
@@ -3238,7 +3331,18 @@
     state.export.orderTitle = g('cq-orderTitle');
     state.export.deliveryDays = num(g('cq-deliveryDays'), state.export.deliveryDays);
     state.export.validDays = num(g('cq-validDays'), state.export.validDays);
-    state.export.shippingCost = num(g('cq-shippingCost'), state.export.shippingCost);
+    state.export.shippingMode = normalizeShippingMode(
+      g('cq-shippingMode') || state.export.shippingMode,
+      state.export.shippingCost
+    );
+    if (state.export.shippingMode === 'priced') {
+      state.export.shippingCost = Math.max(
+        0,
+        num(g('cq-shippingCost'), state.export.shippingCost)
+      );
+    } else {
+      state.export.shippingCost = 0;
+    }
     state.export.paymentTerms = g('cq-paymentTerms');
     state.export.warranty = g('cq-warranty');
     state.export.extraNotes = g('cq-extraNotes');

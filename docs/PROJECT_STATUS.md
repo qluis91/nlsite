@@ -3,6 +3,7 @@
 **Last updated:** 2026-10-30
 **Current phase:** Public services + quote requests + unified navbar
 **Next:** Optional quote↔cost_quotes integration; CMS-editable service pages; CSS variable homogenization
+- [x] **Cotización 3D shippingMode**: explicit `priced|pending_quote|free|local_pickup|not_applicable`; default pending_quote; legacy cost>0→priced else pending_quote; PDF text vs amount; Admin/server/PDF parity; no DB/GTI/order changes.
 - [x] **Cotización 3D PDF discount allocation cap**: visible additional row discounts cannot exceed remaining canonical `productDiscountAmount`.
 - [x] **Cotización 3D PDF product-discount rows**: non-wholesale PDF gross/discount allocation matches canonical productPostDiscountTotal (no double discount).
 - [x] **Cotización 3D additionals on manual sale**: base product sale + additionals composed once; auto suggested not double-charged; Frecuente unchanged.

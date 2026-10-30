@@ -4014,6 +4014,405 @@ describe('PDF non-wholesale product discount reconciliation', () => {
   });
 });
 
+// ───────────────────────────────────────────────────────
+// Explicit shippingMode for Cotización 3D
+// ───────────────────────────────────────────────────────
+describe('Quote shippingMode semantics', () => {
+  function loadPdf() {
+    const vm = require('node:vm');
+    const pdfSrc = fs.readFileSync(
+      path.join(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    const sandbox = { window: {}, console };
+    sandbox.window = sandbox;
+    sandbox.global = sandbox;
+    vm.runInNewContext(pdfSrc, sandbox);
+    return sandbox.AdminCostQuotePdf;
+  }
+
+  function adminSrc() {
+    return fs.readFileSync(path.join(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
+  }
+
+  function baseProductsDesignState(overrides) {
+    return {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 5000,
+        profitPercent: 0,
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      export: {
+        taxMode: 'excluded',
+        shippingMode: 'pending_quote',
+        shippingCost: 0,
+      },
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 20000,
+          additionals: [],
+        },
+      ],
+      ...(overrides || {}),
+    };
+  }
+
+  it('normalizeShippingMode migrates legacy cost>0 to priced', () => {
+    assert.equal(calculator.normalizeShippingMode(undefined, 3500), 'priced');
+    assert.equal(calculator.normalizeShippingMode('', 3500), 'priced');
+  });
+
+  it('normalizeShippingMode migrates legacy cost<=0 to pending_quote (not free)', () => {
+    assert.equal(calculator.normalizeShippingMode(undefined, 0), 'pending_quote');
+    assert.equal(calculator.normalizeShippingMode(null, 0), 'pending_quote');
+    assert.notEqual(calculator.normalizeShippingMode(undefined, 0), 'free');
+  });
+
+  it('resolveQuoteShipping: only priced yields amount', () => {
+    assert.equal(
+      calculator.resolveQuoteShipping({ shippingMode: 'priced', shippingCost: 3500 }).amount,
+      3500
+    );
+    for (const mode of ['pending_quote', 'free', 'local_pickup', 'not_applicable']) {
+      const r = calculator.resolveQuoteShipping({ shippingMode: mode, shippingCost: 3500 });
+      assert.equal(r.mode, mode);
+      assert.equal(r.amount, 0, mode);
+    }
+  });
+
+  it('default new-quote export uses pending_quote', () => {
+    const src = adminSrc();
+    assert.match(src, /shippingMode:\s*'pending_quote'/);
+    assert.match(src, /Estado del envío/);
+    assert.match(src, /cq-shippingMode/);
+  });
+
+  it('legacy shippingCost=0 migrates to pending_quote with zero charge', () => {
+    const state = baseProductsDesignState({
+      export: { taxMode: 'excluded', shippingCost: 0 },
+    });
+    const all = calculator.computeAll(state);
+    assert.equal(all.main.shippingMode, 'pending_quote');
+    assert.equal(all.main.shippingCost, 0);
+    assert.equal(all.main.grandTotal, 25000);
+  });
+
+  it('legacy shippingCost=3500 migrates to priced and keeps monetary result', () => {
+    const state = baseProductsDesignState({
+      export: { taxMode: 'excluded', shippingCost: 3500 },
+    });
+    const all = calculator.computeAll(state);
+    assert.equal(all.main.shippingMode, 'priced');
+    assert.equal(all.main.shippingCost, 3500);
+    assert.equal(all.main.grandTotal, 28500);
+  });
+
+  it('priced adds shipping to grand total', () => {
+    const state = baseProductsDesignState({
+      export: { taxMode: 'excluded', shippingMode: 'priced', shippingCost: 3500 },
+    });
+    const all = calculator.computeAll(state);
+    assert.equal(all.main.grandTotal, 28500);
+    assert.equal(calculator.computeQuoteTotal(state), 28500);
+  });
+
+  it('pending_quote / free / local_pickup / not_applicable do not add shipping', () => {
+    for (const mode of ['pending_quote', 'free', 'local_pickup', 'not_applicable']) {
+      const state = baseProductsDesignState({
+        export: { taxMode: 'excluded', shippingMode: mode, shippingCost: 0 },
+      });
+      assert.equal(calculator.computeAll(state).main.grandTotal, 25000, mode);
+      assert.equal(calculator.computeQuoteTotal(state), 25000, mode);
+    }
+  });
+
+  it('leaving priced clears effective charge even if raw cost leftover was present', () => {
+    const free = calculator.resolveQuoteShipping({
+      shippingMode: 'free',
+      shippingCost: 3500,
+    });
+    assert.equal(free.mode, 'free');
+    assert.equal(free.amount, 0);
+    const applied = calculator.applyShippingModeToExport({
+      shippingMode: 'free',
+      shippingCost: 3500,
+    });
+    assert.equal(applied.shippingCost, 0);
+  });
+
+  it('priced with shippingCost=0 stays priced (not auto-free)', () => {
+    const r = calculator.resolveQuoteShipping({
+      shippingMode: 'priced',
+      shippingCost: 0,
+    });
+    assert.equal(r.mode, 'priced');
+    assert.equal(r.amount, 0);
+  });
+
+  it('global discount applies before shipping (shipping not discounted)', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      globalDiscount: { enabled: true, percent: 10 },
+      alexPercent: 30,
+      luisPercent: 70,
+      export: { taxMode: 'excluded', shippingMode: 'priced', shippingCost: 3000 },
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 10000,
+          additionals: [],
+        },
+      ],
+    };
+    const all = calculator.computeAll(state);
+    assert.equal(all.main.productsSubtotalAfterGlobal, 9000);
+    assert.equal(all.main.shippingCost, 3000);
+    assert.equal(all.main.grandTotal, 12000);
+  });
+
+  it('taxMode parity preserved for priced shipping fixture 31800/35934', () => {
+    const base = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 31800,
+          additionals: [],
+        },
+      ],
+    };
+    assert.equal(
+      calculator.computeQuoteTotal({
+        ...base,
+        export: { taxMode: 'included', shippingMode: 'priced', shippingCost: 0 },
+      }),
+      31800
+    );
+    assert.equal(
+      calculator.computeQuoteTotal({
+        ...base,
+        export: { taxMode: 'add', shippingMode: 'priced', shippingCost: 0 },
+      }),
+      35934
+    );
+    assert.equal(
+      calculator.computeQuoteTotal({
+        ...base,
+        export: { taxMode: 'excluded', shippingMode: 'priced', shippingCost: 0 },
+      }),
+      31800
+    );
+  });
+
+  it('wholesale: priced adds shipping; pending_quote does not', () => {
+    const base = {
+      wholesaleMode: true,
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      discounts: { range10_50: 10, range50_100: 10, range100plus: 15 },
+      discountRanges: {
+        range10_50: { min: 1, max: 50 },
+        range50_100: { min: 50, max: 100 },
+        range100plus: { min: 100, max: null },
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      products: [
+        {
+          name: 'A',
+          quantity: 20,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 1000,
+          additionals: [],
+        },
+      ],
+    };
+    // gross 20000, 10% → 18000
+    const pending = {
+      ...base,
+      export: { taxMode: 'excluded', shippingMode: 'pending_quote', shippingCost: 0 },
+    };
+    const priced = {
+      ...base,
+      export: { taxMode: 'excluded', shippingMode: 'priced', shippingCost: 2500 },
+    };
+    assert.equal(calculator.computeQuoteTotal(pending), 18000);
+    assert.equal(calculator.computeQuoteTotal(priced), 20500);
+  });
+
+  it('Admin/server/PDF parity for every shipping mode', () => {
+    const pdf = loadPdf();
+    const modes = [
+      { mode: 'priced', cost: 3500, total: 28500 },
+      { mode: 'pending_quote', cost: 0, total: 25000 },
+      { mode: 'free', cost: 0, total: 25000 },
+      { mode: 'local_pickup', cost: 0, total: 25000 },
+      { mode: 'not_applicable', cost: 0, total: 25000 },
+    ];
+    for (const m of modes) {
+      const state = baseProductsDesignState({
+        export: {
+          taxMode: 'excluded',
+          shippingMode: m.mode,
+          shippingCost: m.cost,
+        },
+      });
+      const result = calculator.computeAll(state);
+      const server = calculator.computeQuoteTotal(state);
+      const grand = pdf.computeGrandTotal({ state, result });
+      assert.equal(result.main.grandTotal, m.total, m.mode + ' admin');
+      assert.equal(server, m.total, m.mode + ' server');
+      assert.equal(grand, m.total, m.mode + ' pdf');
+    }
+  });
+
+  it('PDF breakdown uses displayText for non-priced modes', () => {
+    const pdf = loadPdf();
+    const items = [{ total: 25000, unitPrice: 25000, qty: 1, discountPerUnit: 0 }];
+
+    const pending = pdf.buildSummary(
+      items,
+      pdf.resolveQuoteShipping({ shippingMode: 'pending_quote', shippingCost: 0 }),
+      'excluded',
+      false,
+      0,
+      false,
+      0
+    );
+    assert.ok(
+      pending.breakdown.some(
+        (r) => r.displayText && /no incluido|Pendiente/i.test(r.displayText)
+      )
+    );
+    assert.equal(pending.shipping, 0);
+    assert.equal(pending.grandTotal, 25000);
+
+    const free = pdf.buildSummary(
+      items,
+      pdf.resolveQuoteShipping({ shippingMode: 'free', shippingCost: 0 }),
+      'excluded',
+      false,
+      0,
+      false,
+      0
+    );
+    assert.ok(free.breakdown.some((r) => r.displayText && /Gratis/i.test(r.displayText)));
+    assert.equal(free.shipping, 0);
+
+    const pickup = pdf.buildSummary(
+      items,
+      pdf.resolveQuoteShipping({ shippingMode: 'local_pickup', shippingCost: 0 }),
+      'excluded',
+      false,
+      0,
+      false,
+      0
+    );
+    assert.ok(
+      pickup.breakdown.some((r) => r.displayText && /Retiro en local/i.test(r.displayText))
+    );
+
+    const na = pdf.buildSummary(
+      items,
+      pdf.resolveQuoteShipping({ shippingMode: 'not_applicable', shippingCost: 0 }),
+      'excluded',
+      false,
+      0,
+      false,
+      0
+    );
+    assert.ok(!na.breakdown.some((r) => /Env/i.test(r.label)));
+
+    const priced = pdf.buildSummary(
+      items,
+      pdf.resolveQuoteShipping({ shippingMode: 'priced', shippingCost: 3500 }),
+      'excluded',
+      false,
+      0,
+      false,
+      0
+    );
+    assert.ok(priced.breakdown.some((r) => r.label === 'Envío' && r.amount === 3500));
+    assert.equal(priced.grandTotal, 28500);
+  });
+
+  it('WIP detection treats non-default shippingMode as work', () => {
+    const src = adminSrc();
+    assert.match(src, /normalizeShippingMode\(exp\.shippingMode/);
+    assert.match(src, /DEFAULTS\.export\.shippingMode/);
+  });
+
+  it('shipping still excluded from production profit when priced', () => {
+    const state = baseProductsDesignState({
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      export: { taxMode: 'excluded', shippingMode: 'priced', shippingCost: 3500 },
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceManual: 20000,
+          additionals: [],
+        },
+      ],
+    });
+    const all = calculator.computeAll(state);
+    assert.equal(all.main.grandTotal, 23500);
+    assert.equal(all.main.businessRevenue, 20000);
+  });
+});
+
 const pool = require('../config/db');
 const { after } = require('node:test');
 after(async () => {

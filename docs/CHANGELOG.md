@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-30 — Explicit shipping modes for Cotización 3D
+
+### Added
+- `export.shippingMode`: `priced` | `pending_quote` | `free` | `local_pickup` | `not_applicable`
+- Canonical helpers `normalizeShippingMode` / `resolveQuoteShipping` (Admin, calculator, PDF)
+- Admin UI «Estado del envío» with conditional shipping amount (priced only)
+- PDF text semantics for non-priced modes (no fake ₡0 shipping rows)
+
+### Changed
+- Default new quote: `shippingMode=pending_quote`, `shippingCost=0` (shipping not included)
+- Only `priced` adds monetary shipping to totals; other modes charge ₡0
+- Legacy snapshots without `shippingMode`: cost>0 → `priced`, else → `pending_quote` (never `free`)
+
+### Notes
+- No DB migration; mode persists in `cost_quotes.payload.export`
+- No GTI / electronic-invoice / store-order lifecycle changes
+
 ## 2026-10-30 — Cap PDF discount allocation to canonical total
 
 ### Fixed

@@ -86,6 +86,55 @@
     return exportObj.includeIva === true ? 'included' : 'excluded';
   }
 
+  var SHIPPING_MODES = [
+    'priced',
+    'pending_quote',
+    'free',
+    'local_pickup',
+    'not_applicable',
+  ];
+
+  var SHIPPING_MODE_CLIENT_LABELS = {
+    priced: 'Envío',
+    pending_quote: 'Costo de envío no incluido',
+    free: 'Envío: Gratis',
+    local_pickup: 'Retiro en local — sin costo de envío',
+    not_applicable: '',
+  };
+
+  function normalizeShippingMode(value, shippingCost) {
+    var raw = value != null ? String(value).trim() : '';
+    if (SHIPPING_MODES.indexOf(raw) !== -1) return raw;
+    return Number(shippingCost) > 0 ? 'priced' : 'pending_quote';
+  }
+
+  function resolveQuoteShipping(exportData) {
+    var exp = exportData && typeof exportData === 'object' ? exportData : {};
+    var rawCost = Math.max(0, roundMoney(exp.shippingCost));
+    var mode = normalizeShippingMode(exp.shippingMode, rawCost);
+    var amount = mode === 'priced' ? rawCost : 0;
+    var displayText = null;
+    var showInPdf = true;
+    if (mode === 'pending_quote') {
+      displayText = SHIPPING_MODE_CLIENT_LABELS.pending_quote;
+    } else if (mode === 'free') {
+      displayText = SHIPPING_MODE_CLIENT_LABELS.free;
+    } else if (mode === 'local_pickup') {
+      displayText = SHIPPING_MODE_CLIENT_LABELS.local_pickup;
+    } else if (mode === 'not_applicable') {
+      showInPdf = false;
+      displayText = null;
+    }
+    return {
+      mode: mode,
+      amount: amount,
+      includedInTotal: mode === 'priced',
+      showInPdf: showInPdf,
+      displayLabel: SHIPPING_MODE_CLIENT_LABELS[mode] || '',
+      displayText: displayText,
+    };
+  }
+
   /**
    * Split a gross (IVA-included) amount into net + embedded IVA.
    * Guarantees net + iva === gross after rounding.
@@ -730,7 +779,15 @@
     }, 0);
   }
 
-  function buildSummary(items, shipping, taxMode, wholesaleMode, designCost, useGrossDiscountLayout, globalDiscountAmount) {
+  function buildSummary(
+    items,
+    shippingOrResolved,
+    taxMode,
+    wholesaleMode,
+    designCost,
+    useGrossDiscountLayout,
+    globalDiscountAmount
+  ) {
     var mode = normalizeTaxMode(taxMode);
     var unitPriceSum = sumUnitPrices(items);
     var discountTotal = 0;
@@ -741,7 +798,14 @@
         discountTotal += it.discountPerUnit * it.qty;
       }
     });
-    var shippingAmt = roundMoney(shipping);
+    var shippingResolved =
+      shippingOrResolved && typeof shippingOrResolved === 'object' && shippingOrResolved.mode
+        ? shippingOrResolved
+        : resolveQuoteShipping({
+            shippingMode: 'priced',
+            shippingCost: shippingOrResolved,
+          });
+    var shippingAmt = roundMoney(shippingResolved.amount);
     var linesTotal = items.reduce(function (s, it) {
       return s + it.total;
     }, 0);
@@ -763,9 +827,22 @@
     if (!wholesaleMode && designAmt > 0) {
       breakdown.push({ label: '* Dise\u00f1o personalizado', amount: designAmt });
     }
-    if (shippingAmt > 0) {
+    if (shippingResolved.mode === 'priced' && shippingAmt > 0) {
       breakdown.push({ label: 'Env\u00edo', amount: shippingAmt });
+    } else if (shippingResolved.mode === 'pending_quote') {
+      breakdown.push({
+        label: 'Env\u00edo',
+        displayText: 'Costo de env\u00edo no incluido',
+      });
+    } else if (shippingResolved.mode === 'free') {
+      breakdown.push({ label: 'Env\u00edo', displayText: 'Gratis' });
+    } else if (shippingResolved.mode === 'local_pickup') {
+      breakdown.push({
+        label: 'Env\u00edo',
+        displayText: 'Retiro en local \u2014 sin costo de env\u00edo',
+      });
     }
+    // not_applicable: omit shipping row
     if (globalDiscAmt > 0) {
       breakdown.push({ label: 'Descuento general', amount: -globalDiscAmt });
     }
@@ -777,6 +854,8 @@
       netLines: netLines,
       breakdown: breakdown,
       shipping: shippingAmt,
+      shippingMode: shippingResolved.mode,
+      shippingResolved: shippingResolved,
       designAmount: designAmt,
       taxMode: mode,
       includeIva: mode === 'included',
@@ -966,6 +1045,15 @@
           '</span></div>';
       }
       summary.breakdown.forEach(function (row) {
+        if (row.displayText != null && row.displayText !== '') {
+          html +=
+            '<div class="summary-row summary-row--text"><strong>' +
+            escapeHtml(row.label) +
+            '</strong><span>' +
+            escapeHtml(row.displayText) +
+            '</span></div>';
+          return;
+        }
         html +=
           '<div class="summary-row"><strong>' +
           escapeHtml(row.label) +
@@ -1069,7 +1157,7 @@
       (Math.max(0, Number(result.main && result.main.discountPercent) || 0) > 0 || hasProductDiscount);
     var summary = buildSummary(
       items,
-      Number(exp.shippingCost) || 0,
+      resolveQuoteShipping(exp),
       taxMode,
       wholesaleMode,
       designCost,
@@ -1444,7 +1532,7 @@
       (Math.max(0, Number(result.main && result.main.discountPercent) || 0) > 0 || hasProductDiscount);
     var summary = buildSummary(
       items,
-      Number(exp.shippingCost) || 0,
+      resolveQuoteShipping(exp),
       taxMode,
       wholesaleMode,
       designCost,
@@ -1459,12 +1547,15 @@
     generateBlob: generateCostQuotePdfBlob,
     computeGrandTotal: computeGrandTotal,
     buildLineItems: buildLineItems,
+    buildSummary: buildSummary,
     buildFilename: safeFilename,
     withIva: withIva,
     extractIncludedIva: extractIncludedIva,
     normalizeTaxMode: normalizeTaxMode,
     resolveTaxMode: resolveTaxMode,
     applyTaxMode: applyTaxMode,
+    normalizeShippingMode: normalizeShippingMode,
+    resolveQuoteShipping: resolveQuoteShipping,
     resolveProductCostParams: resolveProductCostParams,
     fmtPdfMoney: fmtMoney,
     IVA_RATE: IVA_RATE,
