@@ -778,6 +778,77 @@ describe('Catalog store shapes', () => {
     assert.ok(src.includes("catalog_type = 'printer'"));
     assert.ok(src.includes('UPDATE cost_quote_catalog'));
   });
+
+  it('normalizes and validates quotation emails', () => {
+    assert.deepEqual(
+      catalogStore.normalizeEmail({
+        id: '9',
+        email: ' Ventas@NinjaLabCR.com ',
+        label: 'Ventas',
+        isDefault: true,
+      }),
+      { id: '9', email: 'ventas@ninjalabcr.com', label: 'Ventas', isDefault: true }
+    );
+    assert.equal(catalogStore.validateEmailAddress(''), 'Indicá el correo electrónico.');
+    assert.equal(catalogStore.validateEmailAddress('not-an-email'), 'El correo no es válido.');
+    assert.equal(catalogStore.validateEmailAddress('ok@ninjalab3d.com'), null);
+  });
+
+  it('exposes email catalog CRUD helpers', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../services/costQuoteCatalogStore.js'), 'utf8');
+    assert.ok(src.includes("catalog_type='email'") || src.includes("catalog_type = 'email'"));
+    assert.ok(typeof catalogStore.upsertEmail === 'function');
+    assert.ok(typeof catalogStore.deleteEmail === 'function');
+    assert.ok(typeof catalogStore.setDefaultEmail === 'function');
+    assert.ok(src.includes('Debe quedar al menos un correo'));
+  });
+});
+
+describe('Quotation email catalog + default description UX', () => {
+  it('registers migrateCostQuoteEmails last in tracker', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../scripts/migrationTracker.js'), 'utf8');
+    assert.match(src, /migrateCostQuoteEmails/);
+    const idxEmails = src.lastIndexOf('migrateCostQuoteEmails');
+    const idxQuotes = src.lastIndexOf('migrateQuoteRequests');
+    assert.ok(idxEmails > idxQuotes);
+  });
+
+  it('email migration seeds legacy addresses idempotently', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../scripts/migrate-cost-quote-emails.js'), 'utf8');
+    assert.match(src, /info@ninjalab3d\.com/);
+    assert.match(src, /lquijano@ninjalab3d\.com/);
+    assert.match(src, /badilla@ninjalab3d\.com/);
+    assert.match(src, /Email rows already present/);
+    assert.match(src, /Does not edit historical migrate-cost-quote\.js/);
+    assert.doesNotMatch(src, /require\(['"]\.\/migrate-cost-quote['"]\)/);
+  });
+
+  it('API routes expose email catalog endpoints with CSRF', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../routes/adminCostQuoteRoutes.js'), 'utf8');
+    assert.match(src, /cost-quote-catalog\/emails/);
+    assert.match(src, /emails\/:id\/default/);
+    assert.match(src, /upsertEmail/);
+    assert.match(src, /deleteEmail/);
+    assert.match(src, /setDefaultEmail/);
+  });
+
+  it('frontend uses catalog emails and default service description', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
+    assert.match(src, /DEFAULT_SERVICE_DESCRIPTION/);
+    assert.match(src, /Impresión 3D de alta calidad\\n/);
+    assert.match(src, /Agregá o modificá los servicios incluidos/);
+    assert.match(src, /buildQuoteEmailOptions/);
+    assert.match(src, /guardado en esta cotización/);
+    assert.match(src, /Correos de cotización/);
+    assert.doesNotMatch(src, /var QUOTE_EMAILS\s*=/);
+    assert.doesNotMatch(src, /function normalizeQuoteEmail/);
+  });
+
+  it('PDF uses snapshot quoteEmail without hardcoded allow-list', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'), 'utf8');
+    assert.match(src, /function resolveQuoteEmail/);
+    assert.doesNotMatch(src, /var QUOTE_EMAILS\s*=/);
+  });
 });
 
 describe('Quote store contracts', () => {

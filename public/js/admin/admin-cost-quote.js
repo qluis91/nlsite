@@ -6,11 +6,15 @@
 
   var STORAGE_KEY = 'nl-admin-cost-quote-v1';
   var CATALOG_STORAGE_KEY = 'nl-admin-cost-quote-catalog-v1';
-  var QUOTE_EMAILS = [
-    { value: 'info@ninjalab3d.com', label: 'info@ninjalab3d.com' },
-    { value: 'lquijano@ninjalab3d.com', label: 'lquijano@ninjalab3d.com' },
-    { value: 'badilla@ninjalab3d.com', label: 'badilla@ninjalab3d.com' },
+  var FALLBACK_QUOTE_EMAILS = [
+    { id: 'email-fallback-info', email: 'info@ninjalab3d.com', label: 'Info', isDefault: false },
+    { id: 'email-fallback-luis', email: 'lquijano@ninjalab3d.com', label: 'Luis Quijano', isDefault: true },
+    { id: 'email-fallback-badilla', email: 'badilla@ninjalab3d.com', label: 'Badilla', isDefault: false },
   ];
+  var DEFAULT_SERVICE_DESCRIPTION =
+    'Impresión 3D de alta calidad\n' +
+    'Logo personalizado\n' +
+    'Color a elegir';
 
   var DEFAULT_PRODUCT = {
     name: 'Copa Mundial',
@@ -60,7 +64,7 @@
       clientEmail: '',
       clientPhone: '',
       orderTitle: '',
-      description: '',
+      description: DEFAULT_SERVICE_DESCRIPTION,
       deliveryDays: 5,
       validDays: 15,
       shippingCost: 0,
@@ -74,7 +78,7 @@
   };
 
   var savedQuotes = [];
-  var catalog = { additionals: [], printers: [], materials: [] };
+  var catalog = { additionals: [], printers: [], materials: [], emails: [] };
   var catalogApiAvailable = true;
   var activePanel = 'quote';
   var mounted = false;
@@ -169,9 +173,83 @@
       { id: 'additionals', label: 'Adicionales' },
     ];
     if (!isRestrictedPartner()) {
-      tabs.push({ id: 'printers', label: 'Impresoras' }, { id: 'materials', label: 'Materiales' });
+      tabs.push(
+        { id: 'printers', label: 'Impresoras' },
+        { id: 'materials', label: 'Materiales' },
+        { id: 'emails', label: 'Correos' }
+      );
     }
     return tabs;
+  }
+
+  function getCatalogEmails() {
+    var list = Array.isArray(catalog.emails) ? catalog.emails : [];
+    if (list.length) return list;
+    return FALLBACK_QUOTE_EMAILS.slice();
+  }
+
+  function getDefaultCatalogEmail() {
+    var emails = getCatalogEmails();
+    var preferred = emails.find(function (e) {
+      return e.isDefault;
+    });
+    if (preferred) return preferred.email;
+    return emails[0] ? emails[0].email : FALLBACK_QUOTE_EMAILS[1].email;
+  }
+
+  function formatEmailOptionLabel(email, label) {
+    var addr = String(email || '').trim();
+    var tag = String(label || '').trim();
+    if (tag) return tag + ' — ' + addr;
+    return addr;
+  }
+
+  function buildQuoteEmailOptions(selectedEmail) {
+    var selected = String(selectedEmail || '')
+      .trim()
+      .toLowerCase();
+    var opts = getCatalogEmails().map(function (e) {
+      return {
+        value: e.email,
+        label: formatEmailOptionLabel(e.email, e.label),
+      };
+    });
+    var known = opts.map(function (o) {
+      return o.value;
+    });
+    if (selected && known.indexOf(selected) === -1) {
+      opts.unshift({
+        value: selected,
+        label: selected + ' (guardado en esta cotización)',
+      });
+    }
+    return opts;
+  }
+
+  function resolveQuoteEmailSelection(email) {
+    var v = String(email || '')
+      .trim()
+      .toLowerCase();
+    if (v) return v;
+    return getDefaultCatalogEmail();
+  }
+
+  function syncQuoteEmailAfterCatalogChange() {
+    if (!state.export) state.export = deepClone(DEFAULTS.export);
+    var current = String(state.export.quoteEmail || '')
+      .trim()
+      .toLowerCase();
+    var known = getCatalogEmails().map(function (e) {
+      return e.email;
+    });
+    if (!current) {
+      state.export.quoteEmail = getDefaultCatalogEmail();
+      return;
+    }
+    // Unsaved/new quote: if selected email was deleted from catalog, switch to default.
+    if (!currentSavedQuoteId && known.indexOf(current) === -1) {
+      state.export.quoteEmail = getDefaultCatalogEmail();
+    }
   }
 
   function printerOptionLabel(printer) {
@@ -232,17 +310,6 @@
       }) ||
       allowed[0]
     );
-  }
-
-  function normalizeQuoteEmail(email) {
-    var v = String(email || '')
-      .trim()
-      .toLowerCase();
-    var allowed = QUOTE_EMAILS.map(function (o) {
-      return o.value;
-    });
-    if (allowed.indexOf(v) !== -1) return v;
-    return QUOTE_EMAILS[1].value;
   }
 
   function $(sel, root) {
@@ -330,6 +397,7 @@
       additionals: [],
       printers: [{ id: 'printer-default', name: 'Impresora principal', hourRate: 300 }],
       materials: [{ id: 'material-default', name: 'PLA estándar', kgPrice: 20500 }],
+      emails: FALLBACK_QUOTE_EMAILS.slice(),
     };
   }
 
@@ -342,6 +410,7 @@
           additionals: Array.isArray(parsed.additionals) ? parsed.additionals : [],
           printers: Array.isArray(parsed.printers) ? parsed.printers : [],
           materials: Array.isArray(parsed.materials) ? parsed.materials : [],
+          emails: Array.isArray(parsed.emails) ? parsed.emails : FALLBACK_QUOTE_EMAILS.slice(),
         };
       }
     } catch (e) { /* ignore */ }
@@ -463,6 +532,89 @@
     catalog = next;
     saveCatalogLocal(catalog);
     syncCostSelections(state);
+    return { ok: true, catalog: catalog };
+  }
+
+  function upsertEmailLocal(body) {
+    var editId = String((body && body.id) || '').trim();
+    var email = String((body && body.email) || '')
+      .trim()
+      .toLowerCase();
+    var label = String((body && body.label) || '').trim();
+    var isDefault = !!(body && body.isDefault);
+    if (!email || email.indexOf('@') === -1) {
+      return { ok: false, error: 'El correo no es válido.' };
+    }
+    var next = deepClone(catalog);
+    if (!Array.isArray(next.emails)) next.emails = [];
+    var dup = next.emails.find(function (e) {
+      return e.email === email && e.id !== editId;
+    });
+    if (dup) return { ok: false, error: 'Ese correo ya está registrado.' };
+    var item = {
+      id: editId || newLocalId('email'),
+      email: email,
+      label: label,
+      isDefault: false,
+    };
+    if (editId) {
+      var idx = next.emails.findIndex(function (e) {
+        return e.id === editId;
+      });
+      if (idx === -1) return { ok: false, error: 'Correo no encontrado.' };
+      var wasDefault = !!next.emails[idx].isDefault;
+      item.isDefault = isDefault || wasDefault;
+      next.emails[idx] = item;
+    } else {
+      item.isDefault = isDefault || !next.emails.length;
+      next.emails.push(item);
+    }
+    if (item.isDefault) {
+      next.emails = next.emails.map(function (e) {
+        return Object.assign({}, e, { isDefault: e.id === item.id });
+      });
+    }
+    catalog = next;
+    saveCatalogLocal(catalog);
+    syncQuoteEmailAfterCatalogChange();
+    return { ok: true, catalog: catalog, item: item };
+  }
+
+  function deleteEmailLocal(id) {
+    var eid = String(id || '').trim();
+    if (!Array.isArray(catalog.emails) || catalog.emails.length <= 1) {
+      return { ok: false, error: 'Debe quedar al menos un correo de cotización.' };
+    }
+    var next = deepClone(catalog);
+    var removed = next.emails.find(function (e) {
+      return e.id === eid;
+    });
+    next.emails = next.emails.filter(function (e) {
+      return e.id !== eid;
+    });
+    if (!removed) return { ok: false, error: 'Correo no encontrado.' };
+    if (removed.isDefault && next.emails.length) {
+      next.emails[0] = Object.assign({}, next.emails[0], { isDefault: true });
+    }
+    catalog = next;
+    saveCatalogLocal(catalog);
+    syncQuoteEmailAfterCatalogChange();
+    return { ok: true, catalog: catalog };
+  }
+
+  function setDefaultEmailLocal(id) {
+    var eid = String(id || '').trim();
+    var next = deepClone(catalog);
+    var found = false;
+    next.emails = (next.emails || []).map(function (e) {
+      var isDef = e.id === eid;
+      if (isDef) found = true;
+      return Object.assign({}, e, { isDefault: isDef });
+    });
+    if (!found) return { ok: false, error: 'Correo no encontrado.' };
+    catalog = next;
+    saveCatalogLocal(catalog);
+    syncQuoteEmailAfterCatalogChange();
     return { ok: true, catalog: catalog };
   }
 
@@ -598,6 +750,8 @@
     state.globalDiscount = deepClone(DEFAULTS.globalDiscount);
     if (opts.resetExport) {
       state.export = deepClone(DEFAULTS.export);
+      state.export.description = DEFAULT_SERVICE_DESCRIPTION;
+      state.export.quoteEmail = getDefaultCatalogEmail();
     }
     currentSavedQuoteId = '';
     workflowMeta = { status: 'pendiente', linkedOrderId: '', clientEmail: '' };
@@ -622,7 +776,13 @@
     }
     if (String(exp.clientName || '').trim() || String(exp.clientEmail || '').trim()) return true;
     if (String(exp.clientPhone || '').trim()) return true;
-    if (String(exp.orderTitle || '').trim() || String(exp.description || '').trim()) return true;
+    if (String(exp.orderTitle || '').trim()) return true;
+    if (
+      String(exp.description || '').trim() &&
+      String(exp.description) !== DEFAULT_SERVICE_DESCRIPTION
+    ) {
+      return true;
+    }
     if (String(exp.extraNotes || '').trim()) return true;
     if (!isDefaultProduct(p, 0)) return true;
     if (state.globalDiscount && state.globalDiscount.enabled) return true;
@@ -692,9 +852,11 @@
     }
     ensureProducts(s);
     if (!s.export) s.export = deepClone(DEFAULTS.export);
-    if (!s.export.quoteEmail) s.export.quoteEmail = DEFAULTS.export.quoteEmail;
     if (s.export.clientPhone === undefined) s.export.clientPhone = '';
-    s.export.quoteEmail = normalizeQuoteEmail(s.export.quoteEmail);
+    if (s.export.description === undefined || s.export.description === null) {
+      s.export.description = DEFAULT_SERVICE_DESCRIPTION;
+    }
+    s.export.quoteEmail = resolveQuoteEmailSelection(s.export.quoteEmail);
     return s;
   }
 
@@ -1398,13 +1560,13 @@
       selectHtml(
         'cq-quoteEmail',
         'Correo cotización',
-        normalizeQuoteEmail(exp.quoteEmail),
-        QUOTE_EMAILS
+        resolveQuoteEmailSelection(exp.quoteEmail),
+        buildQuoteEmailOptions(exp.quoteEmail)
       ) +
       '<label class="cq-field cq-field--input">' +
       '<span class="cq-field__label">Descripción del servicio</span>' +
-      '<textarea id="cq-description" data-cq-field="cq-description" rows="3" placeholder="Impresión 3D de alta calidad&#10;Logo personalizado&#10;Color a elegir">' +
-      escapeHtml(exp.description) +
+      '<textarea id="cq-description" data-cq-field="cq-description" rows="3" placeholder="Agregá o modificá los servicios incluidos...">' +
+      escapeHtml(exp.description != null ? exp.description : DEFAULT_SERVICE_DESCRIPTION) +
       '</textarea></label></div></div>' +
       '<div class="cq-export-block">' +
       '<h4 class="cq-export-block__title">Vigencia y entrega</h4>' +
@@ -1612,11 +1774,86 @@
     );
   }
 
+  function renderEmailCatalogList() {
+    var emails = getCatalogEmails();
+    if (!emails.length) {
+      return '<p class="cq-muted cq-catalog-empty">Sin correos todavía.</p>';
+    }
+    return (
+      '<ul class="cq-catalog-list">' +
+      emails
+        .map(function (item) {
+          var primary = String(item.label || '').trim() || item.email;
+          var secondary = item.email + (item.isDefault ? '' : '');
+          return (
+            '<li class="cq-catalog-list__item">' +
+            '<div class="cq-catalog-list__main">' +
+            '<strong>' +
+            escapeHtml(primary) +
+            '</strong>' +
+            '<span>' +
+            escapeHtml(secondary) +
+            (item.isDefault ? ' · PREDETERMINADO' : '') +
+            '</span></div>' +
+            '<div class="cq-catalog-list__actions">' +
+            (item.isDefault
+              ? ''
+              : '<button type="button" class="btn btn--ghost btn--sm" data-cq-email-default="' +
+                escapeHtml(item.id) +
+                '">Predeterminado</button>') +
+            '<button type="button" class="btn btn--ghost btn--sm" data-cq-catalog-edit="email" data-id="' +
+            escapeHtml(item.id) +
+            '">Editar</button>' +
+            '<button type="button" class="btn btn--ghost btn--sm cq-btn-danger" data-cq-catalog-del="email" data-id="' +
+            escapeHtml(item.id) +
+            '">Eliminar</button>' +
+            '</div></li>'
+          );
+        })
+        .join('') +
+      '</ul>'
+    );
+  }
+
+  function renderEmailsCatalogPanel() {
+    return (
+      '<section class="cq-card cq-catalog-panel">' +
+      '<h3 class="cq-card__title">Correos de cotización</h3>' +
+      '<p class="cq-muted">Administrá los correos que pueden aparecer en las cotizaciones y elegí cuál se usará de forma predeterminada.</p>' +
+      '<div class="cq-catalog-form">' +
+      '<input type="hidden" id="cq-catalog-email-id" value="" />' +
+      '<div class="cq-grid cq-grid--2">' +
+      inputHtml('cq-catalog-email-address', 'Correo electrónico *', '', {
+        type: 'email',
+        placeholder: 'cotizaciones@ejemplo.com',
+        noCommit: true,
+      }) +
+      inputHtml('cq-catalog-email-label', 'Etiqueta opcional', '', {
+        type: 'text',
+        placeholder: 'Ej. Cotizaciones',
+        noCommit: true,
+      }) +
+      '</div>' +
+      '<label class="cq-field cq-field--input cq-field--check">' +
+      '<span class="cq-check-row">' +
+      '<input type="checkbox" id="cq-catalog-email-default" />' +
+      '<span>Usar como predeterminado</span></span></label>' +
+      '<div class="cq-catalog-form__actions">' +
+      '<button type="button" class="btn btn--primary btn--sm" id="cq-catalog-email-save">Guardar correo</button>' +
+      '<button type="button" class="btn btn--ghost btn--sm" id="cq-catalog-email-cancel" hidden>Cancelar</button>' +
+      '</div></div>' +
+      renderEmailCatalogList() +
+      '<p id="cq-catalog-msg" class="cq-history-msg" hidden></p>' +
+      '</section>'
+    );
+  }
+
   function renderCatalogPanel() {
     if (isRestrictedPartner() && activePanel !== 'additionals') return '';
     if (activePanel === 'additionals') return renderAdditionalsCatalogPanel();
     if (activePanel === 'printers') return renderPrintersCatalogPanel();
     if (activePanel === 'materials') return renderMaterialsCatalogPanel();
+    if (activePanel === 'emails') return renderEmailsCatalogPanel();
     return '';
   }
 
@@ -2011,7 +2248,7 @@
     state.export.paymentTerms = g('cq-paymentTerms');
     state.export.warranty = g('cq-warranty');
     state.export.extraNotes = g('cq-extraNotes');
-    state.export.quoteEmail = normalizeQuoteEmail(g('cq-quoteEmail') || state.export.quoteEmail);
+    state.export.quoteEmail = resolveQuoteEmailSelection(g('cq-quoteEmail') || state.export.quoteEmail);
     syncCostSelections(state);
     var ivaEl = $('#cq-includeIva', root);
     state.export.includeIva = !!(ivaEl && ivaEl.checked);
@@ -2478,24 +2715,29 @@
           additionals: Array.isArray(data.additionals) ? data.additionals : [],
           printers: Array.isArray(data.printers) ? data.printers : [],
           materials: Array.isArray(data.materials) ? data.materials : [],
+          emails: Array.isArray(data.emails) ? data.emails : [],
         };
-        if (!catalog.printers.length || !catalog.materials.length) {
+        if (!catalog.printers.length || !catalog.materials.length || !catalog.emails.length) {
           var defaults = defaultCatalog();
           if (!catalog.printers.length) catalog.printers = defaults.printers;
           if (!catalog.materials.length) catalog.materials = defaults.materials;
+          if (!catalog.emails.length) catalog.emails = defaults.emails;
         }
         saveCatalogLocal(catalog);
         syncCostSelections(state);
+        syncQuoteEmailAfterCatalogChange();
       })
       .catch(function () {
         catalogApiAvailable = false;
         catalog = loadCatalogLocal();
-        if (!catalog.printers.length || !catalog.materials.length) {
+        if (!catalog.printers.length || !catalog.materials.length || !catalog.emails.length) {
           var defaults = defaultCatalog();
           if (!catalog.printers.length) catalog.printers = defaults.printers;
           if (!catalog.materials.length) catalog.materials = defaults.materials;
+          if (!catalog.emails.length) catalog.emails = defaults.emails;
         }
         syncCostSelections(state);
+        syncQuoteEmailAfterCatalogChange();
       });
   }
 
@@ -2539,14 +2781,27 @@
       if (mname) mname.value = '';
       if (mprice) mprice.value = '20500';
       if (mcancel) mcancel.hidden = true;
+    } else if (kind === 'email') {
+      var eid = document.getElementById('cq-catalog-email-id');
+      var eaddr = document.getElementById('cq-catalog-email-address');
+      var elabel = document.getElementById('cq-catalog-email-label');
+      var edef = document.getElementById('cq-catalog-email-default');
+      var ecancel = document.getElementById('cq-catalog-email-cancel');
+      if (eid) eid.value = '';
+      if (eaddr) eaddr.value = '';
+      if (elabel) elabel.value = '';
+      if (edef) edef.checked = false;
+      if (ecancel) ecancel.hidden = true;
     }
   }
 
   function applyCatalogResponse(data) {
     if (data && data.catalog) {
       catalog = data.catalog;
+      if (!Array.isArray(catalog.emails)) catalog.emails = [];
       saveCatalogLocal(catalog);
       syncCostSelections(state);
+      syncQuoteEmailAfterCatalogChange();
     }
   }
 
@@ -3003,11 +3258,27 @@
     bindTabNavigation(root);
   }
 
+  function runDeleteConfirm(message, onConfirm) {
+    if (window.NinjaConfirm && typeof window.NinjaConfirm.show === 'function') {
+      window.NinjaConfirm.show({
+        title: 'Confirmar eliminación',
+        message: message,
+        confirmLabel: 'Eliminar',
+        confirmClass: 'btn-danger',
+        destructive: true,
+        onConfirm: onConfirm,
+      });
+      return;
+    }
+    if (confirm(message)) onConfirm();
+  }
+
   function bindCatalogPanel(root) {
     if (activePanel === 'additionals') bindAdditionalCatalog(root);
     if (!isRestrictedPartner()) {
       if (activePanel === 'printers') bindPrinterCatalog(root);
       if (activePanel === 'materials') bindMaterialCatalog(root);
+      if (activePanel === 'emails') bindEmailCatalog(root);
     }
 
     root.querySelectorAll('[data-cq-catalog-edit]').forEach(function (btn) {
@@ -3056,7 +3327,54 @@
           if (mname) mname.value = material.name;
           if (mprice) mprice.value = material.kgPrice;
           if (mcancel) mcancel.hidden = false;
+        } else if (kind === 'email') {
+          var emailItem = getCatalogEmails().find(function (e) {
+            return e.id === id;
+          });
+          if (!emailItem) return;
+          var eid = $('#cq-catalog-email-id', root);
+          var eaddr = $('#cq-catalog-email-address', root);
+          var elabel = $('#cq-catalog-email-label', root);
+          var edef = $('#cq-catalog-email-default', root);
+          var ecancel = $('#cq-catalog-email-cancel', root);
+          if (eid) eid.value = emailItem.id;
+          if (eaddr) eaddr.value = emailItem.email;
+          if (elabel) elabel.value = emailItem.label || '';
+          if (edef) edef.checked = !!emailItem.isDefault;
+          if (ecancel) ecancel.hidden = false;
         }
+      });
+    });
+
+    root.querySelectorAll('[data-cq-email-default]').forEach(function (btn) {
+      if (btn._cqBound) return;
+      btn._cqBound = true;
+      btn.addEventListener('click', function () {
+        if (isRestrictedPartner()) return;
+        var id = btn.getAttribute('data-cq-email-default');
+        btn.disabled = true;
+        saveCatalogViaApi(
+          '/api/admin/cost-quote-catalog/emails/' + encodeURIComponent(id) + '/default',
+          {},
+          function () {
+            return setDefaultEmailLocal(id);
+          }
+        )
+          .then(function (result) {
+            refresh(root);
+            showCatalogMsg(
+              root,
+              result.localFallback
+                ? 'Predeterminado actualizado en este navegador.'
+                : 'Correo predeterminado actualizado.'
+            );
+          })
+          .catch(function (e) {
+            showCatalogMsg(root, e.message || 'No se pudo actualizar el predeterminado.', true);
+          })
+          .finally(function () {
+            btn.disabled = false;
+          });
       });
     });
 
@@ -3072,32 +3390,81 @@
             ? '/api/admin/cost-quote-catalog/additionals/'
             : kind === 'printer'
               ? '/api/admin/cost-quote-catalog/printers/'
-              : '/api/admin/cost-quote-catalog/materials/';
-        if (!confirm('¿Eliminar este registro?')) return;
-        btn.disabled = true;
-        deleteCatalogViaApi(path, id, function (delId) {
-          if (kind === 'additional') return deleteAdditionalLocal(delId);
-          if (kind === 'printer') return deletePrinterLocal(delId);
-          return deleteMaterialLocal(delId);
-        })
-          .then(function (result) {
-            resetCatalogForm(kind);
-            refresh(root);
-            showCatalogMsg(
-              root,
-              result.localFallback
-                ? 'Eliminado en este navegador. Desplegá el servidor para sincronizar en producción.'
-                : 'Registro eliminado.'
-            );
+              : kind === 'email'
+                ? '/api/admin/cost-quote-catalog/emails/'
+                : '/api/admin/cost-quote-catalog/materials/';
+        var confirmMsg =
+          kind === 'email'
+            ? '¿Eliminar este correo de cotización?'
+            : '¿Eliminar este registro?';
+        runDeleteConfirm(confirmMsg, function () {
+          btn.disabled = true;
+          deleteCatalogViaApi(path, id, function (delId) {
+            if (kind === 'additional') return deleteAdditionalLocal(delId);
+            if (kind === 'printer') return deletePrinterLocal(delId);
+            if (kind === 'email') return deleteEmailLocal(delId);
+            return deleteMaterialLocal(delId);
           })
-          .catch(function (e) {
-            showCatalogMsg(root, e.message || 'No se pudo eliminar.', true);
-          })
-          .finally(function () {
-            btn.disabled = false;
-          });
+            .then(function (result) {
+              resetCatalogForm(kind);
+              refresh(root);
+              showCatalogMsg(
+                root,
+                result.localFallback
+                  ? 'Eliminado en este navegador. Desplegá el servidor para sincronizar en producción.'
+                  : 'Registro eliminado.'
+              );
+            })
+            .catch(function (e) {
+              showCatalogMsg(root, e.message || 'No se pudo eliminar.', true);
+            })
+            .finally(function () {
+              btn.disabled = false;
+            });
+        });
       });
     });
+  }
+
+  function bindEmailCatalog(root) {
+    var saveBtn = $('#cq-catalog-email-save', root);
+    var cancelBtn = $('#cq-catalog-email-cancel', root);
+    if (saveBtn && !saveBtn._cqBound) {
+      saveBtn._cqBound = true;
+      saveBtn.addEventListener('click', function () {
+        var idEl = $('#cq-catalog-email-id', root);
+        var addrEl = $('#cq-catalog-email-address', root);
+        var labelEl = $('#cq-catalog-email-label', root);
+        var defEl = $('#cq-catalog-email-default', root);
+        var body = {
+          id: idEl ? idEl.value : '',
+          email: addrEl ? addrEl.value : '',
+          label: labelEl ? labelEl.value : '',
+          isDefault: !!(defEl && defEl.checked),
+        };
+        var wasEdit = !!String(body.id || '').trim();
+        saveBtn.disabled = true;
+        saveCatalogViaApi('/api/admin/cost-quote-catalog/emails', body, upsertEmailLocal)
+          .then(function (result) {
+            resetCatalogForm('email');
+            refresh(root);
+            showCatalogMsg(root, catalogSavedMsg(wasEdit, result.localFallback));
+          })
+          .catch(function (e) {
+            showCatalogMsg(root, e.message || 'No se pudo guardar.', true);
+          })
+          .finally(function () {
+            saveBtn.disabled = false;
+          });
+      });
+    }
+    if (cancelBtn && !cancelBtn._cqBound) {
+      cancelBtn._cqBound = true;
+      cancelBtn.addEventListener('click', function () {
+        resetCatalogForm('email');
+        cancelBtn.hidden = true;
+      });
+    }
   }
 
   function bindAdditionalCatalog(root) {
@@ -3217,7 +3584,11 @@
   function mount(opts) {
     opts = opts || {};
     partnerMode = !!opts.partnerMode;
-    if (partnerMode && activePanel !== 'quote' && activePanel !== 'additionals') {
+    if (
+      partnerMode &&
+      activePanel !== 'quote' &&
+      activePanel !== 'additionals'
+    ) {
       activePanel = 'quote';
     }
     var root = document.getElementById('admin-cost-quote-app');

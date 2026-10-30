@@ -102,6 +102,36 @@ exports.deleteMaterial = async (req, res, next) => {
   }
 };
 
+exports.upsertEmail = async (req, res, next) => {
+  try {
+    const r = await catalogStore.upsertEmail(req.body || {});
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json(r);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteEmail = async (req, res, next) => {
+  try {
+    const r = await catalogStore.deleteEmail(req.params.id);
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json(r);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.setDefaultEmail = async (req, res, next) => {
+  try {
+    const r = await catalogStore.setDefaultEmail(req.params.id);
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json(r);
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── Quotes API ──
 
 exports.listQuotes = async (req, res, next) => {

@@ -28,6 +28,9 @@ apiRouter.post('/cost-quote-catalog/printers', ...admin, csrf, controller.upsert
 apiRouter.delete('/cost-quote-catalog/printers/:id', ...admin, csrf, controller.deletePrinter);
 apiRouter.post('/cost-quote-catalog/materials', ...admin, csrf, controller.upsertMaterial);
 apiRouter.delete('/cost-quote-catalog/materials/:id', ...admin, csrf, controller.deleteMaterial);
+apiRouter.post('/cost-quote-catalog/emails', ...admin, csrf, controller.upsertEmail);
+apiRouter.delete('/cost-quote-catalog/emails/:id', ...admin, csrf, controller.deleteEmail);
+apiRouter.post('/cost-quote-catalog/emails/:id/default', ...admin, csrf, controller.setDefaultEmail);
 
 apiRouter.get('/cost-quotes', ...admin, controller.listQuotes);
 apiRouter.get('/cost-quotes/:id', ...admin, controller.loadQuote);

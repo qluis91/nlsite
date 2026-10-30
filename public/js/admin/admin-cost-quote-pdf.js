@@ -20,18 +20,13 @@
     web: 'www.ninjalab3d.com',
     email: 'lquijano@ninjalab3d.com',
   };
-  var QUOTE_EMAILS = [
-    'info@ninjalab3d.com',
-    'lquijano@ninjalab3d.com',
-    'badilla@ninjalab3d.com',
-  ];
-
   function resolveQuoteEmail(state) {
     var exp = (state && state.export) || {};
-    var raw = String(exp.quoteEmail || BRAND.email)
+    var raw = String(exp.quoteEmail || '')
       .trim()
       .toLowerCase();
-    if (QUOTE_EMAILS.indexOf(raw) !== -1) return raw;
+    // Use the quote snapshot email as-is for historical reproducibility.
+    if (raw) return raw;
     return BRAND.email;
   }
 
