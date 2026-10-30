@@ -33,15 +33,17 @@
   }
 
   var DEFAULT_PRODUCT = {
-    name: 'Copa Mundial',
-    quantity: 2,
-    grams: 385,
-    printHours: 14.5,
+    name: '',
+    quantity: 1,
+    grams: '',
+    printHours: '',
     qtyInputMode: 'unit',
     description: DEFAULT_SERVICE_DESCRIPTION,
     costOverrides: emptyCostOverrides(),
     additionals: [],
+    salePriceInputMode: 'unit',
     salePriceManual: 0,
+    salePriceTotalManual: 0,
     salePriceTouched: false,
     saleDiscountEnabled: false,
     saleDiscountPercent: 0,
@@ -170,19 +172,25 @@
     return names[0] + ' +' + (names.length - 1) + ' más';
   }
 
+  function isBlankNumericField(v) {
+    return v === '' || v === null || v === undefined;
+  }
+
   function isDefaultProduct(p, idx) {
     if (!p || idx !== 0) return false;
-    var d = DEFAULT_PRODUCT;
-    if (String(p.name || '').trim() !== d.name) return false;
-    if (num(p.quantity) !== d.quantity) return false;
-    if (num(p.grams) !== d.grams) return false;
-    if (num(p.printHours) !== d.printHours) return false;
+    if (String(p.name || '').trim() !== '') return false;
+    if (num(p.quantity, 1) !== 1) return false;
+    if (num(p.grams) !== 0) return false;
+    if (num(p.printHours) !== 0) return false;
     if (p.salePriceTouched) return false;
+    if (p.saleDiscountEnabled) return false;
     if (getProductAdditionals(p).some(function (a) {
       return !isEmptyAdditional(a);
     })) {
       return false;
     }
+    var desc = String(p.description || '');
+    if (desc.trim() && desc !== DEFAULT_SERVICE_DESCRIPTION) return false;
     return true;
   }
 
@@ -361,6 +369,98 @@
     } catch (e) {
       return '₡' + v.toLocaleString('es-CR');
     }
+  }
+
+  function fmtCrcPrecise(n) {
+    var x = num(n);
+    if (Math.abs(x - Math.round(x)) < 1e-9) return fmtCrc(x);
+    try {
+      return new Intl.NumberFormat('es-CR', {
+        style: 'currency',
+        currency: 'CRC',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(x);
+    } catch (e) {
+      return '₡' + x.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+  }
+
+  function normalizeSalePriceInputMode(value) {
+    return value === 'total' ? 'total' : 'unit';
+  }
+
+  function resolveProductSalePrice(product, quantity, suggestedUnitPrice) {
+    var p = product || {};
+    var qty = Math.max(0, num(quantity, 0));
+    var suggestedUnit = Math.round(num(suggestedUnitPrice));
+    var inputMode = normalizeSalePriceInputMode(p.salePriceInputMode);
+    var manual = !!p.salePriceTouched;
+    if (!manual) {
+      var autoTotal = Math.round(suggestedUnit * qty);
+      return {
+        inputMode: inputMode,
+        manual: false,
+        unitPrice: suggestedUnit,
+        productTotal: autoTotal,
+        enteredUnit: suggestedUnit,
+        enteredTotal: autoTotal,
+      };
+    }
+    if (inputMode === 'total') {
+      var enteredTotal = Math.round(num(p.salePriceTotalManual));
+      var unitFromTotal = qty > 0 ? enteredTotal / qty : 0;
+      return {
+        inputMode: 'total',
+        manual: true,
+        unitPrice: unitFromTotal,
+        productTotal: enteredTotal,
+        enteredUnit: unitFromTotal,
+        enteredTotal: enteredTotal,
+      };
+    }
+    var enteredUnit = Math.round(num(p.salePriceManual));
+    var unitTotal = Math.round(enteredUnit * qty);
+    return {
+      inputMode: 'unit',
+      manual: true,
+      unitPrice: enteredUnit,
+      productTotal: unitTotal,
+      enteredUnit: enteredUnit,
+      enteredTotal: unitTotal,
+    };
+  }
+
+  function applyDiscountToSalePrice(sale, quantity, discountPercent) {
+    var qty = Math.max(0, num(quantity, 0));
+    var discount = Math.max(0, Math.min(100, num(discountPercent)));
+    if (discount <= 0) {
+      return {
+        baseSale: sale.unitPrice,
+        baseSaleTotal: sale.productTotal,
+        saleUnit: sale.unitPrice,
+        clientTotal: sale.productTotal,
+        discountPercent: 0,
+      };
+    }
+    if (sale.inputMode === 'total' && sale.manual) {
+      var clientTotal = Math.round(sale.productTotal * (1 - discount / 100));
+      return {
+        baseSale: sale.unitPrice,
+        baseSaleTotal: sale.productTotal,
+        saleUnit: qty > 0 ? clientTotal / qty : 0,
+        clientTotal: clientTotal,
+        discountPercent: discount,
+      };
+    }
+    var saleUnit = sale.unitPrice * (1 - discount / 100);
+    return {
+      baseSale: sale.unitPrice,
+      baseSaleTotal: sale.productTotal,
+      saleUnit: saleUnit,
+      clientTotal: saleUnit * qty,
+      discountPercent: discount,
+    };
   }
 
   function fmtQuoteDate(ts) {
@@ -768,12 +868,14 @@
   }
 
   function gramsDisplayValue(p) {
+    if (isBlankNumericField(p.grams)) return '';
     var qty = getProductQty(p);
     var grams = num(p.grams);
     return isTotalQtyInputMode(p) ? grams * qty : grams;
   }
 
   function printHoursDisplayValue(p) {
+    if (isBlankNumericField(p.printHours)) return '';
     var qty = getProductQty(p);
     var hours = num(p.printHours);
     return isTotalQtyInputMode(p) ? hours * qty : hours;
@@ -888,6 +990,10 @@
     }
     if (p.qtyInputMode !== 'total') p.qtyInputMode = 'unit';
     if (getProductQty(p) <= 1) p.qtyInputMode = 'unit';
+    if (p.salePriceInputMode !== 'total') p.salePriceInputMode = 'unit';
+    if (p.salePriceTotalManual === undefined) p.salePriceTotalManual = 0;
+    if (p.salePriceManual === undefined) p.salePriceManual = 0;
+    if (p.salePriceTouched === undefined) p.salePriceTouched = false;
     if (p.saleDiscountEnabled === undefined) p.saleDiscountEnabled = false;
     if (p.saleDiscountPercent === undefined) p.saleDiscountPercent = 0;
     if (!p.costOverrides || typeof p.costOverrides !== 'object') {
@@ -1230,21 +1336,63 @@
     var main = computeLine(state, product, qty, 0);
     if (!product.salePriceTouched) {
       product.salePriceManual = Math.round(main.suggestedPrice);
+      product.salePriceTotalManual = Math.round(main.suggestedPrice) * qty;
+      if (product.salePriceInputMode !== 'total') product.salePriceInputMode = 'unit';
     }
     return main;
   }
 
   function updateSalePriceTouchedFromDom(root, st, productIdx) {
-    var saleEl = $('#cq-salePrice-' + productIdx, root);
-    if (!saleEl) return;
+    var unitEl = $('#cq-salePrice-' + productIdx, root);
+    var totalEl = $('#cq-salePriceTotal-' + productIdx, root);
+    if (!unitEl && !totalEl) return;
     var result = computeAll(st);
     var pr = result.products[productIdx];
     if (!pr) return;
-    var suggested = Math.round(pr.line.suggestedPrice);
-    var entered = num(saleEl.value);
-    pr.product.salePriceTouched = entered !== suggested;
-    if (!pr.product.salePriceTouched) {
-      pr.product.salePriceManual = suggested;
+    var prod = pr.product;
+    var qty = Math.max(1, num(prod.quantity, 1));
+    var suggestedUnit = Math.round(pr.line.suggestedPrice);
+    var suggestedTotal = Math.round(suggestedUnit * qty);
+    var prevMode = normalizeSalePriceInputMode(prod.salePriceInputMode);
+
+    if (totalEl && !totalEl.readOnly && !totalEl.disabled) {
+      var enteredTotal = Math.round(num(totalEl.value));
+      if (enteredTotal === suggestedTotal) {
+        prod.salePriceTouched = false;
+        prod.salePriceManual = suggestedUnit;
+        prod.salePriceTotalManual = suggestedTotal;
+        return;
+      }
+      // Editing total while still in unit mode with same economics keeps unit mode.
+      if (prevMode === 'unit' && prod.salePriceTouched) {
+        var expectedFromUnit = Math.round(num(prod.salePriceManual) * qty);
+        if (enteredTotal === expectedFromUnit) return;
+      }
+      prod.salePriceTouched = true;
+      prod.salePriceInputMode = 'total';
+      prod.salePriceTotalManual = enteredTotal;
+      prod.salePriceManual = qty > 0 ? enteredTotal / qty : 0;
+      return;
+    }
+
+    if (unitEl) {
+      var enteredUnit = num(unitEl.value);
+      var enteredUnitRounded = Math.round(enteredUnit);
+      if (enteredUnitRounded === suggestedUnit && Math.abs(enteredUnit - suggestedUnit) < 0.005) {
+        prod.salePriceTouched = false;
+        prod.salePriceManual = suggestedUnit;
+        prod.salePriceTotalManual = suggestedTotal;
+        return;
+      }
+      // Editing unit display while total mode is authoritative: ignore no-op rounding.
+      if (prevMode === 'total' && prod.salePriceTouched) {
+        var expectedFromTotal = num(prod.salePriceTotalManual) / qty;
+        if (Math.abs(enteredUnit - expectedFromTotal) < 0.005) return;
+      }
+      prod.salePriceTouched = true;
+      prod.salePriceInputMode = 'unit';
+      prod.salePriceManual = enteredUnitRounded;
+      prod.salePriceTotalManual = Math.round(enteredUnitRounded * qty);
     }
   }
 
@@ -1263,9 +1411,12 @@
     var suggestedPrice = Math.round(
       markupBase * (1 + num(resolved.profitPercent) / 100) + additionalsCost
     );
-    var baseSale = p.salePriceTouched ? num(p.salePriceManual) : suggestedPrice;
-    var discount = Math.max(0, Math.min(100, num(discountPercent)));
-    var saleUnit = baseSale * (1 - discount / 100);
+    var sale = resolveProductSalePrice(p, qty, suggestedPrice);
+    var priced = applyDiscountToSalePrice(sale, qty, discountPercent);
+    var saleUnit = priced.saleUnit;
+    var baseSale = priced.baseSale;
+    var clientTotal = priced.clientTotal;
+    var discount = priced.discountPercent;
     var designCost = num(resolved.designCost);
     var materialCostTotal = materialCost * qty;
     var electricityCostTotal = electricityCost * qty;
@@ -1277,8 +1428,8 @@
       machineWearCostTotal +
       additionalsCostTotal +
       designCost;
-    var netUnit = saleUnit - unitCost;
-    var netTotal = netUnit * qty;
+    var netTotal = clientTotal - unitCost * qty;
+    var netUnit = qty > 0 ? netTotal / qty : 0;
     var alexPct = num(state.alexPercent, DEFAULTS.alexPercent);
     var luisPct = num(state.luisPercent, DEFAULTS.luisPercent);
     return {
@@ -1301,6 +1452,8 @@
       suggestedTotal: suggestedPrice * qty,
       saleUnit: saleUnit,
       baseSale: baseSale,
+      baseSaleTotal: priced.baseSaleTotal,
+      salePriceInputMode: sale.inputMode,
       discountPercent: discount,
       netUnit: netUnit,
       netTotal: netTotal,
@@ -1308,7 +1461,7 @@
       luisUnitShare: netUnit * (luisPct / 100),
       alexShare: netTotal * (alexPct / 100),
       luisShare: netTotal * (luisPct / 100),
-      clientTotal: saleUnit * qty,
+      clientTotal: clientTotal,
     };
   }
 
@@ -1344,7 +1497,7 @@
     var production = buildProductionTotals(productResults);
     var designCost = production.designCost;
     var subtotalGross = productResults.reduce(function (s, pr) {
-      return s + pr.line.saleUnit * pr.line.quantity;
+      return s + num(pr.line.clientTotal);
     }, 0);
     var suggestedTotal = productResults.reduce(function (s, pr) {
       return s + pr.line.suggestedPrice * pr.line.quantity;
@@ -1442,7 +1595,7 @@
     productResults.forEach(function (pr) {
       var l = computeLine(state, pr.product, pr.product.quantity, discountPct);
       lines.push({ product: pr.product, line: l });
-      subtotal += l.saleUnit * l.quantity;
+      subtotal += num(l.clientTotal);
       qty += l.quantity;
     });
     var production = buildProductionTotals(lines);
@@ -2450,13 +2603,70 @@
     );
   }
 
+  function renderSalePriceFields(p, m, productIdx) {
+    var qty = getProductQty(p);
+    var sale = resolveProductSalePrice(p, qty, m.suggestedPrice);
+    var displayTotal = Math.round(num(m.clientTotal, sale.productTotal));
+    var displayUnit = qty > 0 ? num(m.saleUnit, sale.unitPrice) : sale.unitPrice;
+    var editTotal = isTotalQtyInputMode(p);
+    var suggestedUnit = Math.round(m.suggestedPrice);
+    var suggestedTotal = suggestedUnit * qty;
+    var editableUnit = p.salePriceTouched ? sale.unitPrice : suggestedUnit;
+    var editableTotal = p.salePriceTouched ? Math.round(sale.productTotal) : suggestedTotal;
+    // Prefer exact stored total when total-mode is authoritative.
+    if (p.salePriceTouched && normalizeSalePriceInputMode(p.salePriceInputMode) === 'total') {
+      editableTotal = Math.round(num(p.salePriceTotalManual, sale.productTotal));
+      editableUnit = qty > 0 ? editableTotal / qty : 0;
+    } else if (p.salePriceTouched) {
+      editableUnit = Math.round(num(p.salePriceManual, sale.unitPrice));
+      editableTotal = Math.round(editableUnit * qty);
+    }
+
+    if (qty <= 1) {
+      return inputHtml('cq-salePrice-' + productIdx, 'Precio de venta / unidad', Math.round(editableUnit), {
+        min: 0,
+        step: 1,
+      });
+    }
+
+    if (editTotal) {
+      return (
+        '<div class="cq-price-pair__sale-dual">' +
+        '<div class="cq-price-pair__sale-total-ro">' +
+        '<span class="cq-price-pair__label">Precio de venta / unidad</span>' +
+        '<span class="cq-price-pair__value">' +
+        escapeHtml(fmtCrcPrecise(displayUnit)) +
+        '</span></div>' +
+        inputHtml('cq-salePriceTotal-' + productIdx, 'Precio de venta total', editableTotal, {
+          min: 0,
+          step: 1,
+        }) +
+        '</div>'
+      );
+    }
+
+    var unitStep = Math.abs(editableUnit - Math.round(editableUnit)) < 1e-9 ? 1 : 0.01;
+    var unitInputVal =
+      unitStep === 1 ? Math.round(editableUnit) : Math.round(editableUnit * 100) / 100;
+    return (
+      '<div class="cq-price-pair__sale-dual">' +
+      inputHtml('cq-salePrice-' + productIdx, 'Precio de venta / unidad', unitInputVal, {
+        min: 0,
+        step: unitStep,
+      }) +
+      '<div class="cq-price-pair__sale-total">' +
+      '<span class="cq-price-pair__label">Precio de venta total</span>' +
+      '<span class="cq-price-pair__value cq-price-pair__value--sale-total">' +
+      escapeHtml(fmtCrc(displayTotal)) +
+      '</span></div></div>'
+    );
+  }
+
   function renderProductCard(pr, productIdx, wholesaleOn) {
     var p = pr.product;
     var m = pr.line;
-    var saleDisplay = p.salePriceTouched ? p.salePriceManual : Math.round(m.suggestedPrice);
     var additionals = getProductAdditionals(p);
     var canRemove = ensureProducts(state).length > 1;
-    var qty = getProductQty(p);
     var descVal = p.description != null ? p.description : '';
     return (
       '<article class="cq-product-item" data-cq-product-index="' +
@@ -2476,7 +2686,7 @@
       '<div class="cq-grid cq-grid--2">' +
       inputHtml('cq-productName-' + productIdx, 'Nombre del producto', p.name, {
         type: 'text',
-        placeholder: 'Ej. Copa Mundial',
+        placeholder: 'Nombre del producto',
       }) +
       inputHtml('cq-quantity-' + productIdx, 'Cantidad', p.quantity, { min: 1, step: 1 }) +
       inputHtml('cq-grams-' + productIdx, gramsLabelForProduct(p), gramsDisplayValue(p), {
@@ -2510,14 +2720,7 @@
       renderSuggestedPriceBlock(m, p) +
       '<div class="cq-price-pair__arrow" aria-hidden="true">→</div>' +
       '<div class="cq-price-pair__sale">' +
-      inputHtml('cq-salePrice-' + productIdx, 'Precio de venta / unidad', saleDisplay, { min: 0, step: 1 }) +
-      (qty > 1
-        ? '<div class="cq-price-pair__sale-total">' +
-          '<span class="cq-price-pair__label">Precio de venta total</span>' +
-          '<span class="cq-price-pair__value cq-price-pair__value--sale-total">' +
-          fmtCrc(Math.round(m.saleUnit * qty)) +
-          '</span></div>'
-        : '') +
+      renderSalePriceFields(p, m, productIdx) +
       '</div></div>' +
       renderSaleDiscountBlock(p, m, wholesaleOn, productIdx) +
       '</article>'
@@ -2730,16 +2933,24 @@
       prod.quantity = Math.max(1, num(g('cq-quantity-' + productIdx), prod.quantity));
       if (prod.quantity <= 1) prod.qtyInputMode = 'unit';
       else if (prod.qtyInputMode !== 'total') prod.qtyInputMode = 'unit';
-      var gramsInput = num(g('cq-grams-' + productIdx), prod.grams);
-      var hoursInput = num(g('cq-printHours-' + productIdx), prod.printHours);
-      if (isTotalQtyInputMode(prod)) {
-        prod.grams = gramsInput / prod.quantity;
-        prod.printHours = hoursInput / prod.quantity;
+      var gramsRaw = g('cq-grams-' + productIdx);
+      var hoursRaw = g('cq-printHours-' + productIdx);
+      if (gramsRaw === '' || gramsRaw == null) {
+        prod.grams = '';
+      } else if (isTotalQtyInputMode(prod)) {
+        prod.grams = num(gramsRaw) / prod.quantity;
       } else {
-        prod.grams = gramsInput;
-        prod.printHours = hoursInput;
+        prod.grams = num(gramsRaw);
       }
-      prod.salePriceManual = num(g('cq-salePrice-' + productIdx), prod.salePriceManual);
+      if (hoursRaw === '' || hoursRaw == null) {
+        prod.printHours = '';
+      } else if (isTotalQtyInputMode(prod)) {
+        prod.printHours = num(hoursRaw) / prod.quantity;
+      } else {
+        prod.printHours = num(hoursRaw);
+      }
+      // Sale price fields are committed only via updateSalePriceTouchedFromDom
+      // so switching Ver totales/unidad cannot silently rewrite the authoritative total.
       var saleDiscEl = $('#cq-saleDiscountEnabled-' + productIdx, root);
       prod.saleDiscountEnabled = !!(saleDiscEl && saleDiscEl.checked);
       prod.saleDiscountPercent = Math.max(
@@ -3427,7 +3638,7 @@
 
   function salePriceIndexFromId(id) {
     if (!id) return -1;
-    var m = String(id).match(/^cq-salePrice-(\d+)$/);
+    var m = String(id).match(/^cq-salePrice(?:Total)?-(\d+)$/);
     return m ? parseInt(m[1], 10) : -1;
   }
 
@@ -3551,7 +3762,21 @@
         if (!state.products[productIdx]) return;
         var prod = state.products[productIdx];
         if (getProductQty(prod) <= 1) return;
-        prod.qtyInputMode = prod.qtyInputMode === 'total' ? 'unit' : 'total';
+        var nextMode = prod.qtyInputMode === 'total' ? 'unit' : 'total';
+        prod.qtyInputMode = nextMode;
+        // Seed display values from current economics without marking manual.
+        if (prod.salePriceTouched) {
+          var qty = getProductQty(prod);
+          var cur = resolveProductSalePrice(prod, qty, 0);
+          // Prefer current authoritative total/unit without rewriting mode.
+          if (normalizeSalePriceInputMode(prod.salePriceInputMode) === 'total') {
+            prod.salePriceTotalManual = Math.round(num(prod.salePriceTotalManual, cur.productTotal));
+            prod.salePriceManual = qty > 0 ? prod.salePriceTotalManual / qty : 0;
+          } else {
+            prod.salePriceManual = Math.round(num(prod.salePriceManual, cur.unitPrice));
+            prod.salePriceTotalManual = Math.round(num(prod.salePriceManual) * qty);
+          }
+        }
         refresh(root, true);
       });
     });
@@ -3626,7 +3851,7 @@
       addProductBtn.addEventListener('click', function () {
         state = readStateFromDom(root, state);
         ensureProducts(state);
-        state.products.push(defaultProduct({ name: 'Producto ' + (state.products.length + 1) }));
+        state.products.push(defaultProduct());
         refresh(root, true);
       });
     }
@@ -3686,7 +3911,7 @@
         if (hasQuoteWorkInProgress(root)) {
           if (!confirm('¿Empezar una cotización nueva? Los cambios no guardados se perderán.')) return;
         }
-        resetQuoteProductForNew({ keepProductName: true });
+        resetQuoteProductForNew({ keepProductName: false, resetExport: true });
         var sel = $('#cq-history-select', root);
         if (sel) sel.value = '';
         refresh(root, true);

@@ -3,6 +3,7 @@
 **Last updated:** 2026-10-30
 **Current phase:** Public services + quote requests + unified navbar
 **Next:** Optional quote↔cost_quotes integration; CMS-editable service pages; CSS variable homogenization
+- [x] **Cotización 3D sale total mode + clean defaults**: `salePriceInputMode` unit/total with exact total preservation; blank new-product defaults (qty 1); Nueva cotización resets product name.
 - [x] **Cotización 3D snapshot/profit/description fixes**: preserve historical payload cost snapshots; frontend profit excludes shipping (server parity); legacy `export.description` migration only when first product description property was missing.
 - [x] **Cotización 3D per-product costing**: base vs `costOverrides`; product descriptions + PDF material line; printer electricity/wear; Costos generales; tax-aware Resumen final; `migrateCostQuotePrinterCosts`.
 - [x] **Cotización 3D taxMode**: `included` | `add` | `excluded` via two exclusive checkboxes; payable `total_crc`/PDF/email/WhatsApp/Tilopay-base aligned; legacy `includeIva` in-memory map; no schema migration.

@@ -289,6 +289,41 @@
     return normalizeCostParams((state && state.costs) || {}, 'base');
   }
 
+  function normalizeSalePriceInputMode(value) {
+    return value === 'total' ? 'total' : 'unit';
+  }
+
+  function resolveProductSalePrice(product, quantity, suggestedUnitPrice) {
+    var p = product || {};
+    var qty = Math.max(0, Number(quantity) || 0);
+    var suggestedUnit = roundMoney(suggestedUnitPrice);
+    var inputMode = normalizeSalePriceInputMode(p.salePriceInputMode);
+    if (!p.salePriceTouched) {
+      return {
+        inputMode: inputMode,
+        manual: false,
+        unitPrice: suggestedUnit,
+        productTotal: roundMoney(suggestedUnit * qty),
+      };
+    }
+    if (inputMode === 'total') {
+      var enteredTotal = roundMoney(Number(p.salePriceTotalManual) || 0);
+      return {
+        inputMode: 'total',
+        manual: true,
+        unitPrice: qty > 0 ? enteredTotal / qty : 0,
+        productTotal: enteredTotal,
+      };
+    }
+    var enteredUnit = roundMoney(Number(p.salePriceManual) || 0);
+    return {
+      inputMode: 'unit',
+      manual: true,
+      unitPrice: enteredUnit,
+      productTotal: roundMoney(enteredUnit * qty),
+    };
+  }
+
   function getGrossUnitBeforeDiscount(state, product) {
     var p = product || getLegacyProduct(state);
     var c = resolveProductCostParams(state, p);
@@ -299,10 +334,9 @@
     var suggestedFull = roundMoney(
       productionCost * (1 + (Number(c.profitPercent) || 0) / 100) + additionals
     );
-    if (p.salePriceTouched) {
-      return roundMoney(Number(p.salePriceManual) || 0);
-    }
-    return suggestedFull;
+    var qty = Math.max(1, Number(p.quantity) || 1);
+    var sale = resolveProductSalePrice(p, qty, suggestedFull);
+    return sale.unitPrice;
   }
 
   function getLegacyProduct(state) {
@@ -319,9 +353,6 @@
   function getProductGrossUnit(state, product) {
     var p = product || getLegacyProduct(state);
     var additionals = sumAdditionalsAmount(p);
-    if (p.salePriceTouched) {
-      return roundMoney(Number(p.salePriceManual) || 0);
-    }
     return roundMoney(getGrossUnitBeforeDiscount(state, p) - additionals);
   }
 
@@ -372,10 +403,18 @@
     bullets = bullets || [];
 
     if (wholesaleMode) {
-      var hiddenPerUnit = sumHiddenAdditionalsAmount(p);
-      var productGross = roundMoney(getProductGrossUnit(state, p) + hiddenPerUnit);
+      var visibleAdds = sumVisibleAdditionalsAmount(p);
+      var productGrossFull = getGrossUnitBeforeDiscount(state, p);
+      var productGross = productGrossFull - visibleAdds;
       var tierPct = getTierDiscountPercent(state, qty, true);
       var productDiscount = roundMoney(productGross * (tierPct / 100));
+      var wholesaleLineTotal =
+        normalizeSalePriceInputMode(p.salePriceInputMode) === 'total' && p.salePriceTouched
+          ? roundMoney(
+              (resolveProductSalePrice(p, qty, productGrossFull).productTotal - visibleAdds * qty) *
+                (1 - tierPct / 100)
+            )
+          : roundMoney((productGross - productDiscount) * qty);
       items.push({
         service: p.name || 'Impresi\u00f3n 3D',
         bullets: bullets.length ? bullets : ['Impresi\u00f3n 3D de alta calidad'],
@@ -383,7 +422,7 @@
         qty: qty,
         unitPrice: withIva(productGross, includeIva),
         discountPerUnit: withIva(productDiscount, includeIva),
-        total: withIva(productGross * qty, includeIva),
+        total: withIva(wholesaleLineTotal, includeIva),
       });
 
       getProductAdditionals(p).forEach(function (extra, idx) {
@@ -407,11 +446,22 @@
     }
 
     var visiblePerUnit = sumVisibleAdditionalsAmount(p);
-    var baseSale = roundMoney(m.baseSale || m.suggestedPrice);
-    var regularUnit = roundMoney(baseSale - visiblePerUnit);
+    var baseSale = Number(m.baseSale != null ? m.baseSale : m.suggestedPrice) || 0;
+    var baseSaleTotal =
+      m.baseSaleTotal != null ? roundMoney(m.baseSaleTotal) : roundMoney(baseSale * qty);
+    var regularUnit = baseSale - visiblePerUnit;
     var manualPct = Math.max(0, Math.min(100, Number(m.discountPercent) || 0));
     var useGrossLayout = manualPct > 0;
-    var bundleDiscPerUnit = useGrossLayout ? roundMoney(baseSale * (manualPct / 100)) : 0;
+    var exactClientTotal = m.clientTotal != null ? roundMoney(m.clientTotal) : roundMoney(m.saleUnit * qty);
+    var exactProductLineTotal = roundMoney(exactClientTotal - visiblePerUnit * qty);
+    var bundleDiscTotal = useGrossLayout
+      ? roundMoney(baseSaleTotal * (manualPct / 100))
+      : 0;
+    var bundleDiscPerUnit = useGrossLayout
+      ? qty > 0
+        ? bundleDiscTotal / qty
+        : 0
+      : 0;
 
     if (useGrossLayout) {
       items.push({
@@ -421,16 +471,19 @@
         qty: qty,
         unitPrice: withIva(regularUnit, includeIva),
         discountPerUnit: withIva(bundleDiscPerUnit, includeIva),
-        total: withIva(regularUnit * qty, includeIva),
+        total: withIva(exactProductLineTotal, includeIva),
       });
     } else {
       var tierPct2 = getTierDiscountPercent(state, qty, false);
       var tierDiscountPerUnit = tierPct2 > 0 ? roundMoney(regularUnit * (tierPct2 / 100)) : 0;
-      var netUnit = roundMoney(regularUnit - tierDiscountPerUnit);
+      var netUnit = regularUnit - tierDiscountPerUnit;
       if (!tierPct2) {
-        netUnit = roundMoney(m.saleUnit - visiblePerUnit);
+        netUnit = (m.saleUnit || 0) - visiblePerUnit;
         tierDiscountPerUnit = 0;
       }
+      var lineTotal = tierPct2
+        ? roundMoney(netUnit * qty)
+        : exactProductLineTotal;
 
       items.push({
         service: p.name || 'Impresi\u00f3n 3D',
@@ -439,7 +492,7 @@
         qty: qty,
         unitPrice: withIva(regularUnit, includeIva),
         discountPerUnit: withIva(tierDiscountPerUnit, includeIva),
-        total: withIva(netUnit * qty, includeIva),
+        total: withIva(lineTotal, includeIva),
       });
     }
 

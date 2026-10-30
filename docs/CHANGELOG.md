@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-30 — Total sale pricing + clean quote defaults
+
+### Added
+- Per-product `salePriceInputMode` (`unit` | `total`) with `salePriceTotalManual` for exact product totals
+- Canonical `resolveProductSalePrice` shared by admin UI, server calculator, and PDF
+- Totals view edits “Precio de venta total”; unit view edits “Precio de venta / unidad”
+
+### Changed
+- New/reset/added products start blank (`name`, grams, hours) with `quantity = 1` (no Copa Mundial demo)
+- `Nueva cotización` no longer keeps the previous product name
+- Non-divisible totals (e.g. ₡10 000 ÷ 3) keep the exact entered total
+
+### Notes
+- No schema migration (`salePriceInputMode` lives in payload JSON)
+- Default product description text unchanged
+
 ## 2026-10-30 — Quote snapshot preservation + profit parity
 
 ### Fixed

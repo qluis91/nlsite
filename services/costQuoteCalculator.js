@@ -163,6 +163,94 @@ function getEffectiveCosts(state) {
 }
 
 /**
+ * Canonical product sale pricing: unit-mode or total-mode.
+ * Total mode preserves the exact entered product total (no unit round-trip).
+ */
+function normalizeSalePriceInputMode(value) {
+  return value === 'total' ? 'total' : 'unit';
+}
+
+function resolveProductSalePrice(product, quantity, suggestedUnitPrice) {
+  const p = product || {};
+  const qty = Math.max(0, num(quantity, 0));
+  const suggestedUnit = roundMoney(suggestedUnitPrice);
+  const inputMode = normalizeSalePriceInputMode(p.salePriceInputMode);
+  const manual = !!p.salePriceTouched;
+
+  if (!manual) {
+    const productTotal = roundMoney(suggestedUnit * qty);
+    return {
+      inputMode,
+      manual: false,
+      unitPrice: suggestedUnit,
+      productTotal,
+      enteredUnit: suggestedUnit,
+      enteredTotal: productTotal,
+    };
+  }
+
+  if (inputMode === 'total') {
+    const enteredTotal = roundMoney(num(p.salePriceTotalManual));
+    const unitPrice = qty > 0 ? enteredTotal / qty : 0;
+    return {
+      inputMode: 'total',
+      manual: true,
+      unitPrice,
+      productTotal: enteredTotal,
+      enteredUnit: unitPrice,
+      enteredTotal,
+    };
+  }
+
+  const enteredUnit = roundMoney(num(p.salePriceManual));
+  const productTotal = roundMoney(enteredUnit * qty);
+  return {
+    inputMode: 'unit',
+    manual: true,
+    unitPrice: enteredUnit,
+    productTotal,
+    enteredUnit,
+    enteredTotal: productTotal,
+  };
+}
+
+/**
+ * Apply discount to resolved sale pricing.
+ * Total-mode discounts the exact product total; unit-mode keeps prior unit semantics.
+ */
+function applyDiscountToSalePrice(sale, quantity, discountPercent) {
+  const qty = Math.max(0, num(quantity, 0));
+  const discount = Math.max(0, Math.min(100, num(discountPercent)));
+  if (discount <= 0) {
+    return {
+      baseSale: sale.unitPrice,
+      baseSaleTotal: sale.productTotal,
+      saleUnit: sale.unitPrice,
+      clientTotal: sale.productTotal,
+      discountPercent: 0,
+    };
+  }
+  if (sale.inputMode === 'total' && sale.manual) {
+    const clientTotal = roundMoney(sale.productTotal * (1 - discount / 100));
+    return {
+      baseSale: sale.unitPrice,
+      baseSaleTotal: sale.productTotal,
+      saleUnit: qty > 0 ? clientTotal / qty : 0,
+      clientTotal,
+      discountPercent: discount,
+    };
+  }
+  const saleUnit = sale.unitPrice * (1 - discount / 100);
+  return {
+    baseSale: sale.unitPrice,
+    baseSaleTotal: sale.productTotal,
+    saleUnit,
+    clientTotal: saleUnit * qty,
+    discountPercent: discount,
+  };
+}
+
+/**
  * Legacy computeLine(state, product, quantity, discountPercent)
  * grams/printHours are always per-unit (qtyInputMode normalized before call).
  * Design is charged once per product (not × quantity).
@@ -185,9 +273,12 @@ function computeLine(state, product, quantity, discountPercent) {
   const suggestedPrice = Math.round(
     markupBase * (1 + num(resolved.profitPercent) / 100) + additionalsCost
   );
-  const baseSale = p.salePriceTouched ? num(p.salePriceManual) : suggestedPrice;
-  const discount = Math.max(0, Math.min(100, num(discountPercent)));
-  const saleUnit = baseSale * (1 - discount / 100);
+  const sale = resolveProductSalePrice(p, qty, suggestedPrice);
+  const priced = applyDiscountToSalePrice(sale, qty, discountPercent);
+  const saleUnit = priced.saleUnit;
+  const baseSale = priced.baseSale;
+  const clientTotal = priced.clientTotal;
+  const discount = priced.discountPercent;
 
   const designCost = num(resolved.designCost); // once per product
   const materialCostTotal = materialCost * qty;
@@ -202,8 +293,8 @@ function computeLine(state, product, quantity, discountPercent) {
     designCost;
 
   // Per-unit margin excludes design (design is a one-shot charge).
-  const netUnit = saleUnit - unitCost;
-  const netTotal = netUnit * qty;
+  const netTotal = clientTotal - unitCost * qty;
+  const netUnit = qty > 0 ? netTotal / qty : 0;
   const alexPct = num(state.alexPercent, 30);
   const luisPct = num(state.luisPercent, 100 - alexPct);
 
@@ -227,6 +318,8 @@ function computeLine(state, product, quantity, discountPercent) {
     suggestedTotal: suggestedPrice * qty,
     saleUnit,
     baseSale,
+    baseSaleTotal: priced.baseSaleTotal,
+    salePriceInputMode: sale.inputMode,
     discountPercent: discount,
     netUnit,
     netTotal,
@@ -234,7 +327,7 @@ function computeLine(state, product, quantity, discountPercent) {
     luisUnitShare: netUnit * (luisPct / 100),
     alexShare: netTotal * (alexPct / 100),
     luisShare: netTotal * (luisPct / 100),
-    clientTotal: saleUnit * qty,
+    clientTotal,
   };
 }
 
@@ -303,7 +396,7 @@ function resolveLegacyProductDescription(opts) {
 function aggregateMain(state, productResults) {
   const production = buildProductionTotals(productResults);
   const designCost = production.designCost;
-  const subtotalGross = productResults.reduce((s, pr) => s + pr.line.saleUnit * pr.line.quantity, 0);
+  const subtotalGross = productResults.reduce((s, pr) => s + num(pr.line.clientTotal), 0);
   const suggestedTotal = productResults.reduce((s, pr) => s + pr.line.suggestedPrice * pr.line.quantity, 0);
   const globalDisc =
     !state.wholesaleMode && state.globalDiscount && state.globalDiscount.enabled
@@ -372,7 +465,7 @@ function aggregateScenarioLine(state, productResults, discountPct) {
   productResults.forEach(pr => {
     const l = computeLine(state, pr.product, pr.product.quantity, discountPct);
     lines.push({ product: pr.product, line: l });
-    subtotal += l.saleUnit * l.quantity;
+    subtotal += num(l.clientTotal);
     qty += l.quantity;
   });
   const production = buildProductionTotals(lines);
@@ -401,8 +494,11 @@ function aggregateScenarioLine(state, productResults, discountPct) {
 
 function syncSalePriceFromSuggested(state, product) {
   if (!product.salePriceTouched) {
-    const line = computeLine(state, product, 1, 0);
+    const qty = Math.max(1, num(product.quantity, 1));
+    const line = computeLine(state, product, qty, 0);
     product.salePriceManual = Math.round(line.suggestedPrice);
+    product.salePriceTotalManual = Math.round(line.suggestedPrice) * qty;
+    if (product.salePriceInputMode !== 'total') product.salePriceInputMode = 'unit';
   }
 }
 
@@ -485,14 +581,20 @@ function computeProductLineTotal(state, p) {
     num(p.printHours) * num(resolved.machineWearCostPerHour);
   const additionals = sumAdditionals(p);
   const markupBase = materialCost + timeCost;
-  let unitSale = p.salePriceTouched
-    ? num(p.salePriceManual)
-    : Math.round(markupBase * (1 + num(resolved.profitPercent) / 100) + additionals);
+  const suggested = Math.round(markupBase * (1 + num(resolved.profitPercent) / 100) + additionals);
+  const sale = resolveProductSalePrice(p, qty, suggested);
+  let disc = 0;
   if (!state.wholesaleMode && p.saleDiscountEnabled) {
-    const disc = Math.max(0, Math.min(100, num(p.saleDiscountPercent)));
-    unitSale = Math.round(unitSale * (1 - disc / 100));
+    disc = Math.max(0, Math.min(100, num(p.saleDiscountPercent)));
   }
-  return unitSale * qty;
+  // Preserve prior unit-mode rounding when discounting unit prices.
+  if (sale.inputMode === 'unit' && sale.manual && disc > 0) {
+    return roundMoney(sale.unitPrice * (1 - disc / 100)) * qty;
+  }
+  if (!sale.manual && disc > 0) {
+    return roundMoney(suggested * (1 - disc / 100)) * qty;
+  }
+  return applyDiscountToSalePrice(sale, qty, disc).clientTotal;
 }
 
 function computeQuoteTotal(snapshot) {
@@ -517,12 +619,17 @@ function computeQuoteTotal(snapshot) {
         num(p.printHours) * num(resolved.machineWearCostPerHour);
       const additionals = sumAdditionals(p);
       const markupBase = materialCost + timeCost;
-      let unitSale = p.salePriceTouched
-        ? num(p.salePriceManual)
-        : Math.round(markupBase * (1 + num(resolved.profitPercent) / 100) + additionals);
+      const suggested = Math.round(
+        markupBase * (1 + num(resolved.profitPercent) / 100) + additionals
+      );
+      const sale = resolveProductSalePrice(p, qty, suggested);
       const tierDisc = getTierDiscountPercent(state, totalQty, true);
-      unitSale = Math.round(unitSale * (1 - tierDisc / 100));
-      lineTotal = unitSale * qty;
+      if (sale.inputMode === 'total' && sale.manual) {
+        lineTotal = applyDiscountToSalePrice(sale, qty, tierDisc).clientTotal;
+      } else {
+        const unitSale = roundMoney(sale.unitPrice * (1 - tierDisc / 100));
+        lineTotal = unitSale * qty;
+      }
     }
     subtotal += lineTotal;
   });
@@ -649,6 +756,9 @@ module.exports = {
   resolveProductCostParams,
   getEffectiveCosts,
   computeLine,
+  resolveProductSalePrice,
+  normalizeSalePriceInputMode,
+  applyDiscountToSalePrice,
   aggregateMain,
   aggregateScenarioLine,
   computeAll,

@@ -1943,6 +1943,290 @@ describe('Historical snapshot preservation + profit + legacy description', () =>
   });
 });
 
+describe('Sale price input mode + clean default products', () => {
+  const adminSrc = () =>
+    fs.readFileSync(path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'), 'utf8');
+
+  it('DEFAULT_PRODUCT is clean (no Copa Mundial demo values)', () => {
+    const src = adminSrc();
+    assert.match(src, /name:\s*''/);
+    assert.match(src, /quantity:\s*1/);
+    assert.match(src, /grams:\s*''/);
+    assert.match(src, /printHours:\s*''/);
+    assert.match(src, /salePriceInputMode:\s*'unit'/);
+    assert.match(src, /salePriceTotalManual:\s*0/);
+    assert.match(src, /DEFAULT_SERVICE_DESCRIPTION/);
+    assert.doesNotMatch(src, /name:\s*'Copa Mundial'/);
+    assert.doesNotMatch(src, /quantity:\s*2,\s*\n\s*grams:\s*385/);
+    assert.match(src, /keepProductName:\s*false/);
+    assert.match(src, /state\.products\.push\(defaultProduct\(\)\)/);
+  });
+
+  it('unit manual price yields exact product total', () => {
+    const line = calculator.computeLine(
+      {
+        costs: { hourRate: 0, kgPrice: 0, profitPercent: 0, designCost: 0 },
+        alexPercent: 30,
+        luisPercent: 70,
+      },
+      {
+        quantity: 2,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'unit',
+        salePriceManual: 22500,
+        additionals: [],
+      },
+      2,
+      0
+    );
+    assert.equal(line.saleUnit, 22500);
+    assert.equal(line.clientTotal, 45000);
+  });
+
+  it('total manual price yields exact total and derived unit', () => {
+    const line = calculator.computeLine(
+      {
+        costs: { hourRate: 0, kgPrice: 0, profitPercent: 0, designCost: 0 },
+        alexPercent: 30,
+        luisPercent: 70,
+      },
+      {
+        quantity: 2,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'total',
+        salePriceTotalManual: 45000,
+        salePriceManual: 0,
+        additionals: [],
+      },
+      2,
+      0
+    );
+    assert.equal(line.clientTotal, 45000);
+    assert.equal(line.saleUnit, 22500);
+  });
+
+  it('non-divisible total preserves exact 10000 (never 9999)', () => {
+    const sale = calculator.resolveProductSalePrice(
+      {
+        salePriceTouched: true,
+        salePriceInputMode: 'total',
+        salePriceTotalManual: 10000,
+      },
+      3,
+      0
+    );
+    assert.equal(sale.productTotal, 10000);
+    assert.ok(Math.abs(sale.unitPrice - 10000 / 3) < 1e-9);
+    const line = calculator.computeLine(
+      {
+        costs: { hourRate: 0, kgPrice: 0, profitPercent: 0, designCost: 0 },
+        alexPercent: 30,
+        luisPercent: 70,
+      },
+      {
+        quantity: 3,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'total',
+        salePriceTotalManual: 10000,
+        additionals: [],
+      },
+      3,
+      0
+    );
+    assert.equal(line.clientTotal, 10000);
+    assert.notEqual(line.clientTotal, 9999);
+    assert.notEqual(line.clientTotal, 10001);
+  });
+
+  it('total mode + 10% discount applies to exact source total', () => {
+    const line = calculator.computeLine(
+      {
+        costs: { hourRate: 0, kgPrice: 0, profitPercent: 0, designCost: 0 },
+        alexPercent: 30,
+        luisPercent: 70,
+      },
+      {
+        quantity: 3,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'total',
+        salePriceTotalManual: 10000,
+        saleDiscountEnabled: true,
+        saleDiscountPercent: 10,
+        additionals: [],
+      },
+      3,
+      10
+    );
+    assert.equal(line.clientTotal, 9000);
+    assert.equal(line.baseSaleTotal, 10000);
+  });
+
+  it('historical unit mode without new fields stays unit semantics', () => {
+    const sale = calculator.resolveProductSalePrice(
+      {
+        salePriceTouched: true,
+        salePriceManual: 2800,
+        // no salePriceInputMode / salePriceTotalManual
+      },
+      6,
+      0
+    );
+    assert.equal(sale.inputMode, 'unit');
+    assert.equal(sale.unitPrice, 2800);
+    assert.equal(sale.productTotal, 16800);
+  });
+
+  it('total-mode IVA regression still yields 31800 base', () => {
+    const state = {
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      products: [
+        {
+          name: 'A',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'total',
+          salePriceTotalManual: 15000,
+          additionals: [],
+        },
+        {
+          name: 'B',
+          quantity: 1,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'total',
+          salePriceTotalManual: 16800,
+          additionals: [],
+        },
+      ],
+    };
+    assert.equal(
+      calculator.computeQuoteTotal({ ...state, export: { taxMode: 'included', shippingCost: 0 } }),
+      31800
+    );
+    assert.equal(
+      calculator.computeQuoteTotal({ ...state, export: { taxMode: 'add', shippingCost: 0 } }),
+      35934
+    );
+    assert.equal(
+      calculator.computeQuoteTotal({ ...state, export: { taxMode: 'excluded', shippingCost: 0 } }),
+      31800
+    );
+  });
+
+  it('switching conceptual mode does not change economics for unit-priced product', () => {
+    const base = {
+      costs: { hourRate: 0, kgPrice: 0, profitPercent: 0, designCost: 0 },
+      alexPercent: 30,
+      luisPercent: 70,
+    };
+    const unitLine = calculator.computeLine(
+      base,
+      {
+        quantity: 2,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'unit',
+        salePriceManual: 22500,
+        salePriceTotalManual: 45000,
+        additionals: [],
+      },
+      2,
+      0
+    );
+    const asTotal = calculator.computeLine(
+      base,
+      {
+        quantity: 2,
+        grams: 0,
+        printHours: 0,
+        salePriceTouched: true,
+        salePriceInputMode: 'total',
+        salePriceManual: 22500,
+        salePriceTotalManual: 45000,
+        additionals: [],
+      },
+      2,
+      0
+    );
+    assert.equal(unitLine.clientTotal, 45000);
+    assert.equal(asTotal.clientTotal, 45000);
+  });
+
+  it('manual sale mode change does not alter production costs', () => {
+    const costs = {
+      electricityCostPerHour: 35,
+      machineWearCostPerHour: 165,
+      hourRate: 200,
+      kgPrice: 20000,
+      designCost: 5000,
+      profitPercent: 100,
+    };
+    const shared = {
+      quantity: 2,
+      grams: 100,
+      printHours: 1,
+      additionals: [{ price: 500, showOnInvoice: true }],
+      salePriceTouched: true,
+    };
+    const unit = calculator.computeLine(
+      { costs, alexPercent: 30, luisPercent: 70 },
+      { ...shared, salePriceInputMode: 'unit', salePriceManual: 20000 },
+      2,
+      0
+    );
+    const total = calculator.computeLine(
+      { costs, alexPercent: 30, luisPercent: 70 },
+      { ...shared, salePriceInputMode: 'total', salePriceTotalManual: 40000 },
+      2,
+      0
+    );
+    assert.equal(unit.productionCost, total.productionCost);
+    assert.equal(unit.materialCostTotal, total.materialCostTotal);
+    assert.equal(unit.electricityCostTotal, total.electricityCostTotal);
+    assert.equal(unit.machineWearCostTotal, total.machineWearCostTotal);
+    assert.equal(unit.additionalsCostTotal, total.additionalsCostTotal);
+    assert.equal(unit.designCost, total.designCost);
+  });
+
+  it('frontend wires salePriceInputMode + blank grams/hours + Nueva cotización reset', () => {
+    const src = adminSrc();
+    assert.match(src, /function resolveProductSalePrice/);
+    assert.match(src, /cq-salePriceTotal-/);
+    assert.match(src, /function renderSalePriceFields/);
+    assert.match(src, /isBlankNumericField/);
+    assert.match(src, /resetQuoteProductForNew\(\{ keepProductName: false, resetExport: true \}\)/);
+    assert.doesNotMatch(src, /keepProductName:\s*true/);
+  });
+
+  it('PDF resolves sale totals via canonical helper / clientTotal', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    assert.match(src, /function resolveProductSalePrice/);
+    assert.match(src, /exactClientTotal|m\.clientTotal/);
+  });
+});
+
 const pool = require('../config/db');
 const { after } = require('node:test');
 after(async () => {
