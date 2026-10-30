@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-30 — Wholesale quote-level tier for PDF
+
+### Fixed
+- PDF wholesale discount tier uses TOTAL quote quantity across all products (same as server/Admin)
+- Multi-product quotes that jointly reach a tier no longer render 0% per line in the PDF
+
+### Notes
+- No schema migration; normal non-wholesale discounts unchanged
+
 ## 2026-10-30 — Wholesale + total additionals exact pricing
 
 ### Fixed

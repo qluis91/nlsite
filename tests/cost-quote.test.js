@@ -2794,6 +2794,313 @@ describe('Wholesale + total additionals exact pricing', () => {
   });
 });
 
+describe('Wholesale quote-level tier (multi-product)', () => {
+  function loadPdf() {
+    const vm = require('node:vm');
+    const pdfSrc = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    const sandbox = { console };
+    vm.runInNewContext(pdfSrc, sandbox);
+    return sandbox.AdminCostQuotePdf;
+  }
+
+  /** 10+ units → 5%; per-product qty 6 alone does NOT qualify. */
+  function multiTierBase(overrides) {
+    return {
+      wholesaleMode: true,
+      costs: {
+        electricityCostPerHour: 0,
+        machineWearCostPerHour: 0,
+        hourRate: 0,
+        kgPrice: 0,
+        designCost: 0,
+        profitPercent: 0,
+      },
+      discounts: { range10_50: 5, range50_100: 10, range100plus: 15 },
+      discountRanges: {
+        range10_50: { min: 10, max: 50 },
+        range50_100: { min: 50, max: 100 },
+        range100plus: { min: 100, max: null },
+      },
+      alexPercent: 30,
+      luisPercent: 70,
+      export: { taxMode: 'excluded', shippingCost: 0 },
+      ...overrides,
+    };
+  }
+
+  function assertAdminServerPdfParity(state, label) {
+    const pdf = loadPdf();
+    const result = calculator.computeAll(state);
+    const server = calculator.computeQuoteTotal(state);
+    const grand = pdf.computeGrandTotal({ state, result, wholesaleMode: true });
+    assert.equal(result.main.grandTotal, server, 'admin/server: ' + label);
+    assert.equal(grand, server, 'PDF/server: ' + label);
+    return { result, server, grand };
+  }
+
+  it('two products 6+6 jointly qualify for 5% (not 0% each)', () => {
+    const state = multiTierBase({
+      products: [
+        {
+          name: 'A',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1000,
+          additionals: [],
+        },
+        {
+          name: 'B',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1000,
+          additionals: [],
+        },
+      ],
+    });
+    assert.equal(calculator.getTierDiscountPercent(state, 6, true), 0);
+    assert.equal(calculator.getTierDiscountPercent(state, 12, true), 5);
+    const result = calculator.computeAll(state);
+    assert.equal(result.main.quantity, 12);
+    // Each product net: 6000 * 0.95 = 5700; grand 11400
+    assert.equal(result.products[0].line.clientTotal, 5700);
+    assert.equal(result.products[1].line.clientTotal, 5700);
+    assert.equal(calculator.computeQuoteTotal(state), 11400);
+    assert.notEqual(calculator.computeQuoteTotal(state), 12000);
+    assertAdminServerPdfParity(state, '6+6 joint tier');
+  });
+
+  it('different qtys 3+8 (total 11) both get 5%', () => {
+    const state = multiTierBase({
+      products: [
+        {
+          name: 'A',
+          quantity: 3,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1000,
+          additionals: [],
+        },
+        {
+          name: 'B',
+          quantity: 8,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1000,
+          additionals: [],
+        },
+      ],
+    });
+    assert.equal(calculator.getTierDiscountPercent(state, 3, true), 0);
+    assert.equal(calculator.getTierDiscountPercent(state, 8, true), 0);
+    assert.equal(calculator.getTierDiscountPercent(state, 11, true), 5);
+    const result = calculator.computeAll(state);
+    assert.equal(result.products[0].line.clientTotal, 2850); // 3000 * 0.95
+    assert.equal(result.products[1].line.clientTotal, 7600); // 8000 * 0.95
+    assertAdminServerPdfParity(state, '3+8 joint tier');
+  });
+
+  it('multi-product + total additional: once + quote-level tier', () => {
+    // Untouched sale so additionals participate in suggested client price
+    const state = multiTierBase({
+      discounts: { range10_50: 10, range50_100: 10, range100plus: 15 },
+      products: [
+        {
+          name: 'A',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: false,
+          additionals: [],
+        },
+        {
+          name: 'B',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: false,
+          additionals: [{ price: 5000, pricingMode: 'total', showOnInvoice: true }],
+        },
+      ],
+    });
+    // A: 0; B: 5000 once (not ×6); 10% → 4500
+    assert.equal(calculator.computeQuoteTotal(state), 4500);
+    assert.notEqual(calculator.computeQuoteTotal(state), 5000 * 6 * 0.9);
+    const wpB = calculator.resolveWholesaleProductPricing(state, state.products[1], 6, 10);
+    assert.equal(wpB.adds.oneTimeTotal, 5000);
+    assert.equal(wpB.grossTotal, 5000);
+    assert.equal(wpB.netTotal, 4500);
+    assertAdminServerPdfParity(state, 'multi + total additional');
+  });
+
+  it('multi-product + per_product additional uses product qty then quote tier', () => {
+    const state = multiTierBase({
+      discounts: { range10_50: 10, range50_100: 10, range100plus: 15 },
+      products: [
+        {
+          name: 'A',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: false,
+          additionals: [{ price: 500, pricingMode: 'per_product', showOnInvoice: true }],
+        },
+        {
+          name: 'B',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: false,
+          additionals: [],
+        },
+      ],
+    });
+    // A: 500×6 = 3000 → 2700; B: 0; total 2700
+    const wpA = calculator.resolveWholesaleProductPricing(state, state.products[0], 6, 10);
+    assert.equal(wpA.adds.totalCost, 3000);
+    assert.equal(wpA.grossTotal, 3000);
+    assert.equal(wpA.netTotal, 2700);
+    assert.equal(calculator.computeQuoteTotal(state), 2700);
+    assertAdminServerPdfParity(state, 'multi + per_product');
+  });
+
+  it('multi-product mixed additionals + quote-level 10%', () => {
+    const state = multiTierBase({
+      discounts: { range10_50: 10, range50_100: 10, range100plus: 15 },
+      products: [
+        {
+          name: 'A',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: false,
+          additionals: [{ price: 500, pricingMode: 'per_product', showOnInvoice: true }],
+        },
+        {
+          name: 'B',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: false,
+          additionals: [{ price: 1000, pricingMode: 'total', showOnInvoice: true }],
+        },
+      ],
+    });
+    // A: 3000 → 2700; B: 1000 once → 900; total 3600
+    assert.equal(calculator.computeQuoteTotal(state), 3600);
+    assertAdminServerPdfParity(state, 'multi mixed additionals');
+  });
+
+  it('multi-product manual total keeps exact total + quote-level tier', () => {
+    const state = multiTierBase({
+      products: [
+        {
+          name: 'A',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'total',
+          salePriceTotalManual: 10000,
+          additionals: [],
+        },
+        {
+          name: 'B',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1000,
+          additionals: [],
+        },
+      ],
+    });
+    // A: 10000 * 0.95 = 9500; B: round(1000*0.95)*6 = 5700; total 15200
+    const wpA = calculator.resolveWholesaleProductPricing(state, state.products[0], 6, 5);
+    assert.equal(wpA.grossTotal, 10000);
+    assert.equal(wpA.netTotal, 9500);
+    assert.equal(calculator.computeQuoteTotal(state), 15200);
+    assertAdminServerPdfParity(state, 'multi manual total');
+  });
+
+  it('multi-product manual unit + quote-level tier parity', () => {
+    const state = multiTierBase({
+      products: [
+        {
+          name: 'A',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 2000,
+          additionals: [],
+        },
+        {
+          name: 'B',
+          quantity: 6,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: true,
+          salePriceInputMode: 'unit',
+          salePriceManual: 1500,
+          additionals: [],
+        },
+      ],
+    });
+    // A: round(2000*0.95)*6 = 11400; B: round(1500*0.95)*6 = 8550; total 19950
+    assert.equal(calculator.computeQuoteTotal(state), 19950);
+    assertAdminServerPdfParity(state, 'multi manual unit');
+  });
+
+  it('PDF buildLineItems uses quote-level wholesaleTierPct (source)', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+      'utf8'
+    );
+    assert.match(src, /var totalWholesaleQty = productLines\.reduce/);
+    assert.match(src, /var wholesaleTierPct = wholesaleMode/);
+    assert.match(src, /wholesaleTierPct/);
+    assert.match(src, /var tierPct = Number\(wholesaleTierPct\) \|\| 0/);
+    // Must not select wholesale tier from per-product qty inside wholesale branch
+    assert.doesNotMatch(
+      src,
+      /if \(wholesaleMode\) \{[\s\S]*?getTierDiscountPercent\(state, qty, true\)/
+    );
+  });
+
+  it('single-product wholesale regression still green', () => {
+    const state = multiTierBase({
+      discounts: { range10_50: 10, range50_100: 10, range100plus: 15 },
+      products: [
+        {
+          name: 'A',
+          quantity: 20,
+          grams: 0,
+          printHours: 0,
+          salePriceTouched: false,
+          additionals: [{ price: 5000, pricingMode: 'total', showOnInvoice: true }],
+        },
+      ],
+    });
+    assert.equal(calculator.computeQuoteTotal(state), 4500);
+    assertAdminServerPdfParity(state, 'single-product regression');
+  });
+});
+
 const pool = require('../config/db');
 const { after } = require('node:test');
 after(async () => {

@@ -441,7 +441,15 @@
     );
   }
 
-  function buildLineItemsForProduct(state, product, line, includeIva, wholesaleMode, bullets) {
+  function buildLineItemsForProduct(
+    state,
+    product,
+    line,
+    includeIva,
+    wholesaleMode,
+    bullets,
+    wholesaleTierPct
+  ) {
     var p = product;
     var m = line;
     var items = [];
@@ -450,6 +458,7 @@
 
     if (wholesaleMode) {
       // buildSummary(wholesale) expects GROSS line totals and subtracts discountPerUnit×qty.
+      // Tier % is quote-level (total qty across all products), never per-product qty.
       var addsW = resolveProductAdditionals(p, qty);
       var cW = resolveProductCostParams(state, p);
       var materialCostW = ((Number(p.grams) || 0) / 1000) * (Number(cW.kgPrice) || 0);
@@ -460,7 +469,7 @@
       var suggestedTotalW = roundMoney(manufacturingSuggestedUnitW * qty + addsW.totalCost);
       var suggestedUnitW = roundMoney(manufacturingSuggestedUnitW + addsW.perProductAmount);
       var saleW = resolveProductSalePrice(p, qty, suggestedUnitW, suggestedTotalW);
-      var tierPct = getTierDiscountPercent(state, qty, true);
+      var tierPct = Number(wholesaleTierPct) || 0;
       var grossTotalW = roundMoney(saleW.productTotal);
       var useLegacyUnitRoundW =
         saleW.manual &&
@@ -497,6 +506,8 @@
           qty: addQty,
           unitPrice: withIva(price, includeIva),
           discountPerUnit: withIva(addQty > 0 ? addDisc / addQty : 0, includeIva),
+          // Exact discount — avoid round(discountPerUnit)×qty drift
+          discountAmount: addDisc,
           total: withIva(addGross, includeIva),
         });
       });
@@ -511,6 +522,7 @@
         qty: qty,
         unitPrice: withIva(qty > 0 ? productGrossW / qty : 0, includeIva),
         discountPerUnit: withIva(qty > 0 ? productDiscW / qty : 0, includeIva),
+        discountAmount: productDiscW,
         total: withIva(productGrossW, includeIva),
       });
       visibleAddRows.forEach(function (row) {
@@ -600,6 +612,20 @@
     if (!productLines.length) {
       productLines = [{ product: getLegacyProduct(state), line: result.main }];
     }
+    var totalWholesaleQty = productLines.reduce(function (sum, pr) {
+      return (
+        sum +
+        Math.max(
+          1,
+          Number(pr.line && pr.line.quantity) ||
+            Number(pr.product && pr.product.quantity) ||
+            1
+        )
+      );
+    }, 0);
+    var wholesaleTierPct = wholesaleMode
+      ? getTierDiscountPercent(state, totalWholesaleQty, true)
+      : 0;
     productLines.forEach(function (pr) {
       var bullets = productDescriptionBullets(state, pr.product);
       items = items.concat(
@@ -609,7 +635,8 @@
           pr.line,
           includeIva,
           wholesaleMode,
-          bullets
+          bullets,
+          wholesaleTierPct
         )
       );
     });
@@ -652,7 +679,11 @@
     var unitPriceSum = sumUnitPrices(items);
     var discountTotal = 0;
     items.forEach(function (it) {
-      discountTotal += it.discountPerUnit * it.qty;
+      if (it.discountAmount != null) {
+        discountTotal += Number(it.discountAmount) || 0;
+      } else {
+        discountTotal += it.discountPerUnit * it.qty;
+      }
     });
     var shippingAmt = roundMoney(shipping);
     var linesTotal = items.reduce(function (s, it) {
