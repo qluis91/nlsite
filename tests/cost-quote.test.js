@@ -4411,6 +4411,109 @@ describe('Quote shippingMode semantics', () => {
     assert.equal(all.main.grandTotal, 23500);
     assert.equal(all.main.businessRevenue, 20000);
   });
+
+  it('SHIPPING_MODES assignment appears before var state = loadState()', () => {
+    const src = adminSrc();
+    const modesIdx = src.indexOf("var SHIPPING_MODES = [");
+    const stateIdx = src.indexOf('var state = loadState()');
+    assert.ok(modesIdx !== -1, 'SHIPPING_MODES assignment present');
+    assert.ok(stateIdx !== -1, 'loadState bootstrap present');
+    assert.ok(
+      modesIdx < stateIdx,
+      'SHIPPING_MODES must be assigned before loadState() bootstrap'
+    );
+  });
+});
+
+describe('Admin cost-quote browser bootstrap (shipping init order)', () => {
+  const STORAGE_KEY = 'nl-admin-cost-quote-v1';
+  const adminPath = path.join(__dirname, '../public/js/admin/admin-cost-quote.js');
+
+  function createLocalStorage(seed) {
+    const store = Object.assign({}, seed || {});
+    return {
+      getItem(key) {
+        return Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null;
+      },
+      setItem(key, value) {
+        store[key] = String(value);
+      },
+      removeItem(key) {
+        delete store[key];
+      },
+      clear() {
+        Object.keys(store).forEach((k) => delete store[k]);
+      },
+    };
+  }
+
+  function evaluateAdminScript(localStorageSeed) {
+    const vm = require('node:vm');
+    const src = fs.readFileSync(adminPath, 'utf8');
+    const localStorage = createLocalStorage(localStorageSeed);
+    const document = {
+      getElementById() {
+        return null;
+      },
+      querySelector() {
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      createElement() {
+        return {};
+      },
+    };
+    const sandbox = {
+      console,
+      localStorage,
+      document,
+      window: null,
+      setTimeout,
+      clearTimeout,
+      Promise,
+      JSON,
+      Math,
+      Number,
+      String,
+      Array,
+      Object,
+      Date,
+      Error,
+      TypeError,
+      parseInt,
+      parseFloat,
+      isNaN,
+      encodeURIComponent,
+      decodeURIComponent,
+    };
+    sandbox.window = sandbox;
+    sandbox.global = sandbox;
+    sandbox.self = sandbox;
+    assert.doesNotThrow(() => {
+      vm.runInNewContext(src, sandbox, { filename: 'admin-cost-quote.js' });
+    }, 'admin-cost-quote.js must not throw during module bootstrap / loadState()');
+    assert.ok(sandbox.AdminCostQuote, 'AdminCostQuote exported');
+    assert.equal(typeof sandbox.AdminCostQuote.getBootstrappedShipping, 'function');
+    return sandbox.AdminCostQuote.getBootstrappedShipping();
+  }
+
+  it('bootstrap with empty localStorage → pending_quote / 0, no crash', () => {
+    const shipping = evaluateAdminScript({});
+    assert.equal(shipping.mode, 'pending_quote');
+    assert.equal(shipping.amount, 0);
+  });
+
+  it('bootstrap with legacy localStorage shippingCost=3500 → priced / 3500, no crash', () => {
+    const shipping = evaluateAdminScript({
+      [STORAGE_KEY]: JSON.stringify({
+        export: { shippingCost: 3500 },
+      }),
+    });
+    assert.equal(shipping.mode, 'priced');
+    assert.equal(shipping.amount, 3500);
+  });
 });
 
 const pool = require('../config/db');

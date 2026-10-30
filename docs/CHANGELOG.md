@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-30 — Fix quote shipping bootstrap init order
+
+### Fixed
+- `admin-cost-quote.js` crashed on `/admin/cotizacion-3d` because `SHIPPING_MODES` was assigned after `loadState()` during module init (`indexOf` on undefined)
+- Legacy localStorage/payloads without `shippingMode` no longer inherit DEFAULTS `pending_quote` before cost-based migration (cost>0 still → `priced`)
+
+### Notes
+- Shipping constants/helpers now initialize before `var state = loadState()`
+- Bootstrap VM regression covers empty + legacy localStorage
+
 ## 2026-10-30 — Explicit shipping modes for Cotización 3D
 
 ### Added

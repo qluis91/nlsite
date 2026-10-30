@@ -103,6 +103,74 @@
     wholesaleMode: false,
   };
 
+  // Shipping constants/helpers MUST be initialized before loadState() — migrateState
+  // calls applyShippingModeToExport during module bootstrap.
+  var SHIPPING_MODES = [
+    'priced',
+    'pending_quote',
+    'free',
+    'local_pickup',
+    'not_applicable',
+  ];
+
+  var SHIPPING_MODE_UI_LABELS = {
+    priced: 'Con costo',
+    pending_quote: 'Por cotizar',
+    free: 'Gratis',
+    local_pickup: 'Retiro en local',
+    not_applicable: 'No aplica',
+  };
+
+  var SHIPPING_MODE_CLIENT_LABELS = {
+    priced: 'Envío',
+    pending_quote: 'Costo de envío no incluido',
+    free: 'Envío: Gratis',
+    local_pickup: 'Retiro en local — sin costo de envío',
+    not_applicable: '',
+  };
+
+  function normalizeShippingMode(value, shippingCost) {
+    var raw = value != null ? String(value).trim() : '';
+    if (SHIPPING_MODES.indexOf(raw) !== -1) return raw;
+    return num(shippingCost) > 0 ? 'priced' : 'pending_quote';
+  }
+
+  function resolveQuoteShipping(exportData) {
+    var exp = exportData && typeof exportData === 'object' ? exportData : {};
+    var rawCost = Math.max(0, Math.round(num(exp.shippingCost)));
+    var mode = normalizeShippingMode(exp.shippingMode, rawCost);
+    var amount = mode === 'priced' ? rawCost : 0;
+    var displayText = null;
+    var showInPdf = true;
+    if (mode === 'pending_quote') {
+      displayText = SHIPPING_MODE_CLIENT_LABELS.pending_quote;
+    } else if (mode === 'free') {
+      displayText = SHIPPING_MODE_CLIENT_LABELS.free;
+    } else if (mode === 'local_pickup') {
+      displayText = SHIPPING_MODE_CLIENT_LABELS.local_pickup;
+    } else if (mode === 'not_applicable') {
+      showInPdf = false;
+      displayText = null;
+    }
+    return {
+      mode: mode,
+      amount: amount,
+      includedInTotal: mode === 'priced',
+      showInPdf: showInPdf,
+      uiLabel: SHIPPING_MODE_UI_LABELS[mode] || SHIPPING_MODE_UI_LABELS.pending_quote,
+      displayLabel: SHIPPING_MODE_CLIENT_LABELS[mode] || '',
+      displayText: displayText,
+    };
+  }
+
+  function applyShippingModeToExport(exp) {
+    if (!exp || typeof exp !== 'object') return exp;
+    var resolved = resolveQuoteShipping(exp);
+    exp.shippingMode = resolved.mode;
+    exp.shippingCost = resolved.amount;
+    return exp;
+  }
+
   var savedQuotes = [];
   var catalog = { additionals: [], printers: [], materials: [], emails: [] };
   var catalogApiAvailable = true;
@@ -911,11 +979,31 @@
       });
   }
 
+  function exportPayloadHadShippingMode(payload) {
+    var exp = payload && payload.export;
+    return !!(exp && exp.shippingMode != null && String(exp.shippingMode).trim() !== '');
+  }
+
+  /**
+   * Merge persisted quote JSON with DEFAULTS, then migrate.
+   * If the payload omitted shippingMode, strip the DEFAULTS-filled value so
+   * applyShippingModeToExport can apply the legacy cost→mode rule.
+   */
+  function mergePersistedQuoteState(payload) {
+    var parsed = payload && typeof payload === 'object' ? payload : {};
+    var hadShippingMode = exportPayloadHadShippingMode(parsed);
+    var merged = mergeDeep(deepClone(DEFAULTS), parsed);
+    if (!hadShippingMode && merged.export) {
+      delete merged.export.shippingMode;
+    }
+    return migrateState(merged);
+  }
+
   function loadState() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return migrateState(deepClone(DEFAULTS));
-      return migrateState(mergeDeep(deepClone(DEFAULTS), JSON.parse(raw)));
+      return mergePersistedQuoteState(JSON.parse(raw));
     } catch (e) {
       return migrateState(deepClone(DEFAULTS));
     }
@@ -1209,72 +1297,6 @@
 
   function normalizeTaxMode(value) {
     return value === 'included' || value === 'add' || value === 'excluded' ? value : 'excluded';
-  }
-
-  var SHIPPING_MODES = [
-    'priced',
-    'pending_quote',
-    'free',
-    'local_pickup',
-    'not_applicable',
-  ];
-
-  var SHIPPING_MODE_UI_LABELS = {
-    priced: 'Con costo',
-    pending_quote: 'Por cotizar',
-    free: 'Gratis',
-    local_pickup: 'Retiro en local',
-    not_applicable: 'No aplica',
-  };
-
-  var SHIPPING_MODE_CLIENT_LABELS = {
-    priced: 'Envío',
-    pending_quote: 'Costo de envío no incluido',
-    free: 'Envío: Gratis',
-    local_pickup: 'Retiro en local — sin costo de envío',
-    not_applicable: '',
-  };
-
-  function normalizeShippingMode(value, shippingCost) {
-    var raw = value != null ? String(value).trim() : '';
-    if (SHIPPING_MODES.indexOf(raw) !== -1) return raw;
-    return num(shippingCost) > 0 ? 'priced' : 'pending_quote';
-  }
-
-  function resolveQuoteShipping(exportData) {
-    var exp = exportData && typeof exportData === 'object' ? exportData : {};
-    var rawCost = Math.max(0, Math.round(num(exp.shippingCost)));
-    var mode = normalizeShippingMode(exp.shippingMode, rawCost);
-    var amount = mode === 'priced' ? rawCost : 0;
-    var displayText = null;
-    var showInPdf = true;
-    if (mode === 'pending_quote') {
-      displayText = SHIPPING_MODE_CLIENT_LABELS.pending_quote;
-    } else if (mode === 'free') {
-      displayText = SHIPPING_MODE_CLIENT_LABELS.free;
-    } else if (mode === 'local_pickup') {
-      displayText = SHIPPING_MODE_CLIENT_LABELS.local_pickup;
-    } else if (mode === 'not_applicable') {
-      showInPdf = false;
-      displayText = null;
-    }
-    return {
-      mode: mode,
-      amount: amount,
-      includedInTotal: mode === 'priced',
-      showInPdf: showInPdf,
-      uiLabel: SHIPPING_MODE_UI_LABELS[mode] || SHIPPING_MODE_UI_LABELS.pending_quote,
-      displayLabel: SHIPPING_MODE_CLIENT_LABELS[mode] || '',
-      displayText: displayText,
-    };
-  }
-
-  function applyShippingModeToExport(exp) {
-    if (!exp || typeof exp !== 'object') return exp;
-    var resolved = resolveQuoteShipping(exp);
-    exp.shippingMode = resolved.mode;
-    exp.shippingCost = resolved.amount;
-    return exp;
   }
 
   function migrateExportTaxMode(exp) {
@@ -3401,7 +3423,7 @@
     if (triggerEl) triggerEl.disabled = true;
     return api('/api/admin/cost-quotes/' + encodeURIComponent(quoteId))
       .then(function (data) {
-        state = migrateState(mergeDeep(deepClone(DEFAULTS), data.payload || {}));
+        state = mergePersistedQuoteState(data.payload || {});
         currentSavedQuoteId = quoteId;
         workflowMeta = data.workflow || { status: 'pendiente', linkedOrderId: '' };
         if (workflowMeta.clientEmail && !state.export.clientEmail) {
@@ -4823,5 +4845,9 @@
     mount: mount,
     fmtCrc: fmtCrc,
     beforeLeaveAdminTab: beforeLeaveAdminTab,
+    /** Minimal bootstrap seam: shipping resolved during module loadState/migrateState. */
+    getBootstrappedShipping: function () {
+      return resolveQuoteShipping((state && state.export) || {});
+    },
   };
 })(typeof window !== 'undefined' ? window : this);
