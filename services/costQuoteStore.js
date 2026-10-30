@@ -44,7 +44,19 @@ function getProductsFromSnapshot(snapshot) {
   return [];
 }
 
+function getOrderTitle(snapshot) {
+  const exp =
+    snapshot && snapshot.export && typeof snapshot.export === 'object' ? snapshot.export : {};
+  return String(exp.orderTitle || '').trim();
+}
+
+/**
+ * Quotation display/save name = order title (export.orderTitle).
+ * Falls back to product names only for legacy quotes without an order title.
+ */
 function getQuoteDisplayName(snapshot, fallbackName) {
+  const orderTitle = getOrderTitle(snapshot);
+  if (orderTitle) return orderTitle;
   const products = getProductsFromSnapshot(snapshot);
   const names = products.map((p) => String(p && p.name ? p.name : '').trim()).filter(Boolean);
   if (!names.length) return String(fallbackName || '').trim();
@@ -85,11 +97,8 @@ function buildPayload(snapshot, productName) {
   if (!data) return null;
   const src = snapshot && typeof snapshot === 'object' ? snapshot : {};
   const products = (data.products || []).map((p) => ({ ...p }));
-  const name = String(productName || getQuoteDisplayName({ products }, '')).trim();
-  if (products[0]) products[0].name = String(products[0].name || name).trim() || name;
-  const legacyProduct = products[0]
-    ? { ...products[0], name: products[0].name || name }
-    : { name };
+  // Quotation name (order title) must never overwrite product line names.
+  const legacyProduct = products[0] ? { ...products[0] } : { name: '' };
   return {
     costs: data.costs,
     discounts: data.discounts,
@@ -248,8 +257,12 @@ async function saveCostQuote(snapshot, productName, options) {
   const opts = options && typeof options === 'object' ? options : {};
   const payload = buildPayload(snapshot, productName);
   if (!payload) return { ok: false, error: 'Datos de cotización inválidos.' };
-  const name = String(productName || payload.product?.name || '').trim();
-  if (!name) return { ok: false, error: 'Indicá el nombre del producto antes de guardar.' };
+  // Persist name from explicit arg (UI/controllers) or orderTitle — never invent from Product 1 here.
+  // Callers that need legacy product-name fallback must pass it as productName (e.g. getQuoteDisplayName).
+  const name = String(productName || getOrderTitle(payload) || '').trim();
+  if (!name) {
+    return { ok: false, error: 'Indicá el título de la orden antes de guardar.' };
+  }
 
   const now = Date.now();
   const existingId = String(opts.id || '').trim();
@@ -355,6 +368,7 @@ module.exports = {
   buildPayload,
   normalizeSnapshot,
   getProductsFromSnapshot,
+  getOrderTitle,
   getQuoteDisplayName,
   recordToSummary,
 };

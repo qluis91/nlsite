@@ -232,7 +232,7 @@ exports.sendOrder = async (req, res, next) => {
     }
     if (snapshot) {
       const productName = String(
-        snapshot.product?.name || quoteStore.getQuoteDisplayName(snapshot, record.productName) || ''
+        quoteStore.getQuoteDisplayName(snapshot, record.productName) || ''
       ).trim();
       const saveResult = await quoteStore.saveCostQuote(snapshot, productName, {
         id,
@@ -289,7 +289,7 @@ exports.whatsappAssist = async (req, res, next) => {
     }
     if (snapshot) {
       const productName = String(
-        snapshot.product?.name || quoteStore.getQuoteDisplayName(snapshot, record.productName) || ''
+        quoteStore.getQuoteDisplayName(snapshot, record.productName) || ''
       ).trim();
       const saveResult = await quoteStore.saveCostQuote(snapshot, productName, {
         id,

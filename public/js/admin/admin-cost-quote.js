@@ -160,8 +160,19 @@
     return state.products;
   }
 
+  function getOrderTitle(state) {
+    var exp = (state && state.export) || {};
+    return String(exp.orderTitle || '').trim();
+  }
+
+  /**
+   * Quotation display/save name = order title (export.orderTitle).
+   * Falls back to product names only for legacy quotes without an order title.
+   */
   function getQuoteDisplayName(state) {
     ensureProducts(state);
+    var orderTitle = getOrderTitle(state);
+    if (orderTitle) return orderTitle;
     var names = state.products
       .map(function (p) {
         return String(p.name || '').trim();
@@ -3261,9 +3272,10 @@
 
   function saveCurrentQuote(root, triggerEl) {
     state = readStateFromDom(root, state);
-    var name = getQuoteDisplayName(state);
+    // New/current saves require order title; product-name fallback is legacy-only via getQuoteDisplayName.
+    var name = getOrderTitle(state);
     if (!name) {
-      showHistoryMsg(root, 'Escribí el nombre de al menos un producto antes de guardar.', true);
+      showHistoryMsg(root, 'Escribí el título de la orden antes de guardar.', true);
       return Promise.resolve();
     }
     if (triggerEl) triggerEl.disabled = true;
@@ -3309,9 +3321,9 @@
 
   function saveOrderFromExport(root, triggerEl) {
     state = readStateFromDom(root, state);
-    var name = getQuoteDisplayName(state);
+    var name = getOrderTitle(state);
     if (!name) {
-      showPdfMsg(root, 'Escribí el nombre de al menos un producto antes de guardar la orden.', true);
+      showPdfMsg(root, 'Escribí el título de la orden antes de guardar la orden.', true);
       return Promise.resolve();
     }
     if (triggerEl) triggerEl.disabled = true;

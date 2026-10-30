@@ -3,6 +3,7 @@
 **Last updated:** 2026-10-30
 **Current phase:** Public services + quote requests + unified navbar
 **Next:** Optional quote↔cost_quotes integration; CMS-editable service pages; CSS variable homogenization
+- [x] **Cotización 3D quotation naming**: save/list name from `export.orderTitle` (not first product); product names preserved.
 - [x] **Cotización 3D wholesale quote-level tier**: PDF uses total qty across products for tier (parity with server/Admin); multi-product joint qualification.
 - [x] **Cotización 3D wholesale + total additionals**: exact `productTotal` wholesale discount; PDF rows respect `pricingMode` (total qty=1); server/PDF parity.
 - [x] **Cotización 3D additionals/discounts/profit/Resumen**: `pricingMode` per_product|total; canonical discount order; design→Alex; client-only Resumen final; product-card separation.

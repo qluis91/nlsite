@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-30 — Quotation name from order title
+
+### Fixed
+- Cotización 3D save/display name uses `export.orderTitle` (Título de la orden), not Product 1
+- `buildPayload` no longer copies quotation name onto product line names
+
+### Notes
+- No schema migration
+- Product-name fallback in `getQuoteDisplayName` is for legacy display/re-save helpers only; Admin save requires `orderTitle`
+
 ## 2026-10-30 — Wholesale quote-level tier for PDF
 
 ### Fixed

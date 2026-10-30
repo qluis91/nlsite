@@ -990,6 +990,96 @@ describe('Quote store contracts', () => {
     assert.equal(payload.globalDiscount.percent, 10);
   });
 
+  it('quotation name uses order title, not first product (multi-product)', () => {
+    const snapshot = {
+      products: [
+        { name: 'Figura 3D', quantity: 1 },
+        { name: 'Base LED', quantity: 1 },
+      ],
+      export: { orderTitle: 'Pedido personalizado Naruto' },
+    };
+    assert.equal(
+      quoteStore.getQuoteDisplayName(snapshot),
+      'Pedido personalizado Naruto'
+    );
+    assert.notEqual(quoteStore.getQuoteDisplayName(snapshot), 'Figura 3D');
+    const payload = quoteStore.buildPayload(snapshot, quoteStore.getQuoteDisplayName(snapshot));
+    assert.equal(payload.products[0].name, 'Figura 3D');
+    assert.equal(payload.products[1].name, 'Base LED');
+  });
+
+  it('quotation name uses order title for single product', () => {
+    const snapshot = {
+      products: [{ name: 'Pieza impresa', quantity: 1 }],
+      export: { orderTitle: 'Repuesto personalizado Honda' },
+    };
+    assert.equal(
+      quoteStore.getQuoteDisplayName(snapshot),
+      'Repuesto personalizado Honda'
+    );
+    assert.notEqual(quoteStore.getQuoteDisplayName(snapshot), 'Pieza impresa');
+  });
+
+  it('buildPayload does not overwrite product names with order title', () => {
+    const payload = quoteStore.buildPayload(
+      {
+        products: [
+          { name: 'Figura 3D', quantity: 1 },
+          { name: 'Base personalizada', quantity: 1 },
+        ],
+        export: { orderTitle: 'Figura personalizada Goku' },
+      },
+      'Figura personalizada Goku'
+    );
+    assert.equal(payload.products[0].name, 'Figura 3D');
+    assert.equal(payload.products[1].name, 'Base personalizada');
+    assert.equal(payload.product.name, 'Figura 3D');
+    assert.equal(payload.export.orderTitle, 'Figura personalizada Goku');
+  });
+
+  it('product-name fallback only when orderTitle absent (legacy display helper)', () => {
+    const legacy = {
+      products: [
+        { name: 'Figura 3D', quantity: 1 },
+        { name: 'Base LED', quantity: 1 },
+      ],
+      export: {},
+    };
+    assert.equal(quoteStore.getOrderTitle(legacy), '');
+    assert.equal(quoteStore.getQuoteDisplayName(legacy), 'Figura 3D +1 más');
+    const withTitle = {
+      ...legacy,
+      export: { orderTitle: 'Pedido personalizado Naruto' },
+    };
+    assert.equal(quoteStore.getQuoteDisplayName(withTitle), 'Pedido personalizado Naruto');
+  });
+
+  it('saveCostQuote without orderTitle/productName does not invent Product 1 name', async () => {
+    const r = await quoteStore.saveCostQuote(
+      {
+        products: [{ name: 'Figura 3D', quantity: 1, grams: 0, printHours: 0 }],
+        costs: { hourRate: 0, kgPrice: 0, profitPercent: 0, designCost: 0 },
+        discounts: {},
+        discountRanges: {},
+        export: { clientName: 'X' },
+      },
+      ''
+    );
+    assert.equal(r.ok, false);
+    assert.match(r.error, /título de la orden/i);
+  });
+
+  it('frontend save requires getOrderTitle (source)', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../public/js/admin/admin-cost-quote.js'),
+      'utf8'
+    );
+    assert.match(src, /function getOrderTitle\(state\)/);
+    assert.match(src, /if \(orderTitle\) return orderTitle/);
+    assert.match(src, /var name = getOrderTitle\(state\)/);
+    assert.match(src, /título de la orden antes de guardar/i);
+  });
+
   it('blocks approved quote edits', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../services/costQuoteStore.js'), 'utf8');
     assert.ok(src.includes("workflowStatus === 'aprobada'"));
@@ -1154,13 +1244,21 @@ describe('Integration catalog/quote round-trip', () => {
       globalDiscount: { enabled: false, percent: 0 },
       scenarioQty: {},
       wholesaleMode: false,
-      export: { clientName: 'Cliente Test', clientEmail: 'cliente@test.com' },
+      export: {
+        clientName: 'Cliente Test',
+        clientEmail: 'cliente@test.com',
+        orderTitle: 'Pedido personalizado Naruto',
+      },
     };
 
-    const created = await quoteStore.saveCostQuote(snapshot, 'Producto A +1 más', {
-      clientEmail: 'cliente@test.com',
-      clientName: 'Cliente Test',
-    });
+    const created = await quoteStore.saveCostQuote(
+      snapshot,
+      quoteStore.getQuoteDisplayName(snapshot),
+      {
+        clientEmail: 'cliente@test.com',
+        clientName: 'Cliente Test',
+      }
+    );
     assert.equal(created.ok, true);
     assert.ok(created.id);
 
@@ -1169,21 +1267,27 @@ describe('Integration catalog/quote round-trip', () => {
     assert.equal(loaded.payload.costs.materialId, String(material.id));
     assert.equal(loaded.payload.products.length, 2);
     assert.equal(loaded.payload.alexPercent, 60);
+    assert.equal(loaded.productName, 'Pedido personalizado Naruto');
+    assert.equal(loaded.payload.products[0].name, 'Producto A');
+    assert.notEqual(loaded.productName, 'Producto A');
 
+    const updatedSnapshot = {
+      ...snapshot,
+      products: [{ ...snapshot.products[0], name: 'Producto A Editado' }],
+      export: { ...snapshot.export, orderTitle: 'Repuesto personalizado Honda' },
+    };
     const updated = await quoteStore.saveCostQuote(
-      {
-        ...snapshot,
-        products: [{ ...snapshot.products[0], name: 'Producto A Editado' }],
-      },
-      'Producto A Editado',
+      updatedSnapshot,
+      quoteStore.getQuoteDisplayName(updatedSnapshot),
       { id: created.id, clientEmail: 'cliente@test.com', clientName: 'Cliente Test' }
     );
     assert.equal(updated.ok, true);
     assert.equal(updated.id, created.id);
 
     const reloaded = await quoteStore.getCostQuoteRecord(created.id);
-    assert.equal(reloaded.productName, 'Producto A Editado');
+    assert.equal(reloaded.productName, 'Repuesto personalizado Honda');
     assert.equal(reloaded.payload.products[0].name, 'Producto A Editado');
+    assert.equal(reloaded.payload.export.orderTitle, 'Repuesto personalizado Honda');
 
     await quoteStore.setWorkflowStatus(created.id, 'aprobada', { approvedAt: Date.now() });
     const blocked = await quoteStore.saveCostQuote(snapshot, 'X', { id: created.id });
