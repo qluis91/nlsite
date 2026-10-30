@@ -17,7 +17,7 @@
   };
   var BRAND = {
     phone: '(506) 7024-0270',
-    web: 'www.ninjalab3d.com',
+    web: 'www.ninjalabcr.com',
     email: 'lquijano@ninjalab3d.com',
   };
   function resolveQuoteEmail(state) {
@@ -568,24 +568,20 @@
 
   function renderTableFooter(items, showDiscountCol, wholesaleMode, designCost, includeIva) {
     var labelCols = 4;
-    var unitSum = sumUnitPrices(items);
     var grossSub = items.reduce(function (sum, it) {
       return sum + it.total;
     }, 0);
     var discSub = items.reduce(function (sum, it) {
       return sum + it.discountPerUnit * it.qty;
     }, 0);
-    var lineQty = items.length ? Math.max(0, Math.round(Number(items[0].qty) || 0)) : 1;
-    var showUnitSubtotal = lineQty > 1;
+    // Precio unit. footer cell stays empty — only the Total column shows the subtotal.
     var html = '<tfoot>';
     html +=
       '<tr class="quote-table-subtotal">' +
       '<td colspan="' +
       labelCols +
       '" class="subtotal-label"><strong>Subtotal</strong></td>' +
-      '<td class="money">' +
-      (showUnitSubtotal ? '<strong>' + fmtMoney(unitSum) + '</strong>' : '') +
-      '</td>' +
+      '<td class="money"></td>' +
       (showDiscountCol
         ? '<td class="money discount">' +
           (discSub > 0 ? '<strong>' + fmtMoneyNeg(discSub) + '</strong>' : '') +
@@ -614,17 +610,10 @@
   }
 
   function renderTilopayNote(grandTotal) {
-    var fees =
-      global.NLTilopayFees && typeof global.NLTilopayFees.computeTilopayPricing === 'function'
-        ? global.NLTilopayFees.computeTilopayPricing(grandTotal)
-        : null;
-    if (!fees || fees.serviceFees <= 0) return '';
-    return (
-      '<div class="summary-tilopay-note">' +
-      '<div class="summary-tilopay-note__total">Total con pago web: <strong>' +
-      fmtMoney(fees.tilopayTotal) +
-      '</strong></div></div>'
-    );
+    // PDF presentation: hide "Total con pago web" for now.
+    // Tilopay fee calculation remains available via NLTilopayFees for other workflows.
+    void grandTotal;
+    return '';
   }
 
   function renderSummaryRows(summary, wholesaleMode, useGrossDiscountLayout) {

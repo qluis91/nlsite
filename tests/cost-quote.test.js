@@ -851,6 +851,45 @@ describe('Quotation email catalog + default description UX', () => {
   });
 });
 
+describe('PDF presentation polish', () => {
+  const pdfSrc = fs.readFileSync(
+    path.resolve(__dirname, '../public/js/admin/admin-cost-quote-pdf.js'),
+    'utf8'
+  );
+
+  it('footer brand website is ninjalabcr.com', () => {
+    assert.match(pdfSrc, /web:\s*'www\.ninjalabcr\.com'/);
+    assert.doesNotMatch(pdfSrc, /web:\s*'www\.ninjalab3d\.com'/);
+  });
+
+  it('does not render Total con pago web in PDF HTML', () => {
+    const footerFn = pdfSrc.slice(
+      pdfSrc.indexOf('function renderTilopayNote'),
+      pdfSrc.indexOf('function renderSummaryRows')
+    );
+    assert.match(footerFn, /return ''/);
+    // No rendered HTML/template string for the payment-web line
+    assert.doesNotMatch(footerFn, /summary-tilopay-note__total/);
+    assert.doesNotMatch(footerFn, /Total con pago web:\s*<strong>/);
+    // Calculation helper must remain available elsewhere
+    assert.match(pdfSrc, /NLTilopayFees/);
+  });
+
+  it('table subtotal footer leaves Precio unit. cell empty', () => {
+    const fn = pdfSrc.slice(
+      pdfSrc.indexOf('function renderTableFooter'),
+      pdfSrc.indexOf('function renderTilopayNote')
+    );
+    assert.match(fn, /<td class="money"><\/td>/);
+    assert.doesNotMatch(fn, /showUnitSubtotal/);
+    assert.doesNotMatch(fn, /fmtMoney\(unitSum\)/);
+    // Total column still shows grossSub
+    assert.match(fn, /fmtMoney\(grossSub\)/);
+    // 6 columns without discount: colspan 4 + empty unit + total
+    assert.match(fn, /colspan="'\s*\+\s*labelCols/);
+  });
+});
+
 describe('Quote store contracts', () => {
   const quoteStore = require('../services/costQuoteStore');
 
