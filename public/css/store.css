@@ -445,6 +445,8 @@
     radial-gradient(circle at 30% 40%, rgba(124, 240, 61, 0.18), transparent 50%),
     linear-gradient(145deg, #1a2218 0%, #0d1110 100%);
   overflow: hidden;
+  /* Diagonal left edge: inset at top, flush at bottom (CSS-only; images untouched). */
+  clip-path: polygon(11% 0, 100% 0, 100% 100%, 0 100%);
 }
 
 .st-hero__image {
@@ -971,6 +973,10 @@
     grid-template-columns: minmax(0, 0.48fr) minmax(0, 0.52fr);
     max-height: 15rem;
   }
+
+  .st-hero__media {
+    clip-path: polygon(8% 0, 100% 0, 100% 100%, 0 100%);
+  }
 }
 
 @media (max-width: 1040px) {
@@ -1027,6 +1033,7 @@
     min-height: 9rem;
     max-height: 11rem;
     aspect-ratio: 4 / 3;
+    clip-path: none;
   }
 
   .st-hero__content {

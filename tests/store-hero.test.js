@@ -282,6 +282,24 @@ describe('light theme CSS contract', () => {
     assert.match(storeCss, /grid-template-columns:\s*1fr/);
   });
 
+  test('desktop hero media uses diagonal clip-path', () => {
+    const mediaIdx = storeCss.indexOf('.st-hero__media');
+    assert.ok(mediaIdx >= 0);
+    const mediaBlock = storeCss.slice(mediaIdx, mediaIdx + 450);
+    assert.match(mediaBlock, /clip-path:\s*polygon\(/);
+    assert.match(mediaBlock, /11%\s*0/);
+    assert.match(mediaBlock, /0\s*100%/);
+    assert.match(mediaBlock, /100%\s*0/);
+    assert.match(mediaBlock, /100%\s*100%/);
+  });
+
+  test('mobile hero media disables diagonal clip-path', () => {
+    const mobileIdx = storeCss.indexOf('@media (max-width: 767px)');
+    assert.ok(mobileIdx >= 0);
+    const mobileBlock = storeCss.slice(mobileIdx, mobileIdx + 1800);
+    assert.match(mobileBlock, /\.st-hero__media\s*\{[^}]*clip-path:\s*none/s);
+  });
+
   test('no global body theme override', () => {
     assert.doesNotMatch(storeCss, /body\s*\{[\s\S]*background:\s*#f4f6f3/);
   });
