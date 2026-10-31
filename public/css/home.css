@@ -1336,8 +1336,9 @@ body.page-home.is-page-loading {
   width: min(calc(100% - (var(--home-panel-padding) * 2)), var(--home-content-width));
   min-height: 6.25rem;
   padding: 0.6rem clamp(0.75rem, 1.5vw, 1.25rem);
-  grid-template-columns: minmax(210px, clamp(230px, 19vw, 320px)) clamp(180px, 17vw, 280px) minmax(0, 1fr);
-  gap: clamp(0.55rem, 1.2vw, 1.25rem);
+  /* Logo column capped ~230px so search sits closer; nav recovers ~70–90px on large screens. */
+  grid-template-columns: minmax(185px, clamp(200px, 14vw, 230px)) clamp(180px, 17vw, 280px) minmax(0, 1fr);
+  gap: clamp(0.55rem, 0.9vw, 1rem);
   transform: translateX(-50%);
   border: 1px solid transparent;
   border-radius: 1.35rem;

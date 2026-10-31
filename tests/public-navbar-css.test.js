@@ -23,6 +23,33 @@ describe('public-navbar.css', () => {
     assert.doesNotMatch(css, /^\s*ul\s*\{[^}]*list-style:\s*none/m);
   });
 
+  it('desktop logo column is capped near 230px (search sits closer to logo)', () => {
+    const headerIdx = css.indexOf('.hero-header {');
+    assert.ok(headerIdx >= 0);
+    const headerBlock = css.slice(headerIdx, headerIdx + 900);
+    assert.match(
+      headerBlock,
+      /grid-template-columns:\s*minmax\(185px,\s*clamp\(200px,\s*14vw,\s*230px\)\)/
+    );
+    assert.match(headerBlock, /clamp\(180px,\s*17vw,\s*280px\)/);
+    assert.doesNotMatch(headerBlock, /clamp\(230px,\s*19vw,\s*320px\)/);
+    assert.match(css, /\.hero-logo-img\s*\{[^}]*object-fit:\s*contain/s);
+    assert.match(css, /object-position:\s*left center/);
+  });
+
+  it('home.css desktop logo column stays in sync (home loads home.css only)', () => {
+    const homeCss = fs.readFileSync(path.join(__dirname, '../public/css/home.css'), 'utf8');
+    const headerIdx = homeCss.indexOf('/* ── 12. Homepage navigation system');
+    assert.ok(headerIdx >= 0);
+    const headerBlock = homeCss.slice(headerIdx, headerIdx + 1200);
+    assert.match(
+      headerBlock,
+      /grid-template-columns:\s*minmax\(185px,\s*clamp\(200px,\s*14vw,\s*230px\)\)/
+    );
+    assert.doesNotMatch(headerBlock, /clamp\(230px,\s*19vw,\s*320px\)/);
+    assert.match(homeCss, /@media\s*\(max-width:\s*1040px\)/);
+  });
+
   it('contains a real mobile navbar media query with hamburger rules', () => {
     const mediaIdx = css.indexOf('@media (max-width: 1040px)');
     assert.ok(mediaIdx >= 0, 'must include @media (max-width: 1040px)');
