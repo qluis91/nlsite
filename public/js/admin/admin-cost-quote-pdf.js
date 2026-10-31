@@ -827,22 +827,10 @@
     if (!wholesaleMode && designAmt > 0) {
       breakdown.push({ label: '* Dise\u00f1o personalizado', amount: designAmt });
     }
+    // Monetary summary: shipping row only when priced with a positive charge.
     if (shippingResolved.mode === 'priced' && shippingAmt > 0) {
       breakdown.push({ label: 'Env\u00edo', amount: shippingAmt });
-    } else if (shippingResolved.mode === 'pending_quote') {
-      breakdown.push({
-        label: 'Env\u00edo',
-        displayText: 'Costo de env\u00edo no incluido',
-      });
-    } else if (shippingResolved.mode === 'free') {
-      breakdown.push({ label: 'Env\u00edo', displayText: 'Gratis' });
-    } else if (shippingResolved.mode === 'local_pickup') {
-      breakdown.push({
-        label: 'Env\u00edo',
-        displayText: 'Retiro en local \u2014 sin costo de env\u00edo',
-      });
     }
-    // not_applicable: omit shipping row
     if (globalDiscAmt > 0) {
       breakdown.push({ label: 'Descuento general', amount: -globalDiscAmt });
     }
@@ -869,6 +857,28 @@
     };
   }
 
+  /**
+   * Non-priced shipping is informational (Conditions), not a money row.
+   * priced → null (monetary summary only when amount > 0).
+   */
+  function buildShippingNote(exportData) {
+    var shipping = resolveQuoteShipping(exportData);
+    if (shipping.mode === 'priced') return null;
+    if (shipping.mode === 'pending_quote') {
+      return 'Costo de env\u00edo no incluido en el total de la cotizaci\u00f3n.';
+    }
+    if (shipping.mode === 'free') {
+      return 'El env\u00edo se incluye sin costo adicional para el cliente.';
+    }
+    if (shipping.mode === 'local_pickup') {
+      return 'Retiro en local \u2014 sin costo de env\u00edo.';
+    }
+    if (shipping.mode === 'not_applicable') {
+      return 'Env\u00edo: no aplica.';
+    }
+    return null;
+  }
+
   function buildNotes(data, state, result) {
     var exp = state.export || {};
     var wholesaleMode = !!(data.wholesaleMode || state.wholesaleMode);
@@ -892,6 +902,10 @@
           exp.deliveryDays +
           ' d\u00edas h\u00e1biles posteriores a la confirmaci\u00f3n del pago.',
       });
+    }
+    var shippingNote = buildShippingNote(exp);
+    if (shippingNote) {
+      notes.push({ icon: 'truck', text: shippingNote });
     }
     if (exp.paymentTerms) {
       notes.push({ icon: 'card', text: exp.paymentTerms });
@@ -1548,6 +1562,8 @@
     computeGrandTotal: computeGrandTotal,
     buildLineItems: buildLineItems,
     buildSummary: buildSummary,
+    buildNotes: buildNotes,
+    buildShippingNote: buildShippingNote,
     buildFilename: safeFilename,
     withIva: withIva,
     extractIncludedIva: extractIncludedIva,

@@ -4308,74 +4308,83 @@ describe('Quote shippingMode semantics', () => {
     }
   });
 
-  it('PDF breakdown uses displayText for non-priced modes', () => {
+  it('PDF: priced shipping is monetary summary only; non-priced go to Conditions notes', () => {
     const pdf = loadPdf();
     const items = [{ total: 25000, unitPrice: 25000, qty: 1, discountPerUnit: 0 }];
 
-    const pending = pdf.buildSummary(
-      items,
-      pdf.resolveQuoteShipping({ shippingMode: 'pending_quote', shippingCost: 0 }),
-      'excluded',
-      false,
-      0,
-      false,
-      0
-    );
-    assert.ok(
-      pending.breakdown.some(
-        (r) => r.displayText && /no incluido|Pendiente/i.test(r.displayText)
-      )
-    );
-    assert.equal(pending.shipping, 0);
-    assert.equal(pending.grandTotal, 25000);
+    function summaryFor(mode, cost) {
+      return pdf.buildSummary(
+        items,
+        pdf.resolveQuoteShipping({ shippingMode: mode, shippingCost: cost }),
+        'excluded',
+        false,
+        0,
+        false,
+        0
+      );
+    }
 
-    const free = pdf.buildSummary(
-      items,
-      pdf.resolveQuoteShipping({ shippingMode: 'free', shippingCost: 0 }),
-      'excluded',
-      false,
-      0,
-      false,
-      0
-    );
-    assert.ok(free.breakdown.some((r) => r.displayText && /Gratis/i.test(r.displayText)));
-    assert.equal(free.shipping, 0);
+    function notesFor(mode, taxMode) {
+      return pdf.buildNotes(
+        { taxMode: taxMode || 'excluded' },
+        {
+          export: {
+            shippingMode: mode,
+            shippingCost: 0,
+            deliveryDays: 5,
+            paymentTerms: '',
+            warranty: '',
+            taxMode: taxMode || 'excluded',
+            extraNotes: '',
+          },
+          wholesaleMode: false,
+        },
+        { main: { quantity: 1 } }
+      );
+    }
 
-    const pickup = pdf.buildSummary(
-      items,
-      pdf.resolveQuoteShipping({ shippingMode: 'local_pickup', shippingCost: 0 }),
-      'excluded',
-      false,
-      0,
-      false,
-      0
-    );
-    assert.ok(
-      pickup.breakdown.some((r) => r.displayText && /Retiro en local/i.test(r.displayText))
-    );
-
-    const na = pdf.buildSummary(
-      items,
-      pdf.resolveQuoteShipping({ shippingMode: 'not_applicable', shippingCost: 0 }),
-      'excluded',
-      false,
-      0,
-      false,
-      0
-    );
-    assert.ok(!na.breakdown.some((r) => /Env/i.test(r.label)));
-
-    const priced = pdf.buildSummary(
-      items,
-      pdf.resolveQuoteShipping({ shippingMode: 'priced', shippingCost: 3500 }),
-      'excluded',
-      false,
-      0,
-      false,
-      0
-    );
+    const priced = summaryFor('priced', 3500);
     assert.ok(priced.breakdown.some((r) => r.label === 'Envío' && r.amount === 3500));
     assert.equal(priced.grandTotal, 28500);
+    assert.equal(pdf.buildShippingNote({ shippingMode: 'priced', shippingCost: 3500 }), null);
+    const pricedNotes = notesFor('priced');
+    assert.ok(
+      !pricedNotes.some((n) =>
+        /no incluido|sin costo adicional|Retiro en local|no aplica/i.test(n.text)
+      )
+    );
+
+    for (const mode of ['pending_quote', 'free', 'local_pickup', 'not_applicable']) {
+      const sum = summaryFor(mode, 0);
+      assert.ok(!sum.breakdown.some((r) => /Env/i.test(r.label)), mode + ' no summary row');
+      assert.equal(sum.grandTotal, 25000, mode + ' total');
+    }
+
+    assert.match(
+      pdf.buildShippingNote({ shippingMode: 'pending_quote', shippingCost: 0 }),
+      /Costo de envío no incluido en el total de la cotización/
+    );
+    assert.match(
+      pdf.buildShippingNote({ shippingMode: 'free', shippingCost: 0 }),
+      /sin costo adicional/
+    );
+    assert.match(
+      pdf.buildShippingNote({ shippingMode: 'local_pickup', shippingCost: 0 }),
+      /Retiro en local/
+    );
+    assert.match(
+      pdf.buildShippingNote({ shippingMode: 'not_applicable', shippingCost: 0 }),
+      /Envío: no aplica/
+    );
+
+    const pendingNotes = notesFor('pending_quote', 'excluded');
+    assert.ok(
+      pendingNotes.some((n) => /Costo de envío no incluido en el total de la cotización/.test(n.text))
+    );
+    assert.ok(pendingNotes.some((n) => /no incluyen IVA/.test(n.text)));
+    const shipIdx = pendingNotes.findIndex((n) => /Costo de envío no incluido/.test(n.text));
+    const ivaIdx = pendingNotes.findIndex((n) => /no incluyen IVA/.test(n.text));
+    assert.ok(shipIdx !== -1 && ivaIdx !== -1 && shipIdx < ivaIdx);
   });
 
   it('WIP detection treats non-default shippingMode as work', () => {

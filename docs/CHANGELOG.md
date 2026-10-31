@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-30 — PDF shipping notes vs monetary summary
+
+### Changed
+- Cotización 3D PDF: only priced shipping with amount > 0 appears in the monetary summary
+- Non-priced modes (`pending_quote`, `free`, `local_pickup`, `not_applicable`) render as Conditions notes (truck icon), not summary rows
+
+### Notes
+- Totals/tax/discount/shipping calc unchanged; presentation only
+
 ## 2026-10-30 — Fix quote shipping bootstrap init order
 
 ### Fixed
