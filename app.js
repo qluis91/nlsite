@@ -82,6 +82,7 @@ const searchRoutes = require('./routes/searchRoutes');
 const storeRoutes = require('./routes/storeRoutes');
 const galleryRoutes = require('./routes/galleryRoutes');
 const aboutRoutes = require('./routes/aboutRoutes');
+const materialsRoutes = require('./routes/materialsRoutes');
 const servicesRoutes = require('./routes/servicesRoutes');
 const quoteRequestRoutes = require('./routes/quoteRequestRoutes');
 const adminQuoteRequestRoutes = require('./routes/adminQuoteRequestRoutes');
@@ -535,6 +536,7 @@ app.use('/buscar', searchRoutes);
 app.use('/tienda', storeRoutes);
 app.use('/galeria', galleryRoutes);
 app.use('/nosotros', aboutRoutes);
+app.use('/materiales', materialsRoutes);
 app.use(servicesRoutes);
 app.use('/carrito', cartRoutes);
 app.use('/checkout', checkoutRoutes);
@@ -571,6 +573,7 @@ app.get('/sitemap.xml', async (_req, res) => {
       { loc: '/tienda', priority: '0.9' },
       { loc: '/galeria', priority: '0.8' },
       { loc: '/nosotros', priority: '0.8' },
+      { loc: '/materiales', priority: '0.75' },
       { loc: '/soluciones-digitales', priority: '0.85' },
       { loc: '/fabricacion-3d', priority: '0.85' },
       { loc: '/cotizar/sitio-web', priority: '0.7' },

@@ -42,9 +42,9 @@ function loadDeployRunnerWithFakes(dependencies) {
 }
 
 describe('Phase 13 — migration registry', () => {
-  it('contains the current 46 registered migrations exactly once', () => {
-    assert.equal(tracker.MIGRATION_REGISTRY.length, 46);
-    assert.equal(new Set(tracker.MIGRATION_REGISTRY.map((entry) => entry.name)).size, 46);
+  it('contains the current 47 registered migrations exactly once', () => {
+    assert.equal(tracker.MIGRATION_REGISTRY.length, 47);
+    assert.equal(new Set(tracker.MIGRATION_REGISTRY.map((entry) => entry.name)).size, 47);
     assert.equal(
       tracker.MIGRATION_REGISTRY.filter((entry) => entry.name === 'migrateCatalogSchemaRepair').length,
       1

@@ -1,0 +1,193 @@
+<%
+  const c = content || {};
+  const hero = c.hero || {};
+  const seo = c.seo || {};
+  const accessibility = c.accessibility || {};
+  const items = Array.isArray(c.items) ? c.items.slice().sort(function (a, b) {
+    return Number(a.order || 0) - Number(b.order || 0);
+  }) : [];
+  const state = editorState || 'clean';
+  const stateLabels = { clean: 'Sin cambios', dirty: 'Cambios sin guardar', saving: 'Guardando', saved: 'Borrador guardado', published: 'Publicado', error: 'Error' };
+  function mediaFor(ref) { return ref && mediaByRef ? mediaByRef[ref] : null; }
+  const icons = Array.isArray(allowedIcons) ? allowedIcons : ['cube'];
+%>
+<div data-cms-editor data-editor-state="<%= state %>">
+  <div class="page-header">
+    <div>
+      <h1>Página Materiales</h1>
+      <p>Edita el contenido público de <code>/materiales</code>. Guardar modifica solo el borrador.</p>
+      <span class="badge <%= section.status === 'published' ? 'badge-published' : 'badge-hidden' %>"><%= section.status || 'sin guardar' %></span>
+    </div>
+    <div class="cms-actions">
+      <span class="cms-editor-state" data-cms-editor-status data-state="<%= state %>"><%= stateLabels[state] || stateLabels.clean %></span>
+      <a href="/materiales" class="btn btn-outline" target="_blank" rel="noopener noreferrer">Ver página pública</a>
+    </div>
+  </div>
+
+  <% if (fieldErrors.length) { %>
+    <div class="card" role="group" aria-label="Errores de validación">
+      <h2>Revisa estos campos</h2>
+      <ul class="cms-field-errors"><% fieldErrors.forEach(function (message) { %><li><%= message %></li><% }); %></ul>
+    </div>
+  <% } %>
+
+  <form id="materials-page-form" action="/admin/page/materiales/save" method="POST" class="cms-form" data-cms-editor-form novalidate>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="version" value="<%= section.version || 1 %>">
+
+    <section class="card" aria-labelledby="materials-hero-heading">
+      <h2 id="materials-hero-heading">Hero / introducción</h2>
+      <div class="form-group">
+        <label for="materials-eyebrow">Eyebrow</label>
+        <input class="form-control" id="materials-eyebrow" name="heroEyebrow" maxlength="120" value="<%= hero.eyebrow || '' %>">
+      </div>
+      <div class="form-group">
+        <label for="materials-title">Título <span class="text-danger">*</span></label>
+        <input class="form-control" id="materials-title" name="heroTitle" maxlength="160" required value="<%= hero.title || '' %>">
+      </div>
+      <div class="form-group">
+        <label for="materials-description">Descripción</label>
+        <textarea class="form-control" id="materials-description" name="heroDescription" rows="4" maxlength="1000"><%= hero.description || '' %></textarea>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="materials-list-heading">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+        <h2 id="materials-list-heading" style="margin:0;">Materiales</h2>
+        <button type="button" class="btn btn-outline" id="materials-add-item">Nuevo material</button>
+      </div>
+      <p class="text-muted">Cada ventaja o desventaja va en una línea. El orden numérico controla la grilla pública.</p>
+      <div id="materials-items" data-materials-list>
+        <% items.forEach(function (item, index) { %>
+          <article class="card materials-item" data-materials-item data-index="<%= index %>">
+            <div style="display:flex;justify-content:space-between;gap:1rem;align-items:center;flex-wrap:wrap;">
+              <h3 style="margin:0;">Material #<%= index + 1 %></h3>
+              <button type="button" class="btn btn-outline" data-materials-remove>Eliminar</button>
+            </div>
+            <div class="form-group">
+              <label>ID</label>
+              <input class="form-control" name="material_<%= index %>_id" maxlength="64" value="<%= item.id || '' %>" pattern="[a-z0-9\-]*">
+            </div>
+            <div class="form-group">
+              <label>Nombre <span class="text-danger">*</span></label>
+              <input class="form-control" name="material_<%= index %>_title" maxlength="160" required value="<%= item.title || '' %>">
+            </div>
+            <div class="form-group">
+              <label>Icono</label>
+              <select class="form-control" name="material_<%= index %>_icon">
+                <% icons.forEach(function (icon) { %>
+                  <option value="<%= icon %>" <%= (item.icon || 'cube') === icon ? 'selected' : '' %>><%= icon %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Descripción</label>
+              <textarea class="form-control" name="material_<%= index %>_description" rows="4" maxlength="900"><%= item.description || '' %></textarea>
+            </div>
+            <div class="form-group">
+              <label>Ventajas (una por línea)</label>
+              <textarea class="form-control" name="material_<%= index %>_pros" rows="4" maxlength="2400"><%= (item.pros || []).join('\n') %></textarea>
+            </div>
+            <div class="form-group">
+              <label>Desventajas (una por línea)</label>
+              <textarea class="form-control" name="material_<%= index %>_cons" rows="4" maxlength="2400"><%= (item.cons || []).join('\n') %></textarea>
+            </div>
+            <div class="form-group">
+              <label>Orden</label>
+              <input class="form-control" name="material_<%= index %>_order" type="number" min="0" max="9999" value="<%= Number.isFinite(Number(item.order)) ? item.order : (index + 1) * 10 %>">
+            </div>
+            <div class="form-group form-check">
+              <label><input type="checkbox" name="material_<%= index %>_visible" value="1" <%= item.visible !== false ? 'checked' : '' %>> Visible en la página pública</label>
+            </div>
+          </article>
+        <% }); %>
+      </div>
+    </section>
+
+    <details class="advanced-section card" data-advanced-section>
+      <summary aria-expanded="false">SEO</summary>
+      <div class="form-group"><label for="materials-seo-title">Título SEO</label><input class="form-control" id="materials-seo-title" name="seoTitle" maxlength="160" value="<%= seo.title || '' %>"></div>
+      <div class="form-group"><label for="materials-seo-description">Descripción SEO</label><textarea class="form-control" id="materials-seo-description" name="seoDescription" rows="3" maxlength="320"><%= seo.description || '' %></textarea></div>
+      <div class="form-group"><label for="materials-seo-canonical">URL canónica</label><input class="form-control" id="materials-seo-canonical" name="seoCanonical" maxlength="500" value="<%= seo.canonical || '/materiales' %>"></div>
+      <%- include('../../../components/media-selector', {
+        fieldName: 'seoOgMedia',
+        currentValue: seo.ogMedia || '',
+        allowedTypes: ['image/png','image/jpeg','image/webp'],
+        allowedCategories: ['site'],
+        uploadProfile: 'hero-background',
+        label: 'Imagen Open Graph',
+        kindLabel: 'Imagen',
+        thumbnailUrl: mediaFor(seo.ogMedia) ? mediaFor(seo.ogMedia).thumbnail_url : null,
+        selectedTitle: mediaFor(seo.ogMedia) ? (mediaFor(seo.ogMedia).title || mediaFor(seo.ogMedia).original_filename) : null,
+        selectedCategory: mediaFor(seo.ogMedia) ? mediaFor(seo.ogMedia).category : null,
+        selectedMime: mediaFor(seo.ogMedia) ? mediaFor(seo.ogMedia).mime_type : null,
+        selectedDimensions: mediaFor(seo.ogMedia) ? mediaFor(seo.ogMedia).dimensions : null,
+      }) %>
+    </details>
+
+    <details class="advanced-section card" data-advanced-section>
+      <summary aria-expanded="false">Accesibilidad</summary>
+      <div class="form-group"><label for="materials-aria-label">Etiqueta accesible de la página</label><input class="form-control" id="materials-aria-label" name="ariaLabel" maxlength="180" value="<%= accessibility.ariaLabel || '' %>"></div>
+    </details>
+
+    <details class="advanced-section card" data-advanced-section>
+      <summary aria-expanded="false">Visibilidad</summary>
+      <div class="form-group form-check"><label><input type="checkbox" name="isVisible" value="1" <%= c.isVisible !== false ? 'checked' : '' %>> Página visible e indexable al publicar</label></div>
+      <p class="text-muted">Ocultar la página publica <code>noindex</code> sin exponer el borrador.</p>
+    </details>
+
+    <div class="sticky-actions">
+      <span class="cms-editor-state" data-cms-editor-status data-state="<%= state %>"><%= stateLabels[state] || stateLabels.clean %></span>
+      <button type="submit" class="btn btn-save">Guardar cambios</button>
+      <button type="submit" form="materials-page-publish-form" class="btn btn-publish">Publicar</button>
+    </div>
+  </form>
+
+  <form id="materials-page-publish-form" action="/admin/page/materiales/publish" method="POST" hidden data-cms-publish-form>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  </form>
+</div>
+
+<template id="materials-item-template">
+  <article class="card materials-item" data-materials-item data-index="__INDEX__">
+    <div style="display:flex;justify-content:space-between;gap:1rem;align-items:center;flex-wrap:wrap;">
+      <h3 style="margin:0;">Material #__NUMBER__</h3>
+      <button type="button" class="btn btn-outline" data-materials-remove>Eliminar</button>
+    </div>
+    <div class="form-group">
+      <label>ID</label>
+      <input class="form-control" name="material___INDEX___id" maxlength="64" value="" pattern="[a-z0-9\-]*">
+    </div>
+    <div class="form-group">
+      <label>Nombre <span class="text-danger">*</span></label>
+      <input class="form-control" name="material___INDEX___title" maxlength="160" required value="">
+    </div>
+    <div class="form-group">
+      <label>Icono</label>
+      <select class="form-control" name="material___INDEX___icon">
+        <% icons.forEach(function (icon) { %>
+          <option value="<%= icon %>" <%= icon === 'cube' ? 'selected' : '' %>><%= icon %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Descripción</label>
+      <textarea class="form-control" name="material___INDEX___description" rows="4" maxlength="900"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Ventajas (una por línea)</label>
+      <textarea class="form-control" name="material___INDEX___pros" rows="4" maxlength="2400"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Desventajas (una por línea)</label>
+      <textarea class="form-control" name="material___INDEX___cons" rows="4" maxlength="2400"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Orden</label>
+      <input class="form-control" name="material___INDEX___order" type="number" min="0" max="9999" value="__ORDER__">
+    </div>
+    <div class="form-group form-check">
+      <label><input type="checkbox" name="material___INDEX___visible" value="1" checked> Visible en la página pública</label>
+    </div>
+  </article>
+</template>

@@ -18,6 +18,7 @@ const MODULE_KEYS = Object.freeze({
   FEATURES: 'home.features',
   STORE_HERO: 'tienda.st-hero',
   ABOUT_PAGE: 'nosotros.about-content',
+  MATERIALS_PAGE: 'materiales.materials-content',
   SOCIAL_FEED: 'social-feed',
   TESTIMONIALS: 'testimonials',
 });
@@ -283,6 +284,45 @@ const MODULES = Object.freeze({
     pendingCheck: async () => {
       const [[row]] = await pool.query(
         "SELECT s.status FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key='nosotros' AND s.section_key='about-content'"
+      );
+      return Boolean(row && row.status === 'draft');
+    },
+  }),
+  [MODULE_KEYS.MATERIALS_PAGE]: Object.freeze({
+    key: MODULE_KEYS.MATERIALS_PAGE,
+    label: 'Página Materiales',
+    entitySource: 'page_sections (materiales/materials-content)',
+    cacheNamespaces: ['sc_materiales'],
+    revisionEntityTypes: ['page_section'],
+    dependencies: [],
+    canPublishIndependently: true,
+    validate: async () => {
+      const [[row]] = await pool.query(
+        "SELECT s.content_json FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key='materiales' AND s.section_key='materials-content'"
+      );
+      if (!row?.content_json) {
+        return { valid: false, errors: ['La Página Materiales no tiene contenido configurado.'] };
+      }
+      let content;
+      try {
+        content = typeof row.content_json === 'string' ? JSON.parse(row.content_json) : row.content_json;
+      } catch {
+        return { valid: false, errors: ['JSON inválido en la Página Materiales.'] };
+      }
+      if (!content?.hero?.title) {
+        return { valid: false, errors: ['La Página Materiales requiere un título.'] };
+      }
+      if (!Array.isArray(content.items) || !content.items.length) {
+        return { valid: false, errors: ['La Página Materiales requiere al menos un material.'] };
+      }
+      return {
+        valid: true,
+        warnings: content.isVisible === false ? ['La Página Materiales está oculta.'] : [],
+      };
+    },
+    pendingCheck: async () => {
+      const [[row]] = await pool.query(
+        "SELECT s.status FROM page_sections s INNER JOIN pages p ON p.id = s.page_id WHERE p.page_key='materiales' AND s.section_key='materials-content'"
       );
       return Boolean(row && row.status === 'draft');
     },

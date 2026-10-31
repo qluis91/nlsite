@@ -60,6 +60,12 @@ router.get('/page/nosotros', requireCapability(CAPABILITIES.ABOUT_PAGE_VIEW), ab
 router.post('/page/nosotros/save', requireCapability(CAPABILITIES.ABOUT_PAGE_EDIT), csrfSynchronisedProtection, aboutPageController.saveAboutPageDraft);
 router.post('/page/nosotros/publish', requireCapability(CAPABILITIES.ABOUT_PAGE_PUBLISH), csrfSynchronisedProtection, aboutPageController.publishAboutPage);
 
+// ── Página Materiales ──
+const materialsPageController = require('../controllers/adminMaterialsPageController');
+router.get('/page/materiales', requireCapability(CAPABILITIES.MATERIALS_PAGE_VIEW), materialsPageController.showMaterialsPage);
+router.post('/page/materiales/save', requireCapability(CAPABILITIES.MATERIALS_PAGE_EDIT), csrfSynchronisedProtection, materialsPageController.saveMaterialsPageDraft);
+router.post('/page/materiales/publish', requireCapability(CAPABILITIES.MATERIALS_PAGE_PUBLISH), csrfSynchronisedProtection, materialsPageController.publishMaterialsPage);
+
 // ── Social Feed (Phase 2A) ──
 const socialFeedController = require('../controllers/adminSocialFeedController');
 router.get('/page/social-feed', requireCapability(CAPABILITIES.SOCIAL_FEED_VIEW), socialFeedController.showList);

@@ -41,6 +41,13 @@ const FALLBACK_NAV_TREE = Object.freeze([
     children: [],
   },
   {
+    publicId: 'fallback-materiales',
+    label: 'Materiales',
+    url: '/materiales',
+    target: '_self',
+    children: [],
+  },
+  {
     publicId: 'fallback-cotizar',
     label: 'Cotizar',
     url: '/cotizar/pieza-3d',
@@ -158,6 +165,8 @@ function resolveNavActiveState(currentPath, item) {
     parentActive = url === '/galeria' && path.startsWith('/galeria');
   } else if (url === '/nosotros' || path.startsWith('/nosotros')) {
     parentActive = url === '/nosotros' && path.startsWith('/nosotros');
+  } else if (url === '/materiales' || path.startsWith('/materiales')) {
+    parentActive = url === '/materiales' && path.startsWith('/materiales');
   } else if (
     url === '/soluciones-digitales'
     || url === '/fabricacion-3d'

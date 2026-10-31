@@ -500,9 +500,9 @@ describe('Phase 1C — Regression', () => {
     }
   });
 
-  it('47. module registry includes 11 modules (Phase 2D added TESTIMONIALS)', () => {
+  it('47. module registry includes 12 modules (Materiales page added)', () => {
     const registry = require('../services/moduleRegistry');
-    assert.equal(registry.MODULE_KEY_VALUES.length, 11);
+    assert.equal(registry.MODULE_KEY_VALUES.length, 12);
   });
 
   it('48. all CMS entity types present', () => {
@@ -555,7 +555,7 @@ describe('Phase 1C — Regression', () => {
 
   it('54. migration tracker has 26 entries (Phase 2D added Testimonials)', () => {
     const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-    assert.equal(MIGRATION_REGISTRY.length, 46);
+    assert.equal(MIGRATION_REGISTRY.length, 47);
   });
 
   it('55. diffEngine exports expected functions', () => {

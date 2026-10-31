@@ -37,7 +37,7 @@ describe('publicNavbarService buildNavTree', () => {
   it('fallback nav matches canonical Services + Cotizar structure', () => {
     const fb = publicNavbar.FALLBACK_NAV_TREE;
     const labels = fb.map((i) => i.label);
-    assert.deepEqual(labels, ['Tienda', 'Servicios', 'Galería', 'Cotizar', 'Nosotros']);
+    assert.deepEqual(labels, ['Tienda', 'Servicios', 'Galería', 'Materiales', 'Cotizar', 'Nosotros']);
     const svc = fb.find((i) => i.label === 'Servicios');
     assert.deepEqual(svc.children.map((c) => c.label), [
       'Soluciones Digitales', 'Fabricación 3D', 'Otros',

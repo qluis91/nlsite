@@ -3,6 +3,7 @@
 **Last updated:** 2026-10-30
 **Current phase:** Public services + quote requests + unified navbar
 **Next:** Optional quote↔cost_quotes integration; CMS-editable service pages; CSS variable homogenization
+- [x] **Public /materiales CMS page**: legacy Materiales UI ported; SSR cards; draft/publish; dynamic materials; icon allowlist; navbar/sitemap; no dedicated materials tables.
 - [x] **Cotización 3D priced shipping validation**: `priced` requires amount > 0 on save/PDF/send; PDF defensive note for priced+0; other modes unchanged.
 - [x] **Cotización 3D PDF shipping presentation**: priced+amount in monetary summary only; other modes in CONDICIONES Y ANOTACIONES; totals unchanged.
 - [x] **Cotización 3D shipping bootstrap fix**: shipping constants/helpers initialized before `loadState()` so `/admin/cotizacion-3d` no longer crashes on migrate.

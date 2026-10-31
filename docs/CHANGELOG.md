@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-30 — Port legacy Materiales page to CMS
+
+### Added
+- Public `/materiales` (SSR) with legacy-inspired glass cards, pros/cons, animations
+- CMS page `materiales` / section `materials-content` (draft + publish)
+- Admin editor `/admin/page/materiales` with add/remove/hide/order materials
+- Icon allowlist (`atom`, `temperature`, `shield`, `droplet`, `cube`, …)
+- Migration `migrateMaterialsPageCms` (+ navbar + sitemap)
+- Capabilities `materials.page.view|edit|publish`
+
+### Notes
+- No dedicated materials DB tables — collection lives in `page_sections` JSON
+- Legacy `ninjalab3dcr` visual reference; modern Express/EJS/CMS architecture
+
 ## 2026-10-30 — Validate priced shipping amount
 
 ### Fixed

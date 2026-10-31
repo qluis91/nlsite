@@ -177,6 +177,12 @@ const MIGRATION_REGISTRY = [
     exportName: 'migrateCostQuotePrinterCosts',
     passPool: true,
   },
+  {
+    name: 'migrateMaterialsPageCms',
+    file: './migrate-materials-page-cms',
+    exportName: 'migrateMaterialsPageCms',
+    passPool: true,
+  },
 ];
 
 async function ensureMigrationsTable(pool) {

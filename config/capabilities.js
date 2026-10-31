@@ -48,6 +48,10 @@ const CAPABILITIES = Object.freeze({
   ABOUT_PAGE_VIEW: 'about.page.view',
   ABOUT_PAGE_EDIT: 'about.page.edit',
   ABOUT_PAGE_PUBLISH: 'about.page.publish',
+  // Página Materiales
+  MATERIALS_PAGE_VIEW: 'materials.page.view',
+  MATERIALS_PAGE_EDIT: 'materials.page.edit',
+  MATERIALS_PAGE_PUBLISH: 'materials.page.publish',
   // Phase 2A — Social Feed
   SOCIAL_FEED_VIEW: 'social.feed.view',
   SOCIAL_FEED_EDIT: 'social.feed.edit',

@@ -14,6 +14,14 @@ const CMS_MODULES = Object.freeze([
     status: 'active',
   },
   {
+    key: 'materials-page',
+    title: 'Página Materiales',
+    description:
+      'Título, introducción, materiales, ventajas, desventajas, visibilidad y SEO de /materiales.',
+    href: '/admin/page/materiales',
+    status: 'active',
+  },
+  {
     key: 'global-settings',
     title: 'Configuración global y SEO',
     description: 'Nombre del sitio, metadatos SEO, favicon, Open Graph, URL canónica y modo de indexación.',

@@ -1695,7 +1695,7 @@ describe('Per-product costing + printer electricity/wear', () => {
     );
     assert.match(tracker, /migrateCostQuotePrinterCosts/);
     const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-    assert.equal(MIGRATION_REGISTRY[MIGRATION_REGISTRY.length - 1].name, 'migrateCostQuotePrinterCosts');
+    assert.ok(MIGRATION_REGISTRY.some((e) => e.name === 'migrateCostQuotePrinterCosts'));
   });
 
   it('UI exposes Cambiar parámetros and Costos generales', () => {

@@ -513,6 +513,7 @@ async function restoreRevision(req, res, next) {
       publishing.invalidateNamespace('carousel_home');
       publishing.invalidateNamespace('features_home');
       publishing.invalidateNamespace('sc_nosotros');
+      publishing.invalidateNamespace('sc_materiales');
     }
 
     const msg = publishAfter

@@ -101,7 +101,7 @@ test('migration 32 adds session_id column to social_oauth_states', async () => {
 
 test('MIGRATION_REGISTRY includes Meta seed without a new Meta auth migration', () => {
   const { MIGRATION_REGISTRY } = require('../scripts/migrationTracker');
-  assert.equal(MIGRATION_REGISTRY.length, 46);
+  assert.equal(MIGRATION_REGISTRY.length, 47);
   assert.ok(MIGRATION_REGISTRY.some((e) => e.name === 'migrateSeedMetaIntegrations'));
   assert.ok(!MIGRATION_REGISTRY.some((e) => /meta.*reconnect|reconnect.*meta/i.test(e.name)));
 });

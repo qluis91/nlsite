@@ -1,0 +1,70 @@
+<main
+  class="home-page materials-page"
+  aria-label="<%= content.accessibility?.ariaLabel || content.hero?.title || 'Materiales de impresión 3D' %>"
+>
+  <%- include('../components/home-navbar', { navbarOnHome: true }) %>
+
+  <% if (content.isVisible !== false) { %>
+    <div class="materials-shell materials-react-stack">
+      <section class="materials-react-hero" id="materials-hero" aria-labelledby="materials-title">
+        <%
+          const heroTitle = content.hero?.title || 'Nuestros Materiales';
+          const neonMatch = String(heroTitle).match(/^(.*)(Materiales)(.*)$/i);
+        %>
+        <h1 id="materials-title">
+          <% if (neonMatch) { %>
+            <%= neonMatch[1] %><span class="materials-neon"><%= neonMatch[2] %></span><%= neonMatch[3] %>
+          <% } else { %>
+            <%= heroTitle %>
+          <% } %>
+        </h1>
+        <% if (content.hero?.description) { %>
+          <p class="lead" id="materials-lead"><%= content.hero.description %></p>
+        <% } %>
+      </section>
+
+      <section
+        class="materials-react-grid"
+        id="materials-grid"
+        aria-label="Listado de materiales"
+      >
+        <% materials.forEach(function (item) { %>
+          <article class="material-io-card glass-effect" data-material-id="<%= item.id %>">
+            <div class="material-io-card__head">
+              <%- item.iconSvg %>
+              <h2><%= item.title %></h2>
+            </div>
+            <% if (item.description) { %>
+              <p><%= item.description %></p>
+            <% } %>
+            <div class="material-io-card__cols">
+              <div>
+                <h3 class="material-io-card__pros">Ventajas</h3>
+                <ul>
+                  <% (item.pros || []).forEach(function (pro) { %>
+                    <li><%= pro %></li>
+                  <% }); %>
+                </ul>
+              </div>
+              <div>
+                <h3 class="material-io-card__cons">Desventajas</h3>
+                <ul>
+                  <% (item.cons || []).forEach(function (con) { %>
+                    <li><%= con %></li>
+                  <% }); %>
+                </ul>
+              </div>
+            </div>
+          </article>
+        <% }); %>
+      </section>
+    </div>
+  <% } else { %>
+    <section class="materials-empty" aria-labelledby="materials-unavailable">
+      <div class="materials-shell">
+        <h1 id="materials-unavailable">Página no disponible</h1>
+        <p>Este contenido se encuentra temporalmente oculto.</p>
+      </div>
+    </section>
+  <% } %>
+</main>

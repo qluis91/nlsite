@@ -75,9 +75,9 @@ describe('Phase 11D — Migration & Schema', () => {
 
 // ── Module Registry (7-9) ──
 describe('Phase 11D — Module Registry', () => {
-  it('7. lists all 11 modules (Phase 2D added TESTIMONIALS)', () => {
+  it('7. lists all 12 modules (Materiales page added)', () => {
     const registry = require('../services/moduleRegistry');
-    assert.equal(registry.MODULE_KEY_VALUES.length, 11);
+    assert.equal(registry.MODULE_KEY_VALUES.length, 12);
   });
 
   it('8. each module has required properties', () => {
@@ -121,10 +121,10 @@ describe('Phase 11D — Capabilities', () => {
 
 // ── Publication Service (12-18) ──
 describe('Phase 11D — Publication Service', () => {
-  it('12. buildDashboardSummary returns 11 cards (Phase 2D added TESTIMONIALS)', async () => {
+  it('12. buildDashboardSummary returns 12 cards (Materiales page added)', async () => {
     const service = require('../services/publicationService');
     const cards = await service.buildDashboardSummary();
-    assert.equal(cards.length, 11);
+    assert.equal(cards.length, 12);
     for (const card of cards) {
       assert.ok(card.moduleKey);
       assert.ok(card.label);

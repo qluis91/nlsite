@@ -1,0 +1,211 @@
+/* Public /materiales — legacy Materiales look scoped to .page-materials */
+
+.page-materials {
+  --materials-bg: #05070b;
+  --materials-fg: #f8fafc;
+  --materials-muted: #94a3b8;
+  --materials-accent: #39ff14;
+  --materials-card: rgba(15, 23, 42, 0.55);
+  --materials-border: rgba(148, 163, 184, 0.22);
+  --materials-pros: #4ade80;
+  --materials-cons: #f87171;
+  background: var(--materials-bg);
+  color: var(--materials-fg);
+}
+
+.page-materials .materials-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(57, 255, 20, 0.08), transparent 55%),
+    linear-gradient(180deg, #080b12 0%, #05070b 100%);
+}
+
+.page-materials .materials-shell {
+  width: min(1120px, calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+.page-materials .materials-react-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4rem;
+  padding: clamp(5.5rem, 12vh, 7rem) 0 5rem;
+}
+
+.page-materials .materials-react-hero {
+  text-align: center;
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+.page-materials .materials-react-hero.is-visible {
+  animation: materialsHeroIn 0.5s ease-out forwards;
+}
+
+@keyframes materialsHeroIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-materials .materials-react-hero h1 {
+  font-size: clamp(2.25rem, 6vw, 3.75rem);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+  margin: 0 0 1rem;
+  color: var(--materials-fg);
+}
+
+.page-materials .materials-neon {
+  color: var(--materials-accent);
+  text-shadow: 0 0 18px rgba(57, 255, 20, 0.35);
+}
+
+.page-materials .materials-react-hero .lead {
+  margin: 0 auto;
+  max-width: min(58rem, 100%);
+  font-size: 1.125rem;
+  color: var(--materials-muted);
+  line-height: 1.6;
+}
+
+.page-materials .materials-react-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+@media (min-width: 768px) {
+  .page-materials .materials-react-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.page-materials .material-io-card.glass-effect,
+.page-materials .material-io-card {
+  padding: 2rem;
+  border-radius: 1rem;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateY(50px);
+  background: var(--materials-card);
+  border: 1px solid var(--materials-border);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+}
+
+.page-materials .material-io-card.is-visible {
+  animation: materialsCardIn 0.8s cubic-bezier(0.34, 1.45, 0.64, 1) forwards;
+}
+
+@keyframes materialsCardIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-materials .material-io-card__head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.page-materials .material-io-card__head svg {
+  width: 2rem;
+  height: 2rem;
+  margin-right: 1rem;
+  flex-shrink: 0;
+  color: var(--materials-accent);
+}
+
+.page-materials .material-io-card h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.25;
+  text-align: left;
+  color: var(--materials-fg);
+}
+
+.page-materials .material-io-card > p {
+  flex: 1;
+  margin: 0 0 1.5rem;
+  color: var(--materials-muted);
+  font-size: 1rem;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.page-materials .material-io-card__cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+
+.page-materials .material-io-card__cols h3 {
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+}
+
+.page-materials .material-io-card__cols h3.material-io-card__pros {
+  color: var(--materials-pros);
+}
+
+.page-materials .material-io-card__cols h3.material-io-card__cons {
+  color: var(--materials-cons);
+}
+
+.page-materials .material-io-card__cols ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style-type: disc;
+  list-style-position: inside;
+  color: var(--materials-muted);
+}
+
+.page-materials .material-io-card__cols li + li {
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 480px) {
+  .page-materials .material-io-card__cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+.page-materials .materials-empty {
+  padding: clamp(6rem, 18vh, 10rem) 1rem 4rem;
+  text-align: center;
+}
+
+.page-materials .materials-empty h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+}
+
+.page-materials .materials-empty p {
+  margin: 0;
+  color: var(--materials-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-materials .materials-react-hero,
+  .page-materials .material-io-card {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+
+  .page-materials .materials-react-hero.is-visible,
+  .page-materials .material-io-card.is-visible {
+    animation: none;
+  }
+}
