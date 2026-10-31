@@ -15,7 +15,13 @@ const {
   validateMaterialsPage,
   safeUrl,
 } = require('../controllers/adminMaterialsPageController');
-const { visibleMaterials, safePublicUrl } = require('../controllers/materialsController');
+const {
+  visibleMaterials,
+  safePublicUrl,
+  showMaterials,
+} = require('../controllers/materialsController');
+const cmsContent = require('../services/cmsContentService');
+const publicNavbar = require('../services/publicNavbarService');
 const {
   ALLOWED_ICONS,
   normalizeIconKey,
@@ -105,6 +111,43 @@ describe('Materials page — wiring & contracts', () => {
       children: [],
     });
     assert.equal(store.parentActive, false);
+  });
+
+  it('showMaterials passes currentPath=/materiales even when req.path is /', async () => {
+    assert.match(
+      read('controllers/materialsController.js'),
+      /currentPath:\s*'\/materiales'/
+    );
+    assert.doesNotMatch(
+      read('controllers/materialsController.js'),
+      /currentPath:\s*req\.path/
+    );
+
+    const origGet = cmsContent.getPublishedSectionContent;
+    const origResolve = cmsContent.resolveMediaReference;
+    const origNav = publicNavbar.getNavbarCmsData;
+    cmsContent.getPublishedSectionContent = async () => structuredClone(DEFAULT_MATERIALS_CONTENT);
+    cmsContent.resolveMediaReference = async () => null;
+    publicNavbar.getNavbarCmsData = async () => ({ navItems: [], settings: {}, logos: {} });
+
+    let rendered = null;
+    const res = {
+      render(_view, locals) {
+        rendered = locals;
+      },
+    };
+
+    try {
+      await showMaterials({ path: '/' }, res, (err) => {
+        throw err || new Error('unexpected next()');
+      });
+      assert.ok(rendered);
+      assert.equal(rendered.currentPath, '/materiales');
+    } finally {
+      cmsContent.getPublishedSectionContent = origGet;
+      cmsContent.resolveMediaReference = origResolve;
+      publicNavbar.getNavbarCmsData = origNav;
+    }
   });
 });
 

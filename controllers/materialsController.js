@@ -54,7 +54,8 @@ async function showMaterials(req, res, next) {
       materials,
       cmsData,
       usesHeroNavbar: true,
-      currentPath: req.path || '/materiales',
+      // Fixed public route: do not use mounted-router-relative req.path ("/").
+      currentPath: '/materiales',
       pageClass: 'page-materials',
       pageStyles: ['/css/public-navbar.css', '/css/home.css', '/css/materials.css'],
       pageModule: '/js/materials.js',
