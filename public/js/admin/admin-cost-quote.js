@@ -171,6 +171,18 @@
     return exp;
   }
 
+  var PRICED_SHIPPING_REQUIRED_MSG =
+    'Ingresá un costo de envío mayor a ₡0 o seleccioná otro estado de envío.';
+
+  /** Returns error message if priced shipping has no positive amount; else ''. */
+  function validatePricedShipping(exportData) {
+    var shipping = resolveQuoteShipping(exportData);
+    if (shipping.mode === 'priced' && shipping.amount <= 0) {
+      return PRICED_SHIPPING_REQUIRED_MSG;
+    }
+    return '';
+  }
+
   var savedQuotes = [];
   var catalog = { additionals: [], printers: [], materials: [], emails: [] };
   var catalogApiAvailable = true;
@@ -2376,7 +2388,7 @@
     var shippingCostField =
       shippingResolved.mode === 'priced'
         ? inputHtml('cq-shippingCost', 'Costo de envío (₡)', Math.max(0, num(exp.shippingCost)), {
-            min: 0,
+            min: 1,
             step: 1,
           }) +
           '<p class="cq-field__hint cq-shipping-hint">Solo en «Con costo» se suma al total. Usá un monto &gt; 0.</p>'
@@ -3458,6 +3470,12 @@
       showHistoryMsg(root, 'Escribí el título de la orden antes de guardar.', true);
       return Promise.resolve();
     }
+    var shippingErr = validatePricedShipping(state.export);
+    if (shippingErr) {
+      showHistoryMsg(root, shippingErr, true);
+      showPdfMsg(root, shippingErr, true);
+      return Promise.resolve();
+    }
     if (triggerEl) triggerEl.disabled = true;
     var exp = state.export || {};
     return api('/api/admin/cost-quotes', {
@@ -3504,6 +3522,11 @@
     var name = getOrderTitle(state);
     if (!name) {
       showPdfMsg(root, 'Escribí el título de la orden antes de guardar la orden.', true);
+      return Promise.resolve();
+    }
+    var shippingErrOrder = validatePricedShipping(state.export);
+    if (shippingErrOrder) {
+      showPdfMsg(root, shippingErrOrder, true);
       return Promise.resolve();
     }
     if (triggerEl) triggerEl.disabled = true;
@@ -3567,6 +3590,11 @@
     }
     if (!clientName) {
       showPdfMsg(root, 'Escribí el nombre del cliente.', true);
+      return Promise.resolve();
+    }
+    var shippingErrSend = validatePricedShipping(exp);
+    if (shippingErrSend) {
+      showPdfMsg(root, shippingErrSend, true);
       return Promise.resolve();
     }
     if (opts.channel === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
@@ -3695,6 +3723,11 @@
     }
     if (!clientName) {
       showPdfMsg(root, 'Escribí el nombre del cliente.', true);
+      return Promise.resolve();
+    }
+    var shippingErrWa = validatePricedShipping(exp);
+    if (shippingErrWa) {
+      showPdfMsg(root, shippingErrWa, true);
       return Promise.resolve();
     }
     if (!isValidClientPhone(clientPhone)) {
@@ -4351,6 +4384,11 @@
           showPdfMsg(root, 'Escribí el nombre del cliente antes de generar el PDF.', true);
           return;
         }
+        var shippingErrPdf = validatePricedShipping(exp);
+        if (shippingErrPdf) {
+          showPdfMsg(root, shippingErrPdf, true);
+          return;
+        }
         if (!global.AdminCostQuotePdf) {
           showPdfMsg(root, 'Módulo PDF no cargado. Recargá la página.', true);
           return;
@@ -4845,6 +4883,7 @@
     mount: mount,
     fmtCrc: fmtCrc,
     beforeLeaveAdminTab: beforeLeaveAdminTab,
+    validatePricedShipping: validatePricedShipping,
     /** Minimal bootstrap seam: shipping resolved during module loadState/migrateState. */
     getBootstrappedShipping: function () {
       return resolveQuoteShipping((state && state.export) || {});

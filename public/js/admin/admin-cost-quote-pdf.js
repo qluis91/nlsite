@@ -859,11 +859,15 @@
 
   /**
    * Non-priced shipping is informational (Conditions), not a money row.
-   * priced → null (monetary summary only when amount > 0).
+   * priced + amount > 0 → null (monetary summary only).
+   * priced + 0 → defensive note for invalid/historical snapshots (no money row).
    */
   function buildShippingNote(exportData) {
     var shipping = resolveQuoteShipping(exportData);
-    if (shipping.mode === 'priced') return null;
+    if (shipping.mode === 'priced') {
+      if (shipping.amount > 0) return null;
+      return 'Costo de env\u00edo pendiente de definir.';
+    }
     if (shipping.mode === 'pending_quote') {
       return 'Costo de env\u00edo no incluido en el total de la cotizaci\u00f3n.';
     }

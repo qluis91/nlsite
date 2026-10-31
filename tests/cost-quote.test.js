@@ -4324,13 +4324,13 @@ describe('Quote shippingMode semantics', () => {
       );
     }
 
-    function notesFor(mode, taxMode) {
+    function notesFor(mode, taxMode, shippingCost) {
       return pdf.buildNotes(
         { taxMode: taxMode || 'excluded' },
         {
           export: {
             shippingMode: mode,
-            shippingCost: 0,
+            shippingCost: shippingCost != null ? shippingCost : 0,
             deliveryDays: 5,
             paymentTerms: '',
             warranty: '',
@@ -4347,11 +4347,21 @@ describe('Quote shippingMode semantics', () => {
     assert.ok(priced.breakdown.some((r) => r.label === 'Envío' && r.amount === 3500));
     assert.equal(priced.grandTotal, 28500);
     assert.equal(pdf.buildShippingNote({ shippingMode: 'priced', shippingCost: 3500 }), null);
-    const pricedNotes = notesFor('priced');
+    const pricedNotes = notesFor('priced', 'excluded', 3500);
     assert.ok(
       !pricedNotes.some((n) =>
-        /no incluido|sin costo adicional|Retiro en local|no aplica/i.test(n.text)
+        /no incluido|sin costo adicional|Retiro en local|no aplica|pendiente de definir/i.test(
+          n.text
+        )
       )
+    );
+
+    const pricedZero = summaryFor('priced', 0);
+    assert.ok(!pricedZero.breakdown.some((r) => /Env/i.test(r.label)), 'priced+0 no money row');
+    assert.equal(pricedZero.grandTotal, 25000);
+    assert.match(
+      pdf.buildShippingNote({ shippingMode: 'priced', shippingCost: 0 }),
+      /Costo de envío pendiente de definir/
     );
 
     for (const mode of ['pending_quote', 'free', 'local_pickup', 'not_applicable']) {
@@ -4385,6 +4395,80 @@ describe('Quote shippingMode semantics', () => {
     const shipIdx = pendingNotes.findIndex((n) => /Costo de envío no incluido/.test(n.text));
     const ivaIdx = pendingNotes.findIndex((n) => /no incluyen IVA/.test(n.text));
     assert.ok(shipIdx !== -1 && ivaIdx !== -1 && shipIdx < ivaIdx);
+  });
+
+  it('Admin rejects priced shipping with cost <= 0 for finalize actions', () => {
+    const vm = require('node:vm');
+    const src = fs.readFileSync(
+      path.join(__dirname, '../public/js/admin/admin-cost-quote.js'),
+      'utf8'
+    );
+    const store = {};
+    const sandbox = {
+      console,
+      localStorage: {
+        getItem(k) {
+          return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null;
+        },
+        setItem(k, v) {
+          store[k] = String(v);
+        },
+        removeItem(k) {
+          delete store[k];
+        },
+      },
+      document: {
+        getElementById() {
+          return null;
+        },
+        querySelector() {
+          return null;
+        },
+        querySelectorAll() {
+          return [];
+        },
+      },
+      window: null,
+      setTimeout,
+      clearTimeout,
+      Promise,
+      JSON,
+      Math,
+      Number,
+      String,
+      Array,
+      Object,
+      Date,
+      Error,
+      TypeError,
+      parseInt,
+      parseFloat,
+      isNaN,
+      encodeURIComponent,
+      decodeURIComponent,
+    };
+    sandbox.window = sandbox;
+    sandbox.global = sandbox;
+    sandbox.self = sandbox;
+    vm.runInNewContext(src, sandbox, { filename: 'admin-cost-quote.js' });
+    const validate = sandbox.AdminCostQuote.validatePricedShipping;
+    assert.equal(typeof validate, 'function');
+    assert.match(
+      validate({ shippingMode: 'priced', shippingCost: 0 }),
+      /Ingresá un costo de envío mayor a ₡0/
+    );
+    assert.match(
+      validate({ shippingMode: 'priced', shippingCost: -1 }),
+      /Ingresá un costo de envío mayor a ₡0/
+    );
+    assert.equal(validate({ shippingMode: 'priced', shippingCost: 3500 }), '');
+    assert.equal(validate({ shippingMode: 'pending_quote', shippingCost: 0 }), '');
+    assert.equal(validate({ shippingMode: 'free', shippingCost: 0 }), '');
+    assert.equal(validate({ shippingMode: 'local_pickup', shippingCost: 0 }), '');
+    assert.equal(validate({ shippingMode: 'not_applicable', shippingCost: 0 }), '');
+    assert.match(adminSrc(), /validatePricedShipping\(state\.export\)/);
+    assert.match(adminSrc(), /validatePricedShipping\(exp\)/);
+    assert.match(adminSrc(), /min:\s*1/);
   });
 
   it('WIP detection treats non-default shippingMode as work', () => {

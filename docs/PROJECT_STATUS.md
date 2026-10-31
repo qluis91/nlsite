@@ -3,6 +3,7 @@
 **Last updated:** 2026-10-30
 **Current phase:** Public services + quote requests + unified navbar
 **Next:** Optional quote↔cost_quotes integration; CMS-editable service pages; CSS variable homogenization
+- [x] **Cotización 3D priced shipping validation**: `priced` requires amount > 0 on save/PDF/send; PDF defensive note for priced+0; other modes unchanged.
 - [x] **Cotización 3D PDF shipping presentation**: priced+amount in monetary summary only; other modes in CONDICIONES Y ANOTACIONES; totals unchanged.
 - [x] **Cotización 3D shipping bootstrap fix**: shipping constants/helpers initialized before `loadState()` so `/admin/cotizacion-3d` no longer crashes on migrate.
 - [x] **Cotización 3D shippingMode**: explicit `priced|pending_quote|free|local_pickup|not_applicable`; default pending_quote; legacy cost>0→priced else pending_quote; PDF text vs amount; Admin/server/PDF parity; no DB/GTI/order changes.

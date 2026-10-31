@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-30 — Validate priced shipping amount
+
+### Fixed
+- Cotización 3D: `shippingMode=priced` requires `shippingCost > 0` before save / PDF / send
+- PDF defensive note for invalid `priced` + ₡0 snapshots: “Costo de envío pendiente de definir.”
+
+### Notes
+- Modes are not auto-changed; user must pick free / pending / pickup / N/A explicitly
+- Calculations unchanged
+
 ## 2026-10-30 — PDF shipping notes vs monetary summary
 
 ### Changed
