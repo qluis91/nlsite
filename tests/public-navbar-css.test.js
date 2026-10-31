@@ -23,30 +23,43 @@ describe('public-navbar.css', () => {
     assert.doesNotMatch(css, /^\s*ul\s*\{[^}]*list-style:\s*none/m);
   });
 
-  it('desktop logo column is capped near 230px (search sits closer to logo)', () => {
+  it('desktop navbar restores large logo track without blindly reverting old spacing', () => {
     const headerIdx = css.indexOf('.hero-header {');
     assert.ok(headerIdx >= 0);
-    const headerBlock = css.slice(headerIdx, headerIdx + 900);
+    const headerBlock = css.slice(headerIdx, headerIdx + 1100);
+    // Logo track may use ~19vw again, but must not restore the exact pre-fix triple
+    // that left a huge empty gutter before search.
+    assert.doesNotMatch(
+      headerBlock,
+      /grid-template-columns:\s*minmax\(210px,\s*clamp\(230px,\s*19vw,\s*320px\)\)\s*clamp\(180px,\s*17vw,\s*280px\)/
+    );
     assert.match(
       headerBlock,
-      /grid-template-columns:\s*minmax\(185px,\s*clamp\(200px,\s*14vw,\s*230px\)\)/
+      /grid-template-columns:\s*minmax\(210px,\s*clamp\(250px,\s*19vw,\s*300px\)\)/
     );
-    assert.match(headerBlock, /clamp\(180px,\s*17vw,\s*280px\)/);
-    assert.doesNotMatch(headerBlock, /clamp\(230px,\s*19vw,\s*320px\)/);
+    assert.match(headerBlock, /clamp\(155px,\s*14\.5vw,\s*250px\)/);
     assert.match(css, /\.hero-logo-img\s*\{[^}]*object-fit:\s*contain/s);
     assert.match(css, /object-position:\s*left center/);
+    assert.match(css, /\.hero-logo\s*\{[^}]*width:\s*100%/s);
+    // Rebalance signal: search pulled into unused logo gutter on large desktop
+    assert.match(css, /@media\s*\(min-width:\s*1321px\)[\s\S]*?\.hero-search--desktop\s*\{[^}]*margin-inline-start:\s*clamp\(-/s);
   });
 
-  it('home.css desktop logo column stays in sync (home loads home.css only)', () => {
+  it('home.css desktop navbar grid stays in sync with public-navbar.css', () => {
     const homeCss = fs.readFileSync(path.join(__dirname, '../public/css/home.css'), 'utf8');
     const headerIdx = homeCss.indexOf('/* ── 12. Homepage navigation system');
     assert.ok(headerIdx >= 0);
-    const headerBlock = homeCss.slice(headerIdx, headerIdx + 1200);
+    const headerBlock = homeCss.slice(headerIdx, headerIdx + 1400);
     assert.match(
       headerBlock,
-      /grid-template-columns:\s*minmax\(185px,\s*clamp\(200px,\s*14vw,\s*230px\)\)/
+      /grid-template-columns:\s*minmax\(210px,\s*clamp\(250px,\s*19vw,\s*300px\)\)/
     );
-    assert.doesNotMatch(headerBlock, /clamp\(230px,\s*19vw,\s*320px\)/);
+    assert.match(headerBlock, /clamp\(155px,\s*14\.5vw,\s*250px\)/);
+    assert.doesNotMatch(
+      headerBlock,
+      /grid-template-columns:\s*minmax\(210px,\s*clamp\(230px,\s*19vw,\s*320px\)\)\s*clamp\(180px,\s*17vw,\s*280px\)/
+    );
+    assert.match(homeCss, /@media\s*\(min-width:\s*1321px\)[\s\S]*?\.hero-search--desktop\s*\{[^}]*margin-inline-start:\s*clamp\(-/s);
     assert.match(homeCss, /@media\s*\(max-width:\s*1040px\)/);
   });
 

@@ -1335,10 +1335,11 @@ body.page-home.is-page-loading {
   right: auto;
   width: min(calc(100% - (var(--home-panel-padding) * 2)), var(--home-content-width));
   min-height: 6.25rem;
-  padding: 0.6rem clamp(0.75rem, 1.5vw, 1.25rem);
-  /* Logo column capped ~230px so search sits closer; nav recovers ~70–90px on large screens. */
-  grid-template-columns: minmax(185px, clamp(200px, 14vw, 230px)) clamp(180px, 17vw, 280px) minmax(0, 1fr);
-  gap: clamp(0.55rem, 0.9vw, 1rem);
+  padding: 0.6rem clamp(0.55rem, 1.15vw, 1.05rem);
+  /* Restore ~original logo track (~19vw/300px) so the large logo box matches pre-rebalance size;
+     reclaim menu room via tighter padding/gap/search max — not by shrinking the logo. */
+  grid-template-columns: minmax(210px, clamp(250px, 19vw, 300px)) clamp(155px, 14.5vw, 250px) minmax(0, 1fr);
+  gap: clamp(0.45rem, 0.75vw, 0.85rem);
   transform: translateX(-50%);
   border: 1px solid transparent;
   border-radius: 1.35rem;
@@ -1802,6 +1803,21 @@ body.page-home.is-page-loading {
 
 .hero-header.is-menu-open .hero-nav-toggle span:nth-child(3) {
   transform: translateY(-6px) rotate(-45deg);
+}
+
+/* Large desktop only: pull search into unused logo-track gutter (opaque artwork stays left). */
+@media (min-width: 1321px) {
+  .hero-search--desktop {
+    margin-inline-start: clamp(-3.5rem, -3.25vw, -2rem);
+  }
+
+  .hero-nav-list {
+    gap: clamp(0.2rem, 0.55vw, 0.55rem);
+  }
+
+  .hero-nav-link {
+    padding-inline: 0.58rem;
+  }
 }
 
 @media (min-width: 1041px) and (max-width: 1320px) {
